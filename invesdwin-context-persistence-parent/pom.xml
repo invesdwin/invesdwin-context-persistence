@@ -40,6 +40,7 @@
 		<version.hibernate-jpa-2.1-api>1.0.0.Final</version.hibernate-jpa-2.1-api>
 		<version.jboss-logging>3.1.4.GA</version.jboss-logging>
 		<version.datanucleus>5.0.0-release</version.datanucleus>
+		<version.jdo-api>3.0.1</version.jdo-api>
 
 		<version.kundera>3.5</version.kundera>
 		<version.ezdb>0.1.12-SNAPSHOT</version.ezdb>
@@ -342,6 +343,19 @@
 				<artifactId>datanucleus-cache</artifactId>
 				<version>${version.datanucleus}</version>
 			</dependency>
+			<dependency>
+				<groupId>javax.jdo</groupId>
+				<artifactId>jdo-api</artifactId>
+				<version>${version.jdo-api}</version>
+				<exclusions>
+					<exclusion>
+						<artifactId>jta</artifactId>
+						<groupId>javax.transaction</groupId>
+					</exclusion>
+				</exclusions>
+			</dependency>
+			
+			
 			<dependency>
 				<groupId>org.apache.directory.server</groupId>
 				<artifactId>apacheds-core</artifactId>

@@ -39,6 +39,11 @@
 			<artifactId>datanucleus-cache</artifactId>
 		</dependency>
 		<dependency>
+			<!-- hidden dependency of datanucleus -->
+			<groupId>javax.jdo</groupId>
+			<artifactId>jdo-api</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>com.mchange</groupId>
 			<artifactId>c3p0</artifactId>
 		</dependency>

@@ -1,1 +1,1 @@
-de.invesdwin.common.persistence.jpa.datanucleus.internal.DatanucleusEnhancerInstrumentationHook
+de.invesdwin.context.persistence.jpa.datanucleus.internal.DatanucleusEnhancerInstrumentationHook
