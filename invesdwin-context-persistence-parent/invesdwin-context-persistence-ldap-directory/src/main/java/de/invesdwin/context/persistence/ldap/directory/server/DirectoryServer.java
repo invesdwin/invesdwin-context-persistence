@@ -128,8 +128,7 @@ public class DirectoryServer {
         //dn: uid=admin,ou=system
         //changetype: modify
         //replace: userPassword
-        //userPassword: e3NoYTUxMn11M3VublJtdlJKYms0Y0FwZjVoMlBMVzRBLzBBL014MWpoWE9qcmF
-        // kanVHQXIzWEhSYlZNNDFjSmc1VzBGSVZxaDhJMm1GL09mNWE5WTNrMDVWeHorQT09
+        //userPassword: invesdwin
         //-
 
         final String content = "dn: uid=admin,ou=system\n" + "changetype: modify\n" + "replace: userPassword\n"
