@@ -3,7 +3,7 @@ package de.invesdwin.context.persistence.jpa.api.query;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.persistence.Query;
 
-import com.mysema.query.jpa.impl.JPAQuery;
+import com.querydsl.jpa.impl.JPAQuery;
 
 import de.invesdwin.context.persistence.jpa.PersistenceProperties;
 import de.invesdwin.context.persistence.jpa.api.query.internal.ConfigurableJpaQuery;

@@ -12,6 +12,7 @@ import javax.persistence.Query;
 import javax.persistence.TypedQuery;
 
 import org.apache.commons.lang3.mutable.MutableBoolean;
+import org.springframework.data.domain.Example;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -364,6 +365,36 @@ public abstract class ACustomIdDao<E, PK extends Serializable> extends AReposito
         } else {
             getDelegate().delete(entities);
         }
+    }
+
+    @Override
+    public <S extends E> List<S> findAll(final Example<S> example) {
+        return getDelegate().findAll(example);
+    }
+
+    @Override
+    public <S extends E> List<S> findAll(final Example<S> example, final Sort sort) {
+        return getDelegate().findAll(example, sort);
+    }
+
+    @Override
+    public <S extends E> S findOne(final Example<S> example) {
+        return getDelegate().findOne(example);
+    }
+
+    @Override
+    public <S extends E> Page<S> findAll(final Example<S> example, final Pageable pageable) {
+        return getDelegate().findAll(example, pageable);
+    }
+
+    @Override
+    public <S extends E> long count(final Example<S> example) {
+        return getDelegate().count(example);
+    }
+
+    @Override
+    public <S extends E> boolean exists(final Example<S> example) {
+        return getDelegate().exists(example);
     }
 
     /******************* protected **************************************/

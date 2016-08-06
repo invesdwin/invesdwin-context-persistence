@@ -20,11 +20,11 @@ import org.springframework.transaction.TransactionSystemException;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.mysema.query.alias.Alias;
-import com.mysema.query.collections.CollQuery;
-import com.mysema.query.jpa.impl.JPAQuery;
-import com.mysema.query.types.EntityPath;
-import com.mysema.query.types.path.ComparablePath;
+import com.querydsl.collections.CollQuery;
+import com.querydsl.core.alias.Alias;
+import com.querydsl.core.types.EntityPath;
+import com.querydsl.core.types.dsl.ComparablePath;
+import com.querydsl.jpa.impl.JPAQuery;
 
 import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.jpa.PersistenceProperties;
@@ -474,8 +474,8 @@ public class TestDaoTest extends APersistenceTest {
         @SuppressWarnings("unchecked")
         public void testQueryWithNullParameter() {
             final EntityManager em = factory.createEntityManager();
-            final List<TestEntity> res = em.createQuery(
-                    "SELECT e FROM " + TestEntity.class.getName() + " e WHERE name = :name")
+            final List<TestEntity> res = em
+                    .createQuery("SELECT e FROM " + TestEntity.class.getName() + " e WHERE name = :name")
                     .setParameter("name", null)
                     .getResultList();
             Assertions.assertThat(res.size()).isZero();
@@ -655,7 +655,7 @@ public class TestDaoTest extends APersistenceTest {
             Assertions.assertThat(fromVo).as("https://bugs.launchpad.net/querydsl/+bug/785935").isNotNull();
             query.from(fromVo, vos);
             query.where(Alias.$(vo.getName()).eq("1"));
-            final List<TestEntity> result = query.list(Alias.$(vo));
+            final List<TestEntity> result = query.select(Alias.$(vo)).fetch();
 
             Assertions.assertThat(result).isNotNull();
             Assertions.assertThat(result.size()).isEqualTo(1);
@@ -676,14 +676,14 @@ public class TestDaoTest extends APersistenceTest {
             Assertions.assertThat(fromVo).as("https://bugs.launchpad.net/querydsl/+bug/785935").isNotNull();
             query.from(fromVo);
             query.where(Alias.$(vo.getName()).eq("1"));
-            final List<TestEntity> result = query.list(Alias.$(vo));
+            final List<TestEntity> result = query.select(Alias.$(vo)).fetch();
 
             Assertions.assertThat(result).isNotNull();
             Assertions.assertThat(result.size()).isEqualTo(1);
             Assertions.assertThat(result.get(0).getName()).isEqualTo("1");
 
             query.where(Alias.$(vo.getName()).eq("2"));
-            final List<TestEntity> resultEmpty = query.list(Alias.$(vo));
+            final List<TestEntity> resultEmpty = query.select(Alias.$(vo)).fetch();
             Assertions.assertThat(resultEmpty.size()).isZero();
         }
 

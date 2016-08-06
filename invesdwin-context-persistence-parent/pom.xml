@@ -27,12 +27,9 @@
 
 		<version.commons-pool>1.6</version.commons-pool>
 
-		<version.querydsl>3.6.1</version.querydsl>
-		<!-- querydsl-collections is still on 2.x -->
-		<version.cglib>2.2.2</version.cglib>
 		<version.asm>3.3.1</version.asm>
-		<version.spring-data-jpa>1.9.1.RELEASE</version.spring-data-jpa>
-		<version.spring-data-commons>1.11.1.RELEASE</version.spring-data-commons>
+		<version.spring-data-jpa>1.10.2.RELEASE</version.spring-data-jpa>
+		<version.spring-data-commons>1.12.2.RELEASE</version.spring-data-commons>
 		<version.jboss-transaction-api_1.1_spec>1.0.1.Final</version.jboss-transaction-api_1.1_spec>
 		<version.c3p0>0.9.5</version.c3p0>
 		<version.jdbcdslog>1.0.6.3-inv</version.jdbcdslog>
@@ -49,8 +46,8 @@
 		<version.leveldb>0.7</version.leveldb>
 		<version.lz4>1.3.0</version.lz4>
 
-		<version.api-ldap>1.0.0-M30</version.api-ldap>
-		<version.spring-ldap>2.0.4.RELEASE</version.spring-ldap>
+		<version.api-ldap>1.0.0-RC1</version.api-ldap>
+		<version.spring-ldap>2.1.0.RELEASE</version.spring-ldap>
 	</properties>
 
 	<dependencyManagement>
@@ -127,7 +124,7 @@
 			</dependency>
 
 			<dependency>
-				<groupId>com.mysema.querydsl</groupId>
+				<groupId>com.querydsl</groupId>
 				<artifactId>querydsl-collections</artifactId>
 				<version>${version.querydsl}</version>
 				<exclusions>
@@ -143,7 +140,7 @@
 				<version>${version.cglib}</version>
 			</dependency>
 			<dependency>
-				<groupId>com.mysema.querydsl</groupId>
+				<groupId>com.querydsl</groupId>
 				<artifactId>querydsl-jpa</artifactId>
 				<version>${version.querydsl}</version>
 				<exclusions>

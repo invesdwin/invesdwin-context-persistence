@@ -2,7 +2,7 @@ package de.invesdwin.context.persistence.jpa.api.query.internal;
 
 import javax.annotation.concurrent.Immutable;
 
-import com.mysema.query.jpa.impl.JPAQuery;
+import com.querydsl.jpa.impl.JPAQuery;
 
 import de.invesdwin.context.persistence.jpa.api.query.IConfigurableQuery;
 

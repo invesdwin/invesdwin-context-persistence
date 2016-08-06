@@ -7,6 +7,7 @@ import javax.inject.Named;
 import javax.persistence.EntityManager;
 import javax.persistence.TypedQuery;
 
+import org.springframework.data.domain.Example;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -248,6 +249,36 @@ public class SimpleTestDao extends ARepository implements IDao<SimpleTestEntity,
     @Override
     public Long extractId(final SimpleTestEntity entity) {
         return entity.getId();
+    }
+
+    @Override
+    public <S extends SimpleTestEntity> List<S> findAll(final Example<S> example) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public <S extends SimpleTestEntity> List<S> findAll(final Example<S> example, final Sort sort) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public <S extends SimpleTestEntity> S findOne(final Example<S> example) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public <S extends SimpleTestEntity> Page<S> findAll(final Example<S> example, final Pageable pageable) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public <S extends SimpleTestEntity> long count(final Example<S> example) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public <S extends SimpleTestEntity> boolean exists(final Example<S> example) {
+        throw new UnsupportedOperationException();
     }
 
 }

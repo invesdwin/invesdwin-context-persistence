@@ -2,12 +2,12 @@ package de.invesdwin.context.persistence.jpa.api;
 
 import javax.annotation.concurrent.Immutable;
 
-import com.mysema.query.types.Expression;
-import com.mysema.query.types.OrderSpecifier;
-import com.mysema.query.types.expr.BooleanExpression;
-import com.mysema.query.types.expr.ComparableExpression;
-import com.mysema.query.types.expr.ComparableExpressionBase;
-import com.mysema.query.types.path.NumberPath;
+import com.querydsl.core.types.Expression;
+import com.querydsl.core.types.OrderSpecifier;
+import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.ComparableExpression;
+import com.querydsl.core.types.dsl.ComparableExpressionBase;
+import com.querydsl.core.types.dsl.NumberPath;
 
 @SuppressWarnings("rawtypes")
 @Immutable
