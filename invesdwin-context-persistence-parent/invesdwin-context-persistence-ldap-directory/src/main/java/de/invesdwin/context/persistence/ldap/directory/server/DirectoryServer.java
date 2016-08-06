@@ -128,12 +128,12 @@ public class DirectoryServer {
         //dn: uid=admin,ou=system
         //changetype: modify
         //replace: userPassword
-        //userPassword:: e3NoYTUxMn11M3VublJtdlJKYms0Y0FwZjVoMlBMVzRBLzBBL014MWpoWE9qcmF
+        //userPassword: e3NoYTUxMn11M3VublJtdlJKYms0Y0FwZjVoMlBMVzRBLzBBL014MWpoWE9qcmF
         // kanVHQXIzWEhSYlZNNDFjSmc1VzBGSVZxaDhJMm1GL09mNWE5WTNrMDVWeHorQT09
         //-
+
         final String content = "dn: uid=admin,ou=system\n" + "changetype: modify\n" + "replace: userPassword\n"
-                + "userPassword:: e3NoYTUxMn11M3VublJtdlJKYms0Y0FwZjVoMlBMVzRBLzBBL014MWpoWE9qcmF\n"
-                + " kanVHQXIzWEhSYlZNNDFjSmc1VzBGSVZxaDhJMm1GL09mNWE5WTNrMDVWeHorQT09\n" + "-";
+                + "userPassword: " + LdapProperties.LDAP_CONTEXT_PASSWORD + "\n" + "-";
         loadLdifContent(content);
     }
 
