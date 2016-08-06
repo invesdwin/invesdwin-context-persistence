@@ -6,6 +6,7 @@
 		<groupId>de.invesdwin</groupId>
 		<artifactId>invesdwin-context-parent</artifactId>
 		<version>1.0.0-SNAPSHOT</version>
+		<relativePath />
 	</parent>
 	<artifactId>invesdwin-context-persistence-parent</artifactId>
 	<packaging>pom</packaging>

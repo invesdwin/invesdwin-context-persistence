@@ -671,7 +671,7 @@ public class TestDaoTest extends APersistenceTest {
             }
             final TestEntity vo = Alias.alias(TestEntity.class);
             Assertions.assertThat(vo).isNotNull();
-            final JPAQuery query = new JPAQuery(dao.getEntityManager());
+            final JPAQuery<TestEntity> query = new JPAQuery<TestEntity>(dao.getEntityManager());
             final EntityPath<TestEntity> fromVo = (EntityPath<TestEntity>) Alias.$(vo);
             Assertions.assertThat(fromVo).as("https://bugs.launchpad.net/querydsl/+bug/785935").isNotNull();
             query.from(fromVo);
