@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns="http://www.springframework.org/schema/beans" xmlns:ldap="http://www.springframework.org/schema/ldap"
+	xmlns:tx="http://www.springframework.org/schema/tx"
+	xsi:schemaLocation="http://www.springframework.org/schema/ldap http://www.springframework.org/schema/ldap/spring-ldap.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-4.1.xsd">
+
+	<bean id="ldapClientProperties"
+		class="de.invesdwin.context.system.properties.SystemPropertiesDefinition" />
+
+	<ldap:context-source
+		url="${de.invesdwin.context.persistence.ldap.LdapProperties.LDAP_CONTEXT_URI}"
+		base="${de.invesdwin.context.persistence.ldap.LdapProperties.LDAP_CONTEXT_BASE}"
+		username="${de.invesdwin.context.persistence.ldap.LdapProperties.LDAP_CONTEXT_USERNAME}"
+		password="${de.invesdwin.context.persistence.ldap.LdapProperties.LDAP_CONTEXT_PASSWORD}">
+		<!-- LDAP pooling disables support for ldapTemplate.authenticate -->
+		<!-- <ldap:pooling test-on-borrow="false" test-while-idle="true" />-->
+	</ldap:context-source>
+
+	<ldap:ldap-template id="ldapTemplate" />
+
+	<!-- enable BaseLdapNameAware interface -->
+	<bean
+		class="org.springframework.ldap.core.support.BaseLdapPathBeanPostProcessor" />
+
+
+
+	<ldap:transaction-manager id="ldapTransactionManager">
+		<ldap:default-renaming-strategy />
+	</ldap:transaction-manager>
+
+	<tx:annotation-driven transaction-manager="ldapTransactionManager"
+		mode="aspectj" />
+</beans>

@@ -1,0 +1,173 @@
+package de.invesdwin.context.persistence.jpa.hibernate;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+import javax.annotation.concurrent.ThreadSafe;
+import javax.inject.Named;
+import javax.persistence.spi.PersistenceProvider;
+import javax.sql.DataSource;
+
+import org.hibernate.cache.ehcache.SingletonEhCacheRegionFactory;
+import org.hibernate.cfg.AvailableSettings;
+import org.hibernate.dialect.Dialect;
+import org.hibernate.dialect.H2Dialect;
+import org.hibernate.dialect.MySQL5InnoDBDialect;
+import org.hibernate.dialect.Oracle10gDialect;
+import org.hibernate.dialect.PostgreSQL9Dialect;
+import org.hibernate.dialect.SQLServerDialect;
+import org.hibernate.jpa.HibernatePersistenceProvider;
+import org.springframework.orm.jpa.JpaDialect;
+import org.springframework.orm.jpa.JpaVendorAdapter;
+import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
+
+import de.invesdwin.context.beans.init.EhCacheConfigurationMerger;
+import de.invesdwin.context.beans.init.MergedContext;
+import de.invesdwin.context.persistence.jpa.ConnectionAutoSchema;
+import de.invesdwin.context.persistence.jpa.ConnectionDialect;
+import de.invesdwin.context.persistence.jpa.PersistenceUnitContext;
+import de.invesdwin.context.persistence.jpa.api.index.Indexes;
+import de.invesdwin.context.persistence.jpa.api.query.IConfigurableQuery;
+import de.invesdwin.context.persistence.jpa.hibernate.internal.HibernateExtendedJpaDialect;
+import de.invesdwin.context.persistence.jpa.spi.delegate.IDialectSpecificDelegate;
+import de.invesdwin.context.persistence.jpa.spi.impl.ConfiguredCPDataSource;
+import de.invesdwin.context.persistence.jpa.spi.impl.NativeJdbcIndexCreationHandler;
+import de.invesdwin.util.error.UnknownArgumentException;
+
+@Named
+@ThreadSafe
+public class HibernateDialectSpecificDelegate implements IDialectSpecificDelegate {
+
+    private final NativeJdbcIndexCreationHandler nativeJdbcIndexCreationHandler = new NativeJdbcIndexCreationHandler();
+
+    @Override
+    public void createIndexes(final PersistenceUnitContext context, final Class<?> entityClass, final Indexes indexes) {
+        nativeJdbcIndexCreationHandler.createIndexes(context, entityClass, indexes);
+    }
+
+    @Override
+    public void dropIndexes(final PersistenceUnitContext context, final Class<?> entityClass, final Indexes indexes) {
+        nativeJdbcIndexCreationHandler.dropIndexes(context, entityClass, indexes);
+    }
+
+    @Override
+    public DataSource createDataSource(final PersistenceUnitContext context) {
+        return new ConfiguredCPDataSource(context, true);
+    }
+
+    @Override
+    public Map<String, String> getPersistenceProperties(final PersistenceUnitContext context) {
+        //        <entry key="hibernate.dialect" value="org.hibernate.dialect.H2Dialect" />
+        final Map<String, String> props = new HashMap<String, String>();
+
+        //        <prop key="hibernate.dialect">${hibernate.dialect}</prop>
+        props.put(AvailableSettings.DIALECT, getHibernateDialect(context).getName());
+        //        <prop key="hibernate.hbm2ddl.auto">${hibernate.hbm2ddl.auto}</prop>
+        props.put(AvailableSettings.HBM2DDL_AUTO, getHibernateHbm2DdlAuto(context));
+        //        <!-- Performance settings -->
+        //        <prop key="hibernate.bytecode.use_reflection_optimizer">true</prop>
+        props.put(AvailableSettings.USE_REFLECTION_OPTIMIZER, String.valueOf(true));
+        //        <prop key="hibernate.max_fetch_depth">3</prop>
+        props.put(AvailableSettings.MAX_FETCH_DEPTH, String.valueOf(3));
+        //        <prop key="hibernate.jdbc.fetch_size">${de.invesdwin.context.persistence.jpa.PersistenceProperties.CONNECTION_BATCH_SIZE}</prop>
+        props.put(AvailableSettings.STATEMENT_FETCH_SIZE, String.valueOf(context.getConnectionBatchSize()));
+        //        <prop key="hibernate.jdbc.batch_size">${de.invesdwin.context.persistence.jpa.PersistenceProperties.CONNECTION_BATCH_SIZE}</prop>
+        props.put(AvailableSettings.STATEMENT_BATCH_SIZE, String.valueOf(context.getConnectionBatchSize()));
+        //        <prop key="hibernate.default_batch_fetch_size">${de.invesdwin.context.persistence.jpa.PersistenceProperties.CONNECTION_BATCH_SIZE}</prop>
+        props.put(AvailableSettings.DEFAULT_BATCH_FETCH_SIZE, String.valueOf(context.getConnectionBatchSize()));
+        //        <prop key="hibernate.jdbc.batch_versioned_data">true</prop>
+        props.put(AvailableSettings.BATCH_VERSIONED_DATA, String.valueOf(true));
+        //        <prop key="hibernate.order_inserts">true</prop>
+        props.put(AvailableSettings.ORDER_INSERTS, String.valueOf(true));
+        //        <prop key="hibernate.order_updates">true</prop>
+        props.put(AvailableSettings.ORDER_UPDATES, String.valueOf(true));
+        //        <prop key="hibernate.cache.use_second_level_cache">true</prop>
+        props.put(AvailableSettings.USE_SECOND_LEVEL_CACHE, String.valueOf(true));
+        //        <prop key="hibernate.cache.use_query_cache">true</prop>
+        props.put(AvailableSettings.USE_QUERY_CACHE, String.valueOf(true));
+        //        <prop key="hibernate.cache.region.factory_class">org.hibernate.cache.ehcache.SingletonEhCacheRegionFactory</prop>
+        props.put(AvailableSettings.CACHE_REGION_FACTORY, SingletonEhCacheRegionFactory.class.getName());
+        //        <prop key="net.sf.ehcache.configurationResourceName">#{ehCacheConfigurationMerger.newEhCacheXml().toString()}</prop>
+        final EhCacheConfigurationMerger ehCacheConfigurationMerger = MergedContext.getInstance()
+                .getBean(EhCacheConfigurationMerger.class);
+        props.put(SingletonEhCacheRegionFactory.NET_SF_EHCACHE_CONFIGURATION_RESOURCE_NAME,
+                ehCacheConfigurationMerger.newEhCacheXml().toString());
+        props.put(AvailableSettings.USE_NEW_ID_GENERATOR_MAPPINGS, String.valueOf(true));
+        props.put(AvailableSettings.PREFER_POOLED_VALUES_LO, String.valueOf(true));
+        return props;
+    }
+
+    private String getHibernateHbm2DdlAuto(final PersistenceUnitContext context) {
+        final ConnectionAutoSchema autoSchema = context.getConnectionAutoSchema();
+        switch (autoSchema) {
+        case CREATE:
+            return "create";
+        case CREATE_DROP:
+            return "create-drop";
+        case UPDATE:
+            return "update";
+        case VALIDATE:
+            return "validate";
+        default:
+            throw UnknownArgumentException.newInstance(ConnectionAutoSchema.class, autoSchema);
+        }
+    }
+
+    private Class<? extends Dialect> getHibernateDialect(final PersistenceUnitContext context) {
+        final ConnectionDialect dialect = context.getConnectionDialect();
+        switch (dialect) {
+        case MSSQLSERVER:
+            return SQLServerDialect.class;
+        case MYSQL:
+            return MySQL5InnoDBDialect.class;
+        case POSTGRESQL:
+            return PostgreSQL9Dialect.class;
+        case ORACLE:
+            return Oracle10gDialect.class;
+        case H2:
+            return H2Dialect.class;
+        default:
+            throw UnknownArgumentException.newInstance(ConnectionDialect.class, dialect);
+        }
+    }
+
+    @Override
+    public PersistenceProvider getPersistenceProvider(final PersistenceUnitContext context) {
+        return new HibernatePersistenceProvider();
+    }
+
+    @Override
+    public JpaVendorAdapter getJpaVendorAdapter(final PersistenceUnitContext context) {
+        return new HibernateJpaVendorAdapter();
+    }
+
+    @Override
+    public void setCacheable(final PersistenceUnitContext context, final IConfigurableQuery query,
+            final boolean cacheable) {
+        query.setHint(org.hibernate.annotations.QueryHints.CACHEABLE, cacheable);
+    }
+
+    @Override
+    public Set<ConnectionDialect> getSupportedDialects() {
+        final Set<ConnectionDialect> supportedDialects = new HashSet<ConnectionDialect>();
+        for (final ConnectionDialect dialect : ConnectionDialect.values()) {
+            if (dialect.isRdbms()) {
+                supportedDialects.add(dialect);
+            }
+        }
+        return supportedDialects;
+    }
+
+    @Override
+    public IDialectSpecificDelegate getOverriddenParent() {
+        return null;
+    }
+
+    @Override
+    public JpaDialect getJpaDialect(final PersistenceUnitContext persistenceUnitContext) {
+        return new HibernateExtendedJpaDialect();
+    }
+
+}

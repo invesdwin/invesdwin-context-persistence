@@ -1,0 +1,11 @@
+<configuration>
+
+	<!-- disable warning about shutdown hook not being added and admin password not being set -->
+	<logger name="org.apache.directory.server.core.DefaultDirectoryService" additivity="false" level="ERROR">
+		<appender-ref ref="stdout" />
+		<appender-ref ref="stderr" />
+		<appender-ref ref="common" />
+		<appender-ref ref="error" />
+	</logger>
+    
+</configuration>

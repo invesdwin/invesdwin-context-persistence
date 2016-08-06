@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<plugin id="invesdwin-context-persistence-jpa-datanucleus" provider-name="de.invesdwin">
+    <extension point="org.datanucleus.store.rdbms.connectionpool">
+        <datasource-factory name="PersistenceUnitContextConnectionPoolFactory" class-name="de.invesdwin.context.persistence.jpa.datanucleus.PersistenceUnitContextConnectionPoolFactory"/>
+    </extension>
+</plugin>

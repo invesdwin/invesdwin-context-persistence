@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans 
+           http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+	<bean id="persistenceProperties" class="de.invesdwin.context.system.properties.SystemPropertiesDefinition">
+		<property name="systemProperties">
+			<map>
+				<entry key="de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_DRIVER@default_pu" value="org.h2.Driver" />
+				<entry key="de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_URL@default_pu" value="jdbc:h2:mem:invesdwin;DB_CLOSE_ON_EXIT=FALSE;DB_CLOSE_DELAY=-1" />
+				<entry key="de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_USER@default_pu" value="sa" />
+				<entry key="de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_PASSWORD@default_pu" value="sa" />
+				<entry key="de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_DIALECT@default_pu" value="H2" />
+				<entry key="de.invesdwin.context.persistence.jpa.PersistenceProperties.DEFAULT_CONNECTION_AUTO_SCHEMA" value="CREATE" />
+			</map>
+		</property>
+	</bean>
+
+	<import resource="classpath*:/META-INF/actx.persistence.jpa.xml" />
+
+</beans>

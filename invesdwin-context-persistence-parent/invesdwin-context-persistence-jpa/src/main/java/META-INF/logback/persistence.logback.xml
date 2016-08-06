@@ -1,0 +1,19 @@
+<configuration>
+
+	<appender name="persistence" class="de.invesdwin.context.log.logback.ConfiguredFileAppender" />
+
+    <logger name="de.invesdwin.TRANSACTIONS" additivity="false" level="INFO">
+    	<appender-ref ref="persistence" />
+    </logger>
+    
+    <logger name="de.invesdwin.SQL_ERROR" additivity="false" level="INFO">
+    	<appender-ref ref="persistence" />
+    </logger>
+    
+    <logger name="de.invesdwin.context.persistence.jpa.test.internal.ProdPersistenceContextLocation" additivity="false" level="DEBUG">
+        <appender-ref ref="persistence" />
+    </logger>
+    
+    <logger name="de.invesdwin.context.persistence.jpa.scanning.internal.RepositoryScanContextLocation" additivity="false" level="OFF" />
+    
+</configuration>
