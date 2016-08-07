@@ -56,7 +56,7 @@ GRANT ALL ON invesdwin.* TO 'invesdwin'@'localhost';
 GRANT SUPER ON *.* TO 'invesdwin'@'localhost';
 CREATE DATABASE invesdwin;
 ```
-- **Install MySQL**: to install a MySQL instance on ubuntu, use the following commands:
+- **Install DB**: to install a MySQL instance on ubuntu, use the following commands:
 ```bash
 sudo apt-get install mysql-server mysql-workbench
 # increase some limits
