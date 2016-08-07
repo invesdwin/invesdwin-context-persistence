@@ -144,7 +144,7 @@ public class ConfigurableTradingDayRatingEntity extends AValueObject {
         private Long company_id;
         private Long ratingConfig_id;
 
-	//demonstrating type conversion here from Date to FDate
+        //demonstrating type conversion here from Date to FDate
         public FDate getDate() {
             return FDate.valueOf(date);
         }
