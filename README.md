@@ -64,7 +64,7 @@ sudo sed -i s/max_connections.*/max_connections=1000/ /etc/mysql/my.cnf
 echo "innodb_file_format=Barracuda" | sudo tee -a /etc/mysql/my.cnf
 sudo /etc/init.d/mysql restart
 ```
-- **Reset DB**: to reset the test database schema, run the following command on the pom.xml of `invesdwin-context-persistence-jpa`:
+- **Reset DB**: to reset the test database schema (deleting all tables), run the following command on the pom.xml of `invesdwin-context-persistence-jpa`:
 ```bash
 mvn -Preset-database-schema process-resources
 ```
