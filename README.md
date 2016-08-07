@@ -125,7 +125,7 @@ public class ConfigurableTradingDayRatingDao extends
     
 }
 ```
-- Also note that we used a custom Id type for this specifically large table to even spare us the additional long Id column that does not get us anywhere with TokuDB, since it does not support foreign keys anyway. See the following code as an advanced example on how to setup indices and custom entities:
+- Also note that we used a custom Id type for this specifically large table to even spare us the additional long Id column that does not get us anywhere with TokuDB, since it does not support foreign keys anyway. See the following code as an advanced example on how to setup indexes and custom entities:
 
 ```java
 @Entity
