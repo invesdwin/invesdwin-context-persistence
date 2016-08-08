@@ -17,7 +17,7 @@
 		</dependency>
 		<dependency>
 			<groupId>de.invesdwin</groupId>
-			<artifactId>invesdwin-context-persistence-ldap-directory</artifactId>
+			<artifactId>invesdwin-context-persistence-ldap-server</artifactId>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>

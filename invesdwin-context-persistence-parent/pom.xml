@@ -19,7 +19,7 @@
 		<module>invesdwin-context-persistence-jpa-kundera-rdbms</module>
 		<module>invesdwin-context-persistence-leveldb</module>
 		<module>invesdwin-context-persistence-ldap</module>
-		<module>invesdwin-context-persistence-ldap-directory</module>
+		<module>invesdwin-context-persistence-ldap-server</module>
 		<module>invesdwin-context-persistence-ldap-test</module>
 	</modules>
 
@@ -97,7 +97,7 @@
 			</dependency>
 			<dependency>
 				<groupId>de.invesdwin</groupId>
-				<artifactId>invesdwin-context-persistence-ldap-directory</artifactId>
+				<artifactId>invesdwin-context-persistence-ldap-server</artifactId>
 				<version>${version.invesdwin-context-persistence}</version>
 			</dependency>
 
