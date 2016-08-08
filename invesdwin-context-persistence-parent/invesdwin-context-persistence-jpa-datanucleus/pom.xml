@@ -54,8 +54,8 @@
 			<artifactId>c3p0</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>com.googlecode.usc</groupId>
-			<artifactId>jdbcdslog</artifactId>
+			<groupId>org.jdbcdslog</groupId>
+			<artifactId>jdbcdslogexp2</artifactId>
 		</dependency>
 	</dependencies>
 

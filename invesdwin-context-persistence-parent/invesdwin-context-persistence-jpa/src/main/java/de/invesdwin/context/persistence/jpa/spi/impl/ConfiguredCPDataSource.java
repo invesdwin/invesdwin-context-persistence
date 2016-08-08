@@ -6,7 +6,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import javax.sql.DataSource;
 
 import org.jdbcdslog.ConnectionPoolDataSourceProxy;
-import org.jdbcdslog.JDBCDSLogException;
+import org.jdbcdslog.JdbcDsLogRuntimeException;
 
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 
@@ -64,7 +64,7 @@ public class ConfiguredCPDataSource extends ADelegateDataSource {
                 final ConnectionPoolDataSourceProxy proxy = new ConnectionPoolDataSourceProxy();
                 proxy.setTargetDSDirect(ds);
                 return proxy;
-            } catch (final JDBCDSLogException e) {
+            } catch (final JdbcDsLogRuntimeException e) {
                 throw new RuntimeException(e);
             }
         } else {

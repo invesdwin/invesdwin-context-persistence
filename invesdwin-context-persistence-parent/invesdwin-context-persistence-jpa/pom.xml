@@ -75,8 +75,8 @@
 		<dependency>
 			<!-- dependant modules need to reference this themselves if they want 
 				to use c3p0 -->
-			<groupId>com.googlecode.usc</groupId>
-			<artifactId>jdbcdslog</artifactId>
+			<groupId>org.jdbcdslog</groupId>
+			<artifactId>jdbcdslogexp2</artifactId>
 			<scope>provided</scope>
 		</dependency>
 	</dependencies>

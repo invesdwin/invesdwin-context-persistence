@@ -40,7 +40,7 @@
 		<version.spring-data-commons>1.12.2.RELEASE</version.spring-data-commons>
 		<version.jboss-transaction-api_1.1_spec>1.0.1.Final</version.jboss-transaction-api_1.1_spec>
 		<version.c3p0>0.9.5</version.c3p0>
-		<version.jdbcdslog>1.0.6.3-inv</version.jdbcdslog>
+		<version.jdbcdslogexp2>2.1</version.jdbcdslogexp2>
 		<version.hibernate>4.3.7.Final</version.hibernate>
 		<version.hibernate-jpa-2.1-api>1.0.0.Final</version.hibernate-jpa-2.1-api>
 		<version.jboss-logging>3.1.4.GA</version.jboss-logging>
@@ -230,9 +230,9 @@
 				<version>${version.c3p0}</version>
 			</dependency>
 			<dependency>
-				<groupId>com.googlecode.usc</groupId>
-				<artifactId>jdbcdslog</artifactId>
-				<version>${version.jdbcdslog}</version>
+				<groupId>org.jdbcdslog</groupId>
+				<artifactId>jdbcdslogexp2</artifactId>
+				<version>${version.jdbcdslogexp2}</version>
 			</dependency>
 			<dependency>
 				<groupId>com.impetus.kundera.core</groupId>
