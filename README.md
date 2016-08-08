@@ -17,9 +17,9 @@ Dependency declaration:
 </dependency>
 ```
 
-## JPA
+## JPA Modules
 
-The `invesdwin-context-persistence-jpa` module provides a way to code against JPA without having to bind yourself to a specific ORM (Object-Relational-Mapping) framework. In theory you could use the same entities you programmed and switch between Hibernate, OpenJPA, EclipseLink, Datanucleus, Kundera and so on. In practice you will find out that not all JPA implementations are equally good. So for now we only have modules available for [Hibernate](http://hibernate.org/) (see `invesdwin-context-persistence-jpa-hibernate`) as the most mature JPA implementation for relational databases in our opinion. Additionally there currently are experimental modules for [Datanucleus](http://www.datanucleus.org/) (see `invesdwin-context-persistence-jpa-datanucleus`) and [Kundera](https://github.com/impetus-opensource/Kundera) (see `invesdwin-context-persistence-jpa-kundera`) as they provide connectors to NoSQL databases over JPA. These are in experimental stage since they still fail some of our unit tests for JPA compliance or have some other bugs. But they can already be used when you forego advanced JPA features. For now they will have to suffice as a proof of concept that `invesdwin-context-persistence-jpa` stays neutral to any JPA implementation specifically and provides the flexibility to give up on extended JPA features. So the rest of this documentation will tell you what you can do with a full JPA implementation like Hibernate and will give you hints on how you can scale down for different requirements. The main JPA module provides the following tools:
+The `invesdwin-context-persistence-jpa` module provides a way to code against JPA (Java Persistence API) without having to bind yourself to a specific ORM (Object-Relational-Mapping) framework. In theory you could use the same entities you programmed and switch between Hibernate, OpenJPA, EclipseLink, Datanucleus, Kundera and so on. In practice you will find out that not all JPA implementations are equally good. So for now we only have modules available for [Hibernate](http://hibernate.org/) (see `invesdwin-context-persistence-jpa-hibernate`) as the most mature JPA implementation for relational databases in our opinion. Additionally there currently are experimental modules for [Datanucleus](http://www.datanucleus.org/) (see `invesdwin-context-persistence-jpa-datanucleus`) and [Kundera](https://github.com/impetus-opensource/Kundera) (see `invesdwin-context-persistence-jpa-kundera`) as they provide connectors to NoSQL databases over JPA. These are in experimental stage since they still fail some of our unit tests for JPA compliance or have some other bugs. But they can already be used when you forego advanced JPA features. For now they will have to suffice as a proof of concept that `invesdwin-context-persistence-jpa` stays neutral to any JPA implementation specifically and provides the flexibility to give up on extended JPA features. So the rest of this documentation will tell you what you can do with a full JPA implementation like Hibernate and will give you hints on how you can scale down for different requirements. The main JPA module provides the following tools:
 
 ### Entities
 
@@ -29,12 +29,13 @@ The `invesdwin-context-persistence-jpa` module provides a way to code against JP
   - `AEntityWithSequence`: using the high performance variation of one sequence per table in Hibernate, or the default sequence strategy on other ORMs (this is the default base class for `AEntity`)
 - **AUnversionedEntity**: this is the base class that only implements the ID column itself, without adding optimistic locking or timestamps. It is useful when you have a very large table where you want spare you the hard disk space for uneccessary additional fields on millions of rows. As above you have the option to use the other ID generator strategies by extending `AUnversionedEntityWithIdentity` or `AUnversionedEntityWithTableSequence`, while `AUnversionedEntityWithSequence` is the default.
 
-### Data Access Objects (DAO)
+### Data Access Objects (DAOs)
 
 - **ADao**: this is the default DAO implementation. It is always bound to provide queries and so on for one specific entity.  It is the default implementation for a numerical ID as used in AEntity. The DAO provides support for [spring-data-jpa](http://projects.spring.io/spring-data-jpa/) and [QueryDSL](http://www.querydsl.com/) while extending it with convenience methods for [Query by Example](https://en.wikipedia.org/wiki/Query_by_Example). To get the most out of your DAOs, your entities should follow the following assumptions:
-  - only use basic Java object types as fields in your entities and convert to/from a different desired type in the getters and setters. E.g. use a Date/BigDecimal fields and convert to/from FDate/Decimal (see [invesdwin-util](https://github.com/subes/invesdwin-util)) in the getter/setter methods. Also make sure you do not use primitive data types such as long, double but instead object types like Long, Double as fields, so that the null checks can work properly in validation phase and for Query by Example convenience.
+  - only use basic Java object types as fields in your entities and convert to/from a different desired type in the getters and setters. E.g. use a Date/BigDecimal fields and convert to/from FDate/Decimal (see [invesdwin-util](https://github.com/subes/invesdwin-util)) in the getter/setter methods. So you don't have to setup ORM specific type converters (since this is missing from JPA specification).
+  - also make sure you do not use primitive data types such as long, double but instead object types like Long, Double as fields, so that the null checks can work properly in validation phase and for Query by Example convenience.
   - utilize BeanValidation annotations extensively to only allow clean data into your database
-  - put the invesdwin @Indexes annotation on your entities to let the framework generate them for you (since the JPA standard is missing this)
+  - put the invesdwin @Indexes annotation on your entities to let the framework generate them for you (since the JPA specification is missing this)
   - if you want to roll your own customized entities, just do that and implement the `IEntity` interface to still be able to use our ADao base classe, which needs to have a way to retrieve the numerical IDs.
 - **ACustomIdDao**: this DAO implementation can be used when you want to use something different as an ID in combination with your custom entity that not necessarily has a numeric ID (otherwise you could use `ADao` with `IEntity`). E.g. when you want to use a composite primary key as the ID.
 - **ARepository**: for a good design, DAOs should only contain queries for their specific entity. If you want to write queries that span multiple entities, you should rather externalize them into a repository implementation, which can also reference multiple DAOs to get its work done. Or you can write a repository for a special task like complex searching over different entities that requires a whole bunch of code to write the queries. Regarding queries here are a few tips:
@@ -48,7 +49,7 @@ The `invesdwin-context-persistence-jpa` module provides a way to code against JP
 ### Testing and Configuration
 
 - **persistence.log**: per default our transaction manager logs SQL statements into a log file. It adds information about transactions, so you can always troubleshoot your persistence issues properly. If you want to gain some additional performance during production use, just change the log level of `org.jdbcdslog.StatementLogger` to `OFF` in your logback configuration.
-- **@PersistenceTest**: per default all JUnit tests run in an in-memory H2 database. Add this annotation to your test case to switch to a real server during testing (e.g. when you want to test against real data you seeded during development of a website). The default server is supposed to be a local MySQL instance that is setup with the following script:
+- **@PersistenceTest**: per default all JUnit tests run in an in-memory H2 database. Add this annotation to your test case to switch to a real server during testing (e.g. when you want to test against real data you seeded during development of a website). The default non in-memory server is supposed to be a local MySQL instance that is setup with the following sql script:
 ```sql
 USE mysql;
 CREATE USER 'invesdwin'@'localhost' IDENTIFIED BY 'invesdwin';
@@ -56,7 +57,7 @@ GRANT ALL ON invesdwin.* TO 'invesdwin'@'localhost';
 GRANT SUPER ON *.* TO 'invesdwin'@'localhost';
 CREATE DATABASE invesdwin;
 ```
-- To install a MySQL instance on ubuntu, use the following commands:
+- **Install DB**: to install a MySQL instance on ubuntu, use the following commands:
 ```bash
 sudo apt-get install mysql-server mysql-workbench
 # increase some limits
@@ -64,7 +65,11 @@ sudo sed -i s/max_connections.*/max_connections=1000/ /etc/mysql/my.cnf
 echo "innodb_file_format=Barracuda" | sudo tee -a /etc/mysql/my.cnf
 sudo /etc/init.d/mysql restart
 ```
-- To use a different database as a test server, just put a file called `/META-INF/env/${USERNAME}.properties` into your classpath. This file allows you to override the modules default configuration depending on your local development environment (for more information and on how to define distribution specific settings, see the [invesdwin-context documentation](https://github.com/subes/invesdwin-context). Just put following properties with changed values there (and make sure the connection driver is added as a maven dependency and available in the classpath):
+- **Reset DB**: to reset the test database schema (deleting all tables), run the following command on the pom.xml of `invesdwin-context-persistence-jpa`:
+```bash
+mvn -Preset-database-schema process-resources
+```
+- **Change DB Config**: to use a different database as a test server, just put a file called `/META-INF/env/${USERNAME}.properties` into your classpath. This file allows you to override the modules default configuration depending on your local development environment (for more information and on how to define distribution specific settings, see the [invesdwin-context documentation](https://github.com/subes/invesdwin-context). Just put following properties with changed values there (and make sure the connection driver is added as a maven dependency and available in the classpath):
 ```properties
 de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_DRIVER@default_pu=com.mysql.jdbc.Driver
 de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_URL@default_pu=jdbc:mysql://localhost:3306/invesdwin
@@ -72,16 +77,18 @@ de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_USER@defa
 de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_PASSWORD@default_pu=invesdwin
 de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_DIALECT@default_pu=MYSQL
 ```
-- Notice the `@default_pu` string in the properties? This defines the persistence unit this configuration is for. Duplicating these values and changing the name of the persistence unit allows you to setup multiple databases to be used in one application. Depending on the dialect and which persistence provider modules you have in your classpath (e.g. Hibernate, Datanucleus, Kundera) you can in theory even mix Hibernate for relational databases, Datanucleus for HBase and Kundera for Cassandra as multiple ORMs in the same application. Though we still have to define a few more `invesdwin-persistence-jpa-*` modules and create an actual proof of concept for this feature, but it is an interesting idea regarding polyglot persistence. For now this just allows you to e.g. use multiple databases with the Hibernate module.
+- **Multiple Persistence Units**: notice the `@default_pu` string in the properties? This defines the persistence unit this configuration is for. Duplicating these values and changing the name of the persistence unit allows you to setup multiple databases to be used in one application. Depending on the dialect and which persistence provider modules you have in your classpath (e.g. Hibernate, Datanucleus, Kundera) you can in theory even mix Hibernate for relational databases, Datanucleus for HBase and Kundera for Cassandra as multiple ORMs in the same application. Though we still have to define a few more `invesdwin-persistence-jpa-*` modules and create an actual proof of concept for this feature, but it is an interesting idea regarding polyglot persistence. For now this just allows you to e.g. use multiple databases with the Hibernate module.
   - you can annotate your entity class with `@PersistenceUnit("another_pu")` to tell the invesdwin-context bootstrap to associate this entity with the specific persistence unit configuration
   - the `ACustomIdDao`/`ADao` class will lookup its entity class to determine the persistence unit (see `PersistenceProperties` class) to be used for its entity manager and transactions. Since `ARepository` does not have an associated entity, you have to provide the proper persistence unit name by overriding the `getPersistenceUnitName()` method. 
   - the `IPersistenceUnitAware` interface defines this method and `ARepository` implements this interface. You can actually also implement this interface inside any of your spring Beans/Services to add this information. It tells the `ContextDelegatingTransactionManager` to use this specific persistence unit for the transactions defined inside this class
+  - you can have shared transactions spanned over multiple persistence units simply by nesting those transactions in one another. If the nested transaction gets rolled back, the outer transaction will be rolled back as well. Still you have to be careful about nested transactions being committed before the outer transaction gets committed, so choose the nesting levels wisely and test your rollback scenarios sufficiently. JTA with a two-phase-commit would have been an interesting alternative here, but setting this up with support for NoSQL databases and multiple ORMs is a nightmare sadly.
   - additionally you can override/specify the persistence unit to use directly with a `@Transactional(value="another_tm")` annotation. This defines a specific transaction manager bean to be used for this transaction definition. It leverages the naming convention of all persistence unit related beans following a specific naming pattern:
     - `another_pu` defines the persistence unit name `another` (`default_pu` being the `default` persistence unit) and is required to always carry the suffix `_pu` so it can be identified as such
     - `another_tm` defines the transaction manager bean and can be used in `@Transactional` annotations as above or to lookup the specific `PlatformTransactionManager` bean to do manual transaction handling by calling its `getTransaction`/`commit`/`rollback` methods
     - `another_emf` defines the `EntityManagerFactory` bean with which you can retrieve `EntityManager` instances. You can make them threadsafe with springs `SharedEntityManagerCreator` or directly use `PersistenceProperties.getPersistenceUnitContext("another_pu").getEntityManager()` to get a thread safe instance.
-    - `another_ds` defines the `DataSource` which normally is a [c3p0](http://www.mchange.com/projects/c3p0/) connection pool instance that can be used to gain direct JDBC access to the database
-- per default during testing the schema generation feature of the ORMs is enabled, while in production the schema only gets validated, you can change this behavior with the `de.invesdwin.context.persistence.jpa.PersistenceProperties.DEFAULT_CONNECTION_AUTO_SCHEMA=(VALIDATE|UPDATE|CREATE|CREATE_DROP)` property globally or on a persistence unit basis via `de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_AUTO_SCHEMA@default_pu=(VALIDATE|UPDATE|CREATE|CREATE_DROP)`
+    - `another_ds` defines the `DataSource` which normally is a [c3p0](http://www.mchange.com/projects/c3p0/) connection pool instance that can be used to gain direct JDBC access to the database. for now c3p0 is the most robust connection pool we found, even if it is not said to be the fastest. At least it provides a `PreparedStatement` cache (which is missing in HikariCP and hard to configure sometimes depending on the JDBC driver), does not give unexplainable runtime exceptions in production environments (we had some encounters of the weird kind with BoneCP) and provides helpful errors when it encounters transaction deadlocks (which can be very helpful during development and troubleshooting of production problems). In most cases we value development comfort higher than raw speed (which definitely comes at a cost), so that is why we chose c3p0 in the end. If you want to use a different connection pool we could provide some means to allow you to override the connection pool factory, but for now it cannot be changed since we did not have the use case for this feature yet (we normally only add variability into the modules as soon/late as we need it).
+- **Data Management in Tests**: you can extend `APersistenceTestPreparer` to build some fixture generators that you can use inside your setup of unit tests to get some test data. By defining a separate class for the preparer, you can even run it as a unit test itself to populate a test database (configured by annotating the test class with `@PersistenceTest(PersistenceTestContext.SERVER)`). You can also run `new PersistenceTestHelper().clearAllTables()` to reset the database inside your unit test as often as you want (e.g. in your setUp() or setUpOnce() method). It goes over all spring beans that implement `IClearAllTablesAware` and deletes all tables rows with this since the ADao default implementations do that for each entity (as long as each enity has an ADao implementation, in the other cases you should provide your own `IClearAllTablesAware` bean). Be cautious here with circular dependencies between entities using foreign keys. You might have to customize `deleteAll()` method of your `ADao`/`IClearAllTablesAware` bean to resolve that before deletion. Check the `persistence.log` if your unit tests seem to hang, it might be filled with warnings regarding circular foreign keys or the test might abort with a `StackOverflowError` because of this.
+- **Schema Generation**: per default during testing the schema generation feature of the ORMs is enabled, while in production the schema only gets validated, you can change this behavior with the `de.invesdwin.context.persistence.jpa.PersistenceProperties.DEFAULT_CONNECTION_AUTO_SCHEMA=(VALIDATE|UPDATE|CREATE|CREATE_DROP)` property globally or on a persistence unit basis via `de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_AUTO_SCHEMA@default_pu=(VALIDATE|UPDATE|CREATE|CREATE_DROP)`
 
 ### Advanced Customization Example
 
@@ -118,7 +125,7 @@ public class ConfigurableTradingDayRatingDao extends
     
 }
 ```
-- Also note that we used a custom Id type for this specifically large table to even spare us the additional long Id column that does not get us anywhere with TokuDB, since it does not support foreign keys anyway. See the following code as an advanced example on how to setup indices and custom entities:
+- Also note that we used a custom Id type for this specifically large table to even spare us the additional long Id column that does not get us anywhere with TokuDB, since it does not support foreign keys anyway. See the following code as an advanced example on how to setup indexes and custom entities:
 
 ```java
 @Entity
@@ -138,6 +145,7 @@ public class ConfigurableTradingDayRatingEntity extends AValueObject {
         private Long company_id;
         private Long ratingConfig_id;
 
+        //demonstrating type conversion here from Date to FDate
         public FDate getDate() {
             return FDate.valueOf(date);
         }
@@ -187,6 +195,6 @@ public class ConfigurableTradingDayRatingEntity extends AValueObject {
 }
 ```
 
-## LDAP
+## LDAP Modules
 
-## LevelDB
+## LevelDB Module
