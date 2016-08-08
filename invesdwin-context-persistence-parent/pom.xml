@@ -11,6 +11,13 @@
 	<artifactId>invesdwin-context-persistence-parent</artifactId>
 	<packaging>pom</packaging>
 
+	<licenses>
+		<license>
+			<name>GNU Lesser General Public License (LGPL), Version 3.0</name>
+			<url>http://www.gnu.org/licenses/lgpl-3.0.html</url>
+		</license>
+	</licenses>
+
 	<modules>
 		<module>invesdwin-context-persistence-jpa</module>
 		<module>invesdwin-context-persistence-jpa-hibernate</module>
@@ -352,8 +359,8 @@
 					</exclusion>
 				</exclusions>
 			</dependency>
-			
-			
+
+
 			<dependency>
 				<groupId>org.apache.directory.server</groupId>
 				<artifactId>apacheds-core</artifactId>
@@ -451,6 +458,32 @@
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
+
+	<distributionManagement>
+		<repository>
+			<id>central</id>
+			<name>invesdwin.de-releases</name>
+			<url>http://invesdwin.de/artifactory/invesdwin-oss</url>
+		</repository>
+		<snapshotRepository>
+			<id>snapshots</id>
+			<name>invesdwin.de-snapshots</name>
+			<url>http://invesdwin.de/artifactory/invesdwin-oss</url>
+		</snapshotRepository>
+	</distributionManagement>
+
+	<repositories>
+		<repository>
+			<id>invesdwin-oss</id>
+			<url>http://invesdwin.de/artifactory/invesdwin-oss</url>
+		</repository>
+	</repositories>
+	<pluginRepositories>
+		<pluginRepository>
+			<id>invesdwin-oss</id>
+			<url>http://invesdwin.de/artifactory/invesdwin-oss</url>
+		</pluginRepository>
+	</pluginRepositories>
 
 </project>
 
