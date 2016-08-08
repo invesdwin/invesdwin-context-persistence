@@ -3,8 +3,8 @@ package de.invesdwin.context.persistence.leveldb;
 // CHECKSTYLE:OFF
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.text.ParseException;
 import java.util.Collections;
@@ -15,11 +15,11 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.io.FileUtils;
 import org.junit.Assert;
 import org.junit.Test;
+import org.springframework.core.io.ClassPathResource;
 
 import com.google.common.io.CharStreams;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.persistence.leveldb.ADelegateRangeTable;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.fdate.FDate;
@@ -69,9 +69,9 @@ public class TestStockData extends ATest {
 
     @Test
     public void testStockData() throws IOException, ParseException {
-        final FileInputStream in = new FileInputStream(
-                new File("./src/test/java/de/invesdwin/common/persistence/leveldb/" + MSFT + ".txt"));
-        final List<String> lines = CharStreams.readLines(new InputStreamReader(in));
+        InputStream in = new ClassPathResource("MSFT.txt", getClass()).getInputStream();
+        final List<String> lines = CharStreams
+                .readLines(new InputStreamReader(in));
         lines.remove(0);
         lines.remove(0);
         Collections.reverse(lines);
