@@ -9,29 +9,17 @@ import ezdb.serde.Serde;
 @NotThreadSafe
 public class LazySerdeValue<E> implements ILazySerdeValue<E> {
 
-    private Callable<byte[]> bytesCallable;
-    private Callable<E> valueCallable;
+    private final Callable<byte[]> bytesCallable;
+    private final E value;
 
     public LazySerdeValue(final Serde<E> serde, final E value) {
         this.bytesCallable = new Callable<byte[]>() {
             @Override
             public byte[] call() {
-                final byte[] bytes = serde.toBytes(value);
-                bytesCallable = new Callable<byte[]>() {
-                    @Override
-                    public byte[] call() throws Exception {
-                        return bytes;
-                    }
-                };
-                return bytes;
+                return serde.toBytes(value);
             }
         };
-        this.valueCallable = new Callable<E>() {
-            @Override
-            public E call() throws Exception {
-                return value;
-            }
-        };
+        this.value = value;
     }
 
     public LazySerdeValue(final Serde<E> serde, final byte[] bytes) {
@@ -41,40 +29,7 @@ public class LazySerdeValue<E> implements ILazySerdeValue<E> {
                 return bytes;
             }
         };
-        this.valueCallable = new Callable<E>() {
-            @Override
-            public E call() {
-                final E value = serde.fromBytes(bytes);
-                valueCallable = new Callable<E>() {
-                    @Override
-                    public E call() throws Exception {
-                        return value;
-                    }
-                };
-                return value;
-            }
-        };
-    }
-
-    public LazySerdeValue(final Serde<E> serde, final Callable<E> value) {
-        this.bytesCallable = new Callable<byte[]>() {
-            @Override
-            public byte[] call() {
-                try {
-                    final byte[] bytes = serde.toBytes(value.call());
-                    bytesCallable = new Callable<byte[]>() {
-                        @Override
-                        public byte[] call() throws Exception {
-                            return bytes;
-                        }
-                    };
-                    return bytes;
-                } catch (final Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        };
-        this.valueCallable = value;
+        this.value = serde.fromBytes(bytes);
     }
 
     @Override
@@ -88,11 +43,7 @@ public class LazySerdeValue<E> implements ILazySerdeValue<E> {
 
     @Override
     public E getValue() {
-        try {
-            return valueCallable.call();
-        } catch (final Exception e) {
-            throw new RuntimeException(e);
-        }
+        return value;
     }
 
     public static <T> T getValue(final ILazySerdeValue<T> value) {
