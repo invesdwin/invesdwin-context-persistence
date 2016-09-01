@@ -4,26 +4,39 @@ import java.util.concurrent.Callable;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import de.invesdwin.util.concurrent.ACachedCallable;
 import ezdb.serde.Serde;
 
 @NotThreadSafe
 public abstract class ATransformingLazySerdeValue<S, R> implements ILazySerdeValue<R> {
 
-    private final Callable<R> value;
-    private Callable<byte[]> bytes;
+    private Callable<R> valueCallable;
+    private Callable<byte[]> bytesCallable;
 
     public ATransformingLazySerdeValue(final Serde<R> serde, final ILazySerdeValue<? extends S> delegate) {
-        this.value = new ACachedCallable<R>() {
+        this.valueCallable = new Callable<R>() {
             @Override
-            protected R innerCall() {
-                return transform(delegate.getValue());
+            public R call() {
+                final R value = transform(delegate.getValue());
+                valueCallable = new Callable<R>() {
+                    @Override
+                    public R call() throws Exception {
+                        return value;
+                    }
+                };
+                return value;
             }
         };
-        this.bytes = new ACachedCallable<byte[]>() {
+        this.bytesCallable = new Callable<byte[]>() {
             @Override
-            protected byte[] innerCall() {
-                return serde.toBytes(getValue());
+            public byte[] call() {
+                final byte[] bytes = serde.toBytes(getValue());
+                bytesCallable = new Callable<byte[]>() {
+                    @Override
+                    public byte[] call() throws Exception {
+                        return bytes;
+                    }
+                };
+                return bytes;
             }
         };
     }
@@ -33,7 +46,7 @@ public abstract class ATransformingLazySerdeValue<S, R> implements ILazySerdeVal
     @Override
     public R getValue() {
         try {
-            return value.call();
+            return valueCallable.call();
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
@@ -42,7 +55,7 @@ public abstract class ATransformingLazySerdeValue<S, R> implements ILazySerdeVal
     @Override
     public byte[] getBytes() {
         try {
-            return bytes.call();
+            return bytesCallable.call();
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
