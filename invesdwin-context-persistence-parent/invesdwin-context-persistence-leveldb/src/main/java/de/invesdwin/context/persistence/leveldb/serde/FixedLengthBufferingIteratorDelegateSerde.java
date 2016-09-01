@@ -2,22 +2,24 @@ package de.invesdwin.context.persistence.leveldb.serde;
 
 import javax.annotation.concurrent.Immutable;
 
-import de.invesdwin.util.collections.iterable.BufferingIterator;
+import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
+import de.invesdwin.util.collections.iterable.buffer.IBufferingIterator;
 import ezdb.serde.Serde;
 
 @Immutable
-public class FixedLengthBufferingIteratorDelegateSerde<E> implements Serde<BufferingIterator<? extends E>> {
+public class FixedLengthBufferingIteratorDelegateSerde<E> implements Serde<IBufferingIterator<? extends E>> {
 
     private final Serde<E> delegate;
     private final int fixedLength;
 
-    public FixedLengthBufferingIteratorDelegateSerde(final Serde<E> delegate, final int fixedLength) {
-        this.delegate = delegate;
+    @SuppressWarnings("unchecked")
+    public FixedLengthBufferingIteratorDelegateSerde(final Serde<? extends E> delegate, final int fixedLength) {
+        this.delegate = (Serde<E>) delegate;
         this.fixedLength = fixedLength;
     }
 
     @Override
-    public BufferingIterator<? extends E> fromBytes(final byte[] bytes) {
+    public IBufferingIterator<? extends E> fromBytes(final byte[] bytes) {
         final int size = bytes.length / fixedLength;
         final BufferingIterator<E> result = new BufferingIterator<E>();
         int curOffset = 0;
@@ -32,7 +34,7 @@ public class FixedLengthBufferingIteratorDelegateSerde<E> implements Serde<Buffe
     }
 
     @Override
-    public byte[] toBytes(final BufferingIterator<? extends E> objs) {
+    public byte[] toBytes(final IBufferingIterator<? extends E> objs) {
         final byte[] result = new byte[objs.size() * fixedLength];
         int curOffset = 0;
         for (final E obj : objs) {
