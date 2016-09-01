@@ -23,10 +23,11 @@ public class LazySerdeValue<E> implements ILazySerdeValue<E> {
     }
 
     public LazySerdeValue(final Serde<E> serde, final byte[] bytes) {
+        final byte[] bytesCopy = bytes.clone();
         this.bytesCallable = new Callable<byte[]>() {
             @Override
             public byte[] call() throws Exception {
-                return bytes;
+                return bytesCopy;
             }
         };
         this.value = serde.fromBytes(bytes);

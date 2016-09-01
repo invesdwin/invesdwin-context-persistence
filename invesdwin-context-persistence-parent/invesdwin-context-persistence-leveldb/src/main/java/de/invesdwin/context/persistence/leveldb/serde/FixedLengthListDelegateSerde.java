@@ -23,8 +23,8 @@ public class FixedLengthListDelegateSerde<E> implements Serde<List<? extends E>>
         final int size = bytes.length / fixedLength;
         final List<E> result = new ArrayList<E>(size);
         int curOffset = 0;
+        final byte[] byteBuffer = new byte[fixedLength];
         for (int i = 0; i < size; i++) {
-            final byte[] byteBuffer = new byte[fixedLength];
             System.arraycopy(bytes, curOffset, byteBuffer, 0, fixedLength);
             final E obj = delegate.fromBytes(byteBuffer);
             result.add(obj);

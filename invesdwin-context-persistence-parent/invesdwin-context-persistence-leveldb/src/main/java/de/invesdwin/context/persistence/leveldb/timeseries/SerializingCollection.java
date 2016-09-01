@@ -309,6 +309,7 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
     private class FixedLengthDeserializingIterator extends ACloseableIterator<E> {
 
         private final DataInputStream inputStream;
+        private final byte[] byteBuffer;
         private boolean innerClosed;
 
         private E cachedElement;
@@ -316,6 +317,7 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
         {
             try {
                 inputStream = new DataInputStream(newDecompressor(new BufferedInputStream(new FileInputStream(file))));
+                byteBuffer = new byte[fixedLength];
             } catch (final IOException e) {
                 throw Err.process(e);
             }
@@ -340,7 +342,6 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
             if (innerClosed) {
                 return (E) null;
             }
-            final byte[] byteBuffer = new byte[fixedLength];
             try {
                 inputStream.readFully(byteBuffer);
             } catch (final IOException e) {

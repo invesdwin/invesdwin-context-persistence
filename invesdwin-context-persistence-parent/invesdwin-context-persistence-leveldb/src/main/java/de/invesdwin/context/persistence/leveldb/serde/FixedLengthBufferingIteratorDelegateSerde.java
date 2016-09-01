@@ -23,8 +23,8 @@ public class FixedLengthBufferingIteratorDelegateSerde<E> implements Serde<IBuff
         final int size = bytes.length / fixedLength;
         final BufferingIterator<E> result = new BufferingIterator<E>();
         int curOffset = 0;
+        final byte[] byteBuffer = new byte[fixedLength];
         for (int i = 0; i < size; i++) {
-            final byte[] byteBuffer = new byte[fixedLength];
             System.arraycopy(bytes, curOffset, byteBuffer, 0, fixedLength);
             final E obj = delegate.fromBytes(byteBuffer);
             result.add(obj);
