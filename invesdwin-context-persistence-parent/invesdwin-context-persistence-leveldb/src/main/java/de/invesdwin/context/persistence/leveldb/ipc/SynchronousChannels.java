@@ -59,7 +59,7 @@ public final class SynchronousChannels {
             }
 
             @Override
-            public synchronized Pair<Integer, byte[]> readMessage() throws IOException {
+            public synchronized Pair<Integer, byte[]> readMessage() {
                 return delegate.readMessage();
             }
 
@@ -84,7 +84,7 @@ public final class SynchronousChannels {
             }
 
             @Override
-            public synchronized void write(final int type, final byte[] message) throws IOException {
+            public synchronized void write(final int type, final byte[] message) {
                 delegate.write(type, message);
             }
 
