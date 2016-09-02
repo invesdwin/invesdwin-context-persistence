@@ -23,6 +23,10 @@ public class LazySerdeValue<E> implements ILazySerdeValue<E> {
     }
 
     public LazySerdeValue(final Serde<E> serde, final byte[] bytes) {
+        /*
+         * this clone is needed since the provider might want to cache its byte buffer; it is also a valid performance
+         * sacrifice to skip serializing again when the data might get pushed to another process via IPC
+         */
         final byte[] bytesCopy = bytes.clone();
         this.bytesCallable = new Callable<byte[]>() {
             @Override
