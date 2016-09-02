@@ -15,7 +15,7 @@ import de.invesdwin.context.persistence.leveldb.ipc.ISynchronousWriter;
 @NotThreadSafe
 public class MappedSynchronousWriter extends AMappedSynchronousChannel implements ISynchronousWriter {
 
-    public MappedSynchronousWriter(final File file, final long maxMessageSize) {
+    public MappedSynchronousWriter(final File file, final int maxMessageSize) {
         super(file, maxMessageSize);
     }
 

@@ -30,10 +30,10 @@ public abstract class AMappedSynchronousChannel implements ISynchronousChannel {
 
     @GuardedBy("this")
     protected ExtendedMemoryMappedFile mem;
-    private final long maxMessageSize;
+    private final int maxMessageSize;
     private final File file;
 
-    public AMappedSynchronousChannel(final File file, final long maxMessageSize) {
+    public AMappedSynchronousChannel(final File file, final int maxMessageSize) {
         this.file = file;
         if (maxMessageSize <= 0) {
             throw new IllegalArgumentException("fileSize needs to be positive");

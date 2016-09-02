@@ -24,7 +24,7 @@ import de.invesdwin.util.bean.tuple.Pair;
 public class MappedSynchronousReader extends AMappedSynchronousChannel implements ISynchronousReader {
     private int lastTransaction;
 
-    public MappedSynchronousReader(final File file, final long maxMessageSize) {
+    public MappedSynchronousReader(final File file, final int maxMessageSize) {
         super(file, maxMessageSize);
     }
 

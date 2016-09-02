@@ -6,6 +6,9 @@ import java.io.IOException;
 
 import javax.annotation.concurrent.Immutable;
 
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.BooleanUtils;
+
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.util.bean.tuple.Pair;
 
@@ -42,6 +45,8 @@ public final class SynchronousChannels {
         @Override
         public void write(final int type, final byte[] message) {}
     };
+
+    private static Boolean namedPipeSupportedCached;
 
     private SynchronousChannels() {}
 
@@ -99,12 +104,32 @@ public final class SynchronousChannels {
         }
     }
 
-    public static void createNamedPipe(final File file) {
+    public static boolean isNamedPipeSupported() {
+        if (namedPipeSupportedCached == null) {
+            final File namedPipeTestFile = new File(ContextProperties.TEMP_DIRECTORY,
+                    SynchronousChannels.class.getSimpleName() + "_NamedPipeTest.pipe");
+            namedPipeSupportedCached = namedPipeTestFile.exists() || createNamedPipe(namedPipeTestFile);
+            FileUtils.deleteQuietly(namedPipeTestFile);
+        }
+        return namedPipeSupportedCached;
+    }
+
+    public static boolean createNamedPipe(final File file) {
+        if (BooleanUtils.isFalse(namedPipeSupportedCached)) {
+            return false;
+        }
         try {
+            //linux
             Runtime.getRuntime().exec("mkfifo " + file.getAbsolutePath());
         } catch (final IOException e) {
-
+            //mac os
+            try {
+                Runtime.getRuntime().exec("mknod " + file.getAbsolutePath());
+            } catch (final IOException e2) {
+                return false;
+            }
         }
+        return true;
     }
 
 }
