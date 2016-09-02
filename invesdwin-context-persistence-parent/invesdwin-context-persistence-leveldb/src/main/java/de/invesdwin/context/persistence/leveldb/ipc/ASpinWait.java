@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.leveldb.ipc.mapped;
+package de.invesdwin.context.persistence.leveldb.ipc;
 
 import java.io.IOException;
 import java.util.concurrent.locks.LockSupport;

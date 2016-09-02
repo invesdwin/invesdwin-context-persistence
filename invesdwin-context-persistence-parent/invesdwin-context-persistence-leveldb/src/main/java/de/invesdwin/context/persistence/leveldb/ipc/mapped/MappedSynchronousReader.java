@@ -8,8 +8,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.leveldb.ipc.ISynchronousReader;
 import de.invesdwin.util.bean.tuple.Pair;
-import de.invesdwin.util.time.Instant;
-import de.invesdwin.util.time.duration.Duration;
 
 /**
  * There can be multiple readers per file, but it is better to only have one.
@@ -24,12 +22,6 @@ import de.invesdwin.util.time.duration.Duration;
  */
 @NotThreadSafe
 public class MappedSynchronousReader extends AMappedSynchronousChannel implements ISynchronousReader {
-    private final ASpinWait spinWait = new ASpinWait() {
-        @Override
-        protected boolean isConditionFulfilled() throws IOException {
-            return hasNext();
-        }
-    };
     private int lastTransaction;
 
     public MappedSynchronousReader(final File file, final long maxMessageSize) {
@@ -62,15 +54,6 @@ public class MappedSynchronousReader extends AMappedSynchronousChannel implement
     public Pair<Integer, byte[]> readMessage() {
         lastTransaction = getTransaction();
         return Pair.of(getType(), getMessage());
-    }
-
-    /**
-     * This method is thread safe and does not require locking on the reader.
-     */
-    @Override
-    public boolean waitForNext(final Instant waitingSince, final Duration maxWait)
-            throws InterruptedException, IOException {
-        return spinWait.awaitFulfill(waitingSince, maxWait);
     }
 
 }
