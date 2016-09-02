@@ -1,14 +1,18 @@
 package de.invesdwin.context.persistence.leveldb.ipc;
 
 import java.io.EOFException;
+import java.io.File;
 import java.io.IOException;
 
 import javax.annotation.concurrent.Immutable;
 
+import de.invesdwin.context.ContextProperties;
 import de.invesdwin.util.bean.tuple.Pair;
 
 @Immutable
 public final class SynchronousChannels {
+
+    public static final File SHM_FOLDER = new File("/dev/shm");
 
     public static final ISynchronousReader CLOSED_READER = new ISynchronousReader() {
 
@@ -85,6 +89,14 @@ public final class SynchronousChannels {
             }
 
         };
+    }
+
+    public static File getSharedMemoryFolderOrFallback() {
+        if (SHM_FOLDER.exists()) {
+            return SHM_FOLDER;
+        } else {
+            return ContextProperties.TEMP_DIRECTORY;
+        }
     }
 
 }
