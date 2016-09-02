@@ -3,13 +3,13 @@ package de.invesdwin.context.persistence.leveldb.ipc.mapped;
 import java.io.IOException;
 import java.util.concurrent.locks.LockSupport;
 
-import javax.annotation.concurrent.ThreadSafe;
+import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.fdate.FTimeUnit;
 
-@ThreadSafe
+@Immutable
 public abstract class ASpinWait {
 
     private static final boolean SPIN_ALLOWED = Runtime.getRuntime().availableProcessors() >= 2;

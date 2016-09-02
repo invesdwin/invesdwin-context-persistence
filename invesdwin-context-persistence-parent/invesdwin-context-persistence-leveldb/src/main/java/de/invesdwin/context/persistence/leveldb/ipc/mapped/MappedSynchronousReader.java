@@ -54,7 +54,8 @@ public class MappedSynchronousReader extends AMappedSynchronousChannel implement
         if (curTransaction == TRANSACTION_CLOSED_VALUE) {
             throw new EOFException("Channel was closed by the other endpoint");
         }
-        return curTransaction != lastTransaction && curTransaction != TRANSACTION_WRITING_VALUE;
+        return curTransaction != lastTransaction && curTransaction != TRANSACTION_WRITING_VALUE
+                && curTransaction != TRANSACTION_INITIAL_VALUE;
     }
 
     @Override

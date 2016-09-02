@@ -23,13 +23,28 @@ public class ExtendedMemoryMappedFile extends MemoryMappedFile {
     }
 
     @Override
+    public byte getByteVolatile(final long pos) {
+        return super.getByteVolatile(pos);
+    }
+
+    @Override
     public void putIntVolatile(final long pos, final int val) {
         super.putIntVolatile(pos, val);
     }
 
     @Override
+    public int getIntVolatile(final long pos) {
+        return super.getIntVolatile(pos);
+    }
+
+    @Override
     public void putLongVolatile(final long pos, final long val) {
         super.putLongVolatile(pos, val);
+    }
+
+    @Override
+    public long getLongVolatile(final long pos) {
+        return super.getLongVolatile(pos);
     }
 
     @Override

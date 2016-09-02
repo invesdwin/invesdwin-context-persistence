@@ -3,6 +3,7 @@ package de.invesdwin.context.persistence.leveldb.ipc.mapped;
 import java.io.File;
 import java.io.IOException;
 
+import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.leveldb.ipc.ISynchronousChannel;
@@ -27,6 +28,7 @@ public abstract class AMappedSynchronousChannel implements ISynchronousChannel {
     public static final long MESSAGE_POS = SIZE_POS + SIZE_OFFSET;
     public static final int MIN_PHYSICAL_MESSAGE_SIZE = 4096 - (int) MESSAGE_POS;
 
+    @GuardedBy("this")
     protected ExtendedMemoryMappedFile mem;
     private final long maxMessageSize;
     private final File file;
@@ -57,7 +59,8 @@ public abstract class AMappedSynchronousChannel implements ISynchronousChannel {
         }
         do {
             transaction++;
-        } while (transaction == TRANSACTION_WRITING_VALUE || transaction == TRANSACTION_CLOSED_VALUE);
+        } while (transaction == TRANSACTION_WRITING_VALUE || transaction == TRANSACTION_CLOSED_VALUE
+                || transaction == TRANSACTION_INITIAL_VALUE);
         return transaction;
     }
 
@@ -66,7 +69,7 @@ public abstract class AMappedSynchronousChannel implements ISynchronousChannel {
     }
 
     protected byte getTransaction() {
-        return mem.getByte(TRANSACTION_POS);
+        return mem.getByteVolatile(TRANSACTION_POS);
     }
 
     protected void setType(final int val) {

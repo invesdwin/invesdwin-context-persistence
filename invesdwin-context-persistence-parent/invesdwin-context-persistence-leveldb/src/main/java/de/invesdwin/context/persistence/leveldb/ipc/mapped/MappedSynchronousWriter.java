@@ -4,7 +4,7 @@ import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 
-import javax.annotation.concurrent.ThreadSafe;
+import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.leveldb.ipc.ISynchronousWriter;
 
@@ -12,7 +12,7 @@ import de.invesdwin.context.persistence.leveldb.ipc.ISynchronousWriter;
  * There should only be one writer per file, or else the threads might destroy each others data.
  *
  */
-@ThreadSafe
+@NotThreadSafe
 public class MappedSynchronousWriter extends AMappedSynchronousChannel implements ISynchronousWriter {
 
     public MappedSynchronousWriter(final File file, final long maxMessageSize) {
