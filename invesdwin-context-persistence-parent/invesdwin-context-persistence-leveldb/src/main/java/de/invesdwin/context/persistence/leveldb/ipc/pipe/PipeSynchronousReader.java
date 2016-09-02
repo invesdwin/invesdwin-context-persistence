@@ -54,6 +54,9 @@ public class PipeSynchronousReader extends APipeSynchronousChannel implements IS
     public Pair<Integer, byte[]> readMessage() throws IOException {
         Assertions.checkTrue(read(typeBuffer));
         final int type = TYPE_SERDE.fromBytes(typeBuffer);
+        if (type == TYPE_CLOSED_VALUE) {
+            throw new EOFException("Channel was closed by the other endpoint");
+        }
         Assertions.checkTrue(read(sizeBuffer));
         final int size = SIZE_SERDE.fromBytes(sizeBuffer);
         final byte[] message = new byte[size];

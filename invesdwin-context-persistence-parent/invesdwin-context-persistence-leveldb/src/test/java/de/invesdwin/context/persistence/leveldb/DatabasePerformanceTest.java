@@ -29,7 +29,7 @@ import ezdb.serde.Serde;
 
 @Ignore("manual test")
 @NotThreadSafe
-public class PerformanceTest extends ATest {
+public class DatabasePerformanceTest extends ATest {
 
     private static final int READS = 10;
     private static final int VALUES = 1_000_000;

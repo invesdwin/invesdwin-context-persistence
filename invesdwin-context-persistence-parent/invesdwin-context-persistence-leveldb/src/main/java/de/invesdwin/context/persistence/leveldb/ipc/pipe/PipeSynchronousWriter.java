@@ -25,7 +25,16 @@ public class PipeSynchronousWriter extends APipeSynchronousChannel implements IS
 
     @Override
     public void close() throws IOException {
-        out.close();
+        try {
+            writeWithoutTypeCheck(TYPE_CLOSED_VALUE, new byte[0]);
+        } catch (final Throwable t) {
+            //ignore
+        }
+        try {
+            out.close();
+        } catch (final Throwable t) {
+            //ignore
+        }
     }
 
     private void checkSize(final int size) {
@@ -35,8 +44,20 @@ public class PipeSynchronousWriter extends APipeSynchronousChannel implements IS
         }
     }
 
+    private void checkType(final int type) {
+        if (type == TYPE_CLOSED_VALUE) {
+            throw new IllegalArgumentException(
+                    "type [" + type + "] is reserved for close notification, please use a different type number");
+        }
+    }
+
     @Override
     public void write(final int type, final byte[] message) throws IOException {
+        checkType(type);
+        writeWithoutTypeCheck(type, message);
+    }
+
+    private void writeWithoutTypeCheck(final int type, final byte[] message) throws IOException {
         checkSize(message.length);
         final byte[] typeBuffer = TYPE_SERDE.toBytes(type);
         out.write(typeBuffer);

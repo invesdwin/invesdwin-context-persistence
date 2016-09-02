@@ -55,7 +55,7 @@ public abstract class AMappedSynchronousChannel implements ISynchronousChannel {
         byte transaction = getTransaction();
         if (transaction == TRANSACTION_WRITING_VALUE) {
             throw new IllegalStateException(
-                    "Someone else seems to be writing a transaction, exclusive file access is needed!");
+                    "Someone else seems is writing a transaction, exclusive file access is needed!");
         }
         do {
             transaction++;
