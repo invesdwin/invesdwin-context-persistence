@@ -59,7 +59,7 @@ public final class SynchronousChannels {
             }
 
             @Override
-            public synchronized Pair<Integer, byte[]> readMessage() {
+            public synchronized Pair<Integer, byte[]> readMessage() throws IOException {
                 return delegate.readMessage();
             }
 
@@ -84,7 +84,7 @@ public final class SynchronousChannels {
             }
 
             @Override
-            public synchronized void write(final int type, final byte[] message) {
+            public synchronized void write(final int type, final byte[] message) throws IOException {
                 delegate.write(type, message);
             }
 
@@ -96,6 +96,14 @@ public final class SynchronousChannels {
             return SHM_FOLDER;
         } else {
             return ContextProperties.TEMP_DIRECTORY;
+        }
+    }
+
+    public static void createNamedPipe(final File file) {
+        try {
+            Runtime.getRuntime().exec("mkfifo " + file.getAbsolutePath());
+        } catch (final IOException e) {
+
         }
     }
 
