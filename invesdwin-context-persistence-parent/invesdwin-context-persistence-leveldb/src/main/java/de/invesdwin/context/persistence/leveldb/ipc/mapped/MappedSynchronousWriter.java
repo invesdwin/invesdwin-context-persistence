@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.leveldb.ipc.mapped;
 
 import java.io.EOFException;
 import java.io.File;
+import java.io.IOException;
 
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -16,6 +17,13 @@ public class MappedSynchronousWriter extends AMappedSynchronousChannel implement
 
     public MappedSynchronousWriter(final File file, final long maxMessageSize) {
         super(file, maxMessageSize);
+    }
+
+    @Override
+    public void open() throws IOException {
+        super.open();
+        //maybe remove closed flag that causes IOException on reader
+        setTransaction(TRANSACTION_INITIAL_VALUE);
     }
 
     /**
@@ -38,6 +46,12 @@ public class MappedSynchronousWriter extends AMappedSynchronousChannel implement
 
         //commit
         setTransaction(nextTransaction);
+    }
+
+    @Override
+    public void close() throws IOException {
+        setTransaction(TRANSACTION_CLOSED_VALUE);
+        super.close();
     }
 
 }

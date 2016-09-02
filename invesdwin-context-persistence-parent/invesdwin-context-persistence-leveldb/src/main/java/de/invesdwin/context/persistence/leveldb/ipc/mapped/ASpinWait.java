@@ -1,5 +1,6 @@
 package de.invesdwin.context.persistence.leveldb.ipc.mapped;
 
+import java.io.IOException;
 import java.util.concurrent.locks.LockSupport;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -41,25 +42,27 @@ public abstract class ASpinWait {
         return new Duration(10, FTimeUnit.MICROSECONDS);
     }
 
-    protected abstract boolean isConditionFulfilled();
+    protected abstract boolean isConditionFulfilled() throws IOException;
 
-    protected boolean shouldSpin(final Instant waitingSince) {
+    protected boolean isSpinAllowed(final Instant waitingSince) {
         return waitingSince.toDuration().longValue(FTimeUnit.NANOSECONDS) < skipSpinAfterWaitingSince;
     }
 
-    public boolean awaitFulfill(final Instant waitingSince) {
+    public boolean awaitFulfill(final Instant waitingSince) throws IOException {
         while (true) {
-            awaitFulfill(waitingSince, new Duration(1, FTimeUnit.DAYS));
+            awaitFulfill(waitingSince, Duration.ONE_DAY);
         }
     }
 
-    public boolean awaitFulfill(final Instant waitingSince, final Duration maxWait) {
+    public boolean awaitFulfill(final Instant waitingSince, final Duration maxWait) throws IOException {
+        if (isConditionFulfilled()) {
+            return true;
+        }
         long nanosRemaining = maxWait.longValue(FTimeUnit.NANOSECONDS);
         final long waitDeadline = System.nanoTime() + nanosRemaining;
         final Thread w = Thread.currentThread();
-        final boolean spinAllowed = SPIN_ALLOWED && shouldSpin(waitingSince);
-        for (@SuppressWarnings("unused")
-        int i = 0;; i++) {
+        final boolean spinAllowed = SPIN_ALLOWED && isSpinAllowed(waitingSince);
+        while (true) {
             if (w.isInterrupted()) {
                 return false;
             }
@@ -71,9 +74,8 @@ public abstract class ASpinWait {
                 //we have exceeded maxWait
                 return false;
             }
-            if (spinAllowed && nanosRemaining < maxSpinDuration) {
-                continue;
-            } else {
+            final boolean shouldSpin = spinAllowed && nanosRemaining < maxSpinDuration;
+            if (!shouldSpin) {
                 LockSupport.parkNanos(this, Math.min(nanosRemaining, maxParkIntervalNanos));
             }
         }

@@ -1,5 +1,6 @@
 package de.invesdwin.context.persistence.leveldb.ipc.mapped;
 
+import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 
@@ -25,7 +26,7 @@ import de.invesdwin.util.time.duration.Duration;
 public class MappedSynchronousReader extends AMappedSynchronousChannel implements ISynchronousReader {
     private final ASpinWait spinWait = new ASpinWait() {
         @Override
-        protected boolean isConditionFulfilled() {
+        protected boolean isConditionFulfilled() throws IOException {
             return hasNext();
         }
     };
@@ -45,11 +46,14 @@ public class MappedSynchronousReader extends AMappedSynchronousChannel implement
     /**
      * This method is thread safe and does not require locking on the reader.
      */
-    public boolean hasNext() {
+    public boolean hasNext() throws IOException {
         if (mem == null) {
             return false;
         }
         final int curTransaction = getTransaction();
+        if (curTransaction == TRANSACTION_CLOSED_VALUE) {
+            throw new EOFException("Channel was closed by the other endpoint");
+        }
         return curTransaction != lastTransaction && curTransaction != TRANSACTION_WRITING_VALUE;
     }
 
@@ -63,7 +67,8 @@ public class MappedSynchronousReader extends AMappedSynchronousChannel implement
      * This method is thread safe and does not require locking on the reader.
      */
     @Override
-    public boolean waitForNext(final Instant waitingSince, final Duration maxWait) throws InterruptedException {
+    public boolean waitForNext(final Instant waitingSince, final Duration maxWait)
+            throws InterruptedException, IOException {
         return spinWait.awaitFulfill(waitingSince, maxWait);
     }
 

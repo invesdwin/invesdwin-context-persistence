@@ -14,7 +14,9 @@ public abstract class AMappedSynchronousChannel implements ISynchronousChannel {
 
     public static final long TRANSACTION_POS = 0;
     public static final int TRANSACTION_OFFSET = 1;
+    public static final byte TRANSACTION_INITIAL_VALUE = 0;
     public static final byte TRANSACTION_WRITING_VALUE = -1;
+    public static final byte TRANSACTION_CLOSED_VALUE = -2;
 
     public static final long TYPE_POS = TRANSACTION_POS + TRANSACTION_OFFSET;
     public static final int TYPE_OFFSET = IntegerSerde.get.toBytes(Integer.MAX_VALUE).length;
@@ -55,7 +57,7 @@ public abstract class AMappedSynchronousChannel implements ISynchronousChannel {
         }
         do {
             transaction++;
-        } while (transaction == TRANSACTION_WRITING_VALUE);
+        } while (transaction == TRANSACTION_WRITING_VALUE || transaction == TRANSACTION_CLOSED_VALUE);
         return transaction;
     }
 
