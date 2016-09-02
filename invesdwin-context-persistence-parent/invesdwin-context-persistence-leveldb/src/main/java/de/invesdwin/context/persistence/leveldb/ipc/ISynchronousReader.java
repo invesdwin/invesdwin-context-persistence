@@ -8,6 +8,6 @@ public interface ISynchronousReader extends ISynchronousChannel {
 
     boolean hasNext() throws IOException;
 
-    Pair<Integer, byte[]> readMessage();
+    Pair<Integer, byte[]> readMessage() throws IOException;
 
 }
