@@ -100,6 +100,66 @@ public final class SynchronousChannels {
         };
     }
 
+    public static ISynchronousReader synchronize(final ISynchronousReader delegate, final Object lock) {
+        return new ISynchronousReader() {
+
+            @Override
+            public void close() throws IOException {
+                synchronized (lock) {
+                    delegate.close();
+                }
+            }
+
+            @Override
+            public void open() throws IOException {
+                synchronized (lock) {
+                    delegate.open();
+                }
+            }
+
+            @Override
+            public Pair<Integer, byte[]> readMessage() throws IOException {
+                synchronized (lock) {
+                    return delegate.readMessage();
+                }
+            }
+
+            @Override
+            public boolean hasNext() throws IOException {
+                synchronized (lock) {
+                    return delegate.hasNext();
+                }
+            }
+        };
+    }
+
+    public static ISynchronousWriter synchronize(final ISynchronousWriter delegate, final Object lock) {
+        return new ISynchronousWriter() {
+
+            @Override
+            public void close() throws IOException {
+                synchronized (lock) {
+                    delegate.close();
+                }
+            }
+
+            @Override
+            public void open() throws IOException {
+                synchronized (lock) {
+                    delegate.open();
+                }
+            }
+
+            @Override
+            public void write(final int type, final byte[] message) throws IOException {
+                synchronized (lock) {
+                    delegate.write(type, message);
+                }
+            }
+
+        };
+    }
+
     public static File getTmpfsFolderOrFallback() {
         if (TMPFS_FOLDER.exists()) {
             return TMPFS_FOLDER;
