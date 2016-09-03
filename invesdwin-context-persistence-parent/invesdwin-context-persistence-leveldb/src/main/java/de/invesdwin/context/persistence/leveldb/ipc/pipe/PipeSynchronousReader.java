@@ -44,12 +44,6 @@ public class PipeSynchronousReader extends APipeSynchronousChannel implements IS
         }
     }
 
-    private EOFException newEofException(final IOException e) throws EOFException {
-        final EOFException eof = new EOFException(e.getMessage());
-        eof.initCause(e);
-        return eof;
-    }
-
     @Override
     public Pair<Integer, byte[]> readMessage() throws IOException {
         Assertions.checkTrue(read(typeBuffer));

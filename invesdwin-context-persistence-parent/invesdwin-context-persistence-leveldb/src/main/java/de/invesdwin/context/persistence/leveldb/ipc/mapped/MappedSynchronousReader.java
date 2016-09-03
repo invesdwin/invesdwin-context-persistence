@@ -31,7 +31,11 @@ public class MappedSynchronousReader extends AMappedSynchronousChannel implement
     @Override
     public void open() throws IOException {
         super.open();
-        lastTransaction = getTransaction();
+        /*
+         * use inital value instead of reading the value to not fall into a race condition when writer has already
+         * written first message before the reader is initialized
+         */
+        lastTransaction = TRANSACTION_INITIAL_VALUE;
     }
 
     @Override

@@ -30,8 +30,8 @@ public abstract class AMappedSynchronousChannel implements ISynchronousChannel {
 
     @GuardedBy("this")
     protected ExtendedMemoryMappedFile mem;
+    protected final File file;
     private final int maxMessageSize;
-    private final File file;
 
     public AMappedSynchronousChannel(final File file, final int maxMessageSize) {
         this.file = file;

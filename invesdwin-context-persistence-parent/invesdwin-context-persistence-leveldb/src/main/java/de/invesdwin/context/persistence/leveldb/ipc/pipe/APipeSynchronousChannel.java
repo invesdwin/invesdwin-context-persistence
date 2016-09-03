@@ -1,6 +1,8 @@
 package de.invesdwin.context.persistence.leveldb.ipc.pipe;
 
+import java.io.EOFException;
 import java.io.File;
+import java.io.IOException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -30,6 +32,12 @@ public abstract class APipeSynchronousChannel implements ISynchronousChannel {
         this.file = file;
         this.maxMessageSize = maxMessageSize;
         this.fileSize = maxMessageSize + MESSAGE_POS;
+    }
+
+    protected EOFException newEofException(final IOException e) throws EOFException {
+        final EOFException eof = new EOFException(e.getMessage());
+        eof.initCause(e);
+        return eof;
     }
 
 }

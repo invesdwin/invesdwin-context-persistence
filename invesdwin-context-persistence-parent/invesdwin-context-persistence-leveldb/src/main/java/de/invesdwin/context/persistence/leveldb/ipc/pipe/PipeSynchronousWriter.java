@@ -66,7 +66,11 @@ public class PipeSynchronousWriter extends APipeSynchronousChannel implements IS
         if (message.length > 0) {
             out.write(message);
         }
-        out.flush();
+        try {
+            out.flush();
+        } catch (final IOException e) {
+            throw newEofException(e);
+        }
     }
 
 }
