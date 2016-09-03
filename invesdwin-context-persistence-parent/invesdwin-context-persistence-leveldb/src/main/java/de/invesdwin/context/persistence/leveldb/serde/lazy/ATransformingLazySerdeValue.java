@@ -27,4 +27,9 @@ public abstract class ATransformingLazySerdeValue<S, R> implements ILazySerdeVal
         return serde.toBytes(getValue());
     }
 
+    @Override
+    public Serde<? extends R> getDelegate() {
+        return serde;
+    }
+
 }

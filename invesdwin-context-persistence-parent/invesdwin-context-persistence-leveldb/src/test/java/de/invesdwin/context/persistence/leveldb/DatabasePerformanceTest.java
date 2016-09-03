@@ -11,6 +11,7 @@ import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.leveldb.serde.FDateSerde;
+import de.invesdwin.context.persistence.leveldb.serde.lazy.ILazySerdeValue;
 import de.invesdwin.context.persistence.leveldb.timeseries.ATimeSeriesDB;
 import de.invesdwin.context.persistence.leveldb.timeseries.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.leveldb.timeseries.IncompleteUpdateFoundException;
@@ -135,8 +136,8 @@ public class DatabasePerformanceTest extends ATest {
             }
 
             @Override
-            protected FDate extractTime(final FDate value) {
-                return value;
+            protected FDate extractTime(final ILazySerdeValue<? extends FDate> value) {
+                return value.getValue();
             }
         };
 
@@ -177,7 +178,7 @@ public class DatabasePerformanceTest extends ATest {
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
             FDate prevValue = null;
-            final ICloseableIterator<FDate> range = table.rangeValues(HASH_KEY, null, null);
+            final ICloseableIterator<? extends FDate> range = table.rangeValues(HASH_KEY, null, null);
             int count = 0;
             while (true) {
                 try {

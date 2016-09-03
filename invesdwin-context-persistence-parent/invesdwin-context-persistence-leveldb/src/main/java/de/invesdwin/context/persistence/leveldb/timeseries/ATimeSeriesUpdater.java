@@ -12,6 +12,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.io.FileUtils;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
+import de.invesdwin.context.persistence.leveldb.timeseries.internal.TimeSeriesFileLookupTableCache;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -30,10 +31,10 @@ public abstract class ATimeSeriesUpdater<K, V> {
     public static final int BATCH_QUEUE_SIZE = 500_000 / BATCH_FLUSH_INTERVAL;
     public static final int BATCH_WRITER_THREADS = Executors.getCpuThreadPoolCount();
 
-    private final Serde<V> valueSerde;
     private final ATimeSeriesDB<K, V> table;
     private final TimeSeriesFileLookupTableCache<K, V> lookupTable;
     private final File updateLockFile;
+    private final Serde<V> valueSerde;
 
     private final K key;
     private FDate minTime = null;
@@ -42,10 +43,10 @@ public abstract class ATimeSeriesUpdater<K, V> {
 
     public ATimeSeriesUpdater(final K key, final ATimeSeriesDB<K, V> table) {
         this.key = key;
-        this.valueSerde = table.getValueSerde();
         this.table = table;
         this.lookupTable = table.getLookupTableCache(key);
         this.updateLockFile = lookupTable.getUpdateLockFile();
+        this.valueSerde = table.getLocalValueSerde().getDelegate();
     }
 
     public FDate getMinTime() {
@@ -91,7 +92,7 @@ public abstract class ATimeSeriesUpdater<K, V> {
     }
 
     private void doUpdate() {
-        try (final ICloseableIterator<V> elements = getSource().iterator()) {
+        try (final ICloseableIterator<? extends V> elements = getSource().iterator()) {
             final ICloseableIterator<UpdateProgress> batchWriterProducer = new ICloseableIterator<UpdateProgress>() {
 
                 @Override
@@ -145,7 +146,7 @@ public abstract class ATimeSeriesUpdater<K, V> {
         }
     }
 
-    protected abstract ICloseableIterable<V> getSource();
+    protected abstract ICloseableIterable<? extends V> getSource();
 
     protected abstract void onUpdateFinished(Instant updateStart);
 
@@ -192,7 +193,6 @@ public abstract class ATimeSeriesUpdater<K, V> {
             return getCount() % BATCH_FLUSH_INTERVAL == 0;
         }
 
-        @SuppressWarnings("null")
         private void write(final int flushIndex) {
             final Instant flushStart = new Instant();
 

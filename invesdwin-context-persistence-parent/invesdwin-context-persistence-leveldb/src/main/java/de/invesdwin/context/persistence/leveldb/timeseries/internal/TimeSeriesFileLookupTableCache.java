@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.leveldb.timeseries;
+package de.invesdwin.context.persistence.leveldb.timeseries.internal;
 
 import java.io.File;
 import java.io.IOException;
@@ -17,6 +17,10 @@ import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.leveldb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.leveldb.ADelegateRangeTable.DelegateTableIterator;
+import de.invesdwin.context.persistence.leveldb.serde.lazy.ILazySerdeValue;
+import de.invesdwin.context.persistence.leveldb.serde.lazy.ILazySerdeValueSerde;
+import de.invesdwin.context.persistence.leveldb.serde.lazy.RemoteLazySerdeValueSerde;
+import de.invesdwin.context.persistence.leveldb.timeseries.SerializingCollection;
 import de.invesdwin.norva.marker.ISerializableValueObject;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
@@ -39,7 +43,8 @@ public class TimeSeriesFileLookupTableCache<K, V> {
     private static final Void DUMMY_HASH_KEY = null;
     private final ADelegateRangeTable<Void, FDate, ChunkValue> fileLookupTable;
     private final ADelegateRangeTable<Void, FDate, byte[]> timeLookupTable;
-    private final ALoadingCache<FDate, V> timeLookupTable_latestValueCache = new ALoadingCache<FDate, V>() {
+    private final ILazySerdeValueSerde<V> lazyValueSerde;
+    private final ALoadingCache<FDate, ILazySerdeValue<? extends V>> timeLookupTable_latestValueCache = new ALoadingCache<FDate, ILazySerdeValue<? extends V>>() {
 
         @Override
         protected Integer getMaximumSize() {
@@ -47,40 +52,43 @@ public class TimeSeriesFileLookupTableCache<K, V> {
         }
 
         @Override
-        protected V loadValue(final FDate key) {
+        protected ILazySerdeValue<? extends V> loadValue(final FDate key) {
             final byte[] value = timeLookupTable.getOrLoad(DUMMY_HASH_KEY, key,
                     new Function<Pair<Void, FDate>, byte[]>() {
 
-                @Override
-                public byte[] apply(final Pair<Void, FDate> input) {
-                    final FDate fileTime = fileLookupTable.getLatestRangeKey(input.getFirst(), input.getSecond());
-                    if (fileTime == null) {
-                        return null;
-                    }
-                    final File file = newFile(fileTime);
-                    final SerializingCollection<V> serializingCollection = newSerializingCollection(file);
-                    try (ICloseableIterator<V> it = serializingCollection.iterator()) {
-                        V latestValue = null;
-                        while (it.hasNext()) {
-                            final V newValue = it.next();
-                            final FDate newValueTime = extractTime.apply(newValue);
-                            if (newValueTime.isAfter(key)) {
-                                break;
-                            } else {
-                                latestValue = newValue;
+                        @Override
+                        public byte[] apply(final Pair<Void, FDate> input) {
+                            final FDate fileTime = fileLookupTable.getLatestRangeKey(input.getFirst(),
+                                    input.getSecond());
+                            if (fileTime == null) {
+                                return null;
+                            }
+                            final File file = newFile(fileTime);
+                            final SerializingCollection<ILazySerdeValue<? extends V>> serializingCollection = newSerializingCollection(
+                                    file, lazyValueSerde);
+                            try (ICloseableIterator<ILazySerdeValue<? extends V>> it = serializingCollection
+                                    .iterator()) {
+                                ILazySerdeValue<? extends V> latestValue = null;
+                                while (it.hasNext()) {
+                                    final ILazySerdeValue<? extends V> newValue = it.next();
+                                    final FDate newValueTime = extractTime.apply(newValue);
+                                    if (newValueTime.isAfter(key)) {
+                                        break;
+                                    } else {
+                                        latestValue = newValue;
+                                    }
+                                }
+                                if (latestValue == null) {
+                                    latestValue = getFirstValue(lazyValueSerde);
+                                }
+                                return lazyValueSerde.toBytes(latestValue);
                             }
                         }
-                        if (latestValue == null) {
-                            latestValue = getFirstValue();
-                        }
-                        return valueSerde.toBytes(latestValue);
-                    }
-                }
-            });
+                    });
             if (value == null) {
                 return null;
             } else {
-                return valueSerde.fromBytes(value);
+                return lazyValueSerde.fromBytes(value);
             }
         }
     };
@@ -98,21 +106,20 @@ public class TimeSeriesFileLookupTableCache<K, V> {
     };
 
     private final String key;
-    private final Serde<V> valueSerde;
     private final Integer fixedLength;
-    private final Function<V, FDate> extractTime;
+    private final Function<ILazySerdeValue<? extends V>, FDate> extractTime;
     @GuardedBy("this")
     private File baseDir;
 
-    private volatile Optional<V> cachedFirstValue;
-    private volatile Optional<V> cachedLastValue;
+    private volatile Optional<ILazySerdeValue<? extends V>> cachedFirstValue;
+    private volatile Optional<ILazySerdeValue<? extends V>> cachedLastValue;
     private volatile ICloseableIterable<FDate> cachedAllRangeKeys;
     private final Log log = new Log(this);
 
-    public TimeSeriesFileLookupTableCache(final String key, final Serde<V> valueSerde, final Integer fixedLength,
-            final Function<V, FDate> extractTime) {
+    public TimeSeriesFileLookupTableCache(final String key, final Serde<? extends V> defaultValueSerde,
+            final Integer fixedLength, final Function<ILazySerdeValue<? extends V>, FDate> extractTime) {
         this.key = key;
-        this.valueSerde = valueSerde;
+        this.lazyValueSerde = new RemoteLazySerdeValueSerde<V>(defaultValueSerde, false);
         this.fixedLength = fixedLength;
         this.extractTime = extractTime;
 
@@ -164,15 +171,18 @@ public class TimeSeriesFileLookupTableCache<K, V> {
         return new File(getBaseDir(), time.toString(FDate.FORMAT_TIMESTAMP_UNDERSCORE) + ".data");
     }
 
+    @SuppressWarnings("unchecked")
     public void finishFile(final FDate time, final V firstValue, final V lastValue) {
-        fileLookupTable.put(DUMMY_HASH_KEY, time, new ChunkValue(valueSerde, firstValue, lastValue));
+        fileLookupTable.put(DUMMY_HASH_KEY, time,
+                new ChunkValue((Serde<V>) lazyValueSerde.getDelegate(), firstValue, lastValue));
         clearCaches();
     }
 
-    protected ICloseableIterable<File> readRangeFiles(final FDate from, final FDate to) {
+    protected ICloseableIterable<File> readRangeFiles(final FDate from, final FDate to,
+            final ILazySerdeValueSerde<? extends V> valueSerde) {
         final FDate usedFrom;
         if (from == null) {
-            final V firstValue = getFirstValue();
+            final ILazySerdeValue<? extends V> firstValue = getFirstValue(valueSerde);
             if (firstValue == null) {
                 return new EmptyCloseableIterable<File>();
             }
@@ -259,30 +269,32 @@ public class TimeSeriesFileLookupTableCache<K, V> {
         return cachedAllRangeKeys.iterator();
     }
 
-    protected ICloseableIterator<V> readRangeValues(final FDate from, final FDate to) {
-        final ICloseableIterator<File> fileIterator = readRangeFiles(from, to).iterator();
-        final ICloseableIterator<ICloseableIterator<V>> chunkIterator = new ATransformingCloseableIterator<File, ICloseableIterator<V>>(
+    public ICloseableIterator<ILazySerdeValue<? extends V>> readRangeValues(final FDate from, final FDate to,
+            final ILazySerdeValueSerde<? extends V> valueSerde) {
+        final ICloseableIterator<File> fileIterator = readRangeFiles(from, to, valueSerde).iterator();
+        final ICloseableIterator<ICloseableIterator<ILazySerdeValue<? extends V>>> chunkIterator = new ATransformingCloseableIterator<File, ICloseableIterator<ILazySerdeValue<? extends V>>>(
                 fileIterator) {
             private boolean first = true;
 
             @Override
-            protected ICloseableIterator<V> transform(final File value) {
-                final ICloseableIterable<V> serializingCollection = newSerializingCollection(value);
+            protected ICloseableIterator<ILazySerdeValue<? extends V>> transform(final File value) {
+                final ICloseableIterable<ILazySerdeValue<? extends V>> serializingCollection = newSerializingCollection(
+                        value, valueSerde);
                 if (first) {
                     first = false;
                     if (hasNext()) {
-                        return new ASkippingIterator<V>(serializingCollection.iterator()) {
+                        return new ASkippingIterator<ILazySerdeValue<? extends V>>(serializingCollection.iterator()) {
                             @Override
-                            protected boolean skip(final V element) {
+                            protected boolean skip(final ILazySerdeValue<? extends V> element) {
                                 final FDate time = extractTime.apply(element);
                                 return time.isBefore(from);
                             }
                         };
                         //first and last
                     } else {
-                        return new ASkippingIterator<V>(serializingCollection.iterator()) {
+                        return new ASkippingIterator<ILazySerdeValue<? extends V>>(serializingCollection.iterator()) {
                             @Override
-                            protected boolean skip(final V element) {
+                            protected boolean skip(final ILazySerdeValue<? extends V> element) {
                                 final FDate time = extractTime.apply(element);
                                 if (time.isBefore(from)) {
                                     return true;
@@ -295,9 +307,9 @@ public class TimeSeriesFileLookupTableCache<K, V> {
                     }
                     //last
                 } else if (!hasNext()) {
-                    return new ASkippingIterator<V>(serializingCollection.iterator()) {
+                    return new ASkippingIterator<ILazySerdeValue<? extends V>>(serializingCollection.iterator()) {
                         @Override
-                        protected boolean skip(final V element) {
+                        protected boolean skip(final ILazySerdeValue<? extends V> element) {
                             final FDate time = extractTime.apply(element);
                             if (time.isAfter(to)) {
                                 throw new NoSuchElementException();
@@ -320,20 +332,22 @@ public class TimeSeriesFileLookupTableCache<K, V> {
         //            }
         //        };
         //single threaded is 20% better than with producerqueue
-        final FlatteningIterator<V> flatteningIterator = new FlatteningIterator<V>(chunkIterator);
+        final FlatteningIterator<ILazySerdeValue<? extends V>> flatteningIterator = new FlatteningIterator<ILazySerdeValue<? extends V>>(
+                chunkIterator);
         return flatteningIterator;
     }
 
-    private SerializingCollection<V> newSerializingCollection(final File file) {
-        return new SerializingCollection<V>(file, true) {
+    private <T> SerializingCollection<ILazySerdeValue<? extends T>> newSerializingCollection(final File file,
+            final ILazySerdeValueSerde<? extends T> valueSerde) {
+        return new SerializingCollection<ILazySerdeValue<? extends T>>(file, true) {
 
             @Override
-            protected byte[] toBytes(final V element) {
+            protected byte[] toBytes(final ILazySerdeValue<? extends T> element) {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            protected V fromBytes(final byte[] bytes) {
+            protected ILazySerdeValue<? extends T> fromBytes(final byte[] bytes) {
                 return valueSerde.fromBytes(bytes);
             }
 
@@ -344,10 +358,10 @@ public class TimeSeriesFileLookupTableCache<K, V> {
         };
     }
 
-    public V getFirstValue() {
+    public ILazySerdeValue<? extends V> getFirstValue(final ILazySerdeValueSerde<? extends V> valueSerde) {
         if (cachedFirstValue == null) {
             final ChunkValue latestValue = fileLookupTable.getLatestValue(DUMMY_HASH_KEY, FDate.MIN_DATE);
-            final V firstValue;
+            final ILazySerdeValue<? extends V> firstValue;
             if (latestValue == null) {
                 firstValue = null;
             } else {
@@ -358,10 +372,10 @@ public class TimeSeriesFileLookupTableCache<K, V> {
         return cachedFirstValue.orElse(null);
     }
 
-    public V getLastValue() {
+    public ILazySerdeValue<? extends V> getLastValue(final ILazySerdeValueSerde<? extends V> valueSerde) {
         if (cachedLastValue == null) {
             final ChunkValue latestValue = fileLookupTable.getLatestValue(DUMMY_HASH_KEY, FDate.MAX_DATE);
-            final V lastValue;
+            final ILazySerdeValue<? extends V> lastValue;
             if (latestValue == null) {
                 lastValue = null;
             } else {
@@ -398,23 +412,24 @@ public class TimeSeriesFileLookupTableCache<K, V> {
             this.lastValue = serde.toBytes(lastValue);
         }
 
-        public <_V> _V getFirstValue(final Serde<_V> serde) {
+        public <_V> ILazySerdeValue<? extends _V> getFirstValue(final ILazySerdeValueSerde<_V> serde) {
             return serde.fromBytes(firstValue);
         }
 
-        public <_V> _V getLastValue(final Serde<_V> serde) {
+        public <_V> ILazySerdeValue<? extends _V> getLastValue(final ILazySerdeValueSerde<_V> serde) {
             return serde.fromBytes(lastValue);
         }
     }
 
-    public V getLatestValue(final FDate date) {
-        return timeLookupTable_latestValueCache.get(date);
+    public ILazySerdeValue<? extends V> getLatestValue(final FDate date,
+            final ILazySerdeValueSerde<V> valueSerdeOverride) {
+        return valueSerdeOverride.maybeRewrap(timeLookupTable_latestValueCache.get(date));
     }
 
     public boolean isEmptyOrInconsistent() {
         try {
-            getFirstValue();
-            getLastValue();
+            getFirstValue(lazyValueSerde);
+            getLastValue(lazyValueSerde);
         } catch (final Throwable t) {
             if (Throwables.isCausedByType(t, SerializationException.class)) {
                 //e.g. fst: unable to find class for code 88 after version upgrade
@@ -426,7 +441,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
                 throw Throwables.propagate(t);
             }
         }
-        try (final ICloseableIterator<File> files = readRangeFiles(null, null).iterator()) {
+        try (final ICloseableIterator<File> files = readRangeFiles(null, null, lazyValueSerde).iterator()) {
             boolean noFileFound = true;
             while (files.hasNext()) {
                 final File file = files.next();
@@ -441,4 +456,5 @@ public class TimeSeriesFileLookupTableCache<K, V> {
             return noFileFound;
         }
     }
+
 }
