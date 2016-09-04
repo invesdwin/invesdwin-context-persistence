@@ -10,10 +10,6 @@ import com.google.common.base.Function;
 
 import de.invesdwin.context.integration.retry.Retry;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
-import de.invesdwin.context.persistence.leveldb.serde.lazy.ILazySerdeValue;
-import de.invesdwin.context.persistence.leveldb.serde.lazy.ILazySerdeValueSerde;
-import de.invesdwin.context.persistence.leveldb.serde.lazy.LocalLazySerdeValueSerde;
-import de.invesdwin.context.persistence.leveldb.timeseries.internal.TimeSeriesFileLookupTableCache;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -26,7 +22,7 @@ public abstract class ATimeSeriesDB<K, V> {
 
     private final String name;
     private final Integer fixedLength;
-    private final ILazySerdeValueSerde<V> localValueSerde;
+    private final Serde<V> valueSerde;
     private final ALoadingCache<K, TimeSeriesFileLookupTableCache<K, V>> key_lookupTableCache;
     private final ALoadingCache<K, ReadWriteLock> key_tableLock = new ALoadingCache<K, ReadWriteLock>() {
         @Override
@@ -37,18 +33,18 @@ public abstract class ATimeSeriesDB<K, V> {
 
     public ATimeSeriesDB(final String name) {
         this.name = name;
-        this.localValueSerde = new LocalLazySerdeValueSerde<V>(newValueSerde());
+        this.valueSerde = newValueSerde();
         this.fixedLength = newFixedLength();
         this.key_lookupTableCache = new ALoadingCache<K, TimeSeriesFileLookupTableCache<K, V>>() {
             @Override
             protected TimeSeriesFileLookupTableCache<K, V> loadValue(final K key) {
-                return new TimeSeriesFileLookupTableCache<K, V>(getDatabaseName(key), localValueSerde.getDelegate(),
-                        fixedLength, new Function<ILazySerdeValue<? extends V>, FDate>() {
-                            @Override
-                            public FDate apply(final ILazySerdeValue<? extends V> input) {
-                                return extractTime(input);
-                            }
-                        });
+                return new TimeSeriesFileLookupTableCache<K, V>(getDatabaseName(key), valueSerde, fixedLength,
+                        new Function<V, FDate>() {
+                    @Override
+                    public FDate apply(final V input) {
+                        return extractTime(input);
+                    }
+                });
             }
         };
     }
@@ -65,22 +61,18 @@ public abstract class ATimeSeriesDB<K, V> {
 
     protected abstract Serde<V> newValueSerde();
 
-    protected abstract FDate extractTime(ILazySerdeValue<? extends V> value);
+    protected abstract FDate extractTime(V value);
 
-    public ICloseableIterator<? extends V> rangeValues(final K key, final FDate from, final FDate to) {
-        return ILazySerdeValue.unlazy(rangeValues(key, from, to, localValueSerde));
-    }
+    public ICloseableIterator<V> rangeValues(final K key, final FDate from, final FDate to) {
 
-    public ICloseableIterator<ILazySerdeValue<? extends V>> rangeValues(final K key, final FDate from, final FDate to,
-            final ILazySerdeValueSerde<V> valueSerdeOverride) {
-        return new ACloseableIterator<ILazySerdeValue<? extends V>>() {
+        return new ACloseableIterator<V>() {
 
-            private ICloseableIterator<ILazySerdeValue<? extends V>> readRangeValues;
+            private ICloseableIterator<V> readRangeValues;
 
-            private ICloseableIterator<ILazySerdeValue<? extends V>> getReadRangeValues() {
+            private ICloseableIterator<V> getReadRangeValues() {
                 if (readRangeValues == null) {
                     getTableLock(key).readLock().lock();
-                    readRangeValues = getLookupTableCache(key).readRangeValues(from, to, valueSerdeOverride);
+                    readRangeValues = getLookupTableCache(key).readRangeValues(from, to);
                 }
                 return readRangeValues;
             }
@@ -91,7 +83,7 @@ public abstract class ATimeSeriesDB<K, V> {
             }
 
             @Override
-            public ILazySerdeValue<? extends V> innerNext() {
+            public V innerNext() {
                 return getReadRangeValues().next();
             }
 
@@ -105,29 +97,24 @@ public abstract class ATimeSeriesDB<K, V> {
                     getReadRangeValues().close();
                     getTableLock(key).readLock().unlock();
                 }
-                readRangeValues = new EmptyCloseableIterator<ILazySerdeValue<? extends V>>();
+                readRangeValues = new EmptyCloseableIterator<V>();
             }
         };
     }
 
-    public ILazySerdeValue<? extends V> getLatestValue(final K key, final FDate date,
-            final ILazySerdeValueSerde<V> valueSerdeOverride) {
+    public V getLatestValue(final K key, final FDate date) {
         getTableLock(key).readLock().lock();
         try {
             if (date.isBeforeOrEqual(FDate.MIN_DATE)) {
-                return getLookupTableCache(key).getFirstValue(valueSerdeOverride);
+                return getLookupTableCache(key).getFirstValue();
             } else if (date.isAfterOrEqual(FDate.MAX_DATE)) {
-                return getLookupTableCache(key).getLastValue(valueSerdeOverride);
+                return getLookupTableCache(key).getLastValue();
             } else {
-                return getLookupTableCache(key).getLatestValue(date, valueSerdeOverride);
+                return getLookupTableCache(key).getLatestValue(date);
             }
         } finally {
             getTableLock(key).readLock().unlock();
         }
-    }
-
-    public V getLatestValue(final K key, final FDate date) {
-        return ILazySerdeValue.unlazy(getLatestValue(key, date, localValueSerde));
     }
 
     public boolean isEmptyOrInconsistent(final K key) {
@@ -168,10 +155,10 @@ public abstract class ATimeSeriesDB<K, V> {
         return key_lookupTableCache.get(key);
     }
 
-    protected abstract String getDatabaseName(final K key);
-
-    public ILazySerdeValueSerde<V> getLocalValueSerde() {
-        return localValueSerde;
+    protected Serde<V> getValueSerde() {
+        return valueSerde;
     }
+
+    protected abstract String getDatabaseName(final K key);
 
 }

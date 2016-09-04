@@ -2,8 +2,6 @@ package de.invesdwin.context.persistence.leveldb.serde;
 
 import javax.annotation.concurrent.Immutable;
 
-import de.invesdwin.context.persistence.leveldb.serde.lazy.ILazySerdeValue;
-import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.lang.Reflections;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
@@ -15,8 +13,6 @@ public class ExtendedTypeDelegateSerde<O> extends TypeDelegateSerde<O> {
 
     public ExtendedTypeDelegateSerde(final Class<O> type) {
         super(type);
-        Assertions.checkNotEquals(type, ILazySerdeValue.class,
-                "Please provide your own instance of XyzLazySerdeValueSerde");
     }
 
     @Override
