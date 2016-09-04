@@ -5,7 +5,9 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -19,6 +21,8 @@ import de.invesdwin.context.persistence.leveldb.ipc.pipe.PipeSynchronousReader;
 import de.invesdwin.context.persistence.leveldb.ipc.pipe.PipeSynchronousWriter;
 import de.invesdwin.context.persistence.leveldb.ipc.queue.QueueSynchronousReader;
 import de.invesdwin.context.persistence.leveldb.ipc.queue.QueueSynchronousWriter;
+import de.invesdwin.context.persistence.leveldb.ipc.queue.blocking.BlockingQueueSynchronousReader;
+import de.invesdwin.context.persistence.leveldb.ipc.queue.blocking.BlockingQueueSynchronousWriter;
 import de.invesdwin.context.persistence.leveldb.serde.FDateSerde;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
@@ -42,7 +46,7 @@ public class ChannelPerformanceTest extends ATest {
     private static final int MESSAGE_SIZE = FDateSerde.get.toBytes(FDate.MAX_DATE).length;
     private static final int MESSAGE_TYPE = 1;
     private static final int VALUES = DEBUG ? 10 : 1_000_000;
-    private static final int FLUSH_INTERVAL = Math.max(10, VALUES / 50);
+    private static final int FLUSH_INTERVAL = Math.max(10, VALUES / 10);
     private static final byte[] EMPTY_BYTES = new byte[0];
     private static final Duration MAX_WAIT_DURATION = new Duration(1, DEBUG ? FTimeUnit.DAYS : FTimeUnit.SECONDS);
 
@@ -128,6 +132,28 @@ public class ChannelPerformanceTest extends ATest {
         runQueuePerformanceTest(responseQueue, requestQueue, null, null);
     }
 
+    @Test
+    public void testLinkedBlockingQueuePerformanceWithBlocking() throws InterruptedException {
+        final BlockingQueue<Pair<Integer, byte[]>> responseQueue = new LinkedBlockingQueue<Pair<Integer, byte[]>>();
+        final BlockingQueue<Pair<Integer, byte[]>> requestQueue = new LinkedBlockingQueue<Pair<Integer, byte[]>>();
+        runBlockingQueuePerformanceTest(responseQueue, requestQueue, null, null);
+    }
+
+    @Test
+    public void testSynchronousQueuePerformance() throws InterruptedException {
+        final SynchronousQueue<Pair<Integer, byte[]>> responseQueue = new SynchronousQueue<Pair<Integer, byte[]>>(
+                false);
+        final SynchronousQueue<Pair<Integer, byte[]>> requestQueue = new SynchronousQueue<Pair<Integer, byte[]>>(false);
+        runBlockingQueuePerformanceTest(responseQueue, requestQueue, null, null);
+    }
+
+    @Test
+    public void testSynchronousQueuePerformanceWithFair() throws InterruptedException {
+        final SynchronousQueue<Pair<Integer, byte[]>> responseQueue = new SynchronousQueue<Pair<Integer, byte[]>>(true);
+        final SynchronousQueue<Pair<Integer, byte[]>> requestQueue = new SynchronousQueue<Pair<Integer, byte[]>>(true);
+        runBlockingQueuePerformanceTest(responseQueue, requestQueue, null, null);
+    }
+
     private void runQueuePerformanceTest(final Queue<Pair<Integer, byte[]>> responseQueue,
             final Queue<Pair<Integer, byte[]>> requestQueue, final Object synchronizeRequest,
             final Object synchronizeResponse) throws InterruptedException {
@@ -135,11 +161,29 @@ public class ChannelPerformanceTest extends ATest {
                 synchronizeResponse);
         final ISynchronousReader requestReader = maybeSynchronize(new QueueSynchronousReader(requestQueue),
                 synchronizeRequest);
-        final WrappedExecutorService executor = Executors.newFixedThreadPool("testSynchronousQueuePerformance", 1);
+        final WrappedExecutorService executor = Executors.newFixedThreadPool("testQueuePerformance", 1);
         executor.execute(new WriterTask(requestReader, responseWriter));
         final ISynchronousWriter requestWriter = maybeSynchronize(new QueueSynchronousWriter(requestQueue),
                 synchronizeRequest);
         final ISynchronousReader responseReader = maybeSynchronize(new QueueSynchronousReader(responseQueue),
+                synchronizeResponse);
+        read(requestWriter, responseReader);
+        executor.shutdown();
+        executor.awaitTermination();
+    }
+
+    private void runBlockingQueuePerformanceTest(final BlockingQueue<Pair<Integer, byte[]>> responseQueue,
+            final BlockingQueue<Pair<Integer, byte[]>> requestQueue, final Object synchronizeRequest,
+            final Object synchronizeResponse) throws InterruptedException {
+        final ISynchronousWriter responseWriter = maybeSynchronize(new BlockingQueueSynchronousWriter(responseQueue),
+                synchronizeResponse);
+        final ISynchronousReader requestReader = maybeSynchronize(new BlockingQueueSynchronousReader(requestQueue),
+                synchronizeRequest);
+        final WrappedExecutorService executor = Executors.newFixedThreadPool("testBlockingQueuePerformance", 1);
+        executor.execute(new WriterTask(requestReader, responseWriter));
+        final ISynchronousWriter requestWriter = maybeSynchronize(new BlockingQueueSynchronousWriter(requestQueue),
+                synchronizeRequest);
+        final ISynchronousReader responseReader = maybeSynchronize(new BlockingQueueSynchronousReader(responseQueue),
                 synchronizeResponse);
         read(requestWriter, responseReader);
         executor.shutdown();
@@ -247,7 +291,13 @@ public class ChannelPerformanceTest extends ATest {
         }
         Assertions.checkEquals(count, VALUES);
         try {
+            if (DEBUG) {
+                log.info("client close reader");
+            }
             responseReader.close();
+            if (DEBUG) {
+                log.info("client close writer");
+            }
             requestWriter.close();
         } catch (final IOException e) {
             throw new RuntimeException(e);
@@ -312,7 +362,13 @@ public class ChannelPerformanceTest extends ATest {
                     waitingSince = new Instant();
                 }
                 printProgress("WritesFinished", writesStart, VALUES, VALUES);
+                if (DEBUG) {
+                    log.info("server close writer");
+                }
                 responseWriter.close();
+                if (DEBUG) {
+                    log.info("server close reader");
+                }
                 requestReader.close();
             } catch (final IOException e) {
                 throw new RuntimeException(e);

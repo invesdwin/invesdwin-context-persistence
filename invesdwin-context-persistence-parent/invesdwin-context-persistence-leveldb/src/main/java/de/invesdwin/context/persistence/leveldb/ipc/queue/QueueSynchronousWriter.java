@@ -34,9 +34,7 @@ public class QueueSynchronousWriter implements ISynchronousWriter {
 
     @Override
     public void write(final int type, final byte[] message) throws IOException {
-        synchronized (queue) {
-            queue.add(Pair.of(type, message));
-        }
+        queue.add(Pair.of(type, message));
     }
 
 }
