@@ -24,7 +24,7 @@ public class BlockingQueueSynchronousReader extends ABlockingQueueSynchronousCha
         if (next != null) {
             return true;
         }
-            next = queue.poll();
+        next = queue.poll();
         return next != null;
     }
 
