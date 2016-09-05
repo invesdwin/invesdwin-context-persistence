@@ -3,6 +3,8 @@ package de.invesdwin.context.persistence.leveldb.ipc;
 import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
@@ -23,6 +25,8 @@ import de.invesdwin.context.persistence.leveldb.ipc.queue.QueueSynchronousReader
 import de.invesdwin.context.persistence.leveldb.ipc.queue.QueueSynchronousWriter;
 import de.invesdwin.context.persistence.leveldb.ipc.queue.blocking.BlockingQueueSynchronousReader;
 import de.invesdwin.context.persistence.leveldb.ipc.queue.blocking.BlockingQueueSynchronousWriter;
+import de.invesdwin.context.persistence.leveldb.ipc.socket.SocketSynchronousReader;
+import de.invesdwin.context.persistence.leveldb.ipc.socket.SocketSynchronousWriter;
 import de.invesdwin.context.persistence.leveldb.serde.FDateSerde;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
@@ -48,15 +52,14 @@ public class ChannelPerformanceTest extends ATest {
     private static final int VALUES = DEBUG ? 10 : 1_000_000;
     private static final int FLUSH_INTERVAL = Math.max(10, VALUES / 10);
     private static final byte[] EMPTY_BYTES = new byte[0];
-    private static final Duration MAX_WAIT_DURATION = new Duration(1, DEBUG ? FTimeUnit.DAYS : FTimeUnit.SECONDS);
+    private static final Duration MAX_WAIT_DURATION = new Duration(10, DEBUG ? FTimeUnit.DAYS : FTimeUnit.SECONDS);
 
-    private enum ChannelType {
+    private enum FileChannelType {
         PIPE,
-        MAPPED,
-        QUEUE;
+        MAPPED;
     }
 
-    private File newFile(final String name, final boolean tmpfs, final ChannelType pipes) {
+    private File newFile(final String name, final boolean tmpfs, final FileChannelType pipes) {
         final File baseFolder;
         if (tmpfs) {
             baseFolder = SynchronousChannels.TMPFS_FOLDER;
@@ -66,16 +69,16 @@ public class ChannelPerformanceTest extends ATest {
         final File file = new File(baseFolder, name);
         FileUtils.deleteQuietly(file);
         Assertions.checkFalse(file.exists(), "%s", file);
-        if (pipes == ChannelType.PIPE) {
+        if (pipes == FileChannelType.PIPE) {
             Assertions.checkTrue(SynchronousChannels.createNamedPipe(file));
-        } else if (pipes == ChannelType.MAPPED) {
+        } else if (pipes == FileChannelType.MAPPED) {
             try {
                 FileUtils.touch(file);
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
         } else {
-            throw UnknownArgumentException.newInstance(ChannelType.class, pipes);
+            throw UnknownArgumentException.newInstance(FileChannelType.class, pipes);
         }
         Assertions.checkTrue(file.exists());
         return file;
@@ -84,7 +87,7 @@ public class ChannelPerformanceTest extends ATest {
     @Test
     public void testNamedPipePerformance() throws InterruptedException {
         final boolean tmpfs = false;
-        final ChannelType pipes = ChannelType.PIPE;
+        final FileChannelType pipes = FileChannelType.PIPE;
         final File requestFile = newFile("testNamedPipePerformance_request.pipe", tmpfs, pipes);
         final File responseFile = newFile("testNamedPipePerformance_response.pipe", tmpfs, pipes);
         runPerformanceTest(pipes, requestFile, responseFile, null, null);
@@ -93,7 +96,7 @@ public class ChannelPerformanceTest extends ATest {
     @Test
     public void testNamedPipePerformanceWithTmpfs() throws InterruptedException {
         final boolean tmpfs = true;
-        final ChannelType pipes = ChannelType.PIPE;
+        final FileChannelType pipes = FileChannelType.PIPE;
         final File requestFile = newFile("testNamedPipePerformanceWithTmpfs_request.pipe", tmpfs, pipes);
         final File responseFile = newFile("testNamedPipePerformanceWithTmpfs_response.pipe", tmpfs, pipes);
         runPerformanceTest(pipes, requestFile, responseFile, null, null);
@@ -102,7 +105,7 @@ public class ChannelPerformanceTest extends ATest {
     @Test
     public void testMappedMemoryPerformance() throws InterruptedException {
         final boolean tmpfs = false;
-        final ChannelType pipes = ChannelType.MAPPED;
+        final FileChannelType pipes = FileChannelType.MAPPED;
         final File requestFile = newFile("testMappedMemoryPerformance_request.pipe", tmpfs, pipes);
         final File responseFile = newFile("testMappedMemoryPerformance_response.pipe", tmpfs, pipes);
         runPerformanceTest(pipes, requestFile, responseFile, null, null);
@@ -111,7 +114,7 @@ public class ChannelPerformanceTest extends ATest {
     @Test
     public void testMappedMemoryPerformanceWithTmpfs() throws InterruptedException {
         final boolean tmpfs = true;
-        final ChannelType pipes = ChannelType.MAPPED;
+        final FileChannelType pipes = FileChannelType.MAPPED;
         final File requestFile = newFile("testMappedMemoryPerformanceWithTmpfs_request.pipe", tmpfs, pipes);
         final File responseFile = newFile("testMappedMemoryPerformanceWithTmpfs_response.pipe", tmpfs, pipes);
         runPerformanceTest(pipes, requestFile, responseFile, null, null);
@@ -190,6 +193,26 @@ public class ChannelPerformanceTest extends ATest {
         executor.awaitTermination();
     }
 
+    @Test
+    public void testSocketPerformance() throws InterruptedException {
+        final SocketAddress responseAddress = new InetSocketAddress("localhost", 7878);
+        final SocketAddress requestAddress = new InetSocketAddress("localhost", 7879);
+        runSocketPerformanceTest(responseAddress, requestAddress);
+    }
+
+    private void runSocketPerformanceTest(final SocketAddress responseAddress, final SocketAddress requestAddress)
+            throws InterruptedException {
+        final ISynchronousWriter responseWriter = new SocketSynchronousWriter(responseAddress, true, MESSAGE_SIZE);
+        final ISynchronousReader requestReader = new SocketSynchronousReader(requestAddress, true, MESSAGE_SIZE);
+        final WrappedExecutorService executor = Executors.newFixedThreadPool("testSocketPerformance", 1);
+        executor.execute(new WriterTask(requestReader, responseWriter));
+        final ISynchronousWriter requestWriter = new SocketSynchronousWriter(requestAddress, false, MESSAGE_SIZE);
+        final ISynchronousReader responseReader = new SocketSynchronousReader(responseAddress, false, MESSAGE_SIZE);
+        read(requestWriter, responseReader);
+        executor.shutdown();
+        executor.awaitTermination();
+    }
+
     private ISynchronousReader maybeSynchronize(final ISynchronousReader reader, final Object synchronize) {
         if (synchronize != null) {
             return SynchronousChannels.synchronize(reader, synchronize);
@@ -206,7 +229,7 @@ public class ChannelPerformanceTest extends ATest {
         }
     }
 
-    private void runPerformanceTest(final ChannelType pipes, final File requestFile, final File responseFile,
+    private void runPerformanceTest(final FileChannelType pipes, final File requestFile, final File responseFile,
             final Object synchronizeRequest, final Object synchronizeResponse) throws InterruptedException {
         try {
             final ISynchronousWriter responseWriter = maybeSynchronize(newWriter(responseFile, pipes),
@@ -228,23 +251,23 @@ public class ChannelPerformanceTest extends ATest {
         }
     }
 
-    private ISynchronousReader newReader(final File file, final ChannelType pipes) {
-        if (pipes == ChannelType.PIPE) {
+    private ISynchronousReader newReader(final File file, final FileChannelType pipes) {
+        if (pipes == FileChannelType.PIPE) {
             return new PipeSynchronousReader(file, MESSAGE_SIZE);
-        } else if (pipes == ChannelType.MAPPED) {
+        } else if (pipes == FileChannelType.MAPPED) {
             return new MappedSynchronousReader(file, MESSAGE_SIZE);
         } else {
-            throw UnknownArgumentException.newInstance(ChannelType.class, pipes);
+            throw UnknownArgumentException.newInstance(FileChannelType.class, pipes);
         }
     }
 
-    private ISynchronousWriter newWriter(final File file, final ChannelType pipes) {
-        if (pipes == ChannelType.PIPE) {
+    private ISynchronousWriter newWriter(final File file, final FileChannelType pipes) {
+        if (pipes == FileChannelType.PIPE) {
             return new PipeSynchronousWriter(file, MESSAGE_SIZE);
-        } else if (pipes == ChannelType.MAPPED) {
+        } else if (pipes == FileChannelType.MAPPED) {
             return new MappedSynchronousWriter(file, MESSAGE_SIZE);
         } else {
-            throw UnknownArgumentException.newInstance(ChannelType.class, pipes);
+            throw UnknownArgumentException.newInstance(FileChannelType.class, pipes);
         }
     }
 
