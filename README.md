@@ -265,5 +265,5 @@ Named Pipes                Records:   281.15/ms  in  35568 ms    => using this a
 SynchronousQueue           Records:   924.90/ms  in  10812 ms    => ~3 times faster than Named Pipes
 LinkedBlockingQueue        Records:  1988.47/ms  in   5029 ms    => ~7 times faster than Named Pipes
 Mapped Memory              Records:  3214.40/ms  in   3111 ms    => ~11 times faster than Named Pipes
-Mapped Memory (TMPFS)      Records:  4237.29/ms  in   2360 ms    => ~15 times faster than Named Pipes
+Mapped Memory (tmpfs)      Records:  4237.29/ms  in   2360 ms    => ~15 times faster than Named Pipes
 ```
