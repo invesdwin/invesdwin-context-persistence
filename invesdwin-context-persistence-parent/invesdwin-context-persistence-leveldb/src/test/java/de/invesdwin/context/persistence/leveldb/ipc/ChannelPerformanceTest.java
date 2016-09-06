@@ -27,6 +27,8 @@ import de.invesdwin.context.persistence.leveldb.ipc.queue.blocking.BlockingQueue
 import de.invesdwin.context.persistence.leveldb.ipc.queue.blocking.BlockingQueueSynchronousWriter;
 import de.invesdwin.context.persistence.leveldb.ipc.socket.SocketSynchronousReader;
 import de.invesdwin.context.persistence.leveldb.ipc.socket.SocketSynchronousWriter;
+import de.invesdwin.context.persistence.leveldb.ipc.socket.udp.DatagramSocketSynchronousReader;
+import de.invesdwin.context.persistence.leveldb.ipc.socket.udp.DatagramSocketSynchronousWriter;
 import de.invesdwin.context.persistence.leveldb.serde.FDateSerde;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
@@ -43,13 +45,15 @@ import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.fdate.FTimeUnit;
 
+// CHECKSTYLE:OFF
 @NotThreadSafe
 public class ChannelPerformanceTest extends ATest {
+    //CHECKSTYLE:ON
 
     private static final boolean DEBUG = false;
     private static final int MESSAGE_SIZE = FDateSerde.get.toBytes(FDate.MAX_DATE).length;
     private static final int MESSAGE_TYPE = 1;
-    private static final int VALUES = DEBUG ? 10 : 1_000_000;
+    private static final int VALUES = DEBUG ? 10 : 10_000_000;
     private static final int FLUSH_INTERVAL = Math.max(10, VALUES / 10);
     private static final byte[] EMPTY_BYTES = new byte[0];
     private static final Duration MAX_WAIT_DURATION = new Duration(10, DEBUG ? FTimeUnit.DAYS : FTimeUnit.SECONDS);
@@ -213,6 +217,26 @@ public class ChannelPerformanceTest extends ATest {
         executor.awaitTermination();
     }
 
+    @Test
+    public void testDatagramSocketPerformance() throws InterruptedException {
+        final SocketAddress responseAddress = new InetSocketAddress("localhost", 7878);
+        final SocketAddress requestAddress = new InetSocketAddress("localhost", 7879);
+        runDatagramSocketPerformanceTest(responseAddress, requestAddress);
+    }
+
+    private void runDatagramSocketPerformanceTest(final SocketAddress responseAddress,
+            final SocketAddress requestAddress) throws InterruptedException {
+        final ISynchronousWriter responseWriter = new DatagramSocketSynchronousWriter(responseAddress, MESSAGE_SIZE);
+        final ISynchronousReader requestReader = new DatagramSocketSynchronousReader(requestAddress, MESSAGE_SIZE);
+        final WrappedExecutorService executor = Executors.newFixedThreadPool("testDatagramSocketPerformance", 1);
+        executor.execute(new WriterTask(requestReader, responseWriter));
+        final ISynchronousWriter requestWriter = new DatagramSocketSynchronousWriter(requestAddress, MESSAGE_SIZE);
+        final ISynchronousReader responseReader = new DatagramSocketSynchronousReader(responseAddress, MESSAGE_SIZE);
+        read(requestWriter, responseReader);
+        executor.shutdown();
+        executor.awaitTermination();
+    }
+
     private ISynchronousReader maybeSynchronize(final ISynchronousReader reader, final Object synchronize) {
         if (synchronize != null) {
             return SynchronousChannels.synchronize(reader, synchronize);
@@ -276,7 +300,13 @@ public class ChannelPerformanceTest extends ATest {
         FDate prevValue = null;
         int count = 0;
         try {
+            if (DEBUG) {
+                log.info("client open request writer");
+            }
             requestWriter.open();
+            if (DEBUG) {
+                log.info("client open response reader");
+            }
             responseReader.open();
             final ASpinWait spinWait = new ASpinWait() {
                 @Override
@@ -315,11 +345,11 @@ public class ChannelPerformanceTest extends ATest {
         Assertions.checkEquals(count, VALUES);
         try {
             if (DEBUG) {
-                log.info("client close reader");
+                log.info("client close response reader");
             }
             responseReader.close();
             if (DEBUG) {
-                log.info("client close writer");
+                log.info("client close request writer");
             }
             requestWriter.close();
         } catch (final IOException e) {
@@ -361,7 +391,13 @@ public class ChannelPerformanceTest extends ATest {
             try {
                 final Instant writesStart = new Instant();
                 int i = 0;
+                if (DEBUG) {
+                    log.info("server open request reader");
+                }
                 requestReader.open();
+                if (DEBUG) {
+                    log.info("server open response writer");
+                }
                 responseWriter.open();
                 Instant waitingSince = new Instant();
                 for (final FDate date : newValues()) {
@@ -386,11 +422,11 @@ public class ChannelPerformanceTest extends ATest {
                 }
                 printProgress("WritesFinished", writesStart, VALUES, VALUES);
                 if (DEBUG) {
-                    log.info("server close writer");
+                    log.info("server close response writer");
                 }
                 responseWriter.close();
                 if (DEBUG) {
-                    log.info("server close reader");
+                    log.info("server close request reader");
                 }
                 requestReader.close();
             } catch (final IOException e) {
