@@ -53,7 +53,7 @@ public class ChannelPerformanceTest extends ATest {
     private static final boolean DEBUG = false;
     private static final int MESSAGE_SIZE = FDateSerde.get.toBytes(FDate.MAX_DATE).length;
     private static final int MESSAGE_TYPE = 1;
-    private static final int VALUES = DEBUG ? 10 : 10_000_000;
+    private static final int VALUES = DEBUG ? 10 : 1_000_000;
     private static final int FLUSH_INTERVAL = Math.max(10, VALUES / 10);
     private static final byte[] EMPTY_BYTES = new byte[0];
     private static final Duration MAX_WAIT_DURATION = new Duration(10, DEBUG ? FTimeUnit.DAYS : FTimeUnit.SECONDS);

@@ -18,6 +18,11 @@ import ezdb.serde.Serde;
 @NotThreadSafe
 public abstract class ADatagramSocketSynchronousChannel implements ISynchronousChannel {
 
+    public static final int IPTOS_LOWCOST = 0x02;
+    public static final int IPTOS_RELIABILITY = 0x04;
+    public static final int IPTOS_THROUGHPUT = 0x08;
+    public static final int IPTOS_LOWDELAY = 0x10;
+
     public static final int TYPE_POS = 0;
     public static final Serde<Integer> TYPE_SERDE = IntegerSerde.get;
     public static final int TYPE_OFFSET = TYPE_SERDE.toBytes(Integer.MAX_VALUE).length;
@@ -76,6 +81,7 @@ public abstract class ADatagramSocketSynchronousChannel implements ISynchronousC
         }
         socket.setSendBufferSize(bufferSize);
         socket.setReceiveBufferSize(bufferSize);
+        socket.setTrafficClass(IPTOS_LOWDELAY | IPTOS_THROUGHPUT);
     }
 
     protected Duration getConnectRetryDelay() {

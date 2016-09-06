@@ -10,6 +10,7 @@ import java.net.SocketAddress;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.leveldb.ipc.ISynchronousChannel;
+import de.invesdwin.context.persistence.leveldb.ipc.socket.udp.ADatagramSocketSynchronousChannel;
 import de.invesdwin.util.time.duration.Duration;
 import ezdb.serde.IntegerSerde;
 import ezdb.serde.Serde;
@@ -70,6 +71,10 @@ public abstract class ASocketSynchronousChannel implements ISynchronousChannel {
                 }
             }
         }
+        socket.setTrafficClass(
+                ADatagramSocketSynchronousChannel.IPTOS_LOWDELAY | ADatagramSocketSynchronousChannel.IPTOS_THROUGHPUT);
+        socket.setReceiveBufferSize(bufferSize);
+        socket.setSendBufferSize(bufferSize);
     }
 
     protected Duration getConnectRetryDelay() {
