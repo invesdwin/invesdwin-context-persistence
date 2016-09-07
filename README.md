@@ -1,4 +1,4 @@
-e# invesdwin-context-persistence
+# invesdwin-context-persistence
 This project provides persistence modules for the [invesdwin-context](https://github.com/subes/invesdwin-context) module system.
 
 ## Maven
