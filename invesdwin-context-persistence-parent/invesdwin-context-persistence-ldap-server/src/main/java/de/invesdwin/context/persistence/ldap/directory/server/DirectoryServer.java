@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.ldap.directory.server;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Set;
 
@@ -99,7 +100,8 @@ public class DirectoryServer {
     public void loadLdifResource(final Resource resource) {
         try {
             final CoreSession coreSession = getDirectoryService().getAdminSession();
-            for (final LdifEntry ldifEntry : new LdifReader(resource.getInputStream())) {
+            final InputStream in = resource.getInputStream();
+            for (final LdifEntry ldifEntry : new LdifReader(in)) {
                 final Dn dn = ldifEntry.getDn();
 
                 if (ldifEntry.isEntry()) {
@@ -115,6 +117,7 @@ public class DirectoryServer {
                     coreSession.modify(dn, items);
                 }
             }
+            in.close();
         } catch (final LdapException | IOException e) {
             throw new RuntimeException(e);
         }
