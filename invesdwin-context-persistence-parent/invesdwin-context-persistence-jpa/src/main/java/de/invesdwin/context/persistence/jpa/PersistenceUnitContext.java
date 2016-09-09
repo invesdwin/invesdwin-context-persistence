@@ -26,6 +26,7 @@ import de.invesdwin.context.persistence.jpa.scanning.transaction.LoggingDelegate
 import de.invesdwin.context.persistence.jpa.spi.impl.PersistenceUnitAnnotationUtil;
 import de.invesdwin.context.persistence.jpa.test.internal.PersistenceContext;
 import de.invesdwin.context.persistence.jpa.test.internal.ProdPersistenceContextLocation;
+import de.invesdwin.context.system.properties.IProperties;
 import de.invesdwin.context.system.properties.SystemProperties;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.lang.Reflections;
@@ -140,7 +141,8 @@ public final class PersistenceUnitContext {
     }
 
     public String getConnectionPassword() {
-        return systemProperties.getString(getPersistenceUnitKey("CONNECTION_PASSWORD"));
+        return systemProperties.getStringWithSecurityWarning(getPersistenceUnitKey("CONNECTION_PASSWORD"),
+                IProperties.INVESDWIN_DEFAULT_PASSWORD);
     }
 
     public int getConnectionBatchSize() {
