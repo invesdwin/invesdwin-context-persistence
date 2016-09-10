@@ -30,6 +30,9 @@ import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.UniqueNameGenerator;
+import de.invesdwin.util.math.decimal.Decimal;
+import de.invesdwin.util.math.decimal.scaled.ByteSize;
+import de.invesdwin.util.math.decimal.scaled.ByteSizeScale;
 import net.jpountz.lz4.LZ4BlockInputStream;
 import net.jpountz.lz4.LZ4BlockOutputStream;
 import net.jpountz.lz4.LZ4Factory;
@@ -37,6 +40,8 @@ import net.jpountz.lz4.LZ4Factory;
 @NotThreadSafe
 public class SerializingCollection<E> implements Collection<E>, ICloseableIterable<E>, Serializable {
 
+    public static final int DEFAULT_BUFFER_SIZE = new ByteSize(Decimal.ONE, ByteSizeScale.MEGABYTES)
+            .getValue(ByteSizeScale.BYTES).intValue();
     public static final int DEFAULT_BLOCK_SIZE = 65536;
     private static final int READ_ONLY_FILE_SIZE = Integer.MAX_VALUE;
     private static final UniqueNameGenerator UNIQUE_NAME_GENERATOR = new UniqueNameGenerator();

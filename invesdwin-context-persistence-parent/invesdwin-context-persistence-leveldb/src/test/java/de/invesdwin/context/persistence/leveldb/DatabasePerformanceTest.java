@@ -6,7 +6,6 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
@@ -27,7 +26,6 @@ import de.invesdwin.util.time.fdate.FTimeUnit;
 import ezdb.batch.RangeBatch;
 import ezdb.serde.Serde;
 
-@Ignore("manual test")
 @NotThreadSafe
 public class DatabasePerformanceTest extends ATest {
 
