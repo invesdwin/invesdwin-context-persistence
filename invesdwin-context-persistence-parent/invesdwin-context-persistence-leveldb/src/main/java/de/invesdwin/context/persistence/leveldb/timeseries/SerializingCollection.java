@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.leveldb.timeseries;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.DataInputStream;
 import java.io.File;
@@ -42,6 +43,7 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
 
     public static final int DEFAULT_BUFFER_SIZE = new ByteSize(Decimal.ONE, ByteSizeScale.MEGABYTES)
             .getValue(ByteSizeScale.BYTES).intValue();
+    public static final int DEFAULT_BLOCK_SIZE = 65536;
     private static final int READ_ONLY_FILE_SIZE = Integer.MAX_VALUE;
     private static final UniqueNameGenerator UNIQUE_NAME_GENERATOR = new UniqueNameGenerator();
 
@@ -129,7 +131,9 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
 
     protected OutputStream newCompressor(final FileOutputStream out) {
         //LZ4HC is read optimized, you can write optimize by using fastCompressor()
-        return new LZ4BlockOutputStream(out, DEFAULT_BUFFER_SIZE, LZ4Factory.fastestInstance().highCompressor());
+        return new BufferedOutputStream(
+                new LZ4BlockOutputStream(out, DEFAULT_BLOCK_SIZE, LZ4Factory.fastestInstance().highCompressor()),
+                DEFAULT_BUFFER_SIZE);
     }
 
     protected InputStream newDecompressor(final BufferedInputStream bufferedInputStream) {
