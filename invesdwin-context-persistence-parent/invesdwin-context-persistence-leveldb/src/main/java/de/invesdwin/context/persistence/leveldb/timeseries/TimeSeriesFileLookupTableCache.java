@@ -51,32 +51,33 @@ public class TimeSeriesFileLookupTableCache<K, V> {
             final byte[] value = timeLookupTable.getOrLoad(DUMMY_HASH_KEY, key,
                     new Function<Pair<Void, FDate>, byte[]>() {
 
-                @Override
-                public byte[] apply(final Pair<Void, FDate> input) {
-                    final FDate fileTime = fileLookupTable.getLatestRangeKey(input.getFirst(), input.getSecond());
-                    if (fileTime == null) {
-                        return null;
-                    }
-                    final File file = newFile(fileTime);
-                    final SerializingCollection<V> serializingCollection = newSerializingCollection(file);
-                    try (ICloseableIterator<V> it = serializingCollection.iterator()) {
-                        V latestValue = null;
-                        while (it.hasNext()) {
-                            final V newValue = it.next();
-                            final FDate newValueTime = extractTime.apply(newValue);
-                            if (newValueTime.isAfter(key)) {
-                                break;
-                            } else {
-                                latestValue = newValue;
+                        @Override
+                        public byte[] apply(final Pair<Void, FDate> input) {
+                            final FDate fileTime = fileLookupTable.getLatestRangeKey(input.getFirst(),
+                                    input.getSecond());
+                            if (fileTime == null) {
+                                return null;
+                            }
+                            final File file = newFile(fileTime);
+                            final SerializingCollection<V> serializingCollection = newSerializingCollection(file);
+                            try (ICloseableIterator<V> it = serializingCollection.iterator()) {
+                                V latestValue = null;
+                                while (it.hasNext()) {
+                                    final V newValue = it.next();
+                                    final FDate newValueTime = extractTime.apply(newValue);
+                                    if (newValueTime.isAfter(key)) {
+                                        break;
+                                    } else {
+                                        latestValue = newValue;
+                                    }
+                                }
+                                if (latestValue == null) {
+                                    latestValue = getFirstValue();
+                                }
+                                return valueSerde.toBytes(latestValue);
                             }
                         }
-                        if (latestValue == null) {
-                            latestValue = getFirstValue();
-                        }
-                        return valueSerde.toBytes(latestValue);
-                    }
-                }
-            });
+                    });
             if (value == null) {
                 return null;
             } else {
@@ -146,7 +147,8 @@ public class TimeSeriesFileLookupTableCache<K, V> {
 
     public synchronized File getBaseDir() {
         if (baseDir == null) {
-            baseDir = new File(ContextProperties.getHomeDirectory(), getClass().getSimpleName() + "/" + key);
+            baseDir = new File(ContextProperties.getHomeDirectory(),
+                    getClass().getSimpleName() + "/" + key.replace(":", "_"));
             try {
                 FileUtils.forceMkdir(baseDir);
             } catch (final IOException e) {
