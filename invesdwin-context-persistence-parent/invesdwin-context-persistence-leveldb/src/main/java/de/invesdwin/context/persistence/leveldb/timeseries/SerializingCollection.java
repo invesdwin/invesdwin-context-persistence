@@ -43,7 +43,11 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
 
     public static final int DEFAULT_BUFFER_SIZE = new ByteSize(Decimal.ONE, ByteSizeScale.MEGABYTES)
             .getValue(ByteSizeScale.BYTES).intValue();
-    public static final int DEFAULT_BLOCK_SIZE = 65536;
+    /*
+     * 64KB is default in LZ4OutputStream (1 << 16)
+     */
+    public static final int DEFAULT_BLOCK_SIZE = new ByteSize(new Decimal("64"), ByteSizeScale.KILOBYTES)
+            .getValue(ByteSizeScale.BYTES).intValue();
     private static final int READ_ONLY_FILE_SIZE = Integer.MAX_VALUE;
     private static final UniqueNameGenerator UNIQUE_NAME_GENERATOR = new UniqueNameGenerator();
 
