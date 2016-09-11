@@ -14,8 +14,8 @@ import org.datanucleus.api.jpa.PersistenceProviderImpl;
 import org.springframework.orm.jpa.JpaDialect;
 import org.springframework.orm.jpa.JpaVendorAdapter;
 
-import de.invesdwin.context.beans.init.EhCacheConfigurationMerger;
 import de.invesdwin.context.beans.init.MergedContext;
+import de.invesdwin.context.beans.init.platform.util.EhCacheConfigurationMerger;
 import de.invesdwin.context.persistence.jpa.ConnectionAutoSchema;
 import de.invesdwin.context.persistence.jpa.ConnectionDialect;
 import de.invesdwin.context.persistence.jpa.PersistenceUnitContext;
