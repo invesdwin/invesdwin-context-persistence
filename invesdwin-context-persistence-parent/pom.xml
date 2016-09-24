@@ -176,6 +176,10 @@
 						<artifactId>xml-apis</artifactId>
 						<groupId>xml-apis</groupId>
 					</exclusion>
+					<exclusion>
+						<groupId>javax.enterprise</groupId>
+						<artifactId>cdi-api</artifactId>
+					</exclusion>
 				</exclusions>
 			</dependency>
 			<dependency>
