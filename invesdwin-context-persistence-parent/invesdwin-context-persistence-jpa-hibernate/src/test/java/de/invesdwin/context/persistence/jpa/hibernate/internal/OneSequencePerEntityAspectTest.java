@@ -4,8 +4,8 @@ import java.util.Properties;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.hibernate.dialect.Dialect;
 import org.hibernate.id.enhanced.SequenceStyleGenerator;
+import org.hibernate.service.ServiceRegistry;
 import org.hibernate.type.Type;
 import org.junit.Test;
 
@@ -19,9 +19,9 @@ public class OneSequencePerEntityAspectTest extends ATest {
     public void testAspectWorking() {
         final Type type = null;
         final Properties params = new Properties();
-        final Dialect dialect = null;
+        final ServiceRegistry serviceRegistry = null;
         try {
-            new SequenceStyleGenerator().configure(type, params, dialect);
+            new SequenceStyleGenerator().configure(type, params, serviceRegistry);
             Assertions.fail("exception expected");
         } catch (final NullPointerException e) { //SUPPRESS CHECKSTYLE single line
             //ignore
