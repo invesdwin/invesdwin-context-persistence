@@ -134,33 +134,6 @@
 			</dependency>
 
 			<dependency>
-				<groupId>com.querydsl</groupId>
-				<artifactId>querydsl-collections</artifactId>
-				<version>${version.querydsl}</version>
-				<exclusions>
-					<exclusion>
-						<artifactId>ecj</artifactId>
-						<groupId>org.eclipse.jdt.core.compiler</groupId>
-					</exclusion>
-				</exclusions>
-			</dependency>
-			<dependency>
-				<groupId>cglib</groupId>
-				<artifactId>cglib</artifactId>
-				<version>${version.cglib}</version>
-			</dependency>
-			<dependency>
-				<groupId>com.querydsl</groupId>
-				<artifactId>querydsl-jpa</artifactId>
-				<version>${version.querydsl}</version>
-				<exclusions>
-					<exclusion>
-						<artifactId>hibernate-jpa-2.0-api</artifactId>
-						<groupId>org.hibernate.javax.persistence</groupId>
-					</exclusion>
-				</exclusions>
-			</dependency>
-			<dependency>
 				<groupId>asm</groupId>
 				<artifactId>asm</artifactId>
 				<version>${version.asm}</version>
