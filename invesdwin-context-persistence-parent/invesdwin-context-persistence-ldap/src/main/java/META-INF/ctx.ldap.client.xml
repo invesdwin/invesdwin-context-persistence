@@ -9,13 +9,14 @@
 	<bean id="ldapClientProperties"
 		class="de.invesdwin.context.system.properties.SystemPropertiesDefinition" />
 
+	<!-- reference ldap context uri static so that random port value gets replaced -->
 	<ldap:context-source
-		url="${de.invesdwin.context.persistence.ldap.LdapProperties.LDAP_CONTEXT_URI}"
+		url="#{T(de.invesdwin.context.persistence.ldap.LdapProperties).LDAP_CONTEXT_URI.toString()}"
 		base="${de.invesdwin.context.persistence.ldap.LdapProperties.LDAP_CONTEXT_BASE}"
 		username="${de.invesdwin.context.persistence.ldap.LdapProperties.LDAP_CONTEXT_USERNAME}"
 		password="${de.invesdwin.context.persistence.ldap.LdapProperties.LDAP_CONTEXT_PASSWORD}">
 		<!-- LDAP pooling disables support for ldapTemplate.authenticate -->
-		<!-- <ldap:pooling test-on-borrow="false" test-while-idle="true" />-->
+		<!-- <ldap:pooling test-on-borrow="false" test-while-idle="true" /> -->
 	</ldap:context-source>
 
 	<ldap:ldap-template id="ldapTemplate" />
