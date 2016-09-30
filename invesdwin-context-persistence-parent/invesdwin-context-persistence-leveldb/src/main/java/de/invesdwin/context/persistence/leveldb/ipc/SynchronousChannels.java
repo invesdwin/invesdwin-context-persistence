@@ -14,12 +14,11 @@ import org.zeroturnaround.exec.stop.ProcessStopper;
 import org.zeroturnaround.exec.stream.slf4j.Slf4jStream;
 
 import de.invesdwin.context.ContextProperties;
+import de.invesdwin.instrument.DynamicInstrumentationProperties;
 import de.invesdwin.util.bean.tuple.Pair;
 
 @Immutable
 public final class SynchronousChannels {
-
-    public static final File TMPFS_FOLDER = new File("/dev/shm");
 
     public static final ISynchronousReader CLOSED_READER = new ISynchronousReader() {
 
@@ -49,8 +48,17 @@ public final class SynchronousChannels {
         @Override
         public void write(final int type, final byte[] message) {}
     };
+    private static final File TMPFS_FOLDER = new File("/dev/shm");
+    private static final File TMPFS_FOLDER_OR_FALLBACK;
 
     private static Boolean namedPipeSupportedCached;
+    static {
+        if (TMPFS_FOLDER.exists()) {
+            TMPFS_FOLDER_OR_FALLBACK = DynamicInstrumentationProperties.newTempDirectory(TMPFS_FOLDER);
+        } else {
+            TMPFS_FOLDER_OR_FALLBACK = ContextProperties.TEMP_DIRECTORY;
+        }
+    }
 
     private SynchronousChannels() {}
 
@@ -161,11 +169,7 @@ public final class SynchronousChannels {
     }
 
     public static File getTmpfsFolderOrFallback() {
-        if (TMPFS_FOLDER.exists()) {
-            return TMPFS_FOLDER;
-        } else {
-            return ContextProperties.TEMP_DIRECTORY;
-        }
+        return TMPFS_FOLDER_OR_FALLBACK;
     }
 
     public static boolean isNamedPipeSupported() {

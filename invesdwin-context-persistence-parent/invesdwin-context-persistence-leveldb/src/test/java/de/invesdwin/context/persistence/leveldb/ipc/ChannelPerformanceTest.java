@@ -66,7 +66,7 @@ public class ChannelPerformanceTest extends ATest {
     private File newFile(final String name, final boolean tmpfs, final FileChannelType pipes) {
         final File baseFolder;
         if (tmpfs) {
-            baseFolder = SynchronousChannels.TMPFS_FOLDER;
+            baseFolder = SynchronousChannels.getTmpfsFolderOrFallback();
         } else {
             baseFolder = ContextProperties.TEMP_DIRECTORY;
         }
