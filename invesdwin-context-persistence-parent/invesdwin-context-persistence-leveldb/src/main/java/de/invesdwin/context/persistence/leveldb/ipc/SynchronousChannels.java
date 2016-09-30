@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.Immutable;
 
 import org.apache.commons.io.FileUtils;
@@ -49,16 +50,10 @@ public final class SynchronousChannels {
         public void write(final int type, final byte[] message) {}
     };
     private static final File TMPFS_FOLDER = new File("/dev/shm");
-    private static final File TMPFS_FOLDER_OR_FALLBACK;
-
+    @GuardedBy("this.class")
+    private static File tmpfsFolderOrFallback;
+    @GuardedBy("this.class")
     private static Boolean namedPipeSupportedCached;
-    static {
-        if (TMPFS_FOLDER.exists()) {
-            TMPFS_FOLDER_OR_FALLBACK = DynamicInstrumentationProperties.newTempDirectory(TMPFS_FOLDER);
-        } else {
-            TMPFS_FOLDER_OR_FALLBACK = ContextProperties.TEMP_DIRECTORY;
-        }
-    }
 
     private SynchronousChannels() {}
 
@@ -168,11 +163,18 @@ public final class SynchronousChannels {
         };
     }
 
-    public static File getTmpfsFolderOrFallback() {
-        return TMPFS_FOLDER_OR_FALLBACK;
+    public static synchronized File getTmpfsFolderOrFallback() {
+        if (tmpfsFolderOrFallback == null) {
+            if (TMPFS_FOLDER.exists()) {
+                tmpfsFolderOrFallback = DynamicInstrumentationProperties.newTempDirectory(TMPFS_FOLDER);
+            } else {
+                tmpfsFolderOrFallback = ContextProperties.TEMP_DIRECTORY;
+            }
+        }
+        return tmpfsFolderOrFallback;
     }
 
-    public static boolean isNamedPipeSupported() {
+    public static synchronized boolean isNamedPipeSupported() {
         if (namedPipeSupportedCached == null) {
             final File namedPipeTestFile = new File(ContextProperties.TEMP_DIRECTORY,
                     SynchronousChannels.class.getSimpleName() + "_NamedPipeTest.pipe");
