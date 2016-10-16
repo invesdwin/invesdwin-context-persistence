@@ -40,11 +40,11 @@ public abstract class ATimeSeriesDB<K, V> {
             protected TimeSeriesFileLookupTableCache<K, V> loadValue(final K key) {
                 return new TimeSeriesFileLookupTableCache<K, V>(getDatabaseName(key), valueSerde, fixedLength,
                         new Function<V, FDate>() {
-                    @Override
-                    public FDate apply(final V input) {
-                        return extractTime(input);
-                    }
-                });
+                            @Override
+                            public FDate apply(final V input) {
+                                return extractTime(input);
+                            }
+                        });
             }
         };
     }
@@ -97,7 +97,7 @@ public abstract class ATimeSeriesDB<K, V> {
                     getReadRangeValues().close();
                     getTableLock(key).readLock().unlock();
                 }
-                readRangeValues = new EmptyCloseableIterator<V>();
+                readRangeValues = EmptyCloseableIterator.getInstance();
             }
         };
     }

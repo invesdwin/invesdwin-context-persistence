@@ -187,7 +187,7 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
                 return new DynamicLengthDeserializingIterator();
             }
         } else {
-            return new EmptyCloseableIterator<E>();
+            return EmptyCloseableIterator.getInstance();
         }
     }
 

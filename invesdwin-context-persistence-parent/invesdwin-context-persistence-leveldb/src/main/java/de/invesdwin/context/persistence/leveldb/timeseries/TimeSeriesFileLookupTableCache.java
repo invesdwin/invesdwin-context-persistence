@@ -176,7 +176,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
         if (from == null) {
             final V firstValue = getFirstValue();
             if (firstValue == null) {
-                return new EmptyCloseableIterable<File>();
+                return EmptyCloseableIterable.getInstance();
             }
             usedFrom = extractTime.apply(firstValue);
         } else {
