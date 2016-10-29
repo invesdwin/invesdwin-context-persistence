@@ -160,7 +160,7 @@ public abstract class ATimeSeriesUpdater<K, V> {
     public class UpdateProgress {
 
         private final List<V> batch = new ArrayList<V>(BATCH_FLUSH_INTERVAL);
-        private int count;
+        private long count;
         private FDate minTime;
         private FDate maxTime;
 
@@ -172,7 +172,7 @@ public abstract class ATimeSeriesUpdater<K, V> {
             return maxTime;
         }
 
-        public int getCount() {
+        public long getCount() {
             return count;
         }
 

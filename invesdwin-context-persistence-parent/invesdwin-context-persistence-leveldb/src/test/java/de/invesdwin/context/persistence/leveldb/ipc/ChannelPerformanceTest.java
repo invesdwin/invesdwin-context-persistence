@@ -37,7 +37,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
 import de.invesdwin.util.error.UnknownArgumentException;
-import de.invesdwin.util.math.decimal.Decimal;
+import de.invesdwin.util.lang.ProcessedEventsRateString;
 import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.math.decimal.scaled.PercentScale;
 import de.invesdwin.util.time.Instant;
@@ -360,10 +360,10 @@ public class ChannelPerformanceTest extends ATest {
     }
 
     private void printProgress(final String action, final Instant start, final int count, final int maxCount) {
-        final long milliseconds = start.toDuration().longValue(FTimeUnit.MILLISECONDS);
-        log.info("%s: %s/%s (%s) %s/ms in %s ms", action, count, maxCount,
+        final Duration duration = start.toDuration();
+        log.info("%s: %s/%s (%s) %s during %s", action, count, maxCount,
                 new Percent(count, maxCount).toString(PercentScale.PERCENT),
-                Decimal.valueOf(count).divide(milliseconds).round(2), milliseconds);
+                new ProcessedEventsRateString(count, duration), duration);
     }
 
     private ICloseableIterable<FDate> newValues() {
