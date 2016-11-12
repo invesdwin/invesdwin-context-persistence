@@ -30,8 +30,6 @@
 	<properties>
 		<version.invesdwin-context-persistence>${version.invesdwin-context}</version.invesdwin-context-persistence>
 
-		<version.commons-pool>1.6</version.commons-pool>
-
 		<version.asm>3.3.1</version.asm>
 		<version.spring-data-jpa>1.10.2.RELEASE</version.spring-data-jpa>
 		<version.jboss-transaction-api_1.1_spec>1.0.1.Final</version.jboss-transaction-api_1.1_spec>
@@ -92,12 +90,6 @@
 				<groupId>de.invesdwin</groupId>
 				<artifactId>invesdwin-context-persistence-leveldb</artifactId>
 				<version>${version.invesdwin-context-persistence}</version>
-			</dependency>
-
-			<dependency>
-				<groupId>commons-pool</groupId>
-				<artifactId>commons-pool</artifactId>
-				<version>${version.commons-pool}</version>
 			</dependency>
 
 			<dependency>
