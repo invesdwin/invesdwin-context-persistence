@@ -25,9 +25,6 @@
 		<module>invesdwin-context-persistence-jpa-kundera</module>
 		<module>invesdwin-context-persistence-jpa-kundera-rdbms</module>
 		<module>invesdwin-context-persistence-leveldb</module>
-		<module>invesdwin-context-persistence-ldap</module>
-		<module>invesdwin-context-persistence-ldap-server</module>
-		<module>invesdwin-context-persistence-ldap-test</module>
 	</modules>
 
 	<properties>
@@ -56,8 +53,6 @@
 		<version.mappedbus>0.5</version.mappedbus>
 		<version.zt-exec>1.8</version.zt-exec>
 
-		<version.api-ldap>1.0.0-RC1</version.api-ldap>
-		<version.spring-ldap>2.1.0.RELEASE</version.spring-ldap>
 	</properties>
 
 	<dependencyManagement>
@@ -97,16 +92,6 @@
 			<dependency>
 				<groupId>de.invesdwin</groupId>
 				<artifactId>invesdwin-context-persistence-leveldb</artifactId>
-				<version>${version.invesdwin-context-persistence}</version>
-			</dependency>
-			<dependency>
-				<groupId>de.invesdwin</groupId>
-				<artifactId>invesdwin-context-persistence-ldap</artifactId>
-				<version>${version.invesdwin-context-persistence}</version>
-			</dependency>
-			<dependency>
-				<groupId>de.invesdwin</groupId>
-				<artifactId>invesdwin-context-persistence-ldap-server</artifactId>
 				<version>${version.invesdwin-context-persistence}</version>
 			</dependency>
 
@@ -349,104 +334,6 @@
 					</exclusion>
 				</exclusions>
 			</dependency>
-
-
-			<dependency>
-				<groupId>org.apache.directory.server</groupId>
-				<artifactId>apacheds-core</artifactId>
-				<version>${version.apacheds}</version>
-				<exclusions>
-					<exclusion>
-						<artifactId>slf4j-log4j12</artifactId>
-						<groupId>org.slf4j</groupId>
-					</exclusion>
-					<exclusion>
-						<artifactId>ehcache-core</artifactId>
-						<groupId>net.sf.ehcache</groupId>
-					</exclusion>
-				</exclusions>
-			</dependency>
-			<dependency>
-				<groupId>org.apache.directory.server</groupId>
-				<artifactId>apacheds-server-annotations</artifactId>
-				<version>${version.apacheds}</version>
-				<exclusions>
-					<exclusion>
-						<artifactId>slf4j-log4j12</artifactId>
-						<groupId>org.slf4j</groupId>
-					</exclusion>
-					<exclusion>
-						<artifactId>ehcache-core</artifactId>
-						<groupId>net.sf.ehcache</groupId>
-					</exclusion>
-				</exclusions>
-			</dependency>
-			<dependency>
-				<groupId>org.apache.directory.server</groupId>
-				<artifactId>apacheds-protocol-ldap</artifactId>
-				<version>${version.apacheds}</version>
-				<exclusions>
-					<exclusion>
-						<artifactId>slf4j-log4j12</artifactId>
-						<groupId>org.slf4j</groupId>
-					</exclusion>
-					<exclusion>
-						<artifactId>ehcache-core</artifactId>
-						<groupId>net.sf.ehcache</groupId>
-					</exclusion>
-				</exclusions>
-			</dependency>
-			<dependency>
-				<groupId>org.apache.directory.server</groupId>
-				<artifactId>apacheds-protocol-kerberos</artifactId>
-				<version>${version.apacheds}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.apache.directory.server</groupId>
-				<artifactId>apacheds-interceptor-kerberos</artifactId>
-				<version>${version.apacheds}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.apache.directory.api</groupId>
-				<artifactId>api-ldap-codec-standalone</artifactId>
-				<version>${version.api-ldap}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.apache.directory.api</groupId>
-				<artifactId>api-ldap-codec-core</artifactId>
-				<version>${version.api-ldap}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.apache.directory.api</groupId>
-				<artifactId>api-ldap-extras-codec</artifactId>
-				<version>${version.api-ldap}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.apache.directory.api</groupId>
-				<artifactId>api-ldap-extras-codec-api</artifactId>
-				<version>${version.api-ldap}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.apache.directory.api</groupId>
-				<artifactId>api-asn1-ber</artifactId>
-				<version>${version.api-ldap}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.apache.directory.api</groupId>
-				<artifactId>api-ldap-model</artifactId>
-				<version>${version.api-ldap}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.apache.directory.api</groupId>
-				<artifactId>api-util</artifactId>
-				<version>${version.api-ldap}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.springframework.ldap</groupId>
-				<artifactId>spring-ldap-core</artifactId>
-				<version>${version.spring-ldap}</version>
-			</dependency>
-
 		</dependencies>
 	</dependencyManagement>
 
