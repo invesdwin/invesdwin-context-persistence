@@ -43,6 +43,7 @@ import de.invesdwin.util.math.decimal.scaled.PercentScale;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.fdate.FDate;
+import de.invesdwin.util.time.fdate.FDates;
 import de.invesdwin.util.time.fdate.FTimeUnit;
 
 // CHECKSTYLE:OFF
@@ -367,7 +368,7 @@ public class ChannelPerformanceTest extends ATest {
     }
 
     private ICloseableIterable<FDate> newValues() {
-        return FDate.iterable(FDate.MIN_DATE, FDate.MIN_DATE.addMilliseconds(VALUES - 1), FTimeUnit.MILLISECONDS, 1);
+        return FDates.iterable(FDate.MIN_DATE, FDate.MIN_DATE.addMilliseconds(VALUES - 1), FTimeUnit.MILLISECONDS, 1);
     }
 
     private class WriterTask implements Runnable {
