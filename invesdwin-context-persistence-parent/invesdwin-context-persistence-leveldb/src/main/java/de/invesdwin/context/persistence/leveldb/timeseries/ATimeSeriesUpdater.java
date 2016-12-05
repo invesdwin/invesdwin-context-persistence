@@ -181,7 +181,7 @@ public abstract class ATimeSeriesUpdater<K, V> {
             if (minTime == null) {
                 minTime = time;
             }
-            if (maxTime != null && maxTime.isAfterOrEqual(time)) {
+            if (maxTime != null && maxTime.isAfterOrEqualTo(time)) {
                 throw new IllegalArgumentException(
                         "New element time [" + time + "] is not after previous element time [" + maxTime + "]");
             }

@@ -105,9 +105,9 @@ public abstract class ATimeSeriesDB<K, V> {
     public V getLatestValue(final K key, final FDate date) {
         getTableLock(key).readLock().lock();
         try {
-            if (date.isBeforeOrEqual(FDate.MIN_DATE)) {
+            if (date.isBeforeOrEqualTo(FDate.MIN_DATE)) {
                 return getLookupTableCache(key).getFirstValue();
-            } else if (date.isAfterOrEqual(FDate.MAX_DATE)) {
+            } else if (date.isAfterOrEqualTo(FDate.MAX_DATE)) {
                 return getLookupTableCache(key).getLastValue();
             } else {
                 return getLookupTableCache(key).getLatestValue(date);

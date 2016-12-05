@@ -228,7 +228,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
                             if (delegate.hasNext()) {
                                 //prevent duplicate first times
                                 delegateFirstTime = delegate.next();
-                                if (delegateFirstTime.isBeforeOrEqual(time)) {
+                                if (delegateFirstTime.isBeforeOrEqualTo(time)) {
                                     delegateFirstTime = null;
                                 }
                             }
