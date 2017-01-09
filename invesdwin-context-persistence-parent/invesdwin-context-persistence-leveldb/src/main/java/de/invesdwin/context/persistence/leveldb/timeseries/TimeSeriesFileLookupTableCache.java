@@ -85,6 +85,24 @@ public class TimeSeriesFileLookupTableCache<K, V> {
             }
         }
     };
+    private final ALoadingCache<FDate, V> timeLookupTable_nextValueCache = new ALoadingCache<FDate, V>() {
+
+        @Override
+        protected Integer getMaximumSize() {
+            return AHistoricalCache.DEFAULT_MAXIMUM_SIZE;
+        }
+
+        @Override
+        protected V loadValue(final FDate key) {
+            try (final ICloseableIterator<V> rangeValues = readRangeValues(key, null)) {
+                if (rangeValues.hasNext()) {
+                    return rangeValues.next();
+                } else {
+                    return null;
+                }
+            }
+        }
+    };
     private final ALoadingCache<FDate, FDate> fileLookupTable_latestRangeKeyCache = new ALoadingCache<FDate, FDate>() {
 
         @Override
@@ -413,6 +431,10 @@ public class TimeSeriesFileLookupTableCache<K, V> {
         return timeLookupTable_latestValueCache.get(date);
     }
 
+    public V getNextValue(final FDate date) {
+        return timeLookupTable_nextValueCache.get(date);
+    }
+
     public boolean isEmptyOrInconsistent() {
         try {
             getFirstValue();
@@ -443,4 +465,5 @@ public class TimeSeriesFileLookupTableCache<K, V> {
             return noFileFound;
         }
     }
+
 }

@@ -117,6 +117,15 @@ public abstract class ATimeSeriesDB<K, V> {
         }
     }
 
+    public FDate getLatestValueKey(final K key, final FDate date) {
+        final V latestValue = getLatestValue(key, date);
+        if (latestValue == null) {
+            return null;
+        } else {
+            return extractTime(latestValue);
+        }
+    }
+
     public boolean isEmptyOrInconsistent(final K key) {
         getTableLock(key).readLock().lock();
         try {
@@ -126,8 +135,28 @@ public abstract class ATimeSeriesDB<K, V> {
         }
     }
 
-    public FDate getNextRangeKey(final K key, final FDate date) {
-        throw new UnsupportedOperationException();
+    public V getNextValue(final K key, final FDate date) {
+        getTableLock(key).readLock().lock();
+        try {
+            if (date.isBeforeOrEqualTo(FDate.MIN_DATE)) {
+                return getLookupTableCache(key).getFirstValue();
+            } else if (date.isAfterOrEqualTo(FDate.MAX_DATE)) {
+                return getLookupTableCache(key).getLastValue();
+            } else {
+                return getLookupTableCache(key).getNextValue(date);
+            }
+        } finally {
+            getTableLock(key).readLock().unlock();
+        }
+    }
+
+    public FDate getNextValueKey(final K key, final FDate date) {
+        final V nextValue = getNextValue(key, date);
+        if (nextValue == null) {
+            return null;
+        } else {
+            return extractTime(nextValue);
+        }
     }
 
     @Retry
