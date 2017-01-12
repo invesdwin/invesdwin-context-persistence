@@ -348,13 +348,18 @@ public class TimeSeriesFileLookupTableCache<K, V> {
         return new SerializingCollection<V>(file, true) {
 
             @Override
-            protected byte[] toBytes(final V element) {
-                throw new UnsupportedOperationException();
-            }
+            protected Serde<V> newSerde() {
+                return new Serde<V>() {
+                    @Override
+                    public V fromBytes(final byte[] bytes) {
+                        return valueSerde.fromBytes(bytes);
+                    }
 
-            @Override
-            protected V fromBytes(final byte[] bytes) {
-                return valueSerde.fromBytes(bytes);
+                    @Override
+                    public byte[] toBytes(final V obj) {
+                        throw new UnsupportedOperationException();
+                    }
+                };
             }
 
             @Override

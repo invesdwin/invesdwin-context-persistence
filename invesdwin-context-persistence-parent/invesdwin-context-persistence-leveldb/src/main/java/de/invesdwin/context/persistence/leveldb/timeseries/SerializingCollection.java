@@ -34,6 +34,7 @@ import de.invesdwin.util.lang.UniqueNameGenerator;
 import de.invesdwin.util.math.decimal.Decimal;
 import de.invesdwin.util.math.decimal.scaled.ByteSize;
 import de.invesdwin.util.math.decimal.scaled.ByteSizeScale;
+import ezdb.serde.Serde;
 import net.jpountz.lz4.LZ4BlockInputStream;
 import net.jpountz.lz4.LZ4BlockOutputStream;
 import net.jpountz.lz4.LZ4Factory;
@@ -58,6 +59,7 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
     private boolean closed;
     private boolean firstElement = true;
     private final Integer fixedLength;
+    private final Serde<E> serde = newSerde();
 
     public SerializingCollection(final String id) {
         this.file = new File(getTempFolder(), UNIQUE_NAME_GENERATOR.get(id) + ".data");
@@ -109,7 +111,7 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
                     "File [" + file + "] is in read only mode since it contained data when it was opened!");
         }
         try {
-            final byte[] bytes = toBytes(element);
+            final byte[] bytes = serde.toBytes(element);
             if (fixedLength == null) {
                 if (firstElement) {
                     firstElement = false;
@@ -144,12 +146,18 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
         return new LZ4BlockInputStream(bufferedInputStream, LZ4Factory.fastestInstance().fastDecompressor());
     }
 
-    protected byte[] toBytes(final E element) {
-        return Objects.serialize((Serializable) element);
-    }
+    protected Serde<E> newSerde() {
+        return new Serde<E>() {
+            @Override
+            public E fromBytes(final byte[] bytes) {
+                return Objects.deserialize(bytes);
+            }
 
-    protected E fromBytes(final byte[] bytes) {
-        return Objects.deserialize(bytes);
+            @Override
+            public byte[] toBytes(final E obj) {
+                return Objects.serialize((Serializable) obj);
+            }
+        };
     }
 
     /**
@@ -288,7 +296,7 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
                     return (E) null;
                 }
                 final byte[] bytes = Base64.decodeBase64(line.getBytes());
-                return fromBytes(bytes);
+                return serde.fromBytes(bytes);
             } catch (final IOException e) {
                 throw Err.process(e);
             }
@@ -360,7 +368,7 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
                 innerClose();
                 return null;
             }
-            return fromBytes(byteBuffer);
+            return serde.fromBytes(byteBuffer);
         }
 
         @SuppressWarnings("null")

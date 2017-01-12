@@ -192,20 +192,25 @@ public abstract class ATimeSeriesUpdater<K, V> {
             return getCount() % BATCH_FLUSH_INTERVAL == 0;
         }
 
-        @SuppressWarnings("null")
         private void write(final int flushIndex) {
             final Instant flushStart = new Instant();
 
             final File newFile = lookupTable.newFile(minTime);
             final SerializingCollection<V> collection = new SerializingCollection<V>(newFile, false) {
                 @Override
-                protected V fromBytes(final byte[] bytes) {
-                    throw new UnsupportedOperationException();
-                }
+                protected Serde<V> newSerde() {
+                    return new Serde<V>() {
 
-                @Override
-                protected byte[] toBytes(final V element) {
-                    return valueSerde.toBytes(element);
+                        @Override
+                        public V fromBytes(final byte[] bytes) {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public byte[] toBytes(final V obj) {
+                            return valueSerde.toBytes(obj);
+                        }
+                    };
                 }
 
                 @Override
