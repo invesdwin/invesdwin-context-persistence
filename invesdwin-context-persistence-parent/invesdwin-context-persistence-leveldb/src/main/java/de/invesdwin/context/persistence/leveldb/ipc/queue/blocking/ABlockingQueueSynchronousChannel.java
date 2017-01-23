@@ -6,13 +6,14 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.commons.math3.random.JDKRandomGenerator;
+import org.apache.commons.math3.random.RandomGenerator;
 
 import de.invesdwin.context.persistence.leveldb.ipc.ISynchronousChannel;
 import de.invesdwin.context.persistence.leveldb.ipc.queue.QueueSynchronousWriter;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
+import de.invesdwin.util.lang.RandomGeneratorAdapter;
 
 @NotThreadSafe
 public abstract class ABlockingQueueSynchronousChannel implements ISynchronousChannel {
@@ -43,7 +44,7 @@ public abstract class ABlockingQueueSynchronousChannel implements ISynchronousCh
             @Override
             public void run() {
                 //randomize sleeps to increase chance of meeting each other
-                final JDKRandomGenerator random = new JDKRandomGenerator();
+                final RandomGenerator random = RandomGeneratorAdapter.currentThreadLocalRandom();
                 try {
                     boolean closedMessageSent = false;
                     boolean closedMessageReceived = false;
