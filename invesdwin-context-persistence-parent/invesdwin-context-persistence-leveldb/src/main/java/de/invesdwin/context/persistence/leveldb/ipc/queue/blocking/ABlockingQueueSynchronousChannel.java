@@ -13,7 +13,7 @@ import de.invesdwin.context.persistence.leveldb.ipc.queue.QueueSynchronousWriter
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
-import de.invesdwin.util.lang.RandomGeneratorAdapter;
+import de.invesdwin.util.math.RandomGeneratorAdapter;
 
 @NotThreadSafe
 public abstract class ABlockingQueueSynchronousChannel implements ISynchronousChannel {
