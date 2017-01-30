@@ -13,7 +13,7 @@ import de.invesdwin.context.persistence.leveldb.ipc.queue.QueueSynchronousWriter
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
-import de.invesdwin.util.math.RandomGeneratorAdapter;
+import de.invesdwin.util.math.random.RandomGenerators;
 
 @NotThreadSafe
 public abstract class ABlockingQueueSynchronousChannel implements ISynchronousChannel {
@@ -44,7 +44,7 @@ public abstract class ABlockingQueueSynchronousChannel implements ISynchronousCh
             @Override
             public void run() {
                 //randomize sleeps to increase chance of meeting each other
-                final RandomGenerator random = RandomGeneratorAdapter.currentThreadLocalRandom();
+                final RandomGenerator random = RandomGenerators.currentThreadLocalRandom();
                 try {
                     boolean closedMessageSent = false;
                     boolean closedMessageReceived = false;
