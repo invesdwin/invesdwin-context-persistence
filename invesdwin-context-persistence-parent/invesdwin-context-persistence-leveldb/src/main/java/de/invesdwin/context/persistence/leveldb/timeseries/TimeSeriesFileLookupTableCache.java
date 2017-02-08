@@ -42,7 +42,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
     private final ALoadingCache<FDate, V> timeLookupTable_latestValueCache = new ALoadingCache<FDate, V>() {
 
         @Override
-        protected Integer newInitialMaximumSize() {
+        protected Integer getInitialMaximumSize() {
             return AHistoricalCache.DEFAULT_MAXIMUM_SIZE;
         }
 
@@ -88,7 +88,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
     private final ALoadingCache<FDate, V> timeLookupTable_nextValueCache = new ALoadingCache<FDate, V>() {
 
         @Override
-        protected Integer newInitialMaximumSize() {
+        protected Integer getInitialMaximumSize() {
             return AHistoricalCache.DEFAULT_MAXIMUM_SIZE;
         }
 
@@ -106,7 +106,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
     private final ALoadingCache<FDate, FDate> fileLookupTable_latestRangeKeyCache = new ALoadingCache<FDate, FDate>() {
 
         @Override
-        protected Integer newInitialMaximumSize() {
+        protected Integer getInitialMaximumSize() {
             return AHistoricalCache.DEFAULT_MAXIMUM_SIZE;
         }
 
