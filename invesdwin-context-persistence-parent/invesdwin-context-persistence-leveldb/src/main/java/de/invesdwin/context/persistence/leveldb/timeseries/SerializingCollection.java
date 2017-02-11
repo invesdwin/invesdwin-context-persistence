@@ -3,9 +3,11 @@ package de.invesdwin.context.persistence.leveldb.timeseries;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,6 +31,7 @@ import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.collections.iterable.LimitingIterator;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.UniqueNameGenerator;
 import de.invesdwin.util.math.decimal.Decimal;
@@ -40,14 +43,14 @@ import net.jpountz.lz4.LZ4BlockOutputStream;
 import net.jpountz.lz4.LZ4Factory;
 
 @NotThreadSafe
-public class SerializingCollection<E> implements Collection<E>, ICloseableIterable<E>, Serializable {
+public class SerializingCollection<E> implements Collection<E>, ICloseableIterable<E>, Serializable, Closeable {
 
-    public static final int DEFAULT_BUFFER_SIZE = new ByteSize(Decimal.ONE, ByteSizeScale.MEGABYTES)
+    public static final int DEFAULT_BUFFER_SIZE = new ByteSize(Decimal.ONE, ByteSizeScale.KILOBYTES)
             .getValue(ByteSizeScale.BYTES).intValue();
     /*
      * 64KB is default in LZ4OutputStream (1 << 16)
      */
-    public static final int DEFAULT_BLOCK_SIZE = new ByteSize(new Decimal("64"), ByteSizeScale.KILOBYTES)
+    public static final int DEFAULT_BLOCK_SIZE = new ByteSize(new Decimal("256"), ByteSizeScale.BYTES)
             .getValue(ByteSizeScale.BYTES).intValue();
     private static final int READ_ONLY_FILE_SIZE = Integer.MAX_VALUE;
     private static final UniqueNameGenerator UNIQUE_NAME_GENERATOR = new UniqueNameGenerator();
@@ -58,7 +61,7 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
     private OutputStream fos;
     private boolean closed;
     private boolean firstElement = true;
-    private final Integer fixedLength;
+    private final Integer fixedLength = getFixedLength();
     private final Serde<E> serde = newSerde();
 
     public SerializingCollection(final String id) {
@@ -66,7 +69,6 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
         if (file.exists()) {
             throw new IllegalStateException("File [" + file.getAbsolutePath() + "] already exists!");
         }
-        this.fixedLength = getFixedLength();
     }
 
     public SerializingCollection(final File file, final boolean readOnly) {
@@ -76,7 +78,6 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
             this.size = READ_ONLY_FILE_SIZE;
             this.closed = true;
         }
-        this.fixedLength = getFixedLength();
     }
 
     private File getTempFolder() {
@@ -96,7 +97,7 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
                 throw new IllegalStateException("false expected");
             }
             try {
-                fos = newCompressor(new FileOutputStream(file));
+                fos = newCompressor(newFileOutputStream(file));
             } catch (final IOException e) {
                 throw Err.process(e);
             }
@@ -135,7 +136,7 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
         return true;
     }
 
-    protected OutputStream newCompressor(final FileOutputStream out) {
+    protected OutputStream newCompressor(final OutputStream out) {
         //LZ4HC is read optimized, you can write optimize by using fastCompressor()
         return new BufferedOutputStream(
                 new LZ4BlockOutputStream(out, DEFAULT_BLOCK_SIZE, LZ4Factory.fastestInstance().highCompressor()),
@@ -171,6 +172,7 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
     /**
      * Closes this Iterable for more add() operations.
      */
+    @Override
     public void close() {
         IOUtils.closeQuietly(fos);
         fos = null;
@@ -184,15 +186,18 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
 
     @Override
     public ICloseableIterator<E> iterator() {
-        if (!closed) {
-            //TODO maybe allow iteration even if unclosed up to the current size value
-            throw new IllegalStateException("not closed yet");
-        }
         if (size() > 0) {
+            final ICloseableIterator<E> iterator;
             if (fixedLength != null) {
-                return new FixedLengthDeserializingIterator();
+                iterator = new FixedLengthDeserializingIterator();
             } else {
-                return new DynamicLengthDeserializingIterator();
+                iterator = new DynamicLengthDeserializingIterator();
+            }
+            if (closed) {
+                return iterator;
+            } else {
+                //we allow iteration up to the current size
+                return new LimitingIterator<E>(iterator, size());
             }
         } else {
             return EmptyCloseableIterator.getInstance();
@@ -253,6 +258,14 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
         throw new UnsupportedOperationException();
     }
 
+    protected InputStream newFileInputStream(final File file) throws FileNotFoundException {
+        return new FileInputStream(file);
+    }
+
+    protected OutputStream newFileOutputStream(final File file) throws IOException {
+        return new FileOutputStream(file);
+    }
+
     @NotThreadSafe
     private class DynamicLengthDeserializingIterator extends ACloseableIterator<E> {
 
@@ -264,7 +277,7 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
         {
             try {
                 lineReader = new BufferedReader(
-                        new InputStreamReader(newDecompressor(new BufferedInputStream(new FileInputStream(file)))));
+                        new InputStreamReader(newDecompressor(new BufferedInputStream(newFileInputStream(file)))));
             } catch (final IOException e) {
                 throw Err.process(e);
             }
@@ -336,7 +349,7 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
 
         {
             try {
-                inputStream = new DataInputStream(newDecompressor(new BufferedInputStream(new FileInputStream(file))));
+                inputStream = new DataInputStream(newDecompressor(new BufferedInputStream(newFileInputStream(file))));
                 byteBuffer = new byte[fixedLength];
             } catch (final IOException e) {
                 throw Err.process(e);
