@@ -2,7 +2,6 @@ package de.invesdwin.context.persistence.leveldb.timeseries;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.NoSuchElementException;
 import java.util.Optional;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -29,6 +28,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
+import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
@@ -227,7 +227,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
                                 if (element.isBefore(from)) {
                                     return true;
                                 } else if (element.isAfter(to)) {
-                                    throw new NoSuchElementException();
+                                    throw new FastNoSuchElementException("getRangeKeys reached end");
                                 }
                                 return false;
                             }
@@ -307,7 +307,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
                                 if (time.isBefore(from)) {
                                     return true;
                                 } else if (time.isAfter(to)) {
-                                    throw new NoSuchElementException();
+                                    throw new FastNoSuchElementException("getRangeValues reached end");
                                 }
                                 return false;
                             }
@@ -320,7 +320,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
                         protected boolean skip(final V element) {
                             final FDate time = extractTime.apply(element);
                             if (time.isAfter(to)) {
-                                throw new NoSuchElementException();
+                                throw new FastNoSuchElementException("getRangeValues reached end");
                             }
                             return false;
                         }
