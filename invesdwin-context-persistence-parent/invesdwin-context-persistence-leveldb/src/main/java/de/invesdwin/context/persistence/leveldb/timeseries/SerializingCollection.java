@@ -198,6 +198,12 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
             if (closed) {
                 return iterator;
             } else {
+                try {
+                    //need to flush contents so we can actually read them
+                    fos.flush();
+                } catch (final IOException e) {
+                    throw new RuntimeException(e);
+                }
                 //we allow iteration up to the current size
                 return new LimitingIterator<E>(iterator, size());
             }
