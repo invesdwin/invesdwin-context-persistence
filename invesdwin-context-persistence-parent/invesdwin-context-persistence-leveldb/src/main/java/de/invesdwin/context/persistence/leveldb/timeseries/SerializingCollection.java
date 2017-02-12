@@ -181,7 +181,9 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
 
     @Override
     public void clear() {
-        file.delete();
+        if (file != null) {
+            file.delete();
+        }
     }
 
     @Override
