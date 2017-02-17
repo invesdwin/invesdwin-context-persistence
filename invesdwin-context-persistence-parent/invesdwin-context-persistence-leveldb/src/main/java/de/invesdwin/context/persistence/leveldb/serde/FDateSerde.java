@@ -10,7 +10,7 @@ import ezdb.serde.Serde;
 public class FDateSerde implements Serde<FDate> {
 
     //CHECKSTYLE:OFF
-    public static FDateSerde get = new FDateSerde();
+    public final static FDateSerde get = new FDateSerde();
 
     //CHECKSTYLE:ON
 
