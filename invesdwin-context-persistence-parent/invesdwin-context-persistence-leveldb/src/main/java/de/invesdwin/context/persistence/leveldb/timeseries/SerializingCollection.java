@@ -189,14 +189,8 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
     @Override
     public ICloseableIterator<E> iterator() {
         if (size() > 0) {
-            final ICloseableIterator<E> iterator;
-            if (fixedLength != null) {
-                iterator = new FixedLengthDeserializingIterator();
-            } else {
-                iterator = new DynamicLengthDeserializingIterator();
-            }
             if (closed) {
-                return iterator;
+                return newIterator();
             } else {
                 try {
                     //need to flush contents so we can actually read them
@@ -205,11 +199,21 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
                     throw new RuntimeException(e);
                 }
                 //we allow iteration up to the current size
-                return new LimitingIterator<E>(iterator, size());
+                return new LimitingIterator<E>(newIterator(), size());
             }
         } else {
             return EmptyCloseableIterator.getInstance();
         }
+    }
+
+    private ICloseableIterator<E> newIterator() {
+        final ICloseableIterator<E> iterator;
+        if (fixedLength != null) {
+            iterator = new FixedLengthDeserializingIterator();
+        } else {
+            iterator = new DynamicLengthDeserializingIterator();
+        }
+        return iterator;
     }
 
     @Override
