@@ -264,9 +264,10 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         }
         db.deleteTable(name);
         FileUtils.deleteQuietly(timestampFile);
-        final String[] list = directory.list();
+        final File tableDirectory = new File(directory, getName());
+        final String[] list = tableDirectory.list();
         if (list == null || list.length == 0) {
-            FileUtils.deleteQuietly(directory);
+            FileUtils.deleteQuietly(tableDirectory);
         }
         tableCreationTime = null;
     }
