@@ -41,6 +41,7 @@ import ezdb.serde.Serde;
 import net.jpountz.lz4.LZ4BlockInputStream;
 import net.jpountz.lz4.LZ4BlockOutputStream;
 import net.jpountz.lz4.LZ4Factory;
+import net.jpountz.xxhash.XXHashFactory;
 
 @NotThreadSafe
 public class SerializingCollection<E> implements Collection<E>, ICloseableIterable<E>, Serializable, Closeable {
@@ -53,6 +54,7 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
     public static final int DEFAULT_BLOCK_SIZE = new ByteSize(new Decimal("256"), ByteSizeScale.BYTES)
             .getValue(ByteSizeScale.BYTES).intValue();
     private static final int READ_ONLY_FILE_SIZE = Integer.MAX_VALUE;
+    private static final int DEFAULT_SEED = 0x9747b28c;
     private static final UniqueNameGenerator UNIQUE_NAME_GENERATOR = new UniqueNameGenerator();
 
     private static final byte[] ELEMENT_DELIMITER = "\n".getBytes();
@@ -139,7 +141,8 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
     protected OutputStream newCompressor(final OutputStream out) {
         //LZ4HC is read optimized, you can write optimize by using fastCompressor()
         return new BufferedOutputStream(
-                new LZ4BlockOutputStream(out, DEFAULT_BLOCK_SIZE, LZ4Factory.fastestInstance().highCompressor()),
+                new LZ4BlockOutputStream(out, DEFAULT_BLOCK_SIZE, LZ4Factory.fastestInstance().highCompressor(),
+                        XXHashFactory.fastestInstance().newStreamingHash32(DEFAULT_SEED).asChecksum(), true),
                 DEFAULT_BUFFER_SIZE);
     }
 
