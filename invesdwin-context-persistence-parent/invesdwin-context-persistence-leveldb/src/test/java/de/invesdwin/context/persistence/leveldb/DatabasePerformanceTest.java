@@ -144,7 +144,7 @@ public class DatabasePerformanceTest extends ATest {
         final ATimeSeriesUpdater<String, FDate> updater = new ATimeSeriesUpdater<String, FDate>(HASH_KEY, table) {
 
             @Override
-            protected ICloseableIterable<FDate> getSource() {
+            protected ICloseableIterable<FDate> getSource(final FDate updateFrom) {
                 return newValues();
             }
 

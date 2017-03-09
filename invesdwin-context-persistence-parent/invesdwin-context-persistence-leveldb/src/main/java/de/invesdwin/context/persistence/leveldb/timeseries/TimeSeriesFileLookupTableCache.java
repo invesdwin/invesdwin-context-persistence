@@ -407,6 +407,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
 
     private void clearCaches() {
         timeLookupTable_latestValueCache.clear();
+        timeLookupTable_nextValueCache.clear();
         fileLookupTable_latestRangeKeyCache.clear();
         cachedAllRangeKeys = null;
         cachedFirstValue = null;
@@ -469,6 +470,20 @@ public class TimeSeriesFileLookupTableCache<K, V> {
             }
             return noFileFound;
         }
+    }
+
+    /**
+     * Deletes the last file in order to create a new updated one (so the files do not get fragmented too much between
+     * updates
+     */
+    public FDate prepareForUpdate() {
+        final FDate latestRangeKey = fileLookupTable.getLatestRangeKey(null, FDate.MAX_DATE);
+        if (latestRangeKey != null) {
+            newFile(latestRangeKey).delete();
+            timeLookupTable.deleteRange(null, latestRangeKey);
+        }
+        clearCaches();
+        return latestRangeKey;
     }
 
 }

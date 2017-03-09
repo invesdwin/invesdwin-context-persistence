@@ -14,6 +14,7 @@ import org.apache.commons.io.FileUtils;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
+import de.invesdwin.util.collections.iterable.ASkippingIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.concurrent.AParallelChunkConsumerIterator;
@@ -91,7 +92,18 @@ public abstract class ATimeSeriesUpdater<K, V> {
     }
 
     private void doUpdate() {
-        try (final ICloseableIterator<? extends V> elements = getSource().iterator()) {
+        final FDate updateFrom = lookupTable.prepareForUpdate();
+        ICloseableIterable<? extends V> source = getSource(updateFrom);
+        if (updateFrom != null) {
+            //ensure we add no duplicate values
+            source = new ASkippingIterable<V>(source) {
+                @Override
+                protected boolean skip(final V element) {
+                    return extractTime(element).isBefore(updateFrom);
+                }
+            };
+        }
+        try (final ICloseableIterator<? extends V> elements = source.iterator()) {
             final ICloseableIterator<UpdateProgress> batchWriterProducer = new ICloseableIterator<UpdateProgress>() {
 
                 @Override
@@ -145,7 +157,7 @@ public abstract class ATimeSeriesUpdater<K, V> {
         }
     }
 
-    protected abstract ICloseableIterable<? extends V> getSource();
+    protected abstract ICloseableIterable<? extends V> getSource(FDate updateFrom);
 
     protected abstract void onUpdateFinished(Instant updateStart);
 
