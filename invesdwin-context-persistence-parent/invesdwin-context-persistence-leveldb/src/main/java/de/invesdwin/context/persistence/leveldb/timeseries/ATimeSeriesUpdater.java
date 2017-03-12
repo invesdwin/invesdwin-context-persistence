@@ -232,10 +232,10 @@ public abstract class ATimeSeriesUpdater<K, V> {
 
                 @Override
                 protected OutputStream newCompressor(final OutputStream out) {
-                    return new BufferedOutputStream(new LZ4BlockOutputStream(out, DEFAULT_BLOCK_SIZE,
+                    return new BufferedOutputStream(new LZ4BlockOutputStream(out, LARGE_BLOCK_SIZE,
                             LZ4Factory.fastestInstance().highCompressor(99),
                             XXHashFactory.fastestInstance().newStreamingHash32(DEFAULT_SEED).asChecksum(), true),
-                            DEFAULT_BUFFER_SIZE);
+                            LARGE_BLOCK_SIZE);
                 }
 
                 @Override

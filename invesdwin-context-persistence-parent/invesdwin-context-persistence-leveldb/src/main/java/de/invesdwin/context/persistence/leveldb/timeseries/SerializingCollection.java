@@ -46,12 +46,12 @@ import net.jpountz.xxhash.XXHashFactory;
 @NotThreadSafe
 public class SerializingCollection<E> implements Collection<E>, ICloseableIterable<E>, Serializable, Closeable {
 
-    public static final int DEFAULT_BUFFER_SIZE = new ByteSize(Decimal.ONE, ByteSizeScale.KILOBYTES)
+    public static final int LARGE_BLOCK_SIZE = new ByteSize(new Decimal("1"), ByteSizeScale.MEGABYTES)
             .getValue(ByteSizeScale.BYTES).intValue();
     /*
      * 64KB is default in LZ4OutputStream (1 << 16)
      */
-    public static final int DEFAULT_BLOCK_SIZE = new ByteSize(new Decimal("256"), ByteSizeScale.BYTES)
+    public static final int DEFAULT_BLOCK_SIZE = new ByteSize(new Decimal("64"), ByteSizeScale.KILOBYTES)
             .getValue(ByteSizeScale.BYTES).intValue();
     public static final int DEFAULT_SEED = 0x9747b28c;
     private static final int READ_ONLY_FILE_SIZE = Integer.MAX_VALUE;
@@ -143,7 +143,7 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
         return new BufferedOutputStream(
                 new LZ4BlockOutputStream(out, DEFAULT_BLOCK_SIZE, LZ4Factory.fastestInstance().highCompressor(99),
                         XXHashFactory.fastestInstance().newStreamingHash32(DEFAULT_SEED).asChecksum(), true),
-                DEFAULT_BUFFER_SIZE);
+                DEFAULT_BLOCK_SIZE);
     }
 
     protected InputStream newDecompressor(final BufferedInputStream bufferedInputStream) {
