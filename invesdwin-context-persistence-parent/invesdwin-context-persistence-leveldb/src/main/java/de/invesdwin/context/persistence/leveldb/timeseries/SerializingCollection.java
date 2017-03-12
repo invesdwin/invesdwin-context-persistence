@@ -141,7 +141,7 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
     protected OutputStream newCompressor(final OutputStream out) {
         //LZ4HC is read optimized, you can write optimize by using fastCompressor()
         return new BufferedOutputStream(
-                new LZ4BlockOutputStream(out, DEFAULT_BLOCK_SIZE, LZ4Factory.fastestInstance().highCompressor(),
+                new LZ4BlockOutputStream(out, DEFAULT_BLOCK_SIZE, LZ4Factory.fastestInstance().highCompressor(99),
                         XXHashFactory.fastestInstance().newStreamingHash32(DEFAULT_SEED).asChecksum(), true),
                 DEFAULT_BUFFER_SIZE);
     }

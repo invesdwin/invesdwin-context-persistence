@@ -82,11 +82,13 @@ public class CompressingSoftReference<T> extends SoftReference<T> {
         final T referent = delegate.hardReferent;
         if (referent != null) {
             try {
-                final ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                final OutputStream out = newCompressor(bos);
-                out.write(serde.toBytes(referent));
-                out.close();
-                compressedBytes = bos.toByteArray();
+                if (compressedBytes == null) {
+                    final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                    final OutputStream out = newCompressor(bos);
+                    out.write(serde.toBytes(referent));
+                    out.close();
+                    compressedBytes = bos.toByteArray();
+                }
                 delegate = null;
             } catch (final IOException e) {
                 throw new RuntimeException(e);
@@ -113,10 +115,16 @@ public class CompressingSoftReference<T> extends SoftReference<T> {
             in.close();
             final T referent = serde.fromBytes(bytes);
             delegate = new DelegateSoftReference<T>(this, referent);
-            compressedBytes = null;
+            if (!keepCompressedBytes()) {
+                compressedBytes = null;
+            }
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    protected boolean keepCompressedBytes() {
+        return false;
     }
 
     /**
