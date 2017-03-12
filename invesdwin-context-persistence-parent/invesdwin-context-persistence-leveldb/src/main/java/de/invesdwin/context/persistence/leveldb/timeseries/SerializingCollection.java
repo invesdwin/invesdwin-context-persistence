@@ -47,7 +47,7 @@ import net.jpountz.xxhash.XXHashFactory;
 public class SerializingCollection<E> implements Collection<E>, ICloseableIterable<E>, Serializable, Closeable {
 
     public static final int DEFAULT_COMPRESSION_LEVEL = 99;
-    public static final int LARGE_BLOCK_SIZE = new ByteSize(new Decimal("4"), ByteSizeScale.MEGABYTES)
+    public static final int LARGE_BLOCK_SIZE = new ByteSize(new Decimal("1"), ByteSizeScale.MEGABYTES)
             .getValue(ByteSizeScale.BYTES).intValue();
     /*
      * 64KB is default in LZ4OutputStream (1 << 16)

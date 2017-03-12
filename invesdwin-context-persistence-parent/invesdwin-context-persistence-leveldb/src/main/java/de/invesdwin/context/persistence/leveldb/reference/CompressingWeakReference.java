@@ -99,7 +99,7 @@ public class CompressingWeakReference<T> extends WeakReference<T> {
     }
 
     protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
-        return SerializingCollection.newLargeLZ4BlockOutputStream(out);
+        return SerializingCollection.newDefaultLZ4BlockOutputStream(out);
     }
 
     protected LZ4BlockInputStream newDecompressor(final ByteArrayInputStream bis) {
