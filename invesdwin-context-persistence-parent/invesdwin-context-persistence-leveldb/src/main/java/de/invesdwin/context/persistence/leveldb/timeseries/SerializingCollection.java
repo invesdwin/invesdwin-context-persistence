@@ -53,8 +53,8 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
      */
     public static final int DEFAULT_BLOCK_SIZE = new ByteSize(new Decimal("256"), ByteSizeScale.BYTES)
             .getValue(ByteSizeScale.BYTES).intValue();
+    public static final int DEFAULT_SEED = 0x9747b28c;
     private static final int READ_ONLY_FILE_SIZE = Integer.MAX_VALUE;
-    private static final int DEFAULT_SEED = 0x9747b28c;
     private static final UniqueNameGenerator UNIQUE_NAME_GENERATOR = new UniqueNameGenerator();
 
     private static final byte[] ELEMENT_DELIMITER = "\n".getBytes();
