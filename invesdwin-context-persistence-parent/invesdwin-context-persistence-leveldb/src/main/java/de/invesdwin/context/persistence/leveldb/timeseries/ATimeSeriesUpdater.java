@@ -1,6 +1,5 @@
 package de.invesdwin.context.persistence.leveldb.timeseries;
 
-import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -25,9 +24,6 @@ import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
-import net.jpountz.lz4.LZ4BlockOutputStream;
-import net.jpountz.lz4.LZ4Factory;
-import net.jpountz.xxhash.XXHashFactory;
 
 @NotThreadSafe
 public abstract class ATimeSeriesUpdater<K, V> {
@@ -232,10 +228,7 @@ public abstract class ATimeSeriesUpdater<K, V> {
 
                 @Override
                 protected OutputStream newCompressor(final OutputStream out) {
-                    return new BufferedOutputStream(new LZ4BlockOutputStream(out, LARGE_BLOCK_SIZE,
-                            LZ4Factory.fastestInstance().highCompressor(99),
-                            XXHashFactory.fastestInstance().newStreamingHash32(DEFAULT_SEED).asChecksum(), true),
-                            LARGE_BLOCK_SIZE);
+                    return SerializingCollection.newLargeLZ4BlockOutputStream(out);
                 }
 
                 @Override

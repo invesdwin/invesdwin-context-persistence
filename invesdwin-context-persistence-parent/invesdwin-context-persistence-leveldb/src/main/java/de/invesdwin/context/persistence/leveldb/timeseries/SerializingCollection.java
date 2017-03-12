@@ -46,7 +46,8 @@ import net.jpountz.xxhash.XXHashFactory;
 @NotThreadSafe
 public class SerializingCollection<E> implements Collection<E>, ICloseableIterable<E>, Serializable, Closeable {
 
-    public static final int LARGE_BLOCK_SIZE = new ByteSize(new Decimal("1"), ByteSizeScale.MEGABYTES)
+    public static final int DEFAULT_COMPRESSION_LEVEL = 99;
+    public static final int LARGE_BLOCK_SIZE = new ByteSize(new Decimal("4"), ByteSizeScale.MEGABYTES)
             .getValue(ByteSizeScale.BYTES).intValue();
     /*
      * 64KB is default in LZ4OutputStream (1 << 16)
@@ -140,10 +141,21 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
 
     protected OutputStream newCompressor(final OutputStream out) {
         //LZ4HC is read optimized, you can write optimize by using fastCompressor()
-        return new BufferedOutputStream(
-                new LZ4BlockOutputStream(out, DEFAULT_BLOCK_SIZE, LZ4Factory.fastestInstance().highCompressor(99),
-                        XXHashFactory.fastestInstance().newStreamingHash32(DEFAULT_SEED).asChecksum(), true),
-                DEFAULT_BLOCK_SIZE);
+        return new BufferedOutputStream(newDefaultLZ4BlockOutputStream(out), DEFAULT_BLOCK_SIZE);
+    }
+
+    public static LZ4BlockOutputStream newDefaultLZ4BlockOutputStream(final OutputStream out) {
+        return newLZ4BlockOutputStream(out, DEFAULT_BLOCK_SIZE, DEFAULT_COMPRESSION_LEVEL);
+    }
+
+    public static LZ4BlockOutputStream newLargeLZ4BlockOutputStream(final OutputStream out) {
+        return newLZ4BlockOutputStream(out, LARGE_BLOCK_SIZE, DEFAULT_COMPRESSION_LEVEL);
+    }
+
+    public static LZ4BlockOutputStream newLZ4BlockOutputStream(final OutputStream out, final int blockSize,
+            final int compressionLevel) {
+        return new LZ4BlockOutputStream(out, blockSize, LZ4Factory.fastestInstance().highCompressor(compressionLevel),
+                XXHashFactory.fastestInstance().newStreamingHash32(DEFAULT_SEED).asChecksum(), true);
     }
 
     protected InputStream newDecompressor(final BufferedInputStream bufferedInputStream) {

@@ -19,7 +19,6 @@ import ezdb.serde.Serde;
 import net.jpountz.lz4.LZ4BlockInputStream;
 import net.jpountz.lz4.LZ4BlockOutputStream;
 import net.jpountz.lz4.LZ4Factory;
-import net.jpountz.xxhash.XXHashFactory;
 
 /**
  * Behaves just like a SoftReference, with the distinction that the value is not discarded, but instead serialized until
@@ -97,10 +96,7 @@ public class CompressingSoftReference<T> extends SoftReference<T> {
     }
 
     protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
-        return new LZ4BlockOutputStream(out, SerializingCollection.DEFAULT_BLOCK_SIZE,
-                LZ4Factory.fastestInstance().highCompressor(),
-                XXHashFactory.fastestInstance().newStreamingHash32(SerializingCollection.DEFAULT_SEED).asChecksum(),
-                true);
+        return SerializingCollection.newLargeLZ4BlockOutputStream(out);
     }
 
     protected LZ4BlockInputStream newDecompressor(final ByteArrayInputStream bis) {
