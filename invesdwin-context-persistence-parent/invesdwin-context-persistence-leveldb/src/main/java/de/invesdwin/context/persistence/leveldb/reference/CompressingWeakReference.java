@@ -30,7 +30,7 @@ import net.jpountz.lz4.LZ4Factory;
  * <a href="http://stackoverflow.com/questions/10878012/using-referencequeue-and-weakreference">Source</a>
  */
 @ThreadSafe
-public class CompressingWeakReference<T> extends WeakReference<T> {
+public class CompressingWeakReference<T> extends WeakReference<T> implements IPersistentReference<T> {
 
     private static final ReferenceQueue<Object> REAPED_QUEUE = new ReferenceQueue<Object>();
     @GuardedBy("this")
@@ -140,6 +140,7 @@ public class CompressingWeakReference<T> extends WeakReference<T> {
     /**
      * Discards this reference and deletes the serialized file if it exists.
      */
+    @Override
     public synchronized void close() {
         delegate = null;
         compressedBytes = null;

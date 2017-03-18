@@ -29,7 +29,7 @@ import net.jpountz.lz4.LZ4Factory;
  * <a href="http://stackoverflow.com/questions/10878012/using-referencequeue-and-SoftReference">Source</a>
  */
 @ThreadSafe
-public class CompressingSoftReference<T> extends SoftReference<T> {
+public class CompressingSoftReference<T> extends SoftReference<T> implements IPersistentReference<T> {
 
     private static final ReferenceQueue<Object> REAPED_QUEUE = new ReferenceQueue<Object>();
     private DelegateSoftReference<T> delegate;
@@ -137,6 +137,7 @@ public class CompressingSoftReference<T> extends SoftReference<T> {
     /**
      * Discards this reference and deletes the serialized file if it exists.
      */
+    @Override
     public synchronized void close() {
         delegate = null;
         compressedBytes = null;
