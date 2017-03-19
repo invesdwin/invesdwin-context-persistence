@@ -13,12 +13,13 @@ import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.jpa.PersistenceUnitContext;
 import de.invesdwin.context.persistence.jpa.spi.impl.PersistenceUnitAnnotationUtil;
 import de.invesdwin.util.lang.Strings;
+import io.netty.util.concurrent.FastThreadLocal;
 
 @ThreadSafe
 public class LoggingDelegateTransactionManager extends ADelegateTransactionManager {
 
     private static final String MDC_KEY = "transactions";
-    private static final ThreadLocal<Stack<String>> TRANSACTIONS_NDC = new ThreadLocal<Stack<String>>() {
+    private static final FastThreadLocal<Stack<String>> TRANSACTIONS_NDC = new FastThreadLocal<Stack<String>>() {
         @Override
         protected Stack<String> initialValue() {
             return new Stack<String>();

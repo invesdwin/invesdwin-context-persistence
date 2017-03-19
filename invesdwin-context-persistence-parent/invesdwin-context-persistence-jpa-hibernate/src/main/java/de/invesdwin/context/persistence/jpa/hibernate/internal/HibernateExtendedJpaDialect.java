@@ -12,6 +12,8 @@ import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.orm.jpa.vendor.HibernateJpaDialect;
 import org.springframework.transaction.TransactionDefinition;
 
+import io.netty.util.concurrent.FastThreadLocal;
+
 /**
  * http://stackoverflow.com/questions/5234240/hibernatespringjpaisolation-does-not-work
  * 
@@ -19,7 +21,7 @@ import org.springframework.transaction.TransactionDefinition;
 @ThreadSafe
 public class HibernateExtendedJpaDialect extends HibernateJpaDialect {
 
-    private final ThreadLocal<Deque<ConnectionContext>> curContext = new ThreadLocal<Deque<ConnectionContext>>() {
+    private final FastThreadLocal<Deque<ConnectionContext>> curContext = new FastThreadLocal<Deque<ConnectionContext>>() {
         @Override
         protected Deque<ConnectionContext> initialValue() {
             return new LinkedList<ConnectionContext>();

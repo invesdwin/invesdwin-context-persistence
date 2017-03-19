@@ -14,13 +14,14 @@ import de.invesdwin.context.persistence.jpa.PersistenceUnitContext;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.lang.Reflections;
 import de.invesdwin.util.lang.Strings;
+import io.netty.util.concurrent.FastThreadLocal;
 
 @ThreadSafe
 public class ContextDelegatingTransactionManager implements PlatformTransactionManager {
 
     private static final TransactionStatus NO_TRANSACTION = new DisabledTransactionStatus();
     private static boolean enabled;
-    private final ThreadLocal<Deque<PersistenceUnitContext>> curContext = new ThreadLocal<Deque<PersistenceUnitContext>>() {
+    private final FastThreadLocal<Deque<PersistenceUnitContext>> curContext = new FastThreadLocal<Deque<PersistenceUnitContext>>() {
         @Override
         protected Deque<PersistenceUnitContext> initialValue() {
             return new LinkedList<PersistenceUnitContext>();
