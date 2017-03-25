@@ -1,24 +1,12 @@
 package de.invesdwin.context.persistence.leveldb.reference;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.SoftReference;
 
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.commons.io.IOUtils;
-
-import de.invesdwin.context.persistence.leveldb.timeseries.SerializingCollection;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
-import ezdb.serde.Serde;
-import net.jpountz.lz4.LZ4BlockInputStream;
-import net.jpountz.lz4.LZ4BlockOutputStream;
-import net.jpountz.lz4.LZ4Factory;
 
 /**
  * Behaves just like a SoftReference, with the distinction that the value is not discarded, but instead serialized until
@@ -29,16 +17,15 @@ import net.jpountz.lz4.LZ4Factory;
  * <a href="http://stackoverflow.com/questions/10878012/using-referencequeue-and-SoftReference">Source</a>
  */
 @ThreadSafe
-public class CompressingSoftReference<T> extends SoftReference<T> implements IPersistentReference<T> {
+public abstract class ACompressingSoftReference<T, C> extends SoftReference<T> implements IPersistentReference<T> {
 
     private static final ReferenceQueue<Object> REAPED_QUEUE = new ReferenceQueue<Object>();
     private DelegateSoftReference<T> delegate;
-    private byte[] compressedBytes;
-    private final Serde<T> serde;
+    private C compressed;
 
     static {
         final WrappedExecutorService executor = Executors
-                .newFixedCallerRunsThreadPool(CompressingSoftReference.class.getSimpleName(), 1);
+                .newFixedCallerRunsThreadPool(ACompressingSoftReference.class.getSimpleName(), 1);
         executor.execute(new Runnable() {
             @SuppressWarnings("unchecked")
             @Override
@@ -56,16 +43,15 @@ public class CompressingSoftReference<T> extends SoftReference<T> implements IPe
         });
     }
 
-    public CompressingSoftReference(final T referent, final Serde<T> serde) {
+    public ACompressingSoftReference(final T referent) {
         super(null);
         this.delegate = new DelegateSoftReference<T>(this, referent);
-        this.serde = serde;
     }
 
     @Override
     public synchronized T get() {
         if (delegate == null) {
-            if (compressedBytes == null) {
+            if (compressed == null) {
                 return null;
             }
             readReferent();
@@ -81,45 +67,33 @@ public class CompressingSoftReference<T> extends SoftReference<T> implements IPe
         final T referent = delegate.hardReferent;
         if (referent != null) {
             try {
-                if (compressedBytes == null) {
-                    final ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                    final OutputStream out = newCompressor(bos);
-                    out.write(serde.toBytes(referent));
-                    out.close();
-                    compressedBytes = bos.toByteArray();
+                if (compressed == null) {
+                    compressed = toCompressed(referent);
                 }
                 delegate = null;
-            } catch (final IOException e) {
+            } catch (final Exception e) {
                 throw new RuntimeException(e);
             }
         }
     }
 
-    protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
-        return SerializingCollection.newDefaultLZ4BlockOutputStream(out);
-    }
+    protected abstract C toCompressed(final T referent) throws Exception;
 
-    protected LZ4BlockInputStream newDecompressor(final ByteArrayInputStream bis) {
-        return new LZ4BlockInputStream(bis, LZ4Factory.fastestInstance().fastDecompressor());
-    }
+    protected abstract T fromCompressed(C compressed) throws Exception;
 
     private void readReferent() {
         try {
-            final ByteArrayInputStream bis = new ByteArrayInputStream(compressedBytes);
-            final InputStream in = newDecompressor(bis);
-            final byte[] bytes = IOUtils.toByteArray(in);
-            in.close();
-            final T referent = serde.fromBytes(bytes);
+            final T referent = fromCompressed(compressed);
             delegate = new DelegateSoftReference<T>(this, referent);
-            if (!keepCompressedBytes()) {
-                compressedBytes = null;
+            if (!keepCompressedData()) {
+                compressed = null;
             }
-        } catch (final IOException e) {
+        } catch (final Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    protected boolean keepCompressedBytes() {
+    protected boolean keepCompressedData() {
         return false;
     }
 
@@ -140,15 +114,15 @@ public class CompressingSoftReference<T> extends SoftReference<T> implements IPe
     @Override
     public synchronized void close() {
         delegate = null;
-        compressedBytes = null;
+        compressed = null;
     }
 
     private static class DelegateSoftReference<T> extends SoftReference<WrappedReferent<T>> {
 
-        private final CompressingSoftReference<T> parent;
+        private final ACompressingSoftReference<T, ?> parent;
         private final T hardReferent;
 
-        DelegateSoftReference(final CompressingSoftReference<T> parent, final T referent) {
+        DelegateSoftReference(final ACompressingSoftReference<T, ?> parent, final T referent) {
             super(new WrappedReferent<T>(referent), REAPED_QUEUE);
             this.parent = parent;
             this.hardReferent = referent;

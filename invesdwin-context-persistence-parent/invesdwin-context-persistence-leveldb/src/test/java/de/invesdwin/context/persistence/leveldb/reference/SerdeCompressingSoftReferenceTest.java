@@ -14,11 +14,11 @@ import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.math.decimal.Decimal;
 
 @ThreadSafe
-public class CompressingSoftReferenceTest extends ATest {
+public class SerdeCompressingSoftReferenceTest extends ATest {
 
     @Test
     public void testSerialization() {
-        final CompressingSoftReference<Decimal> ref = new CompressingSoftReference<Decimal>(new Decimal("100"),
+        final SerdeCompressingSoftReference<Decimal> ref = new SerdeCompressingSoftReference<Decimal>(new Decimal("100"),
                 new FastSerializingSerde<Decimal>(false, Decimal.class));
         Assertions.assertThat(ref.get()).isNotNull();
         ref.clear();
@@ -30,11 +30,11 @@ public class CompressingSoftReferenceTest extends ATest {
     @Test
     @Ignore("manual test")
     public void testOutOfMemory() {
-        final Set<CompressingSoftReference<Decimal>> refs = new LinkedHashSet<CompressingSoftReference<Decimal>>();
+        final Set<SerdeCompressingSoftReference<Decimal>> refs = new LinkedHashSet<SerdeCompressingSoftReference<Decimal>>();
         Decimal curValue = Decimal.ZERO;
         while (true) {
             curValue = curValue.add(Decimal.ONE);
-            final CompressingSoftReference<Decimal> ref = new CompressingSoftReference<Decimal>(curValue,
+            final SerdeCompressingSoftReference<Decimal> ref = new SerdeCompressingSoftReference<Decimal>(curValue,
                     new FastSerializingSerde<Decimal>(false, Decimal.class));
             refs.add(ref);
             Assertions.assertThat(ref.get()).isNotNull();
