@@ -8,7 +8,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import de.invesdwin.context.persistence.leveldb.serde.FastSerializingSerde;
+import de.invesdwin.context.persistence.leveldb.serde.RemoteFastSerializingSerde;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.math.decimal.Decimal;
@@ -19,7 +19,7 @@ public class SerdeCompressingSoftReferenceTest extends ATest {
     @Test
     public void testSerialization() {
         final SerdeCompressingSoftReference<Decimal> ref = new SerdeCompressingSoftReference<Decimal>(new Decimal("100"),
-                new FastSerializingSerde<Decimal>(false, Decimal.class));
+                new RemoteFastSerializingSerde<Decimal>(false, Decimal.class));
         Assertions.assertThat(ref.get()).isNotNull();
         ref.clear();
         Assertions.assertThat(ref.get()).isNotNull();
@@ -35,7 +35,7 @@ public class SerdeCompressingSoftReferenceTest extends ATest {
         while (true) {
             curValue = curValue.add(Decimal.ONE);
             final SerdeCompressingSoftReference<Decimal> ref = new SerdeCompressingSoftReference<Decimal>(curValue,
-                    new FastSerializingSerde<Decimal>(false, Decimal.class));
+                    new RemoteFastSerializingSerde<Decimal>(false, Decimal.class));
             refs.add(ref);
             Assertions.assertThat(ref.get()).isNotNull();
         }

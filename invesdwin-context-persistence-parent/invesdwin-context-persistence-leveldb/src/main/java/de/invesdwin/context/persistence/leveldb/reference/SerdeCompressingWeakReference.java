@@ -1,14 +1,11 @@
 package de.invesdwin.context.persistence.leveldb.reference;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
 import java.io.OutputStream;
 
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.commons.io.IOUtils;
-
+import de.invesdwin.context.persistence.leveldb.serde.CompressingDelegateSerde;
 import de.invesdwin.context.persistence.leveldb.timeseries.SerializingCollection;
 import ezdb.serde.Serde;
 import net.jpountz.lz4.LZ4BlockInputStream;
@@ -26,29 +23,31 @@ import net.jpountz.lz4.LZ4Factory;
 @ThreadSafe
 public class SerdeCompressingWeakReference<T> extends ACompressingWeakReference<T, byte[]> {
 
-    private final Serde<T> serde;
+    private final Serde<T> compressingSerde;
 
     public SerdeCompressingWeakReference(final T referent, final Serde<T> serde) {
         super(referent);
-        this.serde = serde;
+        this.compressingSerde = new CompressingDelegateSerde<T>(serde) {
+            @Override
+            protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
+                return SerdeCompressingWeakReference.this.newCompressor(out);
+            }
+
+            @Override
+            protected LZ4BlockInputStream newDecompressor(final ByteArrayInputStream bis) {
+                return SerdeCompressingWeakReference.this.newDecompressor(bis);
+            }
+        };
     }
 
     @Override
     protected T fromCompressed(final byte[] compressed) throws Exception {
-        final ByteArrayInputStream bis = new ByteArrayInputStream(compressed);
-        final InputStream in = newDecompressor(bis);
-        final byte[] bytes = IOUtils.toByteArray(in);
-        in.close();
-        return serde.fromBytes(bytes);
+        return compressingSerde.fromBytes(compressed);
     }
 
     @Override
     protected byte[] toCompressed(final T referent) throws Exception {
-        final ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        final OutputStream out = newCompressor(bos);
-        out.write(serde.toBytes(referent));
-        out.close();
-        return bos.toByteArray();
+        return compressingSerde.toBytes(referent);
     }
 
     protected LZ4BlockOutputStream newCompressor(final OutputStream out) {

@@ -25,7 +25,7 @@ public class ExtendedTypeDelegateSerde<O> extends TypeDelegateSerde<O> {
         }
         final Serde<?> serde = super.newDelegate(type);
         if (serde instanceof SerializingSerde) {
-            return new FastSerializingSerde<O>(true, type);
+            return new RemoteFastSerializingSerde<O>(true, type);
         } else {
             return serde;
         }

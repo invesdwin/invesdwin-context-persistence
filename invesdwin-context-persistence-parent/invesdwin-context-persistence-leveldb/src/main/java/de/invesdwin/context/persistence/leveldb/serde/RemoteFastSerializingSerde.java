@@ -11,8 +11,11 @@ import org.nustaq.serialization.simpleapi.FSTCoder;
 
 import ezdb.serde.Serde;
 
+/**
+ * This serializing serde is suitable for IPC
+ */
 @Immutable
-public class FastSerializingSerde<E> implements Serde<E> {
+public class RemoteFastSerializingSerde<E> implements Serde<E> {
 
     /**
      * synchronized is fine here since the serialization/deserialization is normally not the cause for multithreaded
@@ -21,7 +24,7 @@ public class FastSerializingSerde<E> implements Serde<E> {
     @GuardedBy("this")
     private final FSTCoder coder;
 
-    public FastSerializingSerde(final boolean shared, final Class<E> type) {
+    public RemoteFastSerializingSerde(final boolean shared, final Class<E> type) {
         if (Serializable.class.isAssignableFrom(type)) {
             this.coder = new DefaultCoder(shared, type);
         } else {

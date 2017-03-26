@@ -452,7 +452,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
                         key, t.toString());
                 return true;
             } else {
-                //unexpected exception, since FastSerializingSerde only throws SerializingException
+                //unexpected exception, since RemoteFastSerializingSerde only throws SerializingException
                 throw Throwables.propagate(t);
             }
         }
