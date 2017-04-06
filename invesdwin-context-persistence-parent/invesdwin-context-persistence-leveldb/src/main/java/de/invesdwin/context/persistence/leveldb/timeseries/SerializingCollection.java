@@ -17,6 +17,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -29,9 +30,10 @@ import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.log.error.Err;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
-import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
 import de.invesdwin.util.collections.iterable.LimitingIterator;
+import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.UniqueNameGenerator;
 import de.invesdwin.util.math.decimal.Decimal;
@@ -44,7 +46,7 @@ import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.xxhash.XXHashFactory;
 
 @NotThreadSafe
-public class SerializingCollection<E> implements Collection<E>, ICloseableIterable<E>, Serializable, Closeable {
+public class SerializingCollection<E> implements Collection<E>, IReverseCloseableIterable<E>, Serializable, Closeable {
 
     public static final int DEFAULT_COMPRESSION_LEVEL = 99;
     public static final int LARGE_BLOCK_SIZE = new ByteSize(new Decimal("1"), ByteSizeScale.MEGABYTES)
@@ -219,6 +221,19 @@ public class SerializingCollection<E> implements Collection<E>, ICloseableIterab
         } else {
             return EmptyCloseableIterator.getInstance();
         }
+    }
+
+    @Override
+    public ICloseableIterator<E> reverseIterator() {
+        final BufferingIterator<E> reverseIterator = new BufferingIterator<E>();
+        try (final ICloseableIterator<E> iterator = iterator()) {
+            while (true) {
+                reverseIterator.prepend(iterator.next());
+            }
+        } catch (final NoSuchElementException e) {
+            //ignore
+        }
+        return reverseIterator;
     }
 
     private ICloseableIterator<E> newIterator() {

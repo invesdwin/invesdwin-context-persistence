@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.leveldb.timeseries;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -25,6 +26,7 @@ import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.FlatteningIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
@@ -38,8 +40,8 @@ public class TimeSeriesFileLookupTableCache<K, V> {
 
     private static final Void DUMMY_HASH_KEY = null;
     private final ADelegateRangeTable<Void, FDate, ChunkValue> fileLookupTable;
-    private final ADelegateRangeTable<Void, FDate, byte[]> timeLookupTable;
-    private final ALoadingCache<FDate, V> timeLookupTable_latestValueCache = new ALoadingCache<FDate, V>() {
+    private final ADelegateRangeTable<Void, FDate, V> latestValueLookupTable;
+    private final ALoadingCache<FDate, V> latestValueLookupCache = new ALoadingCache<FDate, V>() {
 
         @Override
         protected Integer getInitialMaximumSize() {
@@ -48,44 +50,39 @@ public class TimeSeriesFileLookupTableCache<K, V> {
 
         @Override
         protected V loadValue(final FDate key) {
-            final byte[] value = timeLookupTable.getOrLoad(DUMMY_HASH_KEY, key,
-                    new Function<Pair<Void, FDate>, byte[]>() {
+            final V value = latestValueLookupTable.getOrLoad(DUMMY_HASH_KEY, key, new Function<Pair<Void, FDate>, V>() {
 
-                        @Override
-                        public byte[] apply(final Pair<Void, FDate> input) {
-                            final FDate fileTime = fileLookupTable.getLatestRangeKey(input.getFirst(),
-                                    input.getSecond());
-                            if (fileTime == null) {
-                                return null;
-                            }
-                            final File file = newFile(fileTime);
-                            final SerializingCollection<V> serializingCollection = newSerializingCollection(file);
-                            try (ICloseableIterator<V> it = serializingCollection.iterator()) {
-                                V latestValue = null;
-                                while (it.hasNext()) {
-                                    final V newValue = it.next();
-                                    final FDate newValueTime = extractTime.apply(newValue);
-                                    if (newValueTime.isAfter(key)) {
-                                        break;
-                                    } else {
-                                        latestValue = newValue;
-                                    }
-                                }
-                                if (latestValue == null) {
-                                    latestValue = getFirstValue();
-                                }
-                                return valueSerde.toBytes(latestValue);
+                @Override
+                public V apply(final Pair<Void, FDate> input) {
+                    final FDate fileTime = fileLookupTable.getLatestRangeKey(input.getFirst(), input.getSecond());
+                    if (fileTime == null) {
+                        return null;
+                    }
+                    final File file = newFile(fileTime);
+                    final SerializingCollection<V> serializingCollection = newSerializingCollection(file);
+                    try (ICloseableIterator<V> it = serializingCollection.iterator()) {
+                        V latestValue = null;
+                        while (it.hasNext()) {
+                            final V newValue = it.next();
+                            final FDate newValueTime = extractTime.apply(newValue);
+                            if (newValueTime.isAfter(key)) {
+                                break;
+                            } else {
+                                latestValue = newValue;
                             }
                         }
-                    });
-            if (value == null) {
-                return null;
-            } else {
-                return valueSerde.fromBytes(value);
-            }
+                        if (latestValue == null) {
+                            latestValue = getFirstValue();
+                        }
+                        return latestValue;
+                    }
+                }
+            });
+            return value;
         }
     };
-    private final ALoadingCache<FDate, V> timeLookupTable_nextValueCache = new ALoadingCache<FDate, V>() {
+    private final ADelegateRangeTable<Integer, FDate, V> previousValueLookupTable;
+    private final ALoadingCache<Pair<FDate, Integer>, V> previousValueLookupCache = new ALoadingCache<Pair<FDate, Integer>, V>() {
 
         @Override
         protected Integer getInitialMaximumSize() {
@@ -93,14 +90,61 @@ public class TimeSeriesFileLookupTableCache<K, V> {
         }
 
         @Override
-        protected V loadValue(final FDate key) {
-            try (final ICloseableIterator<V> rangeValues = readRangeValues(key, null)) {
-                if (rangeValues.hasNext()) {
-                    return rangeValues.next();
-                } else {
-                    return null;
-                }
-            }
+        protected V loadValue(final Pair<FDate, Integer> key) {
+            final FDate date = key.getFirst();
+            final int shiftBackUnits = key.getSecond();
+            final V value = previousValueLookupTable.getOrLoad(shiftBackUnits, date,
+                    new Function<Pair<Integer, FDate>, V>() {
+
+                        @Override
+                        public V apply(final Pair<Integer, FDate> input) {
+                            final FDate date = key.getFirst();
+                            final int shiftBackUnits = key.getSecond();
+                            V previousValue = null;
+                            try (final ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null)) {
+                                for (int i = 0; i < shiftBackUnits; i++) {
+                                    previousValue = rangeValuesReverse.next();
+                                }
+                            } catch (final NoSuchElementException e) {
+                                //ignore
+                            }
+                            return previousValue;
+                        }
+                    });
+            return value;
+        }
+    };
+    private final ADelegateRangeTable<Integer, FDate, V> nextValueLookupTable;
+    private final ALoadingCache<Pair<FDate, Integer>, V> nextValueLookupCache = new ALoadingCache<Pair<FDate, Integer>, V>() {
+
+        @Override
+        protected Integer getInitialMaximumSize() {
+            return AHistoricalCache.DEFAULT_MAXIMUM_SIZE;
+        }
+
+        @Override
+        protected V loadValue(final Pair<FDate, Integer> key) {
+            final FDate date = key.getFirst();
+            final int shiftBackUnits = key.getSecond();
+            final V value = nextValueLookupTable.getOrLoad(shiftBackUnits, date,
+                    new Function<Pair<Integer, FDate>, V>() {
+
+                        @Override
+                        public V apply(final Pair<Integer, FDate> input) {
+                            final FDate date = key.getFirst();
+                            final int shiftForwardUnits = key.getSecond();
+                            V nextValue = null;
+                            try (final ICloseableIterator<V> rangeValues = readRangeValues(date, null)) {
+                                for (int i = 0; i < shiftForwardUnits; i++) {
+                                    nextValue = rangeValues.next();
+                                }
+                            } catch (final NoSuchElementException e) {
+                                //ignore
+                            }
+                            return nextValue;
+                        }
+                    });
+            return value;
         }
     };
     private final ALoadingCache<FDate, FDate> fileLookupTable_latestRangeKeyCache = new ALoadingCache<FDate, FDate>() {
@@ -126,6 +170,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
     private volatile Optional<V> cachedFirstValue;
     private volatile Optional<V> cachedLastValue;
     private volatile ICloseableIterable<FDate> cachedAllRangeKeys;
+    private volatile ICloseableIterable<FDate> cachedAllRangeKeysReverse;
     private final Log log = new Log(this);
 
     public TimeSeriesFileLookupTableCache(final String key, final Serde<V> valueSerde, final Integer fixedLength,
@@ -152,11 +197,41 @@ public class TimeSeriesFileLookupTableCache<K, V> {
             }
 
         };
-        this.timeLookupTable = new ADelegateRangeTable<Void, FDate, byte[]>("timeLookupTable") {
+        this.latestValueLookupTable = new ADelegateRangeTable<Void, FDate, V>("latestValueLookupTable") {
+            @Override
+            protected File getDirectory() {
+                return getBaseDir();
+            }
+
+            @Override
+            protected Serde<V> newValueSerde() {
+                return valueSerde;
+            }
+
+        };
+        this.nextValueLookupTable = new ADelegateRangeTable<Integer, FDate, V>("nextValueLookupTable") {
 
             @Override
             protected File getDirectory() {
                 return getBaseDir();
+            }
+
+            @Override
+            protected Serde<V> newValueSerde() {
+                return valueSerde;
+            }
+
+        };
+        this.previousValueLookupTable = new ADelegateRangeTable<Integer, FDate, V>("previousValueLookupTable") {
+
+            @Override
+            protected File getDirectory() {
+                return getBaseDir();
+            }
+
+            @Override
+            protected Serde<V> newValueSerde() {
+                return valueSerde;
             }
 
         };
@@ -265,6 +340,82 @@ public class TimeSeriesFileLookupTableCache<K, V> {
         };
     }
 
+    protected ICloseableIterable<File> readRangeFilesReverse(final FDate from, final FDate to) {
+        final FDate usedFrom;
+        if (from == null) {
+            final V lastValue = getLastValue();
+            if (lastValue == null) {
+                return EmptyCloseableIterable.getInstance();
+            }
+            usedFrom = extractTime.apply(lastValue);
+        } else {
+            usedFrom = from;
+        }
+        return new ICloseableIterable<File>() {
+
+            @Override
+            public ACloseableIterator<File> iterator() {
+                return new ACloseableIterator<File>() {
+
+                    //use latest time available even if delegate iterator has no values
+                    private FDate latestLastTime = fileLookupTable_latestRangeKeyCache.get(usedFrom);
+                    // add 1 ms to not collide with firstTime
+                    private final ICloseableIterator<FDate> delegate = getRangeKeysReverse(key,
+                            usedFrom.addMilliseconds(-1), to);
+                    private FDate delegateLastTime = null;
+
+                    @Override
+                    protected boolean innerHasNext() {
+                        return latestLastTime != null || delegateLastTime != null || delegate.hasNext();
+                    }
+
+                    private ICloseableIterator<FDate> getRangeKeysReverse(final String hashKey, final FDate from,
+                            final FDate to) {
+                        final ICloseableIterator<FDate> range = getAllRangeKeysReverse();
+                        return new ASkippingIterator<FDate>(range) {
+                            @Override
+                            protected boolean skip(final FDate element) {
+                                if (element.isAfter(from)) {
+                                    return true;
+                                } else if (element.isBefore(to)) {
+                                    throw new FastNoSuchElementException("getRangeKeysReverse reached end");
+                                }
+                                return false;
+                            }
+                        };
+                    }
+
+                    @Override
+                    protected File innerNext() {
+                        final FDate time;
+                        if (delegateLastTime != null) {
+                            time = delegateLastTime;
+                            delegateLastTime = null;
+                        } else if (latestLastTime != null) {
+                            time = latestLastTime;
+                            latestLastTime = null;
+                            if (delegate.hasNext()) {
+                                //prevent duplicate first times
+                                delegateLastTime = delegate.next();
+                                if (delegateLastTime.isAfterOrEqualTo(time)) {
+                                    delegateLastTime = null;
+                                }
+                            }
+                        } else {
+                            time = delegate.next();
+                        }
+                        return newFile(time);
+                    }
+
+                    @Override
+                    protected void innerClose() {
+                        delegate.close();
+                    }
+                };
+            }
+        };
+    }
+
     private ICloseableIterator<FDate> getAllRangeKeys() {
         if (cachedAllRangeKeys == null) {
             final BufferingIterator<FDate> allRangeKeys = new BufferingIterator<FDate>();
@@ -277,6 +428,20 @@ public class TimeSeriesFileLookupTableCache<K, V> {
             cachedAllRangeKeys = allRangeKeys;
         }
         return cachedAllRangeKeys.iterator();
+    }
+
+    private ICloseableIterator<FDate> getAllRangeKeysReverse() {
+        if (cachedAllRangeKeysReverse == null) {
+            final BufferingIterator<FDate> allRangeKeysReverse = new BufferingIterator<FDate>();
+            final DelegateTableIterator<Void, FDate, ChunkValue> range = fileLookupTable.rangeReverse(DUMMY_HASH_KEY,
+                    FDate.MAX_DATE, FDate.MIN_DATE);
+            while (range.hasNext()) {
+                allRangeKeysReverse.add(range.next().getRangeKey());
+            }
+            range.close();
+            cachedAllRangeKeysReverse = allRangeKeysReverse;
+        }
+        return cachedAllRangeKeysReverse.iterator();
     }
 
     protected ICloseableIterator<V> readRangeValues(final FDate from, final FDate to) {
@@ -316,6 +481,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
                     //last
                 } else if (!hasNext()) {
                     return new ASkippingIterator<V>(serializingCollection.iterator()) {
+
                         @Override
                         protected boolean skip(final V element) {
                             final FDate time = extractTime.apply(element);
@@ -331,6 +497,74 @@ public class TimeSeriesFileLookupTableCache<K, V> {
             }
 
         };
+
+        //        final ATransformingCloseableIterator<ICloseableIterator<V>, ICloseableIterator<V>> transformer = new ATransformingCloseableIterator<ICloseableIterator<V>, ICloseableIterator<V>>(
+        //                chunkIterator) {
+        //            @Override
+        //            protected ICloseableIterator<V> transform(final ICloseableIterator<V> value) {
+        //                //keep file open as shortly as possible to fix too many open files exception
+        //                return new BufferingIterator<V>(value);
+        //            }
+        //        };
+        //single threaded is 20% better than with producerqueue
+        final FlatteningIterator<V> flatteningIterator = new FlatteningIterator<V>(chunkIterator);
+        return flatteningIterator;
+    }
+
+    protected ICloseableIterator<V> readRangeValuesReverse(final FDate from, final FDate to) {
+        final ICloseableIterator<File> fileIterator = readRangeFilesReverse(from, to).iterator();
+        final ICloseableIterator<ICloseableIterator<V>> chunkIterator = new ATransformingCloseableIterator<File, ICloseableIterator<V>>(
+                fileIterator) {
+            private boolean first = true;
+
+            @Override
+            protected ICloseableIterator<V> transform(final File value) {
+                final IReverseCloseableIterable<V> serializingCollection = newSerializingCollection(value);
+                if (first) {
+                    first = false;
+                    if (hasNext()) {
+                        return new ASkippingIterator<V>(serializingCollection.reverseIterator()) {
+                            @Override
+                            protected boolean skip(final V element) {
+                                final FDate time = extractTime.apply(element);
+                                return time.isAfter(from);
+                            }
+                        };
+                        //first and last
+                    } else {
+                        return new ASkippingIterator<V>(serializingCollection.reverseIterator()) {
+                            @Override
+                            protected boolean skip(final V element) {
+                                final FDate time = extractTime.apply(element);
+                                if (time.isAfter(from)) {
+                                    return true;
+                                } else if (time.isBefore(to)) {
+                                    throw new FastNoSuchElementException("getRangeValues reached end");
+                                }
+                                return false;
+                            }
+                        };
+                    }
+                    //last
+                } else if (!hasNext()) {
+                    return new ASkippingIterator<V>(serializingCollection.reverseIterator()) {
+
+                        @Override
+                        protected boolean skip(final V element) {
+                            final FDate time = extractTime.apply(element);
+                            if (time.isBefore(to)) {
+                                throw new FastNoSuchElementException("getRangeValues reached end");
+                            }
+                            return false;
+                        }
+                    };
+                } else {
+                    return serializingCollection.reverseIterator();
+                }
+            }
+
+        };
+
         //        final ATransformingCloseableIterator<ICloseableIterator<V>, ICloseableIterator<V>> transformer = new ATransformingCloseableIterator<ICloseableIterator<V>, ICloseableIterator<V>>(
         //                chunkIterator) {
         //            @Override
@@ -399,17 +633,21 @@ public class TimeSeriesFileLookupTableCache<K, V> {
 
     public synchronized void deleteAll() {
         fileLookupTable.deleteTable();
-        timeLookupTable.deleteTable();
+        latestValueLookupTable.deleteTable();
+        nextValueLookupTable.deleteTable();
+        previousValueLookupTable.deleteTable();
         clearCaches();
         FileUtils.deleteQuietly(getBaseDir());
         baseDir = null;
     }
 
     private void clearCaches() {
-        timeLookupTable_latestValueCache.clear();
-        timeLookupTable_nextValueCache.clear();
+        latestValueLookupCache.clear();
+        nextValueLookupCache.clear();
+        previousValueLookupCache.clear();
         fileLookupTable_latestRangeKeyCache.clear();
         cachedAllRangeKeys = null;
+        cachedAllRangeKeysReverse = null;
         cachedFirstValue = null;
         cachedLastValue = null;
     }
@@ -434,11 +672,17 @@ public class TimeSeriesFileLookupTableCache<K, V> {
     }
 
     public V getLatestValue(final FDate date) {
-        return timeLookupTable_latestValueCache.get(date);
+        return latestValueLookupCache.get(date);
     }
 
-    public V getNextValue(final FDate date) {
-        return timeLookupTable_nextValueCache.get(date);
+    public V getPreviousValue(final FDate date, final int shiftBackUnits) {
+        assertShiftUnitsPositiveNonZero(shiftBackUnits);
+        return previousValueLookupCache.get(Pair.of(date, shiftBackUnits));
+    }
+
+    public V getNextValue(final FDate date, final int shiftForwardUnits) {
+        assertShiftUnitsPositiveNonZero(shiftForwardUnits);
+        return nextValueLookupCache.get(Pair.of(date, shiftForwardUnits));
     }
 
     public boolean isEmptyOrInconsistent() {
@@ -480,10 +724,16 @@ public class TimeSeriesFileLookupTableCache<K, V> {
         final FDate latestRangeKey = fileLookupTable.getLatestRangeKey(null, FDate.MAX_DATE);
         if (latestRangeKey != null) {
             newFile(latestRangeKey).delete();
-            timeLookupTable.deleteRange(null, latestRangeKey);
+            latestValueLookupTable.deleteRange(null, latestRangeKey);
         }
         clearCaches();
         return latestRangeKey;
+    }
+
+    private void assertShiftUnitsPositiveNonZero(final int shiftUnits) {
+        if (shiftUnits <= 0) {
+            throw new IllegalArgumentException("shiftUnits needs to be a positive non zero value: " + shiftUnits);
+        }
     }
 
 }

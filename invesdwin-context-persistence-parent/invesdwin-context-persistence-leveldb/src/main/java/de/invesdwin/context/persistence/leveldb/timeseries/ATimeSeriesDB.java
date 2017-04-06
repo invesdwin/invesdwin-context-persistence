@@ -126,6 +126,28 @@ public abstract class ATimeSeriesDB<K, V> {
         }
     }
 
+    public V getPreviousValue(final K key, final FDate date, final int shiftBackUnits) {
+        getTableLock(key).readLock().lock();
+        try {
+            if (date.isBeforeOrEqualTo(FDate.MIN_DATE)) {
+                return getLookupTableCache(key).getFirstValue();
+            } else {
+                return getLookupTableCache(key).getPreviousValue(date, shiftBackUnits);
+            }
+        } finally {
+            getTableLock(key).readLock().unlock();
+        }
+    }
+
+    public FDate getPreviousValueKey(final K key, final FDate date, final int shiftBackUnits) {
+        final V latestValue = getPreviousValue(key, date, shiftBackUnits);
+        if (latestValue == null) {
+            return null;
+        } else {
+            return extractTime(latestValue);
+        }
+    }
+
     public boolean isEmptyOrInconsistent(final K key) {
         getTableLock(key).readLock().lock();
         try {
@@ -135,23 +157,21 @@ public abstract class ATimeSeriesDB<K, V> {
         }
     }
 
-    public V getNextValue(final K key, final FDate date) {
+    public V getNextValue(final K key, final FDate date, final int shiftForwardUnits) {
         getTableLock(key).readLock().lock();
         try {
-            if (date.isBeforeOrEqualTo(FDate.MIN_DATE)) {
-                return getLookupTableCache(key).getFirstValue();
-            } else if (date.isAfterOrEqualTo(FDate.MAX_DATE)) {
+            if (date.isAfterOrEqualTo(FDate.MAX_DATE)) {
                 return getLookupTableCache(key).getLastValue();
             } else {
-                return getLookupTableCache(key).getNextValue(date);
+                return getLookupTableCache(key).getNextValue(date, shiftForwardUnits);
             }
         } finally {
             getTableLock(key).readLock().unlock();
         }
     }
 
-    public FDate getNextValueKey(final K key, final FDate date) {
-        final V nextValue = getNextValue(key, date);
+    public FDate getNextValueKey(final K key, final FDate date, final int shiftForwardUnits) {
+        final V nextValue = getNextValue(key, date, shiftForwardUnits);
         if (nextValue == null) {
             return null;
         } else {
