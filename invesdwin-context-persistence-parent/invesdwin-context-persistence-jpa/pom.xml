@@ -32,7 +32,7 @@
 		</dependency>
 		<dependency>
 			<groupId>de.invesdwin</groupId>
-			<artifactId>invesdwin-context-integration</artifactId>
+			<artifactId>invesdwin-context-io</artifactId>
 		</dependency>
 
 		<dependency>
