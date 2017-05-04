@@ -48,7 +48,6 @@
 		<version.leveldb>0.7</version.leveldb>
 		<version.lz4>1.3.0</version.lz4>
 		<version.mappedbus>0.5</version.mappedbus>
-		<version.zt-exec>1.8</version.zt-exec>
 
 	</properties>
 
@@ -285,11 +284,6 @@
 				<groupId>io.mappedbus</groupId>
 				<artifactId>mappedbus</artifactId>
 				<version>${version.mappedbus}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.zeroturnaround</groupId>
-				<artifactId>zt-exec</artifactId>
-				<version>${version.zt-exec}</version>
 			</dependency>
 
 			<dependency>
