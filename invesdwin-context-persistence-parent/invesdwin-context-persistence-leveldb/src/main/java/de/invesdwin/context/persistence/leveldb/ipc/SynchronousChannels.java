@@ -209,6 +209,7 @@ public final class SynchronousChannels {
                 .timeout(1, TimeUnit.MINUTES)
                 .exitValueNormal()
                 .redirectOutput(Slf4jStream.of(SynchronousChannels.class).asInfo())
+                .redirectError(Slf4jStream.of(SynchronousChannels.class).asWarn())
                 .stopper(new ProcessStopper() {
                     @Override
                     public void stop(final Process process) {
