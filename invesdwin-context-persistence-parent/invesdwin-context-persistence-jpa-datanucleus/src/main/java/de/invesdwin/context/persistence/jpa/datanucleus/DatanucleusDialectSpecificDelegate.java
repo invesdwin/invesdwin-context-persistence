@@ -101,7 +101,7 @@ public class DatanucleusDialectSpecificDelegate implements IDialectSpecificDeleg
         //        <prop key="datanucleus.validateConstraints">${datanucleus.validateSchema}</prop>
         props.put("datanucleus.validateConstraints", String.valueOf(datanucleusValidateSchema));
 
-        //        <prop key="datanucleus.rdbms.statementBatchLimit">${de.invesdwin.common.persistence.PersistenceProperties.CONNECTION_BATCH_SIZE}</prop>
+        //        <prop key="datanucleus.rdbms.statementBatchLimit">${de.invesdwin.context.persistence.PersistenceProperties.CONNECTION_BATCH_SIZE}</prop>
         props.put("datanucleus.rdbms.statementBatchLimit", String.valueOf(context.getConnectionBatchSize()));
         //        <prop key="datanucleus.jpa.addClassTransformer">false</prop>
         props.put("datanucleus.jpa.addClassTransformer", String.valueOf(false));
