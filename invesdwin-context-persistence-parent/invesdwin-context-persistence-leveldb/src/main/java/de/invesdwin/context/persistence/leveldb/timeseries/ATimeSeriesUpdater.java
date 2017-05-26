@@ -195,8 +195,9 @@ public abstract class ATimeSeriesUpdater<K, V> {
                 minTime = time;
             }
             if (maxTime != null && maxTime.isAfterOrEqualTo(time)) {
-                throw new IllegalArgumentException(
-                        "New element time [" + time + "] is not after previous element time [" + maxTime + "]");
+                throw new IllegalArgumentException("New element time [" + time
+                        + "] is not after previous element end time [" + maxTime
+                        + "]; maybe you forgot to subtract 1ms from the end time to not overlap with the next element?");
             }
             final FDate endTime = extractEndTime(element);
             maxTime = endTime;
