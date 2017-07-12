@@ -286,6 +286,10 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
     @Override
     public boolean addAll(final Collection<? extends E> c) {
+        return addAllIterable(c);
+    }
+
+    public boolean addAllIterable(final Iterable<? extends E> c) {
         boolean changed = false;
         for (final E e : c) {
             if (add(e)) {
