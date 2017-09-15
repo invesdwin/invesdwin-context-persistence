@@ -70,7 +70,7 @@ sudo /etc/init.d/mysql restart
 ```bash
 mvn -Preset-database-schema process-resources
 ```
-- **Change DB Config**: to use a different database as a test server, just put a file called `/META-INF/env/${USERNAME}.properties` into your classpath. This file allows you to override the modules default configuration depending on your local development environment (for more information and on how to define distribution specific settings, see the [invesdwin-context documentation](https://github.com/subes/invesdwin-context#tools). Just put following properties with changed values there (and make sure the connection driver is added as a maven dependency and available in the classpath, you can also deploy an embedded database like this):
+- **Change DB Config**: to use a different database as a test server, just put a file called `/META-INF/env/${USERNAME}.properties` into your classpath. This file allows you to override the modules default configuration depending on your local development environment (for more information and on how to define distribution specific settings, see the [invesdwin-context documentation](https://github.com/subes/invesdwin-context#tools). Just put the following properties with changed values there (and make sure the connection driver is added as a maven dependency and is available in the classpath, you can also deploy an embedded database like this):
 ```properties
 de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_DRIVER@default_pu=com.mysql.jdbc.Driver
 de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_URL@default_pu=jdbc:mysql://localhost:3306/invesdwin
