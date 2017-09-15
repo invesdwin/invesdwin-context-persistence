@@ -23,7 +23,7 @@ The `invesdwin-context-persistence-jpa` module provides a way to code against JP
 
 ### Entities
 
-- **AEntity**: this is the base class class for entities that use optimistic locking, timestamps for creation and last update, as well as a simple numerical ID based on a sequence per table (currently only available in the Hibernate module), as this is the best performing strategy for high load systems. There are a few variations available that you can use as alternative base classes for fine tuning:
+- **AEntity**: this is the base class for entities that use optimistic locking, timestamps for creation and last update, as well as a simple numerical ID based on a sequence per table (currently only available in the Hibernate module), as this is the best performing strategy for high load systems. There are a few variations available that you can use as alternative base classes for fine tuning:
   - `AEntityWithIdentity`: using the identity column feature of your database if supported as the ID generator strategy
   - `AEntityWithTableSequence`: using a table for sequences which should be supported by any database
   - `AEntityWithSequence`: using the high performance variation of one sequence per table in Hibernate, or the default sequence strategy on other ORMs (this is the default base class for `AEntity`)
