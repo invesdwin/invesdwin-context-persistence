@@ -596,6 +596,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         @Override
         public void close() throws IOException {
             try {
+                delegate.flush();
                 delegate.close();
             } finally {
                 tableLockDelegate.readLock().unlock();
