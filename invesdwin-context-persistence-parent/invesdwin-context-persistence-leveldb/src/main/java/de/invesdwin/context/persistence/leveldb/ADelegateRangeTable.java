@@ -141,7 +141,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
                 final DB open = super.open(path, options);
                 try {
                     //do some sanity checks just to be safe
-                    try (final DBIterator iterator = open.iterator()) {
+                    try (DBIterator iterator = open.iterator()) {
                         iterator.seekToFirst();
                         if (iterator.hasNext()) {
                             final Entry<byte[], byte[]> next = iterator.next();

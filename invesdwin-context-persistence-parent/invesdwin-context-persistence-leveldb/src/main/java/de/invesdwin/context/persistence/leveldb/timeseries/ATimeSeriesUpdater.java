@@ -104,7 +104,7 @@ public abstract class ATimeSeriesUpdater<K, V> {
                 }
             };
         }
-        try (final ICloseableIterator<? extends V> elements = source.iterator()) {
+        try (ICloseableIterator<? extends V> elements = source.iterator()) {
             final ICloseableIterator<UpdateProgress> batchWriterProducer = new ICloseableIterator<UpdateProgress>() {
 
                 @Override
@@ -130,11 +130,11 @@ public abstract class ATimeSeriesUpdater<K, V> {
                 }
             };
             //do IO in a different thread than batch filling
-            try (final ACloseableIterator<UpdateProgress> batchProducer = new ProducerQueueIterator<UpdateProgress>(
+            try (ACloseableIterator<UpdateProgress> batchProducer = new ProducerQueueIterator<UpdateProgress>(
                     getClass().getSimpleName() + "_batchProducer_" + table.getDatabaseName(key), batchWriterProducer,
                     BATCH_QUEUE_SIZE)) {
                 final AtomicInteger flushIndex = new AtomicInteger();
-                try (final ACloseableIterator<UpdateProgress> parallelConsumer = new AParallelChunkConsumerIterator<UpdateProgress, UpdateProgress>(
+                try (ACloseableIterator<UpdateProgress> parallelConsumer = new AParallelChunkConsumerIterator<UpdateProgress, UpdateProgress>(
                         getClass().getSimpleName() + "_batchConsumer_" + table.getDatabaseName(key), batchProducer,
                         BATCH_WRITER_THREADS) {
 

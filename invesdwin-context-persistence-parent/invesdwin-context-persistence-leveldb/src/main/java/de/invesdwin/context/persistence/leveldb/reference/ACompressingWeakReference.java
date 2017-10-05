@@ -77,7 +77,7 @@ public abstract class ACompressingWeakReference<T, C> extends WeakReference<T> i
         }
     }
 
-    protected abstract C toCompressed(final T referent) throws Exception;
+    protected abstract C toCompressed(T referent) throws Exception;
 
     protected abstract T fromCompressed(C compressed) throws Exception;
 

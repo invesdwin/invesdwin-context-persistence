@@ -101,7 +101,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
                             final FDate date = key.getFirst();
                             final int shiftBackUnits = key.getSecond();
                             V previousValue = null;
-                            try (final ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null)) {
+                            try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null)) {
                                 for (int i = 0; i < shiftBackUnits; i++) {
                                     previousValue = rangeValuesReverse.next();
                                 }
@@ -134,7 +134,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
                             final FDate date = key.getFirst();
                             final int shiftForwardUnits = key.getSecond();
                             V nextValue = null;
-                            try (final ICloseableIterator<V> rangeValues = readRangeValues(date, null)) {
+                            try (ICloseableIterator<V> rangeValues = readRangeValues(date, null)) {
                                 for (int i = 0; i < shiftForwardUnits; i++) {
                                     nextValue = rangeValues.next();
                                 }
@@ -700,7 +700,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
                 throw Throwables.propagate(t);
             }
         }
-        try (final ICloseableIterator<File> files = readRangeFiles(null, null).iterator()) {
+        try (ICloseableIterator<File> files = readRangeFiles(null, null).iterator()) {
             boolean noFileFound = true;
             while (files.hasNext()) {
                 final File file = files.next();

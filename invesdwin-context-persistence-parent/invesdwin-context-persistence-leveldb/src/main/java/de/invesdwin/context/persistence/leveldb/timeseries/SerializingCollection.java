@@ -50,12 +50,14 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
     public static final int DEFAULT_COMPRESSION_LEVEL = 99;
     public static final int LARGE_BLOCK_SIZE = new ByteSize(new Decimal("1"), ByteSizeScale.MEGABYTES)
-            .getValue(ByteSizeScale.BYTES).intValue();
+            .getValue(ByteSizeScale.BYTES)
+            .intValue();
     /*
      * 64KB is default in LZ4OutputStream (1 << 16)
      */
     public static final int DEFAULT_BLOCK_SIZE = new ByteSize(new Decimal("64"), ByteSizeScale.KILOBYTES)
-            .getValue(ByteSizeScale.BYTES).intValue();
+            .getValue(ByteSizeScale.BYTES)
+            .intValue();
     public static final int DEFAULT_SEED = 0x9747b28c;
     private static final int READ_ONLY_FILE_SIZE = Integer.MAX_VALUE;
     private static final UniqueNameGenerator UNIQUE_NAME_GENERATOR = new UniqueNameGenerator();
@@ -226,7 +228,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     @Override
     public ICloseableIterator<E> reverseIterator() {
         final BufferingIterator<E> reverseIterator = new BufferingIterator<E>();
-        try (final ICloseableIterator<E> iterator = iterator()) {
+        try (ICloseableIterator<E> iterator = iterator()) {
             while (true) {
                 reverseIterator.prepend(iterator.next());
             }

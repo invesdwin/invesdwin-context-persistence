@@ -5,6 +5,6 @@ import de.invesdwin.context.persistence.jpa.api.query.IConfigurableQuery;
 
 public interface IQueryHintsConfigurer {
 
-    void setCacheable(PersistenceUnitContext context, IConfigurableQuery query, final boolean cacheable);
+    void setCacheable(PersistenceUnitContext context, IConfigurableQuery query, boolean cacheable);
 
 }

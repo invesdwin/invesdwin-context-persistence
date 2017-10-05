@@ -21,11 +21,11 @@ public abstract class ADelegatePath<T extends Comparable, P extends ComparableEx
 
     public abstract BooleanExpression loe(T right);
 
-    public abstract BooleanExpression loe(final Expression<T> right);
+    public abstract BooleanExpression loe(Expression<T> right);
 
     public abstract BooleanExpression goe(T right);
 
-    public abstract BooleanExpression goe(final Expression<T> right);
+    public abstract BooleanExpression goe(Expression<T> right);
 
     public final OrderSpecifier<T> asc() {
         return delegate.asc();

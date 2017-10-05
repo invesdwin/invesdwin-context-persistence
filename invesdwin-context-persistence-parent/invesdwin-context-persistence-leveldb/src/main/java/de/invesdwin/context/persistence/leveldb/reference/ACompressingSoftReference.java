@@ -77,7 +77,7 @@ public abstract class ACompressingSoftReference<T, C> extends SoftReference<T> i
         }
     }
 
-    protected abstract C toCompressed(final T referent) throws Exception;
+    protected abstract C toCompressed(T referent) throws Exception;
 
     protected abstract T fromCompressed(C compressed) throws Exception;
 
