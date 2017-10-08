@@ -3,7 +3,8 @@ package de.invesdwin.context.persistence.jpa;
 import javax.annotation.concurrent.ThreadSafe;
 import javax.inject.Inject;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,6 +12,8 @@ import de.invesdwin.context.persistence.jpa.complex.TestDao;
 import de.invesdwin.context.persistence.jpa.complex.TestEntity;
 import de.invesdwin.context.persistence.jpa.test.APersistenceTest;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.time.duration.Duration;
+import de.invesdwin.util.time.fdate.FTimeUnit;
 
 @ThreadSafe
 //@ContextConfiguration(locations = { APersistenzTest.CTX_TEST_SERVER }, inheritLocations = false)
@@ -37,9 +40,14 @@ public class TestDaoPerformanceTest extends APersistenceTest {
         new TransactionalAspectMethods().testReadNormal();
     }
 
-    @Test(timeout = 30000)
+    @Test
     public void testReadWithDetach() {
-        new TransactionalAspectMethods().testReadWithDetach();
+        Assertions.assertTimeout(new Duration(30, FTimeUnit.SECONDS), new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                new TransactionalAspectMethods().testReadWithDetach();
+            }
+        });
 
     }
 
@@ -49,14 +57,24 @@ public class TestDaoPerformanceTest extends APersistenceTest {
 
     }
 
-    @Test(timeout = 60000)
+    @Test
     public void testNestedTransactions() {
-        new TransactionalAspectMethods().testNestedTransactions();
+        Assertions.assertTimeout(new Duration(60, FTimeUnit.SECONDS), new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                new TransactionalAspectMethods().testNestedTransactions();
+            }
+        });
     }
 
-    @Test(timeout = 10000)
+    @Test
     public void testBatchInsert() {
-        new TransactionalAspectMethods().testBatchInsert();
+        Assertions.assertTimeout(new Duration(10, FTimeUnit.SECONDS), new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                new TransactionalAspectMethods().testBatchInsert();
+            }
+        });
     }
 
     private class TransactionalAspectMethods {

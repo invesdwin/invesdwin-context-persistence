@@ -4,6 +4,7 @@ import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import javax.annotation.concurrent.ThreadSafe;
 import javax.persistence.ElementCollection;
@@ -141,12 +142,17 @@ public abstract class ACustomIdDao<E, PK extends Serializable> extends AReposito
             return null;
         }
         final int randomId = (int) ((Math.random() * ids.size()));
-        return getDelegate().findOne(ids.get(randomId));
+        return findOneById(ids.get(randomId));
     }
 
     @Override
-    public final E findOne(final PK id) {
-        return getDelegate().findOne(id);
+    public final E findOneById(final PK id) {
+        return findById(id).orElse(null);
+    }
+
+    @Override
+    public Optional<E> findById(final PK id) {
+        return getDelegate().findById(id);
     }
 
     @Override
@@ -155,15 +161,15 @@ public abstract class ACustomIdDao<E, PK extends Serializable> extends AReposito
     }
 
     @Override
-    public final boolean exists(final PK id) {
-        return getDelegate().exists(id);
+    public final boolean existsById(final PK id) {
+        return getDelegate().existsById(id);
     }
 
     @Override
     public final boolean exists(final E example) {
         final PK id = extractId(example);
         if (id != null) {
-            return exists(id);
+            return existsById(id);
         } else {
             return count(example) > 0;
         }
@@ -186,7 +192,7 @@ public abstract class ACustomIdDao<E, PK extends Serializable> extends AReposito
         if (id == null) {
             return (E) getMaxSingleResult(queryByExample(e, true, config));
         } else {
-            return getDelegate().findOne(id);
+            return findOneById(id);
         }
     }
 
@@ -238,8 +244,8 @@ public abstract class ACustomIdDao<E, PK extends Serializable> extends AReposito
     }
 
     @Override
-    public final List<E> findAll(final Iterable<PK> ids) {
-        return getDelegate().findAll(ids);
+    public final List<E> findAllById(final Iterable<PK> ids) {
+        return getDelegate().findAllById(ids);
     }
 
     /**
@@ -279,7 +285,7 @@ public abstract class ACustomIdDao<E, PK extends Serializable> extends AReposito
 
     @Transactional
     @Override
-    public final <S extends E> List<S> save(final Iterable<S> entities) {
+    public final <S extends E> List<S> saveAll(final Iterable<S> entities) {
         final List<S> saved = new ArrayList<S>();
         final int connectionBatchSize = getConnectionBatchSize();
         int i = 0;
@@ -304,7 +310,7 @@ public abstract class ACustomIdDao<E, PK extends Serializable> extends AReposito
     public final void delete(final E e) {
         final PK id = extractId(e);
         if (id != null) {
-            delete(id);
+            deleteById(id);
         } else {
             getDelegate().delete(e);
         }
@@ -340,20 +346,20 @@ public abstract class ACustomIdDao<E, PK extends Serializable> extends AReposito
         if (isDeleteInBatchSupported()) {
             deleteByExample(example, true).executeUpdate();
         } else {
-            delete(findAll(example));
+            deleteAll(findAll(example));
         }
     }
 
-    @Override
     @Transactional
-    public final void delete(final PK id) {
-        getDelegate().delete(id);
+    @Override
+    public void deleteById(final PK id) {
+        getDelegate().deleteById(id);
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
     @Transactional
-    public final void delete(final Iterable<? extends E> entities) {
+    public void deleteAll(final Iterable<? extends E> entities) {
         deleteInBatch((Iterable) entities);
     }
 
@@ -363,7 +369,7 @@ public abstract class ACustomIdDao<E, PK extends Serializable> extends AReposito
         if (isDeleteInBatchSupported()) {
             getDelegate().deleteInBatch(entities);
         } else {
-            getDelegate().delete(entities);
+            getDelegate().deleteAll(entities);
         }
     }
 
@@ -378,7 +384,7 @@ public abstract class ACustomIdDao<E, PK extends Serializable> extends AReposito
     }
 
     @Override
-    public <S extends E> S findOne(final Example<S> example) {
+    public <S extends E> Optional<S> findOne(final Example<S> example) {
         return getDelegate().findOne(example);
     }
 

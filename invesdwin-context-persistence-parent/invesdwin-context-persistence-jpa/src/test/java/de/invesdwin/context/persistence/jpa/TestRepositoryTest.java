@@ -3,7 +3,7 @@ package de.invesdwin.context.persistence.jpa;
 import javax.annotation.concurrent.ThreadSafe;
 import javax.inject.Inject;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.persistence.jpa.complex.TestEntity;
 import de.invesdwin.context.persistence.jpa.test.APersistenceTest;
@@ -15,6 +15,7 @@ public class TestRepositoryTest extends APersistenceTest {
     @Inject
     private ITestRepository testRepo;
 
+    @SuppressWarnings("JUnit4SetUpNotRun")
     @Override
     public void setUp() throws Exception {
         super.setUp();

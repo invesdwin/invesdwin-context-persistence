@@ -11,8 +11,8 @@ import javax.persistence.RollbackException;
 import javax.validation.ValidationException;
 
 import org.assertj.core.api.Fail;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.dao.TransientDataAccessException;
 import org.springframework.transaction.IllegalTransactionStateException;
@@ -45,24 +45,30 @@ public class SimpleTestDaoTest extends APersistenceTest {
     @Inject
     private SimpleTestService service;
 
+    @SuppressWarnings("JUnit4SetUpNotRun")
     @Override
     public void setUp() throws Exception {
         super.setUp();
         clearAllTables();
     }
 
-    @Ignore("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
+    @Disabled("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
     @Test
     public void testDeleteWithoutTransaction() {
         new TransactionalAspectMethods().testDeleteWithoutTransaction();
     }
 
-    @Test(expected = IllegalTransactionStateException.class)
+    @Test
     public void testFlushWithoutTransaction() {
-        new TransactionalAspectMethods().testFlushWithoutTransaction();
+        try {
+            new TransactionalAspectMethods().testFlushWithoutTransaction();
+            Assertions.failExceptionExpected();
+        } catch (final Throwable t) {
+            Assertions.assertThat(t).isInstanceOf(IllegalTransactionStateException.class);
+        }
     }
 
-    @Ignore("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
+    @Disabled("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
     @Test
     public void testDeleteWithTransaction() {
         try {
@@ -72,49 +78,64 @@ public class SimpleTestDaoTest extends APersistenceTest {
         }
     }
 
-    @Ignore("throws a batch update exception, not very nice")
+    @Disabled("throws a batch update exception, not very nice")
     @Test
     public void testDeleteNonExisting() {
         new TransactionalAspectMethods().testDeleteNonExisting();
     }
 
-    @Ignore("Criteria API exception, since kundera is not far enough here with the implementation")
+    @Disabled("Criteria API exception, since kundera is not far enough here with the implementation")
     @Test
     public void testDeleteByExample() {
         new TransactionalAspectMethods().testDeleteByExample();
     }
 
-    @Ignore("Criteria API exception, since kundera is not far enough here with the implementation")
+    @Disabled("Criteria API exception, since kundera is not far enough here with the implementation")
     @Test
     public void testDeleteByIds() {
         new TransactionalAspectMethods().testDeleteByIds();
     }
 
-    @Ignore("Criteria API exception, since kundera is not far enough here with the implementation")
+    @Disabled("Criteria API exception, since kundera is not far enough here with the implementation")
     @Test
     public void testDeleteByExampleSingle() {
         new TransactionalAspectMethods().testDeleteByExampleSingle();
     }
 
-    @Ignore("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
+    @Disabled("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
     @Test
     public void testWriteAndRead() {
         new TransactionalAspectMethods().testWriteAndRead();
     }
 
-    @Test(expected = AssertionError.class)
+    @Test
     public void testQbeIdException() {
-        new TransactionalAspectMethods().testQbeIdException();
+        try {
+            new TransactionalAspectMethods().testQbeIdException();
+            Assertions.failExceptionExpected();
+        } catch (final Throwable t) {
+            Assertions.assertThat(t).isInstanceOf(AssertionError.class);
+        }
     }
 
-    @Test(expected = AssertionError.class)
+    @Test
     public void testQbeIdDeleteException() {
-        new TransactionalAspectMethods().testQbeIdDeleteException();
+        try {
+            new TransactionalAspectMethods().testQbeIdDeleteException();
+            Assertions.failExceptionExpected();
+        } catch (final Throwable t) {
+            Assertions.assertThat(t).isInstanceOf(AssertionError.class);
+        }
     }
 
-    @Test(expected = AssertionError.class)
+    @Test
     public void testQbePersistentException() {
-        new TransactionalAspectMethods().testQbePersistentException();
+        try {
+            new TransactionalAspectMethods().testQbePersistentException();
+            Assertions.failExceptionExpected();
+        } catch (final Throwable t) {
+            Assertions.assertThat(t).isInstanceOf(AssertionError.class);
+        }
     }
 
     @Test
@@ -122,9 +143,14 @@ public class SimpleTestDaoTest extends APersistenceTest {
         new TransactionalAspectMethods().testBeanValidation();
     }
 
-    @Test(expected = AssertionError.class)
+    @Test
     public void testIllegalId() {
-        new TransactionalAspectMethods().testIllegalId();
+        try {
+            new TransactionalAspectMethods().testIllegalId();
+            Assertions.failExceptionExpected();
+        } catch (final Throwable t) {
+            Assertions.assertThat(t).isInstanceOf(AssertionError.class);
+        }
     }
 
     @Test
@@ -142,55 +168,55 @@ public class SimpleTestDaoTest extends APersistenceTest {
         new TransactionalAspectMethods().testServiceTransactionalWithoutAnnotation();
     }
 
-    @Ignore("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
+    @Disabled("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
     @Test
     public void testOptimisticLocking() {
         new TransactionalAspectMethods().testOptimisticLocking();
     }
 
-    @Ignore("Criteria API exception, since kundera is not far enough here with the implementation")
+    @Disabled("Criteria API exception, since kundera is not far enough here with the implementation")
     @Test
     public void testQueryWithNullParameter() {
         new TransactionalAspectMethods().testQueryWithNullParameter();
     }
 
-    @Ignore("Criteria API exception, since kundera is not far enough here with the implementation")
+    @Disabled("Criteria API exception, since kundera is not far enough here with the implementation")
     @Test
     public void testRollback() {
         new TransactionalAspectMethods().testRollback();
     }
 
-    @Ignore("Criteria API exception, since kundera is not far enough here with the implementation")
+    @Disabled("Criteria API exception, since kundera is not far enough here with the implementation")
     @Test
     public void testRequiresNewTransaction() {
         new TransactionalAspectMethods().testRequiresNewTransaction();
     }
 
-    @Ignore("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
+    @Disabled("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
     @Test
     public void testMultipleReadsInOneTransactionCausesOnlyOneSelect() {
         new TransactionalAspectMethods().testMultipleReadsInOneTransactionCausesOnlyOneSelect();
     }
 
-    @Ignore("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
+    @Disabled("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
     @Test
     public void testMultipleReadsInNewTransactionsCausesNewSelect() {
         new TransactionalAspectMethods().testMultipleReadsInNewTransactionsCausesNewSelect();
     }
 
-    @Ignore("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
+    @Disabled("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
     @Test
     public void testMultipleMergeInNewTransactionsDoesNotCreateInsert() {
         new TransactionalAspectMethods().testMultipleMergeInNewTransactionsDoesNotCreateInsert();
     }
 
-    @Ignore("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
+    @Disabled("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
     @Test
     public void testMultipleReadOfSameObjectCausesChangesToBeReset() {
         new TransactionalAspectMethods().testMultipleReadOfSameObjectCausesChangesToBeReset();
     }
 
-    @Ignore("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
+    @Disabled("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
     @Test
     public void testMagicalUpdateInvokedWithoutCallingWrite() {
         new TransactionalAspectMethods().testMagicalUpdateInvokedWithoutCallingWrite();
@@ -201,7 +227,7 @@ public class SimpleTestDaoTest extends APersistenceTest {
         new TransactionalAspectMethods().testMergeFrom();
     }
 
-    @Ignore("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
+    @Disabled("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
     @Test
     public void testUnicode() {
         new TransactionalAspectMethods().testUnicode();
@@ -248,7 +274,7 @@ public class SimpleTestDaoTest extends APersistenceTest {
             SimpleTestEntity ent1 = new SimpleTestEntity();
             ent1.setName("one");
             ent1 = dao.save(ent1);
-            Assertions.assertThat(dao.findOne(ent1.getId())).isNotNull();
+            Assertions.assertThat(dao.findOneById(ent1.getId())).isNotNull();
 
             final SimpleTestEntity ent2 = new SimpleTestEntity();
             ent2.setName("999");
@@ -258,7 +284,7 @@ public class SimpleTestDaoTest extends APersistenceTest {
             final SimpleTestEntity ent2lazy = new SimpleTestEntity();
             ent2lazy.setId(ent2.getId());
             dao.delete(ent2lazy);
-            Assertions.assertThat(dao.findOne(ent2lazy.getId())).isNull();
+            Assertions.assertThat(dao.findOneById(ent2lazy.getId())).isNull();
 
             Assertions.assertThat(dao.findAll().size()).isZero();
 

@@ -3,7 +3,8 @@ package de.invesdwin.context.persistence.jpa;
 import javax.annotation.concurrent.ThreadSafe;
 import javax.inject.Inject;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,6 +13,8 @@ import de.invesdwin.context.persistence.jpa.complex.TestDao;
 import de.invesdwin.context.persistence.jpa.complex.TestEntity;
 import de.invesdwin.context.persistence.jpa.test.APersistenceTest;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.time.duration.Duration;
+import de.invesdwin.util.time.fdate.FTimeUnit;
 
 @ThreadSafe
 @Transactional(value = PersistenceProperties.DEFAULT_TRANSACTION_MANAGER_NAME, propagation = Propagation.NEVER)
@@ -22,29 +25,54 @@ public class CachedTestDaoTest extends APersistenceTest {
     @Inject
     private CachedTestDao cachedTestDao;
 
-    @Test(timeout = 1000)
+    @Test
     public void testNoL2Cache() {
-        new TransactionalAspectMethods().testNoL2Cache();
+        Assertions.assertTimeout(new Duration(1, FTimeUnit.SECONDS), new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                new TransactionalAspectMethods().testNoL2Cache();
+            }
+        });
     }
 
-    @Test(timeout = 1000)
+    @Test
     public void testNoL2CacheWithQueryCache() {
-        new TransactionalAspectMethods().testNoL2CacheWithQueryCache();
+        Assertions.assertTimeout(new Duration(1, FTimeUnit.SECONDS), new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                new TransactionalAspectMethods().testNoL2CacheWithQueryCache();
+            }
+        });
     }
 
-    @Test(timeout = 1000)
+    @Test
     public void testL2Cache() {
-        new TransactionalAspectMethods().testL2Cache();
+        Assertions.assertTimeout(new Duration(1, FTimeUnit.SECONDS), new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                new TransactionalAspectMethods().testL2Cache();
+            }
+        });
     }
 
-    @Test(timeout = 1000)
+    @Test
     public void testL2CacheWithoutQueryCache() {
-        new TransactionalAspectMethods().testL2CacheWithoutQueryCache();
+        Assertions.assertTimeout(new Duration(1, FTimeUnit.SECONDS), new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                new TransactionalAspectMethods().testL2CacheWithoutQueryCache();
+            }
+        });
     }
 
-    @Test(timeout = 1000)
+    @Test
     public void testL2CacheWithQueryCache() {
-        new TransactionalAspectMethods().testL2CacheWithQueryCache();
+        Assertions.assertTimeout(new Duration(1, FTimeUnit.SECONDS), new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                new TransactionalAspectMethods().testL2CacheWithQueryCache();
+            }
+        });
     }
 
     private class TransactionalAspectMethods {

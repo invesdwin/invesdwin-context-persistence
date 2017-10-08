@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.jpa.api.bulkinsert.internal;
 
 import java.lang.reflect.Field;
+import java.nio.charset.Charset;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
@@ -81,7 +82,7 @@ public class MySqlLoadDataInfile<E> implements IBulkInsertEntities<E> {
         return this;
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "GuardedBy" })
     private String createQuery(final String workFile) {
         final StringBuilder sb = new StringBuilder();
         sb.append("LOAD DATA LOCAL INFILE '");
@@ -266,6 +267,7 @@ public class MySqlLoadDataInfile<E> implements IBulkInsertEntities<E> {
         }
     }
 
+    @SuppressWarnings("GuardedBy")
     @Transactional
     private int internalPersist(final StringBuilder workFileAndOutputStream) throws SQLException {
         try (Connection conn = ds.getConnection()) {
@@ -280,7 +282,8 @@ public class MySqlLoadDataInfile<E> implements IBulkInsertEntities<E> {
                 }
                 final String query = createQuery("memoryFile.txt");
                 //http://jeffrick.com/2010/03/23/bulk-insert-into-a-mysql-database/
-                stmt.setLocalInfileInputStream(IOUtils.toInputStream(workFileAndOutputStream.toString()));
+                stmt.setLocalInfileInputStream(
+                        IOUtils.toInputStream(workFileAndOutputStream.toString(), Charset.defaultCharset()));
                 final int countUpdated = stmt.executeUpdate(query);
                 final SQLWarning warnings = conn.getWarnings();
                 if (disabledChecks) {

@@ -1,16 +1,22 @@
 package de.invesdwin.context.persistence.leveldb.ipc;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.reflect.Method;
 import java.util.concurrent.locks.LockSupport;
 
 import javax.annotation.concurrent.Immutable;
 
+import de.invesdwin.util.lang.Reflections;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.fdate.FTimeUnit;
 
 @Immutable
 public abstract class ASpinWait {
+
+    protected static final MethodHandle ON_SPIN_WAIT = determineOnSpinWait();
 
     protected final boolean spinAllowed = determineSpinAllowed();
     /**
@@ -45,6 +51,24 @@ public abstract class ASpinWait {
         //when we have been waiting a long time for a request/response we should keep the CPU usage to a minimum and thus don't even try to spin
         return new Duration(1, FTimeUnit.SECONDS);
     }
+
+    protected static MethodHandle determineOnSpinWait() {
+        //use onSpinWait in Java9
+        try {
+            final Method onSpinWait = Reflections.findMethod(Thread.class, "onSpinWait");
+            if (onSpinWait != null) {
+                return MethodHandles.lookup().unreflect(onSpinWait);
+            } else {
+                final Method noop = Reflections.findMethod(ASpinWait.class, "noop");
+                return MethodHandles.lookup().unreflect(noop);
+            }
+        } catch (final IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @SuppressWarnings("unused")
+    private static void noop() {}
 
     protected int determineMaxUntimedSpins() {
         return maxTimedSpins * 16;
@@ -97,6 +121,7 @@ public abstract class ASpinWait {
                 if (isConditionFulfilled()) {
                     return true;
                 }
+                onSpinWait();
             }
         }
         long nanosRemaining = maxWait.longValue(FTimeUnit.NANOSECONDS);
@@ -116,6 +141,7 @@ public abstract class ASpinWait {
                     && timedSpins < maxTimedSpins;
             if (shouldSpin) {
                 timedSpins++;
+                onSpinWait();
             } else {
                 //only check interrupted when we are on the slow lane anyway
                 if (w.isInterrupted()) {
@@ -123,6 +149,14 @@ public abstract class ASpinWait {
                 }
                 LockSupport.parkNanos(this, maxParkIntervalNanos);
             }
+        }
+    }
+
+    private void onSpinWait() {
+        try {
+            ON_SPIN_WAIT.invokeExact();
+        } catch (final Throwable e) {
+            throw new RuntimeException(e);
         }
     }
 

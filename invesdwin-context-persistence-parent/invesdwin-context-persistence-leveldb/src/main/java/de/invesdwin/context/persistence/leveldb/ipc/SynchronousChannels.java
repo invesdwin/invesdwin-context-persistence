@@ -50,9 +50,9 @@ public final class SynchronousChannels {
         public void write(final int type, final byte[] message) {}
     };
     private static final File TMPFS_FOLDER = new File("/dev/shm");
-    @GuardedBy("this.class")
+    @GuardedBy("SynchronousChannels.class")
     private static File tmpfsFolderOrFallback;
-    @GuardedBy("this.class")
+    @GuardedBy("SynchronousChannels.class")
     private static Boolean namedPipeSupportedCached;
 
     private SynchronousChannels() {}
@@ -184,7 +184,7 @@ public final class SynchronousChannels {
         return namedPipeSupportedCached;
     }
 
-    public static boolean createNamedPipe(final File file) {
+    public static synchronized boolean createNamedPipe(final File file) {
         if (BooleanUtils.isFalse(namedPipeSupportedCached)) {
             return false;
         }

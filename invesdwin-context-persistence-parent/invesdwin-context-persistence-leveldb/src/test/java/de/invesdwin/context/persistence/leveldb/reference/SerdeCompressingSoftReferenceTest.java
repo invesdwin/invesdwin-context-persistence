@@ -5,8 +5,8 @@ import java.util.Set;
 
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.persistence.leveldb.serde.RemoteFastSerializingSerde;
 import de.invesdwin.context.test.ATest;
@@ -18,8 +18,8 @@ public class SerdeCompressingSoftReferenceTest extends ATest {
 
     @Test
     public void testSerialization() {
-        final SerdeCompressingSoftReference<Decimal> ref = new SerdeCompressingSoftReference<Decimal>(new Decimal("100"),
-                new RemoteFastSerializingSerde<Decimal>(false, Decimal.class));
+        final SerdeCompressingSoftReference<Decimal> ref = new SerdeCompressingSoftReference<Decimal>(
+                new Decimal("100"), new RemoteFastSerializingSerde<Decimal>(false, Decimal.class));
         Assertions.assertThat(ref.get()).isNotNull();
         ref.clear();
         Assertions.assertThat(ref.get()).isNotNull();
@@ -28,7 +28,7 @@ public class SerdeCompressingSoftReferenceTest extends ATest {
     }
 
     @Test
-    @Ignore("manual test")
+    @Disabled("manual test")
     public void testOutOfMemory() {
         final Set<SerdeCompressingSoftReference<Decimal>> refs = new LinkedHashSet<SerdeCompressingSoftReference<Decimal>>();
         Decimal curValue = Decimal.ZERO;

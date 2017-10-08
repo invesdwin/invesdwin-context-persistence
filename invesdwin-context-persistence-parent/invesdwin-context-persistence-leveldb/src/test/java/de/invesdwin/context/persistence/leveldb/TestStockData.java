@@ -13,14 +13,14 @@ import java.util.List;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.io.FileUtils;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
 
 import com.google.common.io.CharStreams;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.test.ATest;
+import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.fdate.FDateBuilder;
@@ -69,9 +69,8 @@ public class TestStockData extends ATest {
 
     @Test
     public void testStockData() throws IOException, ParseException {
-        InputStream in = new ClassPathResource("MSFT.txt", getClass()).getInputStream();
-        final List<String> lines = CharStreams
-                .readLines(new InputStreamReader(in));
+        final InputStream in = new ClassPathResource("MSFT.txt", getClass()).getInputStream();
+        final List<String> lines = CharStreams.readLines(new InputStreamReader(in));
         lines.remove(0);
         lines.remove(0);
         Collections.reverse(lines);
@@ -82,7 +81,7 @@ public class TestStockData extends ATest {
         FDate lastFDate = null;
         for (final String line : lines) {
             final String[] split = line.split(",");
-            Assert.assertEquals(7, split.length);
+            Assertions.checkEquals(7, split.length);
             countFDate++;
             final String dateStr = split[0];
             final FDate date = FDate.valueOf(dateStr, "yyyy-MM-dd");
@@ -94,7 +93,7 @@ public class TestStockData extends ATest {
             if (prevLongTime != null) {
                 //              System.out.println(dateStr + ":"+date + " - "+prevLongTime+"  < " + longTime + " -> "
                 //                      + (prevLongTime < longTime));
-                Assert.assertTrue(prevLongTime < longTime);
+                Assertions.checkTrue(prevLongTime < longTime);
             }
             table.put(MSFT, date, countFDate);
             prevLongTime = longTime;
@@ -112,7 +111,7 @@ public class TestStockData extends ATest {
             System.out.println(next.getValue());
             countBars++;
         }
-        Assert.assertEquals(253, countBars);
+        Assertions.checkEquals(253, countBars);
 
         range = table.range(MSFT, FDateBuilder.newDate(2014, 1, 23), null);
         countBars = 0;
@@ -121,7 +120,7 @@ public class TestStockData extends ATest {
             //          System.out.println(next.getValue());
             countBars++;
         }
-        Assert.assertEquals(253, countBars);
+        Assertions.checkEquals(253, countBars);
 
         range = table.range(MSFT, null, FDateBuilder.newDate(1987, 1, 1));
         countBars = 0;
@@ -130,7 +129,7 @@ public class TestStockData extends ATest {
             //          System.out.println(next.getValue());
             countBars++;
         }
-        Assert.assertEquals(204, countBars);
+        Assertions.checkEquals(204, countBars);
     }
 
     private void assertIteration(final int countFDates, final FDate fromFDate, final FDate toFDate) {
@@ -145,7 +144,7 @@ public class TestStockData extends ATest {
             final Integer value = next.getValue();
             // System.out.println(value);
             iteratedBars++;
-            Assert.assertTrue(prevValue < value);
+            Assertions.checkTrue(prevValue < value);
             prevValue = value;
             if (iteratedBars == countFDates - 999) {
                 left1000FDate = next.getRangeKey();
@@ -155,11 +154,11 @@ public class TestStockData extends ATest {
             }
         }
         System.out.println("took: " + start);
-        Assert.assertEquals(countFDates, iteratedBars);
+        Assertions.checkEquals(countFDates, iteratedBars);
 
-        Assert.assertEquals((Integer) 1, table.getLatest(MSFT, fromFDate).getValue());
+        Assertions.checkEquals(1, table.getLatest(MSFT, fromFDate).getValue());
 
-        Assert.assertEquals((Integer) countFDates, table.getLatest(MSFT, toFDate).getValue());
+        Assertions.checkEquals(countFDates, table.getLatest(MSFT, toFDate).getValue());
 
         //      System.out.println(left1000FDate +" -> "+left900FDate);
         range = table.range(MSFT, left1000FDate, left900FDate);
@@ -168,23 +167,23 @@ public class TestStockData extends ATest {
         while (range.hasNext()) {
             final TableRow<String, FDate, Integer> next = range.next();
             curLeftIt++;
-            Assert.assertEquals((Integer) (countFDates - 1000 + curLeftIt), next.getValue());
+            Assertions.checkEquals(countFDates - 1000 + curLeftIt, next.getValue());
             if (prev != null) {
                 final Integer nextFromPrevPlus = table.getNext(MSFT, new FDate(prev.getRangeKey().millisValue() + 1))
                         .getValue();
-                Assert.assertEquals(next.getValue(), nextFromPrevPlus);
+                Assertions.checkEquals(next.getValue(), nextFromPrevPlus);
                 final Integer prevFromNextMinus = table.getPrev(MSFT, new FDate(next.getRangeKey().millisValue() - 1))
                         .getValue();
-                Assert.assertEquals(prev.getValue(), prevFromNextMinus);
+                Assertions.checkEquals(prev.getValue(), prevFromNextMinus);
             }
             final Integer nextFromNextIsSame = table.getNext(MSFT, new FDate(next.getRangeKey().millisValue()))
                     .getValue();
-            Assert.assertEquals(next.getValue(), nextFromNextIsSame);
+            Assertions.checkEquals(next.getValue(), nextFromNextIsSame);
             final Integer prevFromNextIsSame = table.getPrev(MSFT, new FDate(next.getRangeKey().millisValue()))
                     .getValue();
-            Assert.assertEquals(next.getValue(), prevFromNextIsSame);
+            Assertions.checkEquals(next.getValue(), prevFromNextIsSame);
             prev = next;
         }
-        Assert.assertEquals(100, curLeftIt);
+        Assertions.checkEquals(100, curLeftIt);
     }
 }

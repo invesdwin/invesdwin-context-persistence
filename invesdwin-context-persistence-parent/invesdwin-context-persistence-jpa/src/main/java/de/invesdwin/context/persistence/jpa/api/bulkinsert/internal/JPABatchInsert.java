@@ -19,7 +19,7 @@ public class JPABatchInsert<E> implements IBulkInsertEntities<E> {
     private final EntityManager em;
     private final JpaRepository<E, Long> delegate;
     private final int connectionBatchSize;
-    @GuardedBy("self")
+    @GuardedBy("staged")
     private final List<E> staged = new ArrayList<E>();
 
     public JPABatchInsert(final Class<E> genericType, final PersistenceUnitContext puContext) {
@@ -62,8 +62,9 @@ public class JPABatchInsert<E> implements IBulkInsertEntities<E> {
         }
     }
 
+    @SuppressWarnings("GuardedBy")
     @Transactional
-    protected int internalPersist() {
+    private int internalPersist() {
         int i = 0;
         for (final E entity : staged) {
             delegate.save(entity);

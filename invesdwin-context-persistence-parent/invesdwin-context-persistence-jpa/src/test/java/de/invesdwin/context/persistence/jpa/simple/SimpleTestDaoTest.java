@@ -11,7 +11,8 @@ import javax.persistence.RollbackException;
 import javax.validation.ConstraintViolationException;
 
 import org.assertj.core.api.Fail;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.dao.TransientDataAccessException;
 import org.springframework.transaction.IllegalTransactionStateException;
@@ -44,6 +45,7 @@ public class SimpleTestDaoTest extends APersistenceTest {
     @Inject
     private SimpleTestService service;
 
+    @SuppressWarnings("JUnit4SetUpNotRun")
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -55,9 +57,14 @@ public class SimpleTestDaoTest extends APersistenceTest {
         new TransactionalAspectMethods().testDeleteWithoutTransaction();
     }
 
-    @Test(expected = IllegalTransactionStateException.class)
+    @Test
     public void testFlushWithoutTransaction() {
-        new TransactionalAspectMethods().testFlushWithoutTransaction();
+        Assertions.assertThrows(IllegalTransactionStateException.class, new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                new TransactionalAspectMethods().testFlushWithoutTransaction();
+            }
+        });
     }
 
     @Test
@@ -94,19 +101,34 @@ public class SimpleTestDaoTest extends APersistenceTest {
         new TransactionalAspectMethods().testWriteAndRead();
     }
 
-    @Test(expected = AssertionError.class)
+    @Test
     public void testQbeIdException() {
-        new TransactionalAspectMethods().testQbeIdException();
+        Assertions.assertThrows(AssertionError.class, new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                new TransactionalAspectMethods().testQbeIdException();
+            }
+        });
     }
 
-    @Test(expected = AssertionError.class)
+    @Test
     public void testQbeIdDeleteException() {
-        new TransactionalAspectMethods().testQbeIdDeleteException();
+        Assertions.assertThrows(AssertionError.class, new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                new TransactionalAspectMethods().testQbeIdDeleteException();
+            }
+        });
     }
 
-    @Test(expected = AssertionError.class)
+    @Test
     public void testQbePersistentException() {
-        new TransactionalAspectMethods().testQbePersistentException();
+        Assertions.assertThrows(AssertionError.class, new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                new TransactionalAspectMethods().testQbePersistentException();
+            }
+        });
     }
 
     @Test
@@ -114,9 +136,14 @@ public class SimpleTestDaoTest extends APersistenceTest {
         new TransactionalAspectMethods().testBeanValidation();
     }
 
-    @Test(expected = AssertionError.class)
+    @Test
     public void testIllegalId() {
-        new TransactionalAspectMethods().testIllegalId();
+        Assertions.assertThrows(AssertionError.class, new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                new TransactionalAspectMethods().testIllegalId();
+            }
+        });
     }
 
     @Test
@@ -231,7 +258,7 @@ public class SimpleTestDaoTest extends APersistenceTest {
             SimpleTestEntity ent1 = new SimpleTestEntity();
             ent1.setName("one");
             ent1 = dao.save(ent1);
-            Assertions.assertThat(dao.findOne(ent1.getId())).isNotNull();
+            Assertions.assertThat(dao.findOneById(ent1.getId())).isNotNull();
 
             final SimpleTestEntity ent2 = new SimpleTestEntity();
             ent2.setName("999");
@@ -241,7 +268,7 @@ public class SimpleTestDaoTest extends APersistenceTest {
             final SimpleTestEntity ent2lazy = new SimpleTestEntity();
             ent2lazy.setId(ent2.getId());
             dao.delete(ent2lazy);
-            Assertions.assertThat(dao.findOne(ent2lazy.getId())).isNull();
+            Assertions.assertThat(dao.findOneById(ent2lazy.getId())).isNull();
 
             Assertions.assertThat(dao.findAll().size()).isZero();
 
@@ -277,7 +304,7 @@ public class SimpleTestDaoTest extends APersistenceTest {
                 SimpleTestEntity ent = new SimpleTestEntity();
                 ent.setName("" + i);
                 ent = dao.save(ent);
-                Assertions.assertThat(dao.findOne(ent.getId())).isNotNull();
+                Assertions.assertThat(dao.findOneById(ent.getId())).isNotNull();
                 ids.add(ent.getId());
             }
             Assertions.assertThat(dao.findAll()).hasSize(ids.size());

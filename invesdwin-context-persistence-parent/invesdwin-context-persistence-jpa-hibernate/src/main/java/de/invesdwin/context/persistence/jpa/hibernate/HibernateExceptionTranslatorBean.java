@@ -5,6 +5,6 @@ import javax.inject.Named;
 
 @Named
 @NotThreadSafe
-public class HibernateExceptionTranslatorBean extends org.springframework.orm.hibernate4.HibernateExceptionTranslator {
+public class HibernateExceptionTranslatorBean extends org.springframework.orm.hibernate5.HibernateExceptionTranslator {
 
 }

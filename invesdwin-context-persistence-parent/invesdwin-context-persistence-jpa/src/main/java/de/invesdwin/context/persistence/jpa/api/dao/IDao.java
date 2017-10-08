@@ -38,4 +38,6 @@ public interface IDao<E, PK extends Serializable> extends JpaRepository<E, PK>, 
 
     PK extractId(E entity);
 
+    E findOneById(PK id);
+
 }

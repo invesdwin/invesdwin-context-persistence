@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.jpa.kundera;
 
 import java.util.List;
+import java.util.Optional;
 
 import javax.annotation.concurrent.ThreadSafe;
 import javax.inject.Named;
@@ -73,12 +74,13 @@ public class SimpleTestDao extends ARepository implements IDao<SimpleTestEntity,
     @Override
     public long count() {
         return (Long) getEntityManager()
-                .createQuery("SELECT COUNT(e) FROM " + SimpleTestEntity.class.getSimpleName() + " e").getSingleResult();
+                .createQuery("SELECT COUNT(e) FROM " + SimpleTestEntity.class.getSimpleName() + " e")
+                .getSingleResult();
     }
 
     @Transactional
     @Override
-    public SimpleTestEntity findOne(final Long id) {
+    public SimpleTestEntity findOneById(final Long id) {
         return (SimpleTestEntity) getMaxSingleResult(getEntityManager()
                 .createQuery("SELECT e FROM " + SimpleTestEntity.class.getSimpleName() + " e WHERE e.id = " + id));
     }
@@ -121,7 +123,7 @@ public class SimpleTestDao extends ARepository implements IDao<SimpleTestEntity,
         if (id == null) {
             return (SimpleTestEntity) getMaxSingleResult(queryByExample(e, true, null));
         } else {
-            return findOne(id);
+            return findOneById(id);
         }
     }
 
@@ -140,18 +142,6 @@ public class SimpleTestDao extends ARepository implements IDao<SimpleTestEntity,
     @Transactional
     @Override
     public List<SimpleTestEntity> findAll(final Sort sort) {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    @Transactional
-    @Override
-    public List<SimpleTestEntity> findAll(final Iterable<Long> ids) {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    @Transactional
-    @Override
-    public <S extends SimpleTestEntity> List<S> save(final Iterable<S> entities) {
         throw new UnsupportedOperationException("TODO");
     }
 
@@ -176,24 +166,6 @@ public class SimpleTestDao extends ARepository implements IDao<SimpleTestEntity,
     @Transactional
     @Override
     public Page<SimpleTestEntity> findAll(final Pageable pageable) {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    @Transactional
-    @Override
-    public boolean exists(final Long id) {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    @Transactional
-    @Override
-    public void delete(final Long id) {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    @Transactional
-    @Override
-    public void delete(final Iterable<? extends SimpleTestEntity> entities) {
         throw new UnsupportedOperationException("TODO");
     }
 
@@ -262,11 +234,6 @@ public class SimpleTestDao extends ARepository implements IDao<SimpleTestEntity,
     }
 
     @Override
-    public <S extends SimpleTestEntity> S findOne(final Example<S> example) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public <S extends SimpleTestEntity> Page<S> findAll(final Example<S> example, final Pageable pageable) {
         throw new UnsupportedOperationException();
     }
@@ -279,6 +246,41 @@ public class SimpleTestDao extends ARepository implements IDao<SimpleTestEntity,
     @Override
     public <S extends SimpleTestEntity> boolean exists(final Example<S> example) {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public List<SimpleTestEntity> findAllById(final Iterable<Long> ids) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    @Override
+    public <S extends SimpleTestEntity> List<S> saveAll(final Iterable<S> entities) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    @Override
+    public Optional<SimpleTestEntity> findById(final Long id) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    @Override
+    public boolean existsById(final Long id) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    @Override
+    public void deleteById(final Long id) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    @Override
+    public void deleteAll(final Iterable<? extends SimpleTestEntity> entities) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    @Override
+    public <S extends SimpleTestEntity> Optional<S> findOne(final Example<S> example) {
+        throw new UnsupportedOperationException("TODO");
     }
 
 }
