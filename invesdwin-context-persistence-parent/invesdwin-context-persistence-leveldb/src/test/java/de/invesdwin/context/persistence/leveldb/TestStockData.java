@@ -13,7 +13,7 @@ import java.util.List;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.io.FileUtils;
-import org.junit.jupiter.api.Test;
+import org.junit.Test;
 import org.springframework.core.io.ClassPathResource;
 
 import com.google.common.io.CharStreams;

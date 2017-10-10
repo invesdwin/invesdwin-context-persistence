@@ -11,8 +11,8 @@ import javax.persistence.RollbackException;
 import javax.validation.ValidationException;
 
 import org.assertj.core.api.Fail;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Test;
+import org.junit.Ignore;
+import org.junit.Test;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.dao.TransientDataAccessException;
 import org.springframework.transaction.IllegalTransactionStateException;
@@ -52,7 +52,7 @@ public class SimpleTestDaoTest extends APersistenceTest {
         clearAllTables();
     }
 
-    @Disabled("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
+    @Ignore("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
     @Test
     public void testDeleteWithoutTransaction() {
         new TransactionalAspectMethods().testDeleteWithoutTransaction();
@@ -68,7 +68,7 @@ public class SimpleTestDaoTest extends APersistenceTest {
         }
     }
 
-    @Disabled("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
+    @Ignore("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
     @Test
     public void testDeleteWithTransaction() {
         try {
@@ -78,31 +78,31 @@ public class SimpleTestDaoTest extends APersistenceTest {
         }
     }
 
-    @Disabled("throws a batch update exception, not very nice")
+    @Ignore("throws a batch update exception, not very nice")
     @Test
     public void testDeleteNonExisting() {
         new TransactionalAspectMethods().testDeleteNonExisting();
     }
 
-    @Disabled("Criteria API exception, since kundera is not far enough here with the implementation")
+    @Ignore("Criteria API exception, since kundera is not far enough here with the implementation")
     @Test
     public void testDeleteByExample() {
         new TransactionalAspectMethods().testDeleteByExample();
     }
 
-    @Disabled("Criteria API exception, since kundera is not far enough here with the implementation")
+    @Ignore("Criteria API exception, since kundera is not far enough here with the implementation")
     @Test
     public void testDeleteByIds() {
         new TransactionalAspectMethods().testDeleteByIds();
     }
 
-    @Disabled("Criteria API exception, since kundera is not far enough here with the implementation")
+    @Ignore("Criteria API exception, since kundera is not far enough here with the implementation")
     @Test
     public void testDeleteByExampleSingle() {
         new TransactionalAspectMethods().testDeleteByExampleSingle();
     }
 
-    @Disabled("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
+    @Ignore("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
     @Test
     public void testWriteAndRead() {
         new TransactionalAspectMethods().testWriteAndRead();
@@ -168,55 +168,55 @@ public class SimpleTestDaoTest extends APersistenceTest {
         new TransactionalAspectMethods().testServiceTransactionalWithoutAnnotation();
     }
 
-    @Disabled("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
+    @Ignore("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
     @Test
     public void testOptimisticLocking() {
         new TransactionalAspectMethods().testOptimisticLocking();
     }
 
-    @Disabled("Criteria API exception, since kundera is not far enough here with the implementation")
+    @Ignore("Criteria API exception, since kundera is not far enough here with the implementation")
     @Test
     public void testQueryWithNullParameter() {
         new TransactionalAspectMethods().testQueryWithNullParameter();
     }
 
-    @Disabled("Criteria API exception, since kundera is not far enough here with the implementation")
+    @Ignore("Criteria API exception, since kundera is not far enough here with the implementation")
     @Test
     public void testRollback() {
         new TransactionalAspectMethods().testRollback();
     }
 
-    @Disabled("Criteria API exception, since kundera is not far enough here with the implementation")
+    @Ignore("Criteria API exception, since kundera is not far enough here with the implementation")
     @Test
     public void testRequiresNewTransaction() {
         new TransactionalAspectMethods().testRequiresNewTransaction();
     }
 
-    @Disabled("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
+    @Ignore("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
     @Test
     public void testMultipleReadsInOneTransactionCausesOnlyOneSelect() {
         new TransactionalAspectMethods().testMultipleReadsInOneTransactionCausesOnlyOneSelect();
     }
 
-    @Disabled("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
+    @Ignore("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
     @Test
     public void testMultipleReadsInNewTransactionsCausesNewSelect() {
         new TransactionalAspectMethods().testMultipleReadsInNewTransactionsCausesNewSelect();
     }
 
-    @Disabled("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
+    @Ignore("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
     @Test
     public void testMultipleMergeInNewTransactionsDoesNotCreateInsert() {
         new TransactionalAspectMethods().testMultipleMergeInNewTransactionsDoesNotCreateInsert();
     }
 
-    @Disabled("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
+    @Ignore("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
     @Test
     public void testMultipleReadOfSameObjectCausesChangesToBeReset() {
         new TransactionalAspectMethods().testMultipleReadOfSameObjectCausesChangesToBeReset();
     }
 
-    @Disabled("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
+    @Ignore("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
     @Test
     public void testMagicalUpdateInvokedWithoutCallingWrite() {
         new TransactionalAspectMethods().testMagicalUpdateInvokedWithoutCallingWrite();
@@ -227,7 +227,7 @@ public class SimpleTestDaoTest extends APersistenceTest {
         new TransactionalAspectMethods().testMergeFrom();
     }
 
-    @Disabled("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
+    @Ignore("Dunno why sometimes em.persist() worx and sometimes it doesnt...")
     @Test
     public void testUnicode() {
         new TransactionalAspectMethods().testUnicode();

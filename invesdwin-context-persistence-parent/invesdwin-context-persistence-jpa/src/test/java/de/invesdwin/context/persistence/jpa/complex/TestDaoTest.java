@@ -12,7 +12,7 @@ import javax.persistence.RollbackException;
 import javax.validation.ConstraintViolationException;
 
 import org.assertj.core.api.Fail;
-import org.junit.jupiter.api.Test;
+import org.junit.Test;
 import org.junit.jupiter.api.function.Executable;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.dao.TransientDataAccessException;

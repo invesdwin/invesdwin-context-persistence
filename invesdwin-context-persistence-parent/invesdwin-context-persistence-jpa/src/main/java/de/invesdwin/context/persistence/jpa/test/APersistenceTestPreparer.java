@@ -2,7 +2,7 @@ package de.invesdwin.context.persistence.jpa.test;
 
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.junit.jupiter.api.Test;
+import org.junit.Test;
 
 import de.invesdwin.context.test.ATest;
 

@@ -7,7 +7,7 @@ import java.util.NoSuchElementException;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.io.FileUtils;
-import org.junit.jupiter.api.Test;
+import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.test.ATest;

@@ -6,7 +6,7 @@ import java.util.List;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.inject.Inject;
 
-import org.junit.jupiter.api.Test;
+import org.junit.Test;
 
 import de.invesdwin.context.persistence.jpa.complex.TestDao;
 import de.invesdwin.context.persistence.jpa.complex.TestEntity;

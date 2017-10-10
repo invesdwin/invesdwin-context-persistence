@@ -3,7 +3,7 @@ package de.invesdwin.context.persistence.jpa;
 import javax.annotation.concurrent.ThreadSafe;
 import javax.inject.Inject;
 
-import org.junit.jupiter.api.Test;
+import org.junit.Test;
 
 import de.invesdwin.context.persistence.jpa.complex.TestDao;
 import de.invesdwin.context.persistence.jpa.complex.TestEntity;
