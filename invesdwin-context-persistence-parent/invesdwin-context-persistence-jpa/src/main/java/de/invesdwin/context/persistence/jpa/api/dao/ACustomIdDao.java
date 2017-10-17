@@ -308,12 +308,17 @@ public abstract class ACustomIdDao<E, PK extends Serializable> extends AReposito
     @Override
     @Transactional
     public final void delete(final E e) {
-        final PK id = extractId(e);
-        if (id != null) {
-            deleteById(id);
-        } else {
+        if (getEntityManager().contains(e)) {
             getDelegate().delete(e);
+        } else {
+            final PK id = extractId(e);
+            if (id != null) {
+                deleteById(id);
+            } else {
+                deleteAll(e);
+            }
         }
+
     }
 
     @Transactional
