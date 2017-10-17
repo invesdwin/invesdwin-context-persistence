@@ -12,7 +12,6 @@ import javax.validation.ConstraintViolationException;
 
 import org.assertj.core.api.Fail;
 import org.junit.Test;
-import org.junit.jupiter.api.function.Executable;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.dao.TransientDataAccessException;
 import org.springframework.transaction.IllegalTransactionStateException;
@@ -31,6 +30,7 @@ import de.invesdwin.context.persistence.jpa.PersistenceProperties;
 import de.invesdwin.context.persistence.jpa.api.query.QueryConfig;
 import de.invesdwin.context.persistence.jpa.test.APersistenceTest;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.assertions.Executable;
 import de.invesdwin.util.bean.AValueObject;
 import de.invesdwin.util.error.Throwables;
 

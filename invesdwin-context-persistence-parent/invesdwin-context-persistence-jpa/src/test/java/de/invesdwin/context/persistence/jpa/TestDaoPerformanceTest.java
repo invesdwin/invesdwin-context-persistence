@@ -4,7 +4,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import javax.inject.Inject;
 
 import org.junit.Test;
-import org.junit.jupiter.api.function.Executable;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,6 +11,7 @@ import de.invesdwin.context.persistence.jpa.complex.TestDao;
 import de.invesdwin.context.persistence.jpa.complex.TestEntity;
 import de.invesdwin.context.persistence.jpa.test.APersistenceTest;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.assertions.Executable;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.fdate.FTimeUnit;
 
