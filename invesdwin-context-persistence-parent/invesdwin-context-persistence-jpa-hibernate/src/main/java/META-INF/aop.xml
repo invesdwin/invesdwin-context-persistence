@@ -2,7 +2,11 @@
   "-//AspectJ//DTD//EN"    "http://www.eclipse.org/aspectj/dtd/aspectj.dtd">
 
 <aspectj>
+	<weaver>
+		<include within="org.hibernate.id.enhanced.SequenceStyleGenerator"/>
+	</weaver>
 	<aspects>
-		<aspect name="de.invesdwin.context.persistence.jpa.hibernate.internal.OneSequencePerEntityAspect" />
+		<aspect
+			name="de.invesdwin.context.persistence.jpa.hibernate.internal.OneSequencePerEntityAspect" />
 	</aspects>
 </aspectj>
