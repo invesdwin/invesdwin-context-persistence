@@ -71,14 +71,15 @@ public class NativeJdbcIndexCreationHandler implements IIndexCreationHandler {
         } else {
             name = "idx" + entityClass.getSimpleName();
         }
-        StringBuilder cols = new StringBuilder();
+        final StringBuilder cols = new StringBuilder();
         final ManagedType<?> managedType = em.getMetamodel().managedType(entityClass);
         for (final String columnName : index.columnNames()) {
+            if (cols.length() > 0) {
+                cols.append(comma);
+            }
             final Attribute<?, ?> column = Attributes.findAttribute(managedType, columnName);
             cols.append(Attributes.extractNativeSqlColumnName(column));
-            cols.append(comma);
         }
-        cols = Strings.removeEnd(cols, comma.length());
 
         final String unique;
         if (index.unique()) {
@@ -103,14 +104,15 @@ public class NativeJdbcIndexCreationHandler implements IIndexCreationHandler {
         } else {
             name = "idx" + entityClass.getSimpleName();
         }
-        StringBuilder cols = new StringBuilder();
+        final StringBuilder cols = new StringBuilder();
         final ManagedType<?> managedType = em.getMetamodel().managedType(entityClass);
         for (final String columnName : index.columnNames()) {
+            if (cols.length() > 0) {
+                cols.append(comma);
+            }
             final Attribute<?, ?> column = Attributes.findAttribute(managedType, columnName);
             cols.append(Attributes.extractNativeSqlColumnName(column));
-            cols.append(comma);
         }
-        cols = Strings.removeEnd(cols, comma.length());
 
         final String create = "DROP INDEX " + uniqueNameGenerator.get(name) + " ON " + entityClass.getSimpleName();
         em.createNativeQuery(create).executeUpdate();
