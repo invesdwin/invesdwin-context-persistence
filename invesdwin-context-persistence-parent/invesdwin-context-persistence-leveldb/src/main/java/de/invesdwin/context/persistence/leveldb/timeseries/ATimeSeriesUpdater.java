@@ -43,6 +43,9 @@ public abstract class ATimeSeriesUpdater<K, V> {
     private int count = 0;
 
     public ATimeSeriesUpdater(final K key, final ATimeSeriesDB<K, V> table) {
+        if (key == null) {
+            throw new NullPointerException("key should not be null");
+        }
         this.key = key;
         this.valueSerde = table.getValueSerde();
         this.table = table;
