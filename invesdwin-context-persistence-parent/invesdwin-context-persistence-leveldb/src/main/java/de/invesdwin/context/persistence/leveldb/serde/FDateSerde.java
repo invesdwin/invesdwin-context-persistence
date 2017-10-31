@@ -1,35 +1,30 @@
 package de.invesdwin.context.persistence.leveldb.serde;
 
+import java.nio.ByteBuffer;
+
 import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.util.time.fdate.FDate;
-import ezdb.serde.LongSerde;
+import de.invesdwin.util.time.fdate.FDates;
 import ezdb.serde.Serde;
 
 @Immutable
 public class FDateSerde implements Serde<FDate> {
 
-    //CHECKSTYLE:OFF
-    public final static FDateSerde get = new FDateSerde();
-
-    //CHECKSTYLE:ON
+    public static final FDateSerde GET = new FDateSerde();
+    public static final int FIXED_LENGTH = 8;
 
     @Override
     public FDate fromBytes(final byte[] bytes) {
-        final Long time = LongSerde.get.fromBytes(bytes);
-        if (time == null) {
-            return null;
-        }
-        return new FDate(time);
+        final ByteBuffer buf = ByteBuffer.wrap(bytes);
+        return FDates.extractFDate(buf);
     }
 
     @Override
     public byte[] toBytes(final FDate obj) {
-        if (obj == null) {
-            throw new NullPointerException();
-        }
-        final Long time = obj.millisValue();
-        return LongSerde.get.toBytes(time);
+        final ByteBuffer buf = ByteBuffer.allocate(FIXED_LENGTH);
+        FDates.putFDate(buf, obj);
+        return buf.array();
     }
 
 }

@@ -1,5 +1,6 @@
 package de.invesdwin.context.persistence.leveldb.timeseries;
 
+import java.io.File;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -8,6 +9,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.base.Function;
 
+import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.retry.Retry;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
@@ -38,15 +40,20 @@ public abstract class ATimeSeriesDB<K, V> {
         this.key_lookupTableCache = new ALoadingCache<K, TimeSeriesFileLookupTableCache<K, V>>() {
             @Override
             protected TimeSeriesFileLookupTableCache<K, V> loadValue(final K key) {
-                return new TimeSeriesFileLookupTableCache<K, V>(getDatabaseName(key), valueSerde, fixedLength,
-                        new Function<V, FDate>() {
+                return new TimeSeriesFileLookupTableCache<K, V>(getDirectory(), getDatabaseName(key), valueSerde,
+                        fixedLength, new Function<V, FDate>() {
                             @Override
                             public FDate apply(final V input) {
                                 return extractTime(input);
                             }
                         });
             }
+
         };
+    }
+
+    protected File getDirectory() {
+        return ContextProperties.getHomeDirectory();
     }
 
     protected abstract Integer newFixedLength();

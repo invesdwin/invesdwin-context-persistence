@@ -40,7 +40,7 @@ public class LevelDBTest extends ATest {
                 "testInverseOrder") {
             @Override
             protected Serde<FDate> newRangeKeySerde() {
-                return FDateSerde.get;
+                return FDateSerde.GET;
             }
 
             @Override

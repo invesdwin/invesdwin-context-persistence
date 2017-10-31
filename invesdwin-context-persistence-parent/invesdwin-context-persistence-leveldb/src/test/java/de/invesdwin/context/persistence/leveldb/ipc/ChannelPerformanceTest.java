@@ -52,7 +52,7 @@ public class ChannelPerformanceTest extends ATest {
     //CHECKSTYLE:ON
 
     private static final boolean DEBUG = false;
-    private static final int MESSAGE_SIZE = FDateSerde.get.toBytes(FDate.MAX_DATE).length;
+    private static final int MESSAGE_SIZE = FDateSerde.FIXED_LENGTH;
     private static final int MESSAGE_TYPE = 1;
     private static final int VALUES = DEBUG ? 10 : 1_000_000;
     private static final int FLUSH_INTERVAL = Math.max(10, VALUES / 10);
@@ -330,7 +330,7 @@ public class ChannelPerformanceTest extends ATest {
                 final byte[] responseBytes = readMessage.getSecond();
                 Assertions.checkEquals(messageType, MESSAGE_TYPE);
                 Assertions.checkEquals(responseBytes.length, MESSAGE_SIZE);
-                final FDate value = FDateSerde.get.fromBytes(responseBytes);
+                final FDate value = FDateSerde.GET.fromBytes(responseBytes);
                 if (prevValue != null) {
                     Assertions.checkTrue(prevValue.isBefore(value));
                 }
@@ -409,7 +409,7 @@ public class ChannelPerformanceTest extends ATest {
                     final Pair<Integer, byte[]> readMessage = requestReader.readMessage();
                     Assertions.checkEquals(readMessage.getFirst(), MESSAGE_TYPE);
                     Assertions.checkEquals(readMessage.getSecond().length, 0);
-                    final byte[] responseBytes = FDateSerde.get.toBytes(date);
+                    final byte[] responseBytes = FDateSerde.GET.toBytes(date);
                     Assertions.checkEquals(responseBytes.length, MESSAGE_SIZE);
                     responseWriter.write(MESSAGE_TYPE, responseBytes);
                     if (DEBUG) {

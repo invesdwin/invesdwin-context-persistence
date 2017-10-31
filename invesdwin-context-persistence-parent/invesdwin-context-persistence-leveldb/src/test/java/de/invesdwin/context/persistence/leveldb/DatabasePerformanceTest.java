@@ -47,12 +47,12 @@ public class DatabasePerformanceTest extends ATest {
 
             @Override
             protected Serde<FDate> newValueSerde() {
-                return FDateSerde.get;
+                return FDateSerde.GET;
             }
 
             @Override
             protected Serde<FDate> newRangeKeySerde() {
-                return FDateSerde.get;
+                return FDateSerde.GET;
             }
         };
 
@@ -121,12 +121,12 @@ public class DatabasePerformanceTest extends ATest {
 
             @Override
             protected Serde<FDate> newValueSerde() {
-                return FDateSerde.get;
+                return FDateSerde.GET;
             }
 
             @Override
             protected Integer newFixedLength() {
-                return FDateSerde.get.toBytes(FDate.MAX_DATE).length;
+                return FDateSerde.FIXED_LENGTH;
             }
 
             @Override

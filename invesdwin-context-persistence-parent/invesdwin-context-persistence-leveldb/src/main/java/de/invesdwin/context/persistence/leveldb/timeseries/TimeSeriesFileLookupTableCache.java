@@ -13,7 +13,6 @@ import org.apache.commons.lang3.SerializationException;
 
 import com.google.common.base.Function;
 
-import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.leveldb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.leveldb.ADelegateRangeTable.DelegateTableIterator;
@@ -172,9 +171,11 @@ public class TimeSeriesFileLookupTableCache<K, V> {
     private volatile ICloseableIterable<FDate> cachedAllRangeKeys;
     private volatile ICloseableIterable<FDate> cachedAllRangeKeysReverse;
     private final Log log = new Log(this);
+    private File dataDir;
 
-    public TimeSeriesFileLookupTableCache(final String key, final Serde<V> valueSerde, final Integer fixedLength,
-            final Function<V, FDate> extractTime) {
+    public TimeSeriesFileLookupTableCache(final File dataDir, final String key, final Serde<V> valueSerde,
+            final Integer fixedLength, final Function<V, FDate> extractTime) {
+        this.dataDir = dataDir;
         this.key = key;
         this.valueSerde = valueSerde;
         this.fixedLength = fixedLength;
@@ -240,8 +241,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
 
     public synchronized File getBaseDir() {
         if (baseDir == null) {
-            baseDir = new File(ContextProperties.getHomeDirectory(),
-                    getClass().getSimpleName() + "/" + key.replace(":", "_"));
+            baseDir = new File(dataDir, getClass().getSimpleName() + "/" + key.replace(":", "_"));
             try {
                 FileUtils.forceMkdir(baseDir);
             } catch (final IOException e) {

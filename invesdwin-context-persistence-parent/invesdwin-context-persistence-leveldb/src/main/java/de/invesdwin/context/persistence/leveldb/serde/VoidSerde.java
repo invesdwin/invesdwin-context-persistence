@@ -8,9 +8,7 @@ import ezdb.serde.Serde;
 @Immutable
 public class VoidSerde implements Serde<Void> {
 
-    //CHECKSTYLE:OFF
-    public static final VoidSerde get = new VoidSerde();
-    //CHECKSTYLE:ON
+    public static final VoidSerde GET = new VoidSerde();
     private static final byte[] EMPTY_BYTES = new byte[0];
 
     @Override
