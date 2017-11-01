@@ -243,14 +243,17 @@ public abstract class ATimeSeriesUpdater<K, V> {
             };
             V firstElement = null;
             V lastElement = null;
-            for (final V element : batch) {
-                collection.add(element);
-                if (firstElement == null) {
-                    firstElement = element;
+            try {
+                for (final V element : batch) {
+                    collection.add(element);
+                    if (firstElement == null) {
+                        firstElement = element;
+                    }
+                    lastElement = element;
                 }
-                lastElement = element;
+            } finally {
+                collection.close();
             }
-            collection.close();
             lookupTable.finishFile(minTime, firstElement, lastElement);
 
             onFlush(flushIndex, flushStart, this);
