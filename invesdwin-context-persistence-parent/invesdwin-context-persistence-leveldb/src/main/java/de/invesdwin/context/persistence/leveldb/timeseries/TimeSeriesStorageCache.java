@@ -35,7 +35,6 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
-import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.time.fdate.FDate;
@@ -43,13 +42,14 @@ import ezdb.serde.Serde;
 
 @ThreadSafe
 public class TimeSeriesStorageCache<K, V> {
+    public static final Integer DEFAULT_MAXIMUM_SIZE = 10_000;
 
     private final TimeSeriesStorage storage;
     private final ALoadingCache<FDate, V> latestValueLookupCache = new ALoadingCache<FDate, V>() {
 
         @Override
         protected Integer getInitialMaximumSize() {
-            return AHistoricalCache.DEFAULT_MAXIMUM_SIZE;
+            return DEFAULT_MAXIMUM_SIZE;
         }
 
         @Override
@@ -91,7 +91,7 @@ public class TimeSeriesStorageCache<K, V> {
 
         @Override
         protected Integer getInitialMaximumSize() {
-            return AHistoricalCache.DEFAULT_MAXIMUM_SIZE;
+            return DEFAULT_MAXIMUM_SIZE;
         }
 
         @Override
@@ -124,7 +124,7 @@ public class TimeSeriesStorageCache<K, V> {
 
         @Override
         protected Integer getInitialMaximumSize() {
-            return AHistoricalCache.DEFAULT_MAXIMUM_SIZE;
+            return DEFAULT_MAXIMUM_SIZE;
         }
 
         @Override
@@ -157,7 +157,7 @@ public class TimeSeriesStorageCache<K, V> {
 
         @Override
         protected Integer getInitialMaximumSize() {
-            return AHistoricalCache.DEFAULT_MAXIMUM_SIZE;
+            return DEFAULT_MAXIMUM_SIZE;
         }
 
         @Override
