@@ -458,11 +458,14 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     @Override
     public void close() {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        tableLock.writeLock().lock();
         try {
-            table.close();
+            if (table != null) {
+                table.close();
+                table = null;
+            }
         } finally {
-            tableLock.readLock().unlock();
+            tableLock.writeLock().unlock();
         }
     }
 
