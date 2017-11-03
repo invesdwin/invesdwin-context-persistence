@@ -270,7 +270,10 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
             FileUtils.deleteQuietly(tableDirectory);
         }
         tableCreationTime = null;
+        onDeleteTableFinished();
     }
+
+    protected void onDeleteTableFinished() {}
 
     protected boolean shouldPurgeTable() {
         return false;

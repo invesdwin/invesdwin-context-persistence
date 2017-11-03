@@ -19,9 +19,11 @@ import org.apache.commons.lang3.SerializationException;
 import com.google.common.base.Function;
 
 import de.invesdwin.context.log.Log;
-import de.invesdwin.context.persistence.leveldb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.leveldb.ADelegateRangeTable.DelegateTableIterator;
-import de.invesdwin.norva.marker.ISerializableValueObject;
+import de.invesdwin.context.persistence.leveldb.timeseries.storage.ChunkValue;
+import de.invesdwin.context.persistence.leveldb.timeseries.storage.ShiftUnitsRangeKey;
+import de.invesdwin.context.persistence.leveldb.timeseries.storage.SingleValue;
+import de.invesdwin.context.persistence.leveldb.timeseries.storage.TimeSeriesStorage;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ASkippingIterator;
@@ -40,11 +42,9 @@ import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
 
 @ThreadSafe
-public class TimeSeriesFileLookupTableCache<K, V> {
+public class TimeSeriesStorageCache<K, V> {
 
-    private static final Void DUMMY_HASH_KEY = null;
-    private final ADelegateRangeTable<Void, FDate, ChunkValue> fileLookupTable;
-    private final ADelegateRangeTable<Void, FDate, V> latestValueLookupTable;
+    private final TimeSeriesStorage storage;
     private final ALoadingCache<FDate, V> latestValueLookupCache = new ALoadingCache<FDate, V>() {
 
         @Override
@@ -54,38 +54,39 @@ public class TimeSeriesFileLookupTableCache<K, V> {
 
         @Override
         protected V loadValue(final FDate key) {
-            final V value = latestValueLookupTable.getOrLoad(DUMMY_HASH_KEY, key, new Function<Pair<Void, FDate>, V>() {
+            final SingleValue value = storage.getLatestValueLookupTable().getOrLoad(hashKey, key,
+                    new Function<Pair<String, FDate>, SingleValue>() {
 
-                @Override
-                public V apply(final Pair<Void, FDate> input) {
-                    final FDate fileTime = fileLookupTable.getLatestRangeKey(input.getFirst(), input.getSecond());
-                    if (fileTime == null) {
-                        return null;
-                    }
-                    final File file = newFile(fileTime);
-                    final SerializingCollection<V> serializingCollection = newSerializingCollection(file);
-                    try (ICloseableIterator<V> it = serializingCollection.iterator()) {
-                        V latestValue = null;
-                        while (it.hasNext()) {
-                            final V newValue = it.next();
-                            final FDate newValueTime = extractTime.apply(newValue);
-                            if (newValueTime.isAfter(key)) {
-                                break;
-                            } else {
-                                latestValue = newValue;
+                        @Override
+                        public SingleValue apply(final Pair<String, FDate> input) {
+                            final FDate fileTime = storage.getFileLookupTable().getLatestRangeKey(input.getFirst(),
+                                    input.getSecond());
+                            if (fileTime == null) {
+                                return null;
+                            }
+                            final File file = newFile(fileTime);
+                            final SerializingCollection<V> serializingCollection = newSerializingCollection(file);
+                            try (ICloseableIterator<V> it = serializingCollection.iterator()) {
+                                V latestValue = null;
+                                while (it.hasNext()) {
+                                    final V newValue = it.next();
+                                    final FDate newValueTime = extractTime.apply(newValue);
+                                    if (newValueTime.isAfter(key)) {
+                                        break;
+                                    } else {
+                                        latestValue = newValue;
+                                    }
+                                }
+                                if (latestValue == null) {
+                                    latestValue = getFirstValue();
+                                }
+                                return new SingleValue(valueSerde, latestValue);
                             }
                         }
-                        if (latestValue == null) {
-                            latestValue = getFirstValue();
-                        }
-                        return latestValue;
-                    }
-                }
-            });
-            return value;
+                    });
+            return value.getValue(valueSerde);
         }
     };
-    private final ADelegateRangeTable<Integer, FDate, V> previousValueLookupTable;
     private final ALoadingCache<Pair<FDate, Integer>, V> previousValueLookupCache = new ALoadingCache<Pair<FDate, Integer>, V>() {
 
         @Override
@@ -97,11 +98,12 @@ public class TimeSeriesFileLookupTableCache<K, V> {
         protected V loadValue(final Pair<FDate, Integer> key) {
             final FDate date = key.getFirst();
             final int shiftBackUnits = key.getSecond();
-            final V value = previousValueLookupTable.getOrLoad(shiftBackUnits, date,
-                    new Function<Pair<Integer, FDate>, V>() {
+            final SingleValue value = storage.getPreviousValueLookupTable().getOrLoad(hashKey,
+                    new ShiftUnitsRangeKey(shiftBackUnits, date),
+                    new Function<Pair<String, ShiftUnitsRangeKey>, SingleValue>() {
 
                         @Override
-                        public V apply(final Pair<Integer, FDate> input) {
+                        public SingleValue apply(final Pair<String, ShiftUnitsRangeKey> input) {
                             final FDate date = key.getFirst();
                             final int shiftBackUnits = key.getSecond();
                             V previousValue = null;
@@ -112,13 +114,12 @@ public class TimeSeriesFileLookupTableCache<K, V> {
                             } catch (final NoSuchElementException e) {
                                 //ignore
                             }
-                            return previousValue;
+                            return new SingleValue(valueSerde, previousValue);
                         }
                     });
-            return value;
+            return value.getValue(valueSerde);
         }
     };
-    private final ADelegateRangeTable<Integer, FDate, V> nextValueLookupTable;
     private final ALoadingCache<Pair<FDate, Integer>, V> nextValueLookupCache = new ALoadingCache<Pair<FDate, Integer>, V>() {
 
         @Override
@@ -129,12 +130,13 @@ public class TimeSeriesFileLookupTableCache<K, V> {
         @Override
         protected V loadValue(final Pair<FDate, Integer> key) {
             final FDate date = key.getFirst();
-            final int shiftBackUnits = key.getSecond();
-            final V value = nextValueLookupTable.getOrLoad(shiftBackUnits, date,
-                    new Function<Pair<Integer, FDate>, V>() {
+            final int shiftForwardUnits = key.getSecond();
+            final SingleValue value = storage.getNextValueLookupTable().getOrLoad(hashKey,
+                    new ShiftUnitsRangeKey(shiftForwardUnits, date),
+                    new Function<Pair<String, ShiftUnitsRangeKey>, SingleValue>() {
 
                         @Override
-                        public V apply(final Pair<Integer, FDate> input) {
+                        public SingleValue apply(final Pair<String, ShiftUnitsRangeKey> input) {
                             final FDate date = key.getFirst();
                             final int shiftForwardUnits = key.getSecond();
                             V nextValue = null;
@@ -145,10 +147,10 @@ public class TimeSeriesFileLookupTableCache<K, V> {
                             } catch (final NoSuchElementException e) {
                                 //ignore
                             }
-                            return nextValue;
+                            return new SingleValue(valueSerde, nextValue);
                         }
                     });
-            return value;
+            return value.getValue(valueSerde);
         }
     };
     private final ALoadingCache<FDate, FDate> fileLookupTable_latestRangeKeyCache = new ALoadingCache<FDate, FDate>() {
@@ -160,112 +162,55 @@ public class TimeSeriesFileLookupTableCache<K, V> {
 
         @Override
         protected FDate loadValue(final FDate key) {
-            return fileLookupTable.getLatestRangeKey(DUMMY_HASH_KEY, key);
+            return storage.getFileLookupTable().getLatestRangeKey(hashKey, key);
         }
     };
 
-    private final String key;
+    private final String hashKey;
     private final Serde<V> valueSerde;
     private final Integer fixedLength;
     private final Function<V, FDate> extractTime;
     @GuardedBy("this")
-    private File baseDir;
+    private File dataDirectory;
 
     private volatile Optional<V> cachedFirstValue;
     private volatile Optional<V> cachedLastValue;
     private volatile ICloseableIterable<FDate> cachedAllRangeKeys;
     private volatile ICloseableIterable<FDate> cachedAllRangeKeysReverse;
     private final Log log = new Log(this);
-    private File dataDir;
 
-    public TimeSeriesFileLookupTableCache(final File dataDir, final String key, final Serde<V> valueSerde,
+    public TimeSeriesStorageCache(final TimeSeriesStorage storage, final String hashKey, final Serde<V> valueSerde,
             final Integer fixedLength, final Function<V, FDate> extractTime) {
-        this.dataDir = dataDir;
-        this.key = key;
+        this.storage = storage;
+        this.hashKey = hashKey;
         this.valueSerde = valueSerde;
         this.fixedLength = fixedLength;
         this.extractTime = extractTime;
-
-        this.fileLookupTable = new ADelegateRangeTable<Void, FDate, ChunkValue>("fileLookupTable") {
-            @Override
-            protected boolean allowPutWithoutBatch() {
-                return true;
-            }
-
-            @Override
-            protected boolean allowHasNext() {
-                return true;
-            }
-
-            @Override
-            protected File getDirectory() {
-                return getBaseDir();
-            }
-
-        };
-        this.latestValueLookupTable = new ADelegateRangeTable<Void, FDate, V>("latestValueLookupTable") {
-            @Override
-            protected File getDirectory() {
-                return getBaseDir();
-            }
-
-            @Override
-            protected Serde<V> newValueSerde() {
-                return valueSerde;
-            }
-
-        };
-        this.nextValueLookupTable = new ADelegateRangeTable<Integer, FDate, V>("nextValueLookupTable") {
-
-            @Override
-            protected File getDirectory() {
-                return getBaseDir();
-            }
-
-            @Override
-            protected Serde<V> newValueSerde() {
-                return valueSerde;
-            }
-
-        };
-        this.previousValueLookupTable = new ADelegateRangeTable<Integer, FDate, V>("previousValueLookupTable") {
-
-            @Override
-            protected File getDirectory() {
-                return getBaseDir();
-            }
-
-            @Override
-            protected Serde<V> newValueSerde() {
-                return valueSerde;
-            }
-
-        };
-
     }
 
-    public synchronized File getBaseDir() {
-        if (baseDir == null) {
-            baseDir = new File(dataDir, getClass().getSimpleName() + "/" + key.replace(":", "_"));
+    private synchronized File getDataDirectory() {
+        if (dataDirectory == null) {
+            dataDirectory = new File(storage.getDirectory(),
+                    getClass().getSimpleName() + "/" + hashKey.replace(":", "_"));
             try {
-                FileUtils.forceMkdir(baseDir);
+                FileUtils.forceMkdir(dataDirectory);
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
         }
-        return baseDir;
+        return dataDirectory;
     }
 
     public File getUpdateLockFile() {
-        return new File(getBaseDir(), "updateRunning.lock");
+        return new File(getDataDirectory(), "updateRunning.lock");
     }
 
     public File newFile(final FDate time) {
-        return new File(getBaseDir(), time.toString(FDate.FORMAT_TIMESTAMP_UNDERSCORE) + ".data");
+        return new File(getDataDirectory(), time.toString(FDate.FORMAT_TIMESTAMP_UNDERSCORE) + ".data");
     }
 
     public void finishFile(final FDate time, final V firstValue, final V lastValue) {
-        fileLookupTable.put(DUMMY_HASH_KEY, time, new ChunkValue(valueSerde, firstValue, lastValue));
+        storage.getFileLookupTable().put(hashKey, time, new ChunkValue(valueSerde, firstValue, lastValue));
         clearCaches();
     }
 
@@ -289,8 +234,8 @@ public class TimeSeriesFileLookupTableCache<K, V> {
                     //use latest time available even if delegate iterator has no values
                     private FDate latestFirstTime = fileLookupTable_latestRangeKeyCache.get(usedFrom);
                     // add 1 ms to not collide with firstTime
-                    private final ICloseableIterator<FDate> delegate = getRangeKeys(key, usedFrom.addMilliseconds(1),
-                            to);
+                    private final ICloseableIterator<FDate> delegate = getRangeKeys(hashKey,
+                            usedFrom.addMilliseconds(1), to);
                     private FDate delegateFirstTime = null;
 
                     @Override
@@ -365,7 +310,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
                     //use latest time available even if delegate iterator has no values
                     private FDate latestLastTime = fileLookupTable_latestRangeKeyCache.get(usedFrom);
                     // add 1 ms to not collide with firstTime
-                    private final ICloseableIterator<FDate> delegate = getRangeKeysReverse(key,
+                    private final ICloseableIterator<FDate> delegate = getRangeKeysReverse(hashKey,
                             usedFrom.addMilliseconds(-1), to);
                     private FDate delegateLastTime = null;
 
@@ -424,7 +369,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
     private ICloseableIterator<FDate> getAllRangeKeys() {
         if (cachedAllRangeKeys == null) {
             final BufferingIterator<FDate> allRangeKeys = new BufferingIterator<FDate>();
-            final DelegateTableIterator<Void, FDate, ChunkValue> range = fileLookupTable.range(DUMMY_HASH_KEY,
+            final DelegateTableIterator<String, FDate, ChunkValue> range = storage.getFileLookupTable().range(hashKey,
                     FDate.MIN_DATE, FDate.MAX_DATE);
             while (range.hasNext()) {
                 allRangeKeys.add(range.next().getRangeKey());
@@ -438,8 +383,8 @@ public class TimeSeriesFileLookupTableCache<K, V> {
     private ICloseableIterator<FDate> getAllRangeKeysReverse() {
         if (cachedAllRangeKeysReverse == null) {
             final BufferingIterator<FDate> allRangeKeysReverse = new BufferingIterator<FDate>();
-            final DelegateTableIterator<Void, FDate, ChunkValue> range = fileLookupTable.rangeReverse(DUMMY_HASH_KEY,
-                    FDate.MAX_DATE, FDate.MIN_DATE);
+            final DelegateTableIterator<String, FDate, ChunkValue> range = storage.getFileLookupTable()
+                    .rangeReverse(hashKey, FDate.MAX_DATE, FDate.MIN_DATE);
             while (range.hasNext()) {
                 allRangeKeysReverse.add(range.next().getRangeKey());
             }
@@ -622,7 +567,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
 
     public V getFirstValue() {
         if (cachedFirstValue == null) {
-            final ChunkValue latestValue = fileLookupTable.getLatestValue(DUMMY_HASH_KEY, FDate.MIN_DATE);
+            final ChunkValue latestValue = storage.getFileLookupTable().getLatestValue(hashKey, FDate.MIN_DATE);
             final V firstValue;
             if (latestValue == null) {
                 firstValue = null;
@@ -636,7 +581,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
 
     public V getLastValue() {
         if (cachedLastValue == null) {
-            final ChunkValue latestValue = fileLookupTable.getLatestValue(DUMMY_HASH_KEY, FDate.MAX_DATE);
+            final ChunkValue latestValue = storage.getFileLookupTable().getLatestValue(hashKey, FDate.MAX_DATE);
             final V lastValue;
             if (latestValue == null) {
                 lastValue = null;
@@ -649,13 +594,13 @@ public class TimeSeriesFileLookupTableCache<K, V> {
     }
 
     public synchronized void deleteAll() {
-        fileLookupTable.deleteTable();
-        latestValueLookupTable.deleteTable();
-        nextValueLookupTable.deleteTable();
-        previousValueLookupTable.deleteTable();
+        storage.getFileLookupTable().deleteRange(hashKey);
+        storage.getLatestValueLookupTable().deleteRange(hashKey);
+        storage.getNextValueLookupTable().deleteRange(hashKey);
+        storage.getPreviousValueLookupTable().deleteRange(hashKey);
         clearCaches();
-        FileUtils.deleteQuietly(getBaseDir());
-        baseDir = null;
+        FileUtils.deleteQuietly(getDataDirectory());
+        dataDirectory = null;
     }
 
     private void clearCaches() {
@@ -667,25 +612,6 @@ public class TimeSeriesFileLookupTableCache<K, V> {
         cachedAllRangeKeysReverse = null;
         cachedFirstValue = null;
         cachedLastValue = null;
-    }
-
-    private static class ChunkValue implements ISerializableValueObject {
-
-        private final byte[] firstValue;
-        private final byte[] lastValue;
-
-        <_V> ChunkValue(final Serde<_V> serde, final _V firstValue, final _V lastValue) {
-            this.firstValue = serde.toBytes(firstValue);
-            this.lastValue = serde.toBytes(lastValue);
-        }
-
-        public <_V> _V getFirstValue(final Serde<_V> serde) {
-            return serde.fromBytes(firstValue);
-        }
-
-        public <_V> _V getLastValue(final Serde<_V> serde) {
-            return serde.fromBytes(lastValue);
-        }
     }
 
     public V getLatestValue(final FDate date) {
@@ -710,7 +636,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
             if (Throwables.isCausedByType(t, SerializationException.class)) {
                 //e.g. fst: unable to find class for code 88 after version upgrade
                 log.warn("Table data for [%s] is inconsistent and needs to be reset. Exception during getLastValue: %s",
-                        key, t.toString());
+                        hashKey, t.toString());
                 return true;
             } else {
                 //unexpected exception, since RemoteFastSerializingSerde only throws SerializingException
@@ -722,7 +648,7 @@ public class TimeSeriesFileLookupTableCache<K, V> {
             while (files.hasNext()) {
                 final File file = files.next();
                 if (!file.exists()) {
-                    log.warn("Table data for [%s] is inconsistent and needs to be reset. Missing file: [%s]", key,
+                    log.warn("Table data for [%s] is inconsistent and needs to be reset. Missing file: [%s]", hashKey,
                             file);
                     return true;
                 }
@@ -738,10 +664,10 @@ public class TimeSeriesFileLookupTableCache<K, V> {
      * updates
      */
     public FDate prepareForUpdate() {
-        final FDate latestRangeKey = fileLookupTable.getLatestRangeKey(null, FDate.MAX_DATE);
+        final FDate latestRangeKey = storage.getFileLookupTable().getLatestRangeKey(hashKey, FDate.MAX_DATE);
         if (latestRangeKey != null) {
             newFile(latestRangeKey).delete();
-            latestValueLookupTable.deleteRange(null, latestRangeKey);
+            storage.getFileLookupTable().deleteRange(hashKey, latestRangeKey);
         }
         clearCaches();
         return latestRangeKey;

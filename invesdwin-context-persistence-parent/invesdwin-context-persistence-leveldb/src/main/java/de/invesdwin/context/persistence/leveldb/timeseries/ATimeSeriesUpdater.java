@@ -34,7 +34,7 @@ public abstract class ATimeSeriesUpdater<K, V> {
 
     private final Serde<V> valueSerde;
     private final ATimeSeriesDB<K, V> table;
-    private final TimeSeriesFileLookupTableCache<K, V> lookupTable;
+    private final TimeSeriesStorageCache<K, V> lookupTable;
     private final File updateLockFile;
 
     private final K key;
@@ -134,11 +134,11 @@ public abstract class ATimeSeriesUpdater<K, V> {
             };
             //do IO in a different thread than batch filling
             try (ACloseableIterator<UpdateProgress> batchProducer = new ProducerQueueIterator<UpdateProgress>(
-                    getClass().getSimpleName() + "_batchProducer_" + table.getDatabaseName(key), batchWriterProducer,
+                    getClass().getSimpleName() + "_batchProducer_" + table.hashKeyToString(key), batchWriterProducer,
                     BATCH_QUEUE_SIZE)) {
                 final AtomicInteger flushIndex = new AtomicInteger();
                 try (ACloseableIterator<UpdateProgress> parallelConsumer = new AParallelChunkConsumerIterator<UpdateProgress, UpdateProgress>(
-                        getClass().getSimpleName() + "_batchConsumer_" + table.getDatabaseName(key), batchProducer,
+                        getClass().getSimpleName() + "_batchConsumer_" + table.hashKeyToString(key), batchProducer,
                         BATCH_WRITER_THREADS) {
 
                     @Override

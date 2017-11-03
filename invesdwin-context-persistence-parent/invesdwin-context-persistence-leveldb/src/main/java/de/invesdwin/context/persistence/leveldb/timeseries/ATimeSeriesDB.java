@@ -7,15 +7,21 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.commons.io.FileUtils;
+
 import com.google.common.base.Function;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.retry.Retry;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
+import de.invesdwin.context.log.error.Err;
+import de.invesdwin.context.persistence.leveldb.timeseries.storage.CorruptedTimeSeriesStorageException;
+import de.invesdwin.context.persistence.leveldb.timeseries.storage.TimeSeriesStorage;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
+import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
 
@@ -25,23 +31,27 @@ public abstract class ATimeSeriesDB<K, V> {
     private final String name;
     private final Integer fixedLength;
     private final Serde<V> valueSerde;
-    private final ALoadingCache<K, TimeSeriesFileLookupTableCache<K, V>> key_lookupTableCache;
+    private final ALoadingCache<K, TimeSeriesStorageCache<K, V>> key_lookupTableCache;
     private final ALoadingCache<K, ReadWriteLock> key_tableLock = new ALoadingCache<K, ReadWriteLock>() {
         @Override
         protected ReadWriteLock loadValue(final K key) {
             return new ReentrantReadWriteLock();
         }
-    };;
+    };
+    private TimeSeriesStorage storage;
 
     public ATimeSeriesDB(final String name) {
         this.name = name;
+        final File directory = new File(getBaseDirectory(), getClass().getSimpleName() + "/" + getName());
+        this.storage = corruptionHandlingNewStorage(directory);
         this.valueSerde = newValueSerde();
         this.fixedLength = newFixedLength();
-        this.key_lookupTableCache = new ALoadingCache<K, TimeSeriesFileLookupTableCache<K, V>>() {
+        this.key_lookupTableCache = new ALoadingCache<K, TimeSeriesStorageCache<K, V>>() {
             @Override
-            protected TimeSeriesFileLookupTableCache<K, V> loadValue(final K key) {
-                return new TimeSeriesFileLookupTableCache<K, V>(getDirectory(), getDatabaseName(key), valueSerde,
-                        fixedLength, new Function<V, FDate>() {
+            protected TimeSeriesStorageCache<K, V> loadValue(final K key) {
+                final String hashKey = getName() + "_" + hashKeyToString(key);
+                return new TimeSeriesStorageCache<K, V>(storage, hashKey, valueSerde, fixedLength,
+                        new Function<V, FDate>() {
                             @Override
                             public FDate apply(final V input) {
                                 return extractTime(input);
@@ -52,7 +62,30 @@ public abstract class ATimeSeriesDB<K, V> {
         };
     }
 
-    protected File getDirectory() {
+    private TimeSeriesStorage corruptionHandlingNewStorage(final File directory) {
+        try {
+            return newStorage(directory);
+        } catch (final Throwable t) {
+            if (Throwables.isCausedByType(t, CorruptedTimeSeriesStorageException.class)) {
+                Err.process(new RuntimeException("Resetting " + ATimeSeriesDB.class.getSimpleName() + " ["
+                        + getDirectory() + "] because the storage has been corrupted"));
+                FileUtils.deleteQuietly(directory);
+                return new TimeSeriesStorage(directory);
+            } else {
+                throw Throwables.propagate(t);
+            }
+        }
+    }
+
+    public File getDirectory() {
+        return storage.getDirectory();
+    }
+
+    protected TimeSeriesStorage newStorage(final File directory) {
+        return new TimeSeriesStorage(directory);
+    }
+
+    protected File getBaseDirectory() {
         return ContextProperties.getHomeDirectory();
     }
 
@@ -207,7 +240,7 @@ public abstract class ATimeSeriesDB<K, V> {
         return name;
     }
 
-    TimeSeriesFileLookupTableCache<K, V> getLookupTableCache(final K key) {
+    TimeSeriesStorageCache<K, V> getLookupTableCache(final K key) {
         return key_lookupTableCache.get(key);
     }
 
@@ -215,6 +248,6 @@ public abstract class ATimeSeriesDB<K, V> {
         return valueSerde;
     }
 
-    protected abstract String getDatabaseName(K key);
+    protected abstract String hashKeyToString(K key);
 
 }

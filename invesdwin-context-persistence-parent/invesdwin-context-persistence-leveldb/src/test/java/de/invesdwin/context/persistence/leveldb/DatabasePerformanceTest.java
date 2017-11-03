@@ -130,7 +130,7 @@ public class DatabasePerformanceTest extends ATest {
             }
 
             @Override
-            protected String getDatabaseName(final String key) {
+            protected String hashKeyToString(final String key) {
                 return "testTimeSeriesDbPerformance_" + key;
             }
 
