@@ -81,6 +81,10 @@ public abstract class ATimeSeriesDB<K, V> {
         return storage.getDirectory();
     }
 
+    public File getDataDirectory(final K key) {
+        return getLookupTableCache(key).getDataDirectory();
+    }
+
     protected TimeSeriesStorage newStorage(final File directory) {
         return new TimeSeriesStorage(directory);
     }

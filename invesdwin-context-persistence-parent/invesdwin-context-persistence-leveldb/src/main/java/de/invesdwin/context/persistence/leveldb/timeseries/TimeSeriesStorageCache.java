@@ -188,7 +188,7 @@ public class TimeSeriesStorageCache<K, V> {
         this.extractTime = extractTime;
     }
 
-    private synchronized File getDataDirectory() {
+    public synchronized File getDataDirectory() {
         if (dataDirectory == null) {
             dataDirectory = new File(storage.getDirectory(),
                     getClass().getSimpleName() + "/" + hashKey.replace(":", "_"));
