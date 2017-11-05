@@ -188,9 +188,9 @@ public class TimeSeriesStorageCache<K, V> {
         this.extractTime = extractTime;
     }
 
-    public synchronized File getDataDirectory() {
+    private synchronized File getDataDirectory() {
         if (dataDirectory == null) {
-            dataDirectory = new File(storage.getDirectory(), "storage/" + hashKey.replace(":", "_"));
+            dataDirectory = newDataDirectory();
             try {
                 FileUtils.forceMkdir(dataDirectory);
             } catch (final IOException e) {
@@ -198,6 +198,10 @@ public class TimeSeriesStorageCache<K, V> {
             }
         }
         return dataDirectory;
+    }
+
+    public File newDataDirectory() {
+        return new File(storage.getDirectory(), "storage/" + hashKey.replace(":", "_"));
     }
 
     public File getUpdateLockFile() {
