@@ -602,7 +602,7 @@ public class TimeSeriesStorageCache<K, V> {
         storage.getNextValueLookupTable().deleteRange(hashKey);
         storage.getPreviousValueLookupTable().deleteRange(hashKey);
         clearCaches();
-        FileUtils.deleteQuietly(getDataDirectory());
+        FileUtils.deleteQuietly(newDataDirectory());
         dataDirectory = null;
     }
 

@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.commons.io.FileUtils;
@@ -29,8 +30,9 @@ import ezdb.serde.Serde;
 public abstract class ATimeSeriesDB<K, V> {
 
     private final String name;
-    private final Integer fixedLength;
     private final Serde<V> valueSerde;
+    private final Integer fixedLength;
+    private final File directory;
     private final ALoadingCache<K, TimeSeriesStorageCache<K, V>> key_lookupTableCache;
     private final ALoadingCache<K, ReadWriteLock> key_tableLock = new ALoadingCache<K, ReadWriteLock>() {
         @Override
@@ -38,19 +40,19 @@ public abstract class ATimeSeriesDB<K, V> {
             return new ReentrantReadWriteLock();
         }
     };
+    @GuardedBy("this")
     private TimeSeriesStorage storage;
 
     public ATimeSeriesDB(final String name) {
         this.name = name;
-        final File directory = new File(getBaseDirectory(), ATimeSeriesDB.class.getSimpleName() + "/" + getName());
-        this.storage = corruptionHandlingNewStorage(directory);
         this.valueSerde = newValueSerde();
         this.fixedLength = newFixedLength();
+        this.directory = new File(getBaseDirectory(), ATimeSeriesDB.class.getSimpleName() + "/" + getName());
         this.key_lookupTableCache = new ALoadingCache<K, TimeSeriesStorageCache<K, V>>() {
             @Override
             protected TimeSeriesStorageCache<K, V> loadValue(final K key) {
                 final String hashKey = hashKeyToString(key);
-                return new TimeSeriesStorageCache<K, V>(storage, hashKey, valueSerde, fixedLength,
+                return new TimeSeriesStorageCache<K, V>(getStorage(), hashKey, valueSerde, fixedLength,
                         new Function<V, FDate>() {
                             @Override
                             public FDate apply(final V input) {
@@ -62,7 +64,14 @@ public abstract class ATimeSeriesDB<K, V> {
         };
     }
 
-    private TimeSeriesStorage corruptionHandlingNewStorage(final File directory) {
+    private synchronized TimeSeriesStorage getStorage() {
+        if (storage == null) {
+            storage = corruptionHandlingNewStorage();
+        }
+        return storage;
+    }
+
+    private TimeSeriesStorage corruptionHandlingNewStorage() {
         try {
             return newStorage(directory);
         } catch (final Throwable t) {
@@ -78,7 +87,7 @@ public abstract class ATimeSeriesDB<K, V> {
     }
 
     public File getDirectory() {
-        return storage.getDirectory();
+        return directory;
     }
 
     public File getDataDirectory(final K key) {
