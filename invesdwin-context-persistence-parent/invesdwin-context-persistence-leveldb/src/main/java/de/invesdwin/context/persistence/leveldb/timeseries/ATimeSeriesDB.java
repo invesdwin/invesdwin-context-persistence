@@ -42,14 +42,14 @@ public abstract class ATimeSeriesDB<K, V> {
 
     public ATimeSeriesDB(final String name) {
         this.name = name;
-        final File directory = new File(getBaseDirectory(), getClass().getSimpleName() + "/" + getName());
+        final File directory = new File(getBaseDirectory(), ATimeSeriesDB.class.getSimpleName() + "/" + getName());
         this.storage = corruptionHandlingNewStorage(directory);
         this.valueSerde = newValueSerde();
         this.fixedLength = newFixedLength();
         this.key_lookupTableCache = new ALoadingCache<K, TimeSeriesStorageCache<K, V>>() {
             @Override
             protected TimeSeriesStorageCache<K, V> loadValue(final K key) {
-                final String hashKey = getName() + "_" + hashKeyToString(key);
+                final String hashKey = hashKeyToString(key);
                 return new TimeSeriesStorageCache<K, V>(storage, hashKey, valueSerde, fixedLength,
                         new Function<V, FDate>() {
                             @Override

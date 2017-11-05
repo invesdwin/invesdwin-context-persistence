@@ -190,8 +190,7 @@ public class TimeSeriesStorageCache<K, V> {
 
     public synchronized File getDataDirectory() {
         if (dataDirectory == null) {
-            dataDirectory = new File(storage.getDirectory(),
-                    getClass().getSimpleName() + "/" + hashKey.replace(":", "_"));
+            dataDirectory = new File(storage.getDirectory(), "storage/" + hashKey.replace(":", "_"));
             try {
                 FileUtils.forceMkdir(dataDirectory);
             } catch (final IOException e) {
