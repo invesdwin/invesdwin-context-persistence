@@ -698,4 +698,10 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     }
 
+    @Override
+    protected void finalize() throws Throwable {
+        super.finalize();
+        close();
+    }
+
 }

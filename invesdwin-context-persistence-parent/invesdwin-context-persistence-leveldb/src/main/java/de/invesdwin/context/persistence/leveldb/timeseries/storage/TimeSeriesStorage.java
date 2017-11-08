@@ -128,4 +128,11 @@ public class TimeSeriesStorage {
         return nextValueLookupTable;
     }
 
+    public void close() {
+        fileLookupTable.close();
+        latestValueLookupTable.close();
+        previousValueLookupTable.close();
+        nextValueLookupTable.close();
+    }
+
 }

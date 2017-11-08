@@ -1,5 +1,6 @@
 package de.invesdwin.context.persistence.leveldb.timeseries;
 
+import java.io.Closeable;
 import java.io.File;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -27,7 +28,7 @@ import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
 
 @ThreadSafe
-public abstract class ATimeSeriesDB<K, V> {
+public abstract class ATimeSeriesDB<K, V> implements Closeable {
 
     private final String name;
     private final Serde<V> valueSerde;
@@ -262,5 +263,12 @@ public abstract class ATimeSeriesDB<K, V> {
     }
 
     protected abstract String hashKeyToString(K key);
+
+    @Override
+    public void close() {
+        getStorage().close();
+        key_lookupTableCache.clear();
+        key_tableLock.clear();
+    }
 
 }
