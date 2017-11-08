@@ -265,7 +265,7 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
     protected abstract String hashKeyToString(K key);
 
     @Override
-    public void close() {
+    public synchronized void close() {
         getStorage().close();
         key_lookupTableCache.clear();
         key_tableLock.clear();
