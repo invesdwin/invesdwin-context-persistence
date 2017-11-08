@@ -3,6 +3,7 @@ package de.invesdwin.context.persistence.leveldb.timeseries;
 import java.io.Closeable;
 import java.io.File;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -121,11 +122,12 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
 
         return new ACloseableIterator<V>() {
 
+            private final Lock readLock = getTableLock(key).readLock();
             private ICloseableIterator<V> readRangeValues;
 
             private ICloseableIterator<V> getReadRangeValues() {
                 if (readRangeValues == null) {
-                    getTableLock(key).readLock().lock();
+                    readLock.lock();
                     readRangeValues = getLookupTableCache(key).readRangeValues(from, to);
                 }
                 return readRangeValues;
@@ -149,7 +151,7 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
                 }
                 if (readRangeValues != null) {
                     getReadRangeValues().close();
-                    getTableLock(key).readLock().unlock();
+                    readLock.unlock();
                 }
                 readRangeValues = EmptyCloseableIterator.getInstance();
             }
@@ -157,7 +159,8 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
     }
 
     public V getLatestValue(final K key, final FDate date) {
-        getTableLock(key).readLock().lock();
+        final Lock readLock = getTableLock(key).readLock();
+        readLock.lock();
         try {
             if (date.isBeforeOrEqualTo(FDate.MIN_DATE)) {
                 return getLookupTableCache(key).getFirstValue();
@@ -167,7 +170,7 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
                 return getLookupTableCache(key).getLatestValue(date);
             }
         } finally {
-            getTableLock(key).readLock().unlock();
+            readLock.unlock();
         }
     }
 
@@ -181,7 +184,8 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
     }
 
     public V getPreviousValue(final K key, final FDate date, final int shiftBackUnits) {
-        getTableLock(key).readLock().lock();
+        final Lock readLock = getTableLock(key).readLock();
+        readLock.lock();
         try {
             if (date.isBeforeOrEqualTo(FDate.MIN_DATE)) {
                 return getLookupTableCache(key).getFirstValue();
@@ -189,7 +193,7 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
                 return getLookupTableCache(key).getPreviousValue(date, shiftBackUnits);
             }
         } finally {
-            getTableLock(key).readLock().unlock();
+            readLock.unlock();
         }
     }
 
@@ -203,16 +207,18 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
     }
 
     public boolean isEmptyOrInconsistent(final K key) {
-        getTableLock(key).readLock().lock();
+        final Lock readLock = getTableLock(key).readLock();
+        readLock.lock();
         try {
             return getLookupTableCache(key).isEmptyOrInconsistent();
         } finally {
-            getTableLock(key).readLock().unlock();
+            readLock.unlock();
         }
     }
 
     public V getNextValue(final K key, final FDate date, final int shiftForwardUnits) {
-        getTableLock(key).readLock().lock();
+        final Lock readLock = getTableLock(key).readLock();
+        readLock.lock();
         try {
             if (date.isAfterOrEqualTo(FDate.MAX_DATE)) {
                 return getLookupTableCache(key).getLastValue();
@@ -220,7 +226,7 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
                 return getLookupTableCache(key).getNextValue(date, shiftForwardUnits);
             }
         } finally {
-            getTableLock(key).readLock().unlock();
+            readLock.unlock();
         }
     }
 
@@ -235,8 +241,9 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
 
     @Retry
     public void deleteRange(final K key) {
+        final Lock writeLock = getTableLock(key).writeLock();
         try {
-            if (!getTableLock(key).writeLock().tryLock(1, TimeUnit.MINUTES)) {
+            if (!writeLock.tryLock(1, TimeUnit.MINUTES)) {
                 throw new RetryLaterRuntimeException("Write lock could not be acquired for table [" + name
                         + "] and key [" + key + "]. Please ensure all iterators are closed!");
             }
@@ -246,7 +253,7 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
         try {
             getLookupTableCache(key).deleteAll();
         } finally {
-            getTableLock(key).writeLock().unlock();
+            writeLock.unlock();
         }
     }
 
