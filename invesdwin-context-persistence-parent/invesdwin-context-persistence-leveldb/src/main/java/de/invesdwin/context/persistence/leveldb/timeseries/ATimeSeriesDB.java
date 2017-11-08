@@ -266,7 +266,10 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
 
     @Override
     public synchronized void close() {
-        getStorage().close();
+        if (storage != null) {
+            storage.close();
+            storage = null;
+        }
         key_lookupTableCache.clear();
         key_tableLock.clear();
     }
