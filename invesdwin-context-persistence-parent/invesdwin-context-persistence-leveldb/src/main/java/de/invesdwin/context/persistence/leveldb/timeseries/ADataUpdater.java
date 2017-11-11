@@ -36,7 +36,7 @@ public abstract class ADataUpdater<K, V> {
             return Executors.newFixedThreadPool(nestedName, Executors.getCpuThreadPoolCount());
         }
     };
-    private final Log log = new Log(this);
+    protected final Log log = new Log(this);
     private final K key;
     @GuardedBy("updateLock.writeLock for writes, none for reads")
     private volatile FDate lastUpdateCheck = FDate.MIN_DATE;
