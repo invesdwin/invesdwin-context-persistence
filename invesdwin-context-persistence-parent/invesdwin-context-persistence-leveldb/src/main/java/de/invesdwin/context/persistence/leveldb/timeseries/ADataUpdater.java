@@ -38,7 +38,7 @@ public abstract class ADataUpdater<K, V> {
     };
     protected final Log log = new Log(this);
     private final K key;
-    @GuardedBy("updateLock.writeLock for writes, none for reads")
+    @GuardedBy("updateLock")
     private volatile FDate lastUpdateCheck = FDate.MIN_DATE;
     private final ReentrantLock updateLock = new ReentrantLock();
 
