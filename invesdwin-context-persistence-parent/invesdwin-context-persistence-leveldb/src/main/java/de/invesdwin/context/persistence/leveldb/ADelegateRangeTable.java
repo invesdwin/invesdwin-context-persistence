@@ -75,7 +75,11 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     }
 
     protected File getDirectory() {
-        return new File(ContextProperties.getHomeDirectory(), ADelegateRangeTable.class.getSimpleName());
+        return new File(getBaseDirectory(), ADelegateRangeTable.class.getSimpleName());
+    }
+
+    protected File getBaseDirectory() {
+        return ContextProperties.getHomeDirectory();
     }
 
     /**
