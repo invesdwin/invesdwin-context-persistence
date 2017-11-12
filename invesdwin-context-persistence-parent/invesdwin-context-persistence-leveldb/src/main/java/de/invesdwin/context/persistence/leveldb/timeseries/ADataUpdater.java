@@ -14,9 +14,7 @@ import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.loadingcache.historical.refresh.HistoricalCacheRefreshManager;
 import de.invesdwin.util.concurrent.ANestedExecutor;
-import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.Futures;
-import de.invesdwin.util.concurrent.WrappedExecutorService;
 import de.invesdwin.util.lang.ProcessedEventsRateString;
 import de.invesdwin.util.math.Integers;
 import de.invesdwin.util.time.Instant;
@@ -29,13 +27,6 @@ import io.netty.util.concurrent.FastThreadLocal;
 public abstract class ADataUpdater<K, V> {
 
     private static final FastThreadLocal<Boolean> SKIP_UPDATE_ON_CURRENT_THREAD_IF_ALREADY_RUNNING = new FastThreadLocal<Boolean>();
-    private static final ANestedExecutor NESTED_EXECUTOR = new ANestedExecutor(
-            ADataUpdater.class.getSimpleName() + "_runningUpdate") {
-        @Override
-        protected WrappedExecutorService newNestedExecutor(final String nestedName) {
-            return Executors.newFixedThreadPool(nestedName, Executors.getCpuThreadPoolCount());
-        }
-    };
     protected final Log log = new Log(this);
     private final K key;
     @GuardedBy("updateLock")
@@ -48,6 +39,8 @@ public abstract class ADataUpdater<K, V> {
         }
         this.key = key;
     }
+
+    protected abstract ANestedExecutor getNestedExecutor();
 
     public static void setSkipUpdateOnCurrentThreadIfAlreadyRunning(final boolean skipUpdateIfRunning) {
         if (skipUpdateIfRunning) {
@@ -80,7 +73,7 @@ public abstract class ADataUpdater<K, V> {
                     //some sort of double checked locking to skip if someone else came before us
                     return;
                 }
-                final Future<?> future = NESTED_EXECUTOR.getNestedExecutor().submit(new Runnable() {
+                final Future<?> future = getNestedExecutor().getNestedExecutor().submit(new Runnable() {
                     @Override
                     public void run() {
                         if (!getTable().getTableLock(key).writeLock().tryLock()) {
