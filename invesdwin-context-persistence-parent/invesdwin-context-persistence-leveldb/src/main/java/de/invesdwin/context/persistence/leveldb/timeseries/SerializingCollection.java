@@ -35,7 +35,6 @@ import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
 import de.invesdwin.util.collections.iterable.LimitingIterator;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.lang.Objects;
-import de.invesdwin.util.lang.Strings;
 import de.invesdwin.util.lang.UniqueNameGenerator;
 import de.invesdwin.util.math.decimal.Decimal;
 import de.invesdwin.util.math.decimal.scaled.ByteSize;
@@ -121,13 +120,21 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         }
         try {
             final byte[] bytes = serde.toBytes(element);
+            if (bytes == null || bytes.length == 0) {
+                throw new IllegalStateException("bytes should contain actual data: " + element);
+            }
             if (fixedLength == null) {
+                final byte[] encoded = Base64.encodeBase64(bytes);
+                if (encoded.length == 0) {
+                    throw new IllegalStateException(
+                            "empty encoded bytes should not occur since empty bytes should aready be filtered");
+                }
                 if (firstElement) {
                     firstElement = false;
                 } else {
                     getFos().write(ELEMENT_DELIMITER);
                 }
-                getFos().write(Base64.encodeBase64(bytes));
+                getFos().write(encoded);
             } else {
                 if (bytes.length != fixedLength) {
                     throw new IllegalArgumentException(
@@ -353,12 +360,19 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                     return (E) null;
                 }
                 final String line = lineReader.readLine();
-                if (Strings.isBlank(line)) {
+                if (line == null) {
                     innerClose();
                     return (E) null;
                 }
-                final byte[] bytes = Base64.decodeBase64(line.getBytes());
-                return serde.fromBytes(bytes);
+                final byte[] bytes = line.getBytes();
+                if (bytes.length == 0) {
+                    throw new IllegalStateException("empty encoded entries should have been filtered by add()");
+                }
+                final byte[] decoded = Base64.decodeBase64(bytes);
+                if (decoded.length == 0) {
+                    throw new IllegalStateException("empty entries should have been filtered by add()");
+                }
+                return serde.fromBytes(decoded);
             } catch (final IOException e) {
                 throw Err.process(e);
             }
