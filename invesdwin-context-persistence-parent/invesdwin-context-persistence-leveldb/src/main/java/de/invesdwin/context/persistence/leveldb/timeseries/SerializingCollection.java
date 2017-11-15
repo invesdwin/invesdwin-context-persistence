@@ -35,6 +35,7 @@ import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
 import de.invesdwin.util.collections.iterable.LimitingIterator;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.lang.Objects;
+import de.invesdwin.util.lang.Strings;
 import de.invesdwin.util.lang.UniqueNameGenerator;
 import de.invesdwin.util.math.decimal.Decimal;
 import de.invesdwin.util.math.decimal.scaled.ByteSize;
@@ -352,7 +353,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                     return (E) null;
                 }
                 final String line = lineReader.readLine();
-                if (line == null) {
+                if (Strings.isBlank(line)) {
                     innerClose();
                     return (E) null;
                 }
