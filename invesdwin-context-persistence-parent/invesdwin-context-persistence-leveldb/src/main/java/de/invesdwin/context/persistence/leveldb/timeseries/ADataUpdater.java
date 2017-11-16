@@ -12,7 +12,6 @@ import org.apache.commons.lang3.BooleanUtils;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
-import de.invesdwin.util.collections.loadingcache.historical.refresh.HistoricalCacheRefreshManager;
 import de.invesdwin.util.concurrent.ANestedExecutor;
 import de.invesdwin.util.concurrent.Futures;
 import de.invesdwin.util.lang.ProcessedEventsRateString;
@@ -38,6 +37,10 @@ public abstract class ADataUpdater<K, V> {
             throw new NullPointerException("key should not be null");
         }
         this.key = key;
+    }
+
+    public K getKey() {
+        return key;
     }
 
     protected abstract ANestedExecutor getNestedExecutor();
@@ -173,8 +176,6 @@ public abstract class ADataUpdater<K, V> {
             }
         };
         updater.update();
-        //let DelegateBar/TickCaches fetch more data now by clearing them
-        HistoricalCacheRefreshManager.refresh();
         return updater.getMaxTime();
     }
 
