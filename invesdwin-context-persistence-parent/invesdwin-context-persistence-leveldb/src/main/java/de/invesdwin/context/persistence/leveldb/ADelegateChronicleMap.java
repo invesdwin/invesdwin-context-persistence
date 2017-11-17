@@ -18,6 +18,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.commons.io.IOUtils;
 
 import de.invesdwin.context.ContextProperties;
+import de.invesdwin.context.persistence.leveldb.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.leveldb.serde.ExtendedTypeDelegateSerde;
 import de.invesdwin.context.persistence.leveldb.timeseries.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.leveldb.timeseries.SerializingCollection;
@@ -31,7 +32,7 @@ import net.openhft.chronicle.map.ChronicleMap;
 import net.openhft.chronicle.map.ChronicleMapBuilder;
 
 @ThreadSafe
-public abstract class APersistentMap<K, V> implements ConcurrentMap<K, V>, Closeable {
+public abstract class ADelegateChronicleMap<K, V> implements ConcurrentMap<K, V>, Closeable {
 
     private final String name;
     private final Serde<K> keySerde;
@@ -39,7 +40,7 @@ public abstract class APersistentMap<K, V> implements ConcurrentMap<K, V>, Close
     @GuardedBy("this")
     private ChronicleMap<K, V> delegate;
 
-    public APersistentMap(final String name) {
+    public ADelegateChronicleMap(final String name) {
         this.name = name;
         this.keySerde = newKeySerde();
         this.valueSerde = newValueSerde();
@@ -188,12 +189,12 @@ public abstract class APersistentMap<K, V> implements ConcurrentMap<K, V>, Close
 
     @SuppressWarnings("unchecked")
     protected Class<K> getKeyType() {
-        return (Class<K>) Reflections.resolveTypeArguments(getClass(), APersistentMap.class)[0];
+        return (Class<K>) Reflections.resolveTypeArguments(getClass(), ADelegateChronicleMap.class)[0];
     }
 
     @SuppressWarnings("unchecked")
     protected Class<V> getValueType() {
-        return (Class<V>) Reflections.resolveTypeArguments(getClass(), APersistentMap.class)[1];
+        return (Class<V>) Reflections.resolveTypeArguments(getClass(), ADelegateChronicleMap.class)[1];
     }
 
     @Override

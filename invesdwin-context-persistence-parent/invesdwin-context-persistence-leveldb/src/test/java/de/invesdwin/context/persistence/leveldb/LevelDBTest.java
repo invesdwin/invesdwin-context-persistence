@@ -8,7 +8,8 @@ import org.assertj.core.api.Fail;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.persistence.leveldb.ADelegateRangeTable.DelegateTableIterator;
+import de.invesdwin.context.persistence.leveldb.ezdb.ADelegateRangeTable;
+import de.invesdwin.context.persistence.leveldb.ezdb.ADelegateRangeTable.DelegateTableIterator;
 import de.invesdwin.context.persistence.leveldb.serde.FDateSerde;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;

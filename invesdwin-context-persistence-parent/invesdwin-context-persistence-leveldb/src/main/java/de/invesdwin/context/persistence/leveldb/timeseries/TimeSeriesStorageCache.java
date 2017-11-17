@@ -19,7 +19,7 @@ import org.apache.commons.lang3.SerializationException;
 import com.google.common.base.Function;
 
 import de.invesdwin.context.log.Log;
-import de.invesdwin.context.persistence.leveldb.ADelegateRangeTable.DelegateTableIterator;
+import de.invesdwin.context.persistence.leveldb.ezdb.ADelegateRangeTable.DelegateTableIterator;
 import de.invesdwin.context.persistence.leveldb.timeseries.storage.ChunkValue;
 import de.invesdwin.context.persistence.leveldb.timeseries.storage.ShiftUnitsRangeKey;
 import de.invesdwin.context.persistence.leveldb.timeseries.storage.SingleValue;

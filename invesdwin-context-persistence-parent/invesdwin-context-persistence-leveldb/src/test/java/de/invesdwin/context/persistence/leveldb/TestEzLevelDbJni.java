@@ -10,6 +10,7 @@ import org.apache.commons.io.FileUtils;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
+import de.invesdwin.context.persistence.leveldb.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.time.fdate.FDate;

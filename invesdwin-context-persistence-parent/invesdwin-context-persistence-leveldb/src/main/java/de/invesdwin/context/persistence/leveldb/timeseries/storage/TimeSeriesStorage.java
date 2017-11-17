@@ -4,7 +4,7 @@ import java.io.File;
 
 import javax.annotation.concurrent.ThreadSafe;
 
-import de.invesdwin.context.persistence.leveldb.ADelegateRangeTable;
+import de.invesdwin.context.persistence.leveldb.ezdb.ADelegateRangeTable;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
 

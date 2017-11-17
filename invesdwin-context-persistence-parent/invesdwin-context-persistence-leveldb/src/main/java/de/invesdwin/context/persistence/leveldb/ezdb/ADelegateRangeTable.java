@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.leveldb;
+package de.invesdwin.context.persistence.leveldb.ezdb;
 
 import java.io.File;
 import java.io.IOException;
