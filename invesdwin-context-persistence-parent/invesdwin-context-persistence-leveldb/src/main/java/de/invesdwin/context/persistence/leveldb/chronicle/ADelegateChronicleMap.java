@@ -22,6 +22,10 @@ import net.openhft.chronicle.hash.serialization.impl.SerializationBuilder;
 import net.openhft.chronicle.map.ChronicleMap;
 import net.openhft.chronicle.map.ChronicleMapBuilder;
 
+/**
+ * If you need to store large data on disk, it is better to use LevelDB only for an ordered index and store the actual
+ * db in a chronicle map. This is because LevelDB has very bad insertion speed when handling large elements.
+ */
 @ThreadSafe
 public abstract class ADelegateChronicleMap<K, V> implements ConcurrentMap<K, V>, Closeable {
 
