@@ -1,8 +1,12 @@
 package de.invesdwin.context.persistence.leveldb;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -11,9 +15,12 @@ import java.util.concurrent.ConcurrentMap;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.commons.io.IOUtils;
+
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.leveldb.serde.ExtendedTypeDelegateSerde;
 import de.invesdwin.context.persistence.leveldb.timeseries.ATimeSeriesUpdater;
+import de.invesdwin.context.persistence.leveldb.timeseries.SerializingCollection;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.lang.Reflections;
 import ezdb.serde.Serde;
@@ -96,26 +103,53 @@ public abstract class APersistentMap<K, V> implements ConcurrentMap<K, V>, Close
     }
 
     @SuppressWarnings("rawtypes")
-    private static <T> BytesWriter<T> newBytesWriter(final Serde<T> serde) {
+    private <T> BytesWriter<T> newBytesWriter(final Serde<T> serde) {
         return new BytesWriter<T>() {
             @Override
             public void write(final net.openhft.chronicle.bytes.Bytes out, final T toWrite) {
                 final byte[] bytes = serde.toBytes(toWrite);
-                out.write(bytes);
+                final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                final OutputStream compressor = newCompressor(bos);
+                try {
+                    IOUtils.write(bytes, compressor);
+                    final byte[] compressedBytes = bos.toByteArray();
+                    out.write(compressedBytes);
+                } catch (final IOException e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    IOUtils.closeQuietly(compressor);
+                }
             }
         };
     }
 
     @SuppressWarnings("rawtypes")
-    private static <T> BytesReader<T> newBytesReader(final Serde<T> serde) {
+    private <T> BytesReader<T> newBytesReader(final Serde<T> serde) {
         return new BytesReader<T>() {
             @Override
             public T read(final net.openhft.chronicle.bytes.Bytes in, final T using) {
                 Assertions.checkNull(using);
                 final byte[] bytes = in.toByteArray();
-                return serde.fromBytes(bytes);
+                final ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
+                final InputStream decompressor = newDecompressor(bis);
+                try {
+                    final byte[] decompressedBytes = IOUtils.toByteArray(decompressor);
+                    return serde.fromBytes(decompressedBytes);
+                } catch (final IOException e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    IOUtils.closeQuietly(decompressor);
+                }
             }
         };
+    }
+
+    protected InputStream newDecompressor(final InputStream in) {
+        return SerializingCollection.newDefaultLZ4BlockInputStream(in);
+    }
+
+    protected OutputStream newCompressor(final OutputStream out) {
+        return SerializingCollection.newDefaultLZ4BlockOutputStream(out);
     }
 
     protected Integer getKeyFixedLength() {

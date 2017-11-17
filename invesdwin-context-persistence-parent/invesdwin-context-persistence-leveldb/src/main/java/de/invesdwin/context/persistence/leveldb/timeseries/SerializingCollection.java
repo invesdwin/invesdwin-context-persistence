@@ -156,6 +156,10 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         return new BufferedOutputStream(newDefaultLZ4BlockOutputStream(out), DEFAULT_BLOCK_SIZE);
     }
 
+    protected InputStream newDecompressor(final BufferedInputStream bufferedInputStream) {
+        return newDefaultLZ4BlockInputStream(bufferedInputStream);
+    }
+
     public static LZ4BlockOutputStream newDefaultLZ4BlockOutputStream(final OutputStream out) {
         return newLZ4BlockOutputStream(out, DEFAULT_BLOCK_SIZE, DEFAULT_COMPRESSION_LEVEL);
     }
@@ -170,8 +174,8 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                 XXHashFactory.fastestInstance().newStreamingHash32(DEFAULT_SEED).asChecksum(), true);
     }
 
-    protected InputStream newDecompressor(final BufferedInputStream bufferedInputStream) {
-        return new LZ4BlockInputStream(bufferedInputStream, LZ4Factory.fastestInstance().fastDecompressor());
+    public static LZ4BlockInputStream newDefaultLZ4BlockInputStream(final InputStream in) {
+        return new LZ4BlockInputStream(in, LZ4Factory.fastestInstance().fastDecompressor());
     }
 
     protected Serde<E> newSerde() {
