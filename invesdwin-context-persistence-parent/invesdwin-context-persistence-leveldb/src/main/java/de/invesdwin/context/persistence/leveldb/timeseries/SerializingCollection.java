@@ -331,7 +331,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     @NotThreadSafe
     private class DynamicLengthDeserializingIterator extends ACloseableIterator<E> {
 
-        private final BufferedReader lineReader;
+        private BufferedReader lineReader;
         private boolean innerClosed;
 
         private E cachedElement;
@@ -397,11 +397,16 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         @Override
         protected void innerClose() {
-            innerClosed = true;
-            try {
-                lineReader.close();
-            } catch (final IOException e) {
-                throw new RuntimeException(e);
+            if (!innerClosed) {
+                innerClosed = true;
+                try {
+                    lineReader.close();
+                    //free memory
+                    lineReader = null;
+                    cachedElement = null;
+                } catch (final IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
         }
 
@@ -410,8 +415,8 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     @NotThreadSafe
     private class FixedLengthDeserializingIterator extends ACloseableIterator<E> {
 
-        private final DataInputStream inputStream;
-        private final byte[] byteBuffer;
+        private DataInputStream inputStream;
+        private byte[] byteBuffer;
         private boolean innerClosed;
 
         private E cachedElement;
@@ -466,11 +471,17 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         @Override
         protected void innerClose() {
-            innerClosed = true;
-            try {
-                inputStream.close();
-            } catch (final IOException e) {
-                throw new RuntimeException(e);
+            if (!innerClosed) {
+                innerClosed = true;
+                try {
+                    inputStream.close();
+                    //free memory
+                    inputStream = null;
+                    byteBuffer = null;
+                    cachedElement = null;
+                } catch (final IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
         }
 
