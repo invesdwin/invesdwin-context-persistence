@@ -74,7 +74,7 @@ public abstract class APersistentMap<K, V> implements ConcurrentMap<K, V>, Close
             builder.valueMarshallers(valueReader, valueWriter);
 
             builder.checksumEntries(isChecksumEnabled());
-            builder.entries(getExpectedEntriesCount());
+            builder.entries(getExpectedSize());
             builder.maxBloatFactor(Double.MAX_VALUE); //don't force any maximum size, just degrade performance
 
             //create
@@ -84,7 +84,7 @@ public abstract class APersistentMap<K, V> implements ConcurrentMap<K, V>, Close
         }
     }
 
-    protected long getExpectedEntriesCount() {
+    protected int getExpectedSize() {
         return ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL;
     }
 
