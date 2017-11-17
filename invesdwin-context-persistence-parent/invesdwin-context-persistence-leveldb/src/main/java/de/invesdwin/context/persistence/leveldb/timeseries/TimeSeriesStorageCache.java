@@ -1,7 +1,11 @@
 package de.invesdwin.context.persistence.leveldb.timeseries;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 
@@ -9,6 +13,7 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.SerializationException;
 
 import com.google.common.base.Function;
@@ -544,17 +549,17 @@ public class TimeSeriesStorageCache<K, V> {
                 };
             }
 
-            //            @Override
-            //            protected InputStream newFileInputStream(final File file) throws FileNotFoundException {
-            //                //keep file input stream open as shorty as possible to prevent too many open files error
-            //                try (InputStream fis = super.newFileInputStream(file)) {
-            //                    final ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            //                    IOUtils.copy(fis, bos);
-            //                    return new ByteArrayInputStream(bos.toByteArray());
-            //                } catch (final IOException e) {
-            //                    throw new RuntimeException(e);
-            //                }
-            //            }
+            @Override
+            protected InputStream newFileInputStream(final File file) throws FileNotFoundException {
+                //keep file input stream open as shorty as possible to prevent too many open files error
+                try (InputStream fis = super.newFileInputStream(file)) {
+                    final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                    IOUtils.copy(fis, bos);
+                    return new ByteArrayInputStream(bos.toByteArray());
+                } catch (final IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
 
             @Override
             protected Integer getFixedLength() {
