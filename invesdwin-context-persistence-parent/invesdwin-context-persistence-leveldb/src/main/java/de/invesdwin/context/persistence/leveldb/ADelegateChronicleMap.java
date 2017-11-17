@@ -35,6 +35,7 @@ import net.openhft.chronicle.map.ChronicleMapBuilder;
 @ThreadSafe
 public abstract class ADelegateChronicleMap<K, V> implements ConcurrentMap<K, V>, Closeable {
 
+    private static final int DEFAULT_EXPECTED_SIZE = ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL;
     private final String name;
     private final Serde<K> keySerde;
     private final Serde<V> valueSerde;
@@ -104,7 +105,7 @@ public abstract class ADelegateChronicleMap<K, V> implements ConcurrentMap<K, V>
     }
 
     protected int getExpectedSize() {
-        return ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL;
+        return DEFAULT_EXPECTED_SIZE;
     }
 
     /**
