@@ -271,4 +271,9 @@ public abstract class ADelegateChronicleMap<K, V> implements ConcurrentMap<K, V>
         super.finalize();
         close();
     }
+
+    public synchronized void deleteTable() {
+        close();
+        FileUtils.deleteQuietly(getFile());
+    }
 }

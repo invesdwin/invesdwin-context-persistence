@@ -473,6 +473,15 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         }
     }
 
+    public boolean isClosed() {
+        tableLock.readLock().lock();
+        try {
+            return table == null;
+        } finally {
+            tableLock.writeLock().unlock();
+        }
+    }
+
     @Override
     public void put(final H hashKey, final R rangeKey, final V value) {
         assertAllowedWriteWithoutBatch();

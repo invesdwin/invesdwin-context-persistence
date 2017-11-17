@@ -53,9 +53,11 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             .getValue(ByteSizeScale.BYTES)
             .intValue();
     /*
-     * 64KB is default in LZ4OutputStream (1 << 16)
+     * 64KB is default in LZ4OutputStream (1 << 16) though 128K is almost the same speed with a bit better compression
+     * 
+     * http://java-performance.info/performance-general-compression/
      */
-    public static final int DEFAULT_BLOCK_SIZE = new ByteSize(new Decimal("64"), ByteSizeScale.KILOBYTES)
+    public static final int DEFAULT_BLOCK_SIZE = new ByteSize(new Decimal("128"), ByteSizeScale.KILOBYTES)
             .getValue(ByteSizeScale.BYTES)
             .intValue();
     public static final int DEFAULT_SEED = 0x9747b28c;
@@ -171,12 +173,6 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     public static LZ4BlockOutputStream newHighLZ4BlockOutputStream(final OutputStream out, final int blockSize,
             final int compressionLevel) {
         return new LZ4BlockOutputStream(out, blockSize, LZ4Factory.fastestInstance().highCompressor(compressionLevel),
-                XXHashFactory.fastestInstance().newStreamingHash32(DEFAULT_SEED).asChecksum(), true);
-    }
-
-    public static LZ4BlockOutputStream newFastLZ4BlockOutputStream(final OutputStream out, final int blockSize,
-            final int compressionLevel) {
-        return new LZ4BlockOutputStream(out, blockSize, LZ4Factory.fastestInstance().fastCompressor(),
                 XXHashFactory.fastestInstance().newStreamingHash32(DEFAULT_SEED).asChecksum(), true);
     }
 

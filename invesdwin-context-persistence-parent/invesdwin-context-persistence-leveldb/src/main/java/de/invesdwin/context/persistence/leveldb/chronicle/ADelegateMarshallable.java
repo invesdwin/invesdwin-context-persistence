@@ -14,6 +14,9 @@ import org.apache.commons.io.IOUtils;
 import de.invesdwin.context.persistence.leveldb.timeseries.SerializingCollection;
 import de.invesdwin.util.assertions.Assertions;
 import ezdb.serde.Serde;
+import net.jpountz.lz4.LZ4BlockOutputStream;
+import net.jpountz.lz4.LZ4Factory;
+import net.jpountz.xxhash.XXHashFactory;
 import net.openhft.chronicle.hash.serialization.BytesReader;
 import net.openhft.chronicle.hash.serialization.BytesWriter;
 
@@ -24,6 +27,11 @@ import net.openhft.chronicle.hash.serialization.BytesWriter;
  */
 @ThreadSafe
 public abstract class ADelegateMarshallable<T> implements BytesWriter<T>, BytesReader<T> {
+
+    public static final int DEFAULT_COMPRESSION_LEVEL = SerializingCollection.DEFAULT_COMPRESSION_LEVEL;
+    public static final int LARGE_BLOCK_SIZE = SerializingCollection.LARGE_BLOCK_SIZE;
+    public static final int DEFAULT_BLOCK_SIZE = SerializingCollection.DEFAULT_BLOCK_SIZE;
+    public static final int DEFAULT_SEED = SerializingCollection.DEFAULT_SEED;
 
     @GuardedBy("this")
     private transient Serde<T> serde;
@@ -77,7 +85,21 @@ public abstract class ADelegateMarshallable<T> implements BytesWriter<T>, BytesR
     }
 
     protected OutputStream newCompressor(final OutputStream out) {
-        return SerializingCollection.newDefaultLZ4BlockOutputStream(out);
+        return newDefaultLZ4BlockOutputStream(out);
+    }
+
+    public static LZ4BlockOutputStream newDefaultLZ4BlockOutputStream(final OutputStream out) {
+        return newFastLZ4BlockOutputStream(out, DEFAULT_BLOCK_SIZE, DEFAULT_COMPRESSION_LEVEL);
+    }
+
+    public static LZ4BlockOutputStream newLargeLZ4BlockOutputStream(final OutputStream out) {
+        return newFastLZ4BlockOutputStream(out, LARGE_BLOCK_SIZE, DEFAULT_COMPRESSION_LEVEL);
+    }
+
+    public static LZ4BlockOutputStream newFastLZ4BlockOutputStream(final OutputStream out, final int blockSize,
+            final int compressionLevel) {
+        return new LZ4BlockOutputStream(out, blockSize, LZ4Factory.fastestInstance().fastCompressor(),
+                XXHashFactory.fastestInstance().newStreamingHash32(DEFAULT_SEED).asChecksum(), true);
     }
 
 }
