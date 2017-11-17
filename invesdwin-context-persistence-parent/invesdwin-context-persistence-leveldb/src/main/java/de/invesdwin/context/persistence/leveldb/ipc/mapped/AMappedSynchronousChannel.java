@@ -27,7 +27,7 @@ public abstract class AMappedSynchronousChannel implements ISynchronousChannel {
     public static final long MESSAGE_POS = SIZE_POS + SIZE_OFFSET;
     public static final int MIN_PHYSICAL_MESSAGE_SIZE = 4096 - (int) MESSAGE_POS;
 
-    protected ExtendedMemoryMappedFile mem;
+    protected MemoryMappedFile mem;
     protected final File file;
     private final int maxMessageSize;
 
@@ -43,7 +43,7 @@ public abstract class AMappedSynchronousChannel implements ISynchronousChannel {
     public void open() throws IOException {
         final long fileSize = maxMessageSize + MESSAGE_POS;
         try {
-            this.mem = new ExtendedMemoryMappedFile(file.getAbsolutePath(), fileSize);
+            this.mem = new MemoryMappedFile(file.getAbsolutePath(), fileSize);
         } catch (final Exception e) {
             throw new IOException("Unable to open file: " + file, e);
         }

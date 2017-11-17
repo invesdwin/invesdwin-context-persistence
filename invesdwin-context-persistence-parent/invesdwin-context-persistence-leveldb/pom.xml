@@ -54,10 +54,6 @@
 			<artifactId>lz4</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>io.mappedbus</groupId>
-			<artifactId>mappedbus</artifactId>
-		</dependency>
-		<dependency>
 			<groupId>org.zeroturnaround</groupId>
 			<artifactId>zt-exec</artifactId>
 		</dependency>
