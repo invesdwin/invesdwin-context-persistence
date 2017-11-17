@@ -15,6 +15,7 @@ import java.util.concurrent.ConcurrentMap;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 
 import de.invesdwin.context.ContextProperties;
@@ -97,7 +98,9 @@ public abstract class ADelegateChronicleMap<K, V> implements ConcurrentMap<K, V>
     }
 
     protected ChronicleMap<K, V> create(final ChronicleMapBuilder<K, V> builder) throws IOException {
-        return builder.createOrRecoverPersistedTo(getFile());
+        final File file = getFile();
+        FileUtils.forceMkdir(file.getParentFile());
+        return builder.createOrRecoverPersistedTo(file);
     }
 
     protected int getExpectedSize() {
