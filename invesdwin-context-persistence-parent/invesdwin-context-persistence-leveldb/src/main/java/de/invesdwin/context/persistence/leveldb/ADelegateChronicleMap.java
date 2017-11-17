@@ -46,6 +46,10 @@ public abstract class ADelegateChronicleMap<K, V> implements ConcurrentMap<K, V>
         this.valueSerde = newValueSerde();
     }
 
+    public String getName() {
+        return name;
+    }
+
     protected synchronized ChronicleMap<K, V> getDelegate() {
         if (delegate == null) {
             this.delegate = newDelegate();
@@ -86,10 +90,14 @@ public abstract class ADelegateChronicleMap<K, V> implements ConcurrentMap<K, V>
             builder.maxBloatFactor(Double.MAX_VALUE); //don't force any maximum size, just degrade performance
 
             //create
-            return builder.createOrRecoverPersistedTo(new File(getDirectory(), name));
+            return create(builder);
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    protected ChronicleMap<K, V> create(final ChronicleMapBuilder<K, V> builder) throws IOException {
+        return builder.createOrRecoverPersistedTo(getFile());
     }
 
     protected int getExpectedSize() {
@@ -177,6 +185,10 @@ public abstract class ADelegateChronicleMap<K, V> implements ConcurrentMap<K, V>
 
     protected Serde<V> newValueSerde() {
         return new ExtendedTypeDelegateSerde<V>(getValueType());
+    }
+
+    protected File getFile() {
+        return new File(getDirectory(), name);
     }
 
     protected File getDirectory() {
