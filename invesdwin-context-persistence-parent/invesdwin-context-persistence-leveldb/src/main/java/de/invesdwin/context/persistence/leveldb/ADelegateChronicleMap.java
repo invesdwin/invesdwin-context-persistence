@@ -188,7 +188,7 @@ public abstract class ADelegateChronicleMap<K, V> implements ConcurrentMap<K, V>
         return null;
     }
 
-    protected Integer getKeyAverageSample() {
+    protected K getKeyAverageSample() {
         throw new UnsupportedOperationException(
                 "Not implemented. You must either provide an average length or an average sample.");
     }
@@ -201,7 +201,7 @@ public abstract class ADelegateChronicleMap<K, V> implements ConcurrentMap<K, V>
         return null;
     }
 
-    protected Integer getValueAverageSample() {
+    protected V getValueAverageSample() {
         throw new UnsupportedOperationException(
                 "Not implemented. You must either provide an average length or an average sample.");
     }
