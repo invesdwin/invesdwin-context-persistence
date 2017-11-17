@@ -31,7 +31,6 @@ import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.xxhash.XXHashFactory;
 import net.openhft.chronicle.hash.serialization.BytesReader;
 import net.openhft.chronicle.hash.serialization.BytesWriter;
-import net.openhft.chronicle.hash.serialization.SizeMarshaller;
 import net.openhft.chronicle.map.ChronicleMap;
 import net.openhft.chronicle.map.ChronicleMapBuilder;
 
@@ -72,19 +71,17 @@ public abstract class ADelegateChronicleMap<K, V> implements ConcurrentMap<K, V>
             final ChronicleMapBuilder<K, V> builder = ChronicleMapBuilder.of(getKeyType(), getValueType());
 
             //length
-            final Integer keyFixedLength = getKeyFixedLength();
-            if (keyFixedLength != null) {
-                builder.keySizeMarshaller(SizeMarshaller.constant(keyFixedLength));
-                builder.averageKeySize(keyFixedLength);
+            final Integer keyAverageLength = getKeyAverageLength();
+            if (keyAverageLength != null) {
+                builder.averageKeySize(keyAverageLength);
             } else {
-                builder.averageKeySize(getKeyAverageLength());
+                builder.averageKey(getKeyAverageSample());
             }
-            final Integer valueFixedLength = getValueFixedLength();
-            if (valueFixedLength != null) {
-                builder.keySizeMarshaller(SizeMarshaller.constant(valueFixedLength));
-                builder.averageValueSize(valueFixedLength);
+            final Integer valueAverageLength = getValueAverageLength();
+            if (valueAverageLength != null) {
+                builder.averageValueSize(valueAverageLength);
             } else {
-                builder.averageValueSize(getValueAverageLength());
+                builder.averageValue(getValueAverageSample());
             }
 
             //serde
@@ -187,26 +184,26 @@ public abstract class ADelegateChronicleMap<K, V> implements ConcurrentMap<K, V>
                 XXHashFactory.fastestInstance().newStreamingHash32(DEFAULT_SEED).asChecksum(), true);
     }
 
-    protected Integer getKeyFixedLength() {
+    protected Integer getKeyAverageLength() {
         return null;
     }
 
-    protected Integer getKeyAverageLength() {
+    protected Integer getKeyAverageSample() {
         throw new UnsupportedOperationException(
-                "Not implemented. You must either provide a fixed length or an average length.");
+                "Not implemented. You must either provide an average length or an average sample.");
     }
 
     protected Serde<K> newKeySerde() {
         return new ExtendedTypeDelegateSerde<K>(getKeyType());
     }
 
-    protected Integer getValueFixedLength() {
+    protected Integer getValueAverageLength() {
         return null;
     }
 
-    protected Integer getValueAverageLength() {
+    protected Integer getValueAverageSample() {
         throw new UnsupportedOperationException(
-                "Not implemented. You must either provide a fixed length or an average length.");
+                "Not implemented. You must either provide an average length or an average sample.");
     }
 
     protected Serde<V> newValueSerde() {
