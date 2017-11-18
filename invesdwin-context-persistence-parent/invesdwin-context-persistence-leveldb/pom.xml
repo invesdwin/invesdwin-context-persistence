@@ -47,7 +47,6 @@
 		<dependency>
 			<groupId>com.jamierf</groupId>
 			<artifactId>persistenthashmap</artifactId>
-			<version>1.0</version>
 		</dependency>
 
 		<dependency>
