@@ -94,6 +94,10 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         }
     }
 
+    public File getFile() {
+        return file;
+    }
+
     private File getTempFolder() {
         final File tempFolder = new File(ContextProperties.TEMP_DIRECTORY, SerializingCollection.class.getSimpleName());
         try {
@@ -163,8 +167,8 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         return new BufferedOutputStream(newDefaultLZ4BlockOutputStream(out), DEFAULT_BLOCK_SIZE);
     }
 
-    protected InputStream newDecompressor(final BufferedInputStream bufferedInputStream) {
-        return newDefaultLZ4BlockInputStream(bufferedInputStream);
+    protected InputStream newDecompressor(final InputStream inputStream) {
+        return newDefaultLZ4BlockInputStream(inputStream);
     }
 
     public static LZ4BlockOutputStream newDefaultLZ4BlockOutputStream(final OutputStream out) {
@@ -332,7 +336,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     }
 
     protected InputStream newFileInputStream(final File file) throws FileNotFoundException {
-        return new FileInputStream(file);
+        return new BufferedInputStream(new FileInputStream(file));
     }
 
     protected OutputStream newFileOutputStream(final File file) throws IOException {
@@ -349,8 +353,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         {
             try {
-                lineReader = new BufferedReader(
-                        new InputStreamReader(newDecompressor(new BufferedInputStream(newFileInputStream(file)))));
+                lineReader = new BufferedReader(new InputStreamReader(newDecompressor(newFileInputStream(file))));
             } catch (final IOException e) {
                 throw Err.process(e);
             }
@@ -434,7 +437,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         {
             try {
-                inputStream = new DataInputStream(newDecompressor(new BufferedInputStream(newFileInputStream(file))));
+                inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));
                 byteBuffer = new byte[fixedLength];
             } catch (final IOException e) {
                 throw Err.process(e);
