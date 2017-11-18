@@ -62,7 +62,12 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             .intValue();
     public static final int DEFAULT_SEED = 0x9747b28c;
     private static final int READ_ONLY_FILE_SIZE = Integer.MAX_VALUE;
-    private static final UniqueNameGenerator UNIQUE_NAME_GENERATOR = new UniqueNameGenerator();
+    private static final UniqueNameGenerator UNIQUE_NAME_GENERATOR = new UniqueNameGenerator() {
+        @Override
+        protected long getInitialValue() {
+            return 1;
+        }
+    };
 
     private static final byte[] ELEMENT_DELIMITER = "\n".getBytes();
     private int size;
@@ -74,7 +79,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     private final Serde<E> serde = newSerde();
 
     public SerializingCollection(final String id) {
-        this.file = new File(getTempFolder(), UNIQUE_NAME_GENERATOR.get(id) + ".data");
+        this.file = new File(getTempFolder(), UNIQUE_NAME_GENERATOR.get(id.replace(":", "_")) + ".data");
         if (file.exists()) {
             throw new IllegalStateException("File [" + file.getAbsolutePath() + "] already exists!");
         }
@@ -207,9 +212,15 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
      */
     @Override
     public void close() {
-        IOUtils.closeQuietly(fos);
-        fos = null;
-        closed = true;
+        if (!closed) {
+            IOUtils.closeQuietly(fos);
+            fos = null;
+            closed = true;
+        }
+    }
+
+    public boolean isClosed() {
+        return closed;
     }
 
     @Override
