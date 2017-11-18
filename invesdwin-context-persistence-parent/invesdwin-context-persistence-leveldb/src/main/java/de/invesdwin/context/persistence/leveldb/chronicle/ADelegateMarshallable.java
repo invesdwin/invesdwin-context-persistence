@@ -44,10 +44,13 @@ public abstract class ADelegateMarshallable<T> implements BytesWriter<T>, BytesR
         final ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
         final InputStream decompressor = newDecompressor(bis);
         try {
-            final byte[] decompressedBytes = IOUtils.toByteArray(decompressor);
-            return getSerde().fromBytes(decompressedBytes);
-        } catch (final IOException e) {
-            throw new RuntimeException(e);
+            final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            try {
+                IOUtils.copy(decompressor, bos);
+            } catch (final IOException e) {
+                //ignore, end reached
+            }
+            return getSerde().fromBytes(bos.toByteArray());
         } finally {
             IOUtils.closeQuietly(decompressor);
         }
