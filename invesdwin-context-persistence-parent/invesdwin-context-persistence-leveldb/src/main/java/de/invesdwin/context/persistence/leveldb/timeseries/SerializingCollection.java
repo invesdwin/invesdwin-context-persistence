@@ -54,10 +54,11 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             .intValue();
     /*
      * 64KB is default in LZ4OutputStream (1 << 16) though 128K is almost the same speed with a bit better compression
+     * on fast compressor
      * 
      * http://java-performance.info/performance-general-compression/
      */
-    public static final int DEFAULT_BLOCK_SIZE = new ByteSize(new Decimal("128"), ByteSizeScale.KILOBYTES)
+    public static final int DEFAULT_BLOCK_SIZE = new ByteSize(new Decimal("64"), ByteSizeScale.KILOBYTES)
             .getValue(ByteSizeScale.BYTES)
             .intValue();
     public static final int DEFAULT_SEED = 0x9747b28c;
