@@ -172,14 +172,14 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     }
 
     public static LZ4BlockOutputStream newDefaultLZ4BlockOutputStream(final OutputStream out) {
-        return newLZ4BlockOutputStream(out, DEFAULT_BLOCK_SIZE, DEFAULT_COMPRESSION_LEVEL);
+        return newHighLZ4BlockOutputStream(out, DEFAULT_BLOCK_SIZE, DEFAULT_COMPRESSION_LEVEL);
     }
 
     public static LZ4BlockOutputStream newLargeLZ4BlockOutputStream(final OutputStream out) {
-        return newLZ4BlockOutputStream(out, LARGE_BLOCK_SIZE, DEFAULT_COMPRESSION_LEVEL);
+        return newHighLZ4BlockOutputStream(out, LARGE_BLOCK_SIZE, DEFAULT_COMPRESSION_LEVEL);
     }
 
-    public static LZ4BlockOutputStream newLZ4BlockOutputStream(final OutputStream out, final int blockSize,
+    public static LZ4BlockOutputStream newHighLZ4BlockOutputStream(final OutputStream out, final int blockSize,
             final int compressionLevel) {
         return new LZ4BlockOutputStream(out, blockSize, LZ4Factory.fastestInstance().highCompressor(compressionLevel),
                 XXHashFactory.fastestInstance().newStreamingHash32(DEFAULT_SEED).asChecksum(), true);

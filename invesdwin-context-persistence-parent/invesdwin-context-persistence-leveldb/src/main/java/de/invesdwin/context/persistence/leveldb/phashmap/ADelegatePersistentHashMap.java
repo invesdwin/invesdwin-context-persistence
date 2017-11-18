@@ -31,6 +31,9 @@ import de.invesdwin.context.persistence.leveldb.timeseries.SerializingCollection
 import de.invesdwin.util.lang.Reflections;
 import de.invesdwin.util.math.Bytes;
 import ezdb.serde.Serde;
+import net.jpountz.lz4.LZ4BlockOutputStream;
+import net.jpountz.lz4.LZ4Factory;
+import net.jpountz.xxhash.XXHashFactory;
 
 /**
  * If you need to store large data on disk, it is better to use LevelDB only for an ordered index and store the actual
@@ -40,6 +43,11 @@ import ezdb.serde.Serde;
 @ThreadSafe
 public abstract class ADelegatePersistentHashMap<K extends Serializable, V extends Serializable>
         implements ConcurrentMap<K, V>, Closeable {
+
+    public static final int DEFAULT_COMPRESSION_LEVEL = SerializingCollection.DEFAULT_COMPRESSION_LEVEL;
+    public static final int LARGE_BLOCK_SIZE = SerializingCollection.LARGE_BLOCK_SIZE;
+    public static final int DEFAULT_BLOCK_SIZE = SerializingCollection.DEFAULT_BLOCK_SIZE;
+    public static final int DEFAULT_SEED = SerializingCollection.DEFAULT_SEED;
 
     private final String name;
     /**
@@ -141,7 +149,20 @@ public abstract class ADelegatePersistentHashMap<K extends Serializable, V exten
     }
 
     protected OutputStream newCompressor(final OutputStream out) {
-        return SerializingCollection.newDefaultLZ4BlockOutputStream(out);
+        return newDefaultLZ4BlockOutputStream(out);
+    }
+
+    public static LZ4BlockOutputStream newDefaultLZ4BlockOutputStream(final OutputStream out) {
+        return newFastLZ4BlockOutputStream(out, DEFAULT_BLOCK_SIZE);
+    }
+
+    public static LZ4BlockOutputStream newLargeLZ4BlockOutputStream(final OutputStream out) {
+        return newFastLZ4BlockOutputStream(out, LARGE_BLOCK_SIZE);
+    }
+
+    public static LZ4BlockOutputStream newFastLZ4BlockOutputStream(final OutputStream out, final int blockSize) {
+        return new LZ4BlockOutputStream(out, blockSize, LZ4Factory.fastestInstance().fastCompressor(),
+                XXHashFactory.fastestInstance().newStreamingHash32(DEFAULT_SEED).asChecksum(), true);
     }
 
     protected Serde<K> newKeySerde() {
