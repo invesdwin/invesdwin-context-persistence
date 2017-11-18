@@ -47,7 +47,6 @@
 		<version.leveldbjni-libs>1.8</version.leveldbjni-libs>
 		<version.leveldb>0.7</version.leveldb>
 		<version.lz4>1.3.0</version.lz4>
-		<version.chronicle-map>3.14.2</version.chronicle-map>
 	</properties>
 
 	<dependencyManagement>
@@ -278,11 +277,6 @@
 				<groupId>net.jpountz.lz4</groupId>
 				<artifactId>lz4</artifactId>
 				<version>${version.lz4}</version>
-			</dependency>
-			<dependency>
-				<groupId>net.openhft</groupId>
-				<artifactId>chronicle-map</artifactId>
-				<version>${version.chronicle-map}</version>
 			</dependency>
 
 			<dependency>

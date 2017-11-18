@@ -44,10 +44,6 @@
 			<groupId>com.github.criccomini</groupId>
 			<artifactId>ezdb-leveldb-jni</artifactId>
 		</dependency>
-		<dependency>
-			<groupId>net.openhft</groupId>
-			<artifactId>chronicle-map</artifactId>
-		</dependency>
 
 		<dependency>
 			<groupId>net.jpountz.lz4</groupId>
