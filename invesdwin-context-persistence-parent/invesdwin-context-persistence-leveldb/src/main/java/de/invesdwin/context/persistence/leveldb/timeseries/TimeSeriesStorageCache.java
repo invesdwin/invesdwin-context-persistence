@@ -25,6 +25,7 @@ import de.invesdwin.context.persistence.leveldb.timeseries.storage.ShiftUnitsRan
 import de.invesdwin.context.persistence.leveldb.timeseries.storage.SingleValue;
 import de.invesdwin.context.persistence.leveldb.timeseries.storage.TimeSeriesStorage;
 import de.invesdwin.util.bean.tuple.Pair;
+import de.invesdwin.util.collections.eviction.EvictionMode;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ASkippingIterator;
 import de.invesdwin.util.collections.iterable.ATransformingCloseableIterator;
@@ -35,6 +36,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
+import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.time.fdate.FDate;
@@ -42,19 +44,20 @@ import ezdb.serde.Serde;
 
 @ThreadSafe
 public class TimeSeriesStorageCache<K, V> {
-    public static final Integer DEFAULT_MAXIMUM_SIZE = 10_000;
+    public static final Integer MAXIMUM_SIZE = 1_000;
+    public static final EvictionMode EVICTION_MODE = AHistoricalCache.EVICTION_MODE;
 
     private final TimeSeriesStorage storage;
     private final ALoadingCache<FDate, V> latestValueLookupCache = new ALoadingCache<FDate, V>() {
 
         @Override
         protected Integer getInitialMaximumSize() {
-            return DEFAULT_MAXIMUM_SIZE;
+            return MAXIMUM_SIZE;
         }
 
         @Override
-        protected boolean isLeastRecentlyUsed() {
-            return false;
+        protected EvictionMode getEvictionMode() {
+            return EVICTION_MODE;
         }
 
         @Override
@@ -96,12 +99,12 @@ public class TimeSeriesStorageCache<K, V> {
 
         @Override
         protected Integer getInitialMaximumSize() {
-            return DEFAULT_MAXIMUM_SIZE;
+            return MAXIMUM_SIZE;
         }
 
         @Override
-        protected boolean isLeastRecentlyUsed() {
-            return false;
+        protected EvictionMode getEvictionMode() {
+            return EVICTION_MODE;
         }
 
         @Override
@@ -134,12 +137,12 @@ public class TimeSeriesStorageCache<K, V> {
 
         @Override
         protected Integer getInitialMaximumSize() {
-            return DEFAULT_MAXIMUM_SIZE;
+            return MAXIMUM_SIZE;
         }
 
         @Override
-        protected boolean isLeastRecentlyUsed() {
-            return false;
+        protected EvictionMode getEvictionMode() {
+            return EVICTION_MODE;
         }
 
         @Override
@@ -172,12 +175,12 @@ public class TimeSeriesStorageCache<K, V> {
 
         @Override
         protected Integer getInitialMaximumSize() {
-            return DEFAULT_MAXIMUM_SIZE;
+            return MAXIMUM_SIZE;
         }
 
         @Override
-        protected boolean isLeastRecentlyUsed() {
-            return false;
+        protected EvictionMode getEvictionMode() {
+            return EVICTION_MODE;
         }
 
         @Override
