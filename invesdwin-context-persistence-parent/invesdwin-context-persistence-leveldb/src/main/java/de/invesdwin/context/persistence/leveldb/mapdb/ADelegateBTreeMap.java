@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentMap;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.mapdb.BTreeMap;
@@ -292,10 +293,8 @@ public abstract class ADelegateBTreeMap<K extends Serializable, V extends Serial
     }
 
     public synchronized void deleteTable() {
-        if (delegate != null) {
-            delegate.clear();
-            close();
-        }
+        close();
+        FileUtils.deleteQuietly(getFile());
     }
 
 }
