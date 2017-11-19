@@ -12,12 +12,12 @@ import de.invesdwin.util.assertions.Assertions;
 
 // CHECKSTYLE:OFF
 @NotThreadSafe
-public class ADelegateHTreeMapTest extends ATest {
+public class ADelegateMapDBTest extends ATest {
     //CHECKSTYLE:ON
 
     @Test
     public void testItWorks() {
-        final ADelegateHTreeMap<String, Integer> map = new ADelegateHTreeMap<String, Integer>("testItWorks") {
+        final ADelegateMapDB<String, Integer> map = new ADelegateMapDB<String, Integer>("testItWorks") {
             @Override
             protected File getBaseDirectory() {
                 return ContextProperties.TEMP_DIRECTORY;

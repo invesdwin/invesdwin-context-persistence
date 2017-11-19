@@ -17,13 +17,11 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.output.ByteArrayOutputStream;
-import org.mapdb.BTreeMap;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
 import org.mapdb.DataInput2;
 import org.mapdb.DataOutput2;
-import org.mapdb.serializer.GroupSerializer;
-import org.mapdb.serializer.GroupSerializerObjectArray;
+import org.mapdb.Serializer;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.leveldb.ezdb.ADelegateRangeTable;
@@ -31,9 +29,6 @@ import de.invesdwin.context.persistence.leveldb.serde.ExtendedTypeDelegateSerde;
 import de.invesdwin.context.persistence.leveldb.timeseries.SerializingCollection;
 import de.invesdwin.util.lang.Reflections;
 import ezdb.serde.Serde;
-import net.jpountz.lz4.LZ4BlockOutputStream;
-import net.jpountz.lz4.LZ4Factory;
-import net.jpountz.xxhash.XXHashFactory;
 
 /**
  * If you need to store large data on disk, it is better to use LevelDB only for an ordered index and store the actual
@@ -41,27 +36,14 @@ import net.jpountz.xxhash.XXHashFactory;
  * elements.
  */
 @ThreadSafe
-public abstract class ADelegateBTreeMap<K extends Serializable, V extends Serializable>
+public abstract class ADelegateMapDB<K extends Serializable, V extends Serializable>
         implements ConcurrentMap<K, V>, Closeable {
 
-    public static final int DEFAULT_COMPRESSION_LEVEL = SerializingCollection.DEFAULT_COMPRESSION_LEVEL;
-    public static final int LARGE_BLOCK_SIZE = SerializingCollection.LARGE_BLOCK_SIZE;
-    public static final int DEFAULT_BLOCK_SIZE = SerializingCollection.DEFAULT_BLOCK_SIZE;
-    public static final int DEFAULT_SEED = SerializingCollection.DEFAULT_SEED;
-
     private final String name;
-    /**
-     * Not synchronized for performance
-     */
-    private Class<K> keyType;
-    /**
-     * Not synchronized for performance
-     */
-    private Class<V> valueType;
     @GuardedBy("this")
-    private BTreeMap<K, V> delegate;
+    private ConcurrentMap<K, V> delegate;
 
-    public ADelegateBTreeMap(final String name) {
+    public ADelegateMapDB(final String name) {
         this.name = name;
     }
 
@@ -69,29 +51,28 @@ public abstract class ADelegateBTreeMap<K extends Serializable, V extends Serial
         return name;
     }
 
-    protected synchronized BTreeMap<K, V> getDelegate() {
+    protected synchronized ConcurrentMap<K, V> getDelegate() {
         if (delegate == null) {
             this.delegate = newDelegate();
         }
         return delegate;
     }
 
-    protected BTreeMap<K, V> newDelegate() {
-        //TODO test file channel
+    protected ConcurrentMap<K, V> newDelegate() {
         final DB db = DBMaker.fileDB(getFile()).fileMmapEnable().fileMmapPreclearDisable().cleanerHackEnable().make();
-        return db.treeMap(name, newKeySerializier(), newValueSerializer()).counterEnable().createOrOpen();
+        return db.hashMap(name, newKeySerializier(), newValueSerializer()).counterEnable().createOrOpen();
     }
 
-    private GroupSerializer<V> newValueSerializer() {
+    private Serializer<V> newValueSerializer() {
         return newSerializer(newValueSerde());
     }
 
-    private GroupSerializer<K> newKeySerializier() {
+    private Serializer<K> newKeySerializier() {
         return newSerializer(newKeySerde());
     }
 
-    private <T> GroupSerializer<T> newSerializer(final Serde<T> serde) {
-        return new GroupSerializerObjectArray<T>() {
+    private <T> Serializer<T> newSerializer(final Serde<T> serde) {
+        return new Serializer<T>() {
 
             @Override
             public void serialize(final DataOutput2 out, final T value) throws IOException {
@@ -141,20 +122,7 @@ public abstract class ADelegateBTreeMap<K extends Serializable, V extends Serial
     }
 
     protected OutputStream newCompressor(final OutputStream out) {
-        return newDefaultLZ4BlockOutputStream(out);
-    }
-
-    public static LZ4BlockOutputStream newDefaultLZ4BlockOutputStream(final OutputStream out) {
-        return newFastLZ4BlockOutputStream(out, DEFAULT_BLOCK_SIZE);
-    }
-
-    public static LZ4BlockOutputStream newLargeLZ4BlockOutputStream(final OutputStream out) {
-        return newFastLZ4BlockOutputStream(out, LARGE_BLOCK_SIZE);
-    }
-
-    public static LZ4BlockOutputStream newFastLZ4BlockOutputStream(final OutputStream out, final int blockSize) {
-        return new LZ4BlockOutputStream(out, blockSize, LZ4Factory.fastestInstance().fastCompressor(),
-                XXHashFactory.fastestInstance().newStreamingHash32(DEFAULT_SEED).asChecksum(), true);
+        return SerializingCollection.newDefaultLZ4BlockOutputStream(out);
     }
 
     protected Serde<K> newKeySerde() {
@@ -177,28 +145,14 @@ public abstract class ADelegateBTreeMap<K extends Serializable, V extends Serial
         return ContextProperties.getHomeDirectory();
     }
 
-    protected Class<K> getKeyType() {
-        if (keyType == null) {
-            keyType = determineKeyType();
-        }
-        return keyType;
+    @SuppressWarnings("unchecked")
+    private Class<K> getKeyType() {
+        return (Class<K>) Reflections.resolveTypeArguments(getClass(), ADelegateMapDB.class)[0];
     }
 
     @SuppressWarnings("unchecked")
-    private Class<K> determineKeyType() {
-        return (Class<K>) Reflections.resolveTypeArguments(getClass(), ADelegateBTreeMap.class)[0];
-    }
-
-    protected Class<V> getValueType() {
-        if (valueType == null) {
-            valueType = determineValueType();
-        }
-        return valueType;
-    }
-
-    @SuppressWarnings("unchecked")
-    private Class<V> determineValueType() {
-        return (Class<V>) Reflections.resolveTypeArguments(getClass(), ADelegateBTreeMap.class)[1];
+    private Class<V> getValueType() {
+        return (Class<V>) Reflections.resolveTypeArguments(getClass(), ADelegateMapDB.class)[1];
     }
 
     @Override
@@ -246,19 +200,16 @@ public abstract class ADelegateBTreeMap<K extends Serializable, V extends Serial
         getDelegate().clear();
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public Set<K> keySet() {
         return getDelegate().keySet();
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public Collection<V> values() {
         return getDelegate().values();
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public Set<Entry<K, V>> entrySet() {
         return getDelegate().entrySet();
@@ -287,7 +238,12 @@ public abstract class ADelegateBTreeMap<K extends Serializable, V extends Serial
     @Override
     public synchronized void close() {
         if (delegate != null) {
-            delegate.close();
+            final Closeable cDelegate = (Closeable) delegate;
+            try {
+                cDelegate.close();
+            } catch (final IOException e) {
+                throw new RuntimeException(e);
+            }
             delegate = null;
         }
     }
