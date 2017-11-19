@@ -76,11 +76,7 @@ public abstract class ADelegateHTreeMap<K extends Serializable, V extends Serial
 
     protected HTreeMap<K, V> newDelegate() {
         //TODO test file channel
-        final DB db = DBMaker.fileDB(getDirectory())
-                .fileMmapEnable()
-                .fileMmapPreclearDisable()
-                .cleanerHackEnable()
-                .make();
+        final DB db = DBMaker.fileDB(getFile()).fileMmapEnable().fileMmapPreclearDisable().cleanerHackEnable().make();
         return db.hashMap(name, newKeySerializier(), newValueSerializer()).createOrOpen();
     }
 
@@ -165,6 +161,10 @@ public abstract class ADelegateHTreeMap<K extends Serializable, V extends Serial
 
     protected Serde<V> newValueSerde() {
         return new ExtendedTypeDelegateSerde<V>(getValueType());
+    }
+
+    protected File getFile() {
+        return new File(getDirectory(), name);
     }
 
     protected File getDirectory() {
