@@ -53,6 +53,11 @@ public class TimeSeriesStorageCache<K, V> {
         }
 
         @Override
+        protected boolean isLeastRecentlyUsed() {
+            return false;
+        }
+
+        @Override
         protected V loadValue(final FDate key) {
             final SingleValue value = storage.getLatestValueLookupTable().getOrLoad(hashKey, key,
                     new Function<Pair<String, FDate>, SingleValue>() {
@@ -95,6 +100,11 @@ public class TimeSeriesStorageCache<K, V> {
         }
 
         @Override
+        protected boolean isLeastRecentlyUsed() {
+            return false;
+        }
+
+        @Override
         protected V loadValue(final Pair<FDate, Integer> key) {
             final FDate date = key.getFirst();
             final int shiftBackUnits = key.getSecond();
@@ -128,6 +138,11 @@ public class TimeSeriesStorageCache<K, V> {
         }
 
         @Override
+        protected boolean isLeastRecentlyUsed() {
+            return false;
+        }
+
+        @Override
         protected V loadValue(final Pair<FDate, Integer> key) {
             final FDate date = key.getFirst();
             final int shiftForwardUnits = key.getSecond();
@@ -158,6 +173,11 @@ public class TimeSeriesStorageCache<K, V> {
         @Override
         protected Integer getInitialMaximumSize() {
             return DEFAULT_MAXIMUM_SIZE;
+        }
+
+        @Override
+        protected boolean isLeastRecentlyUsed() {
+            return false;
         }
 
         @Override
