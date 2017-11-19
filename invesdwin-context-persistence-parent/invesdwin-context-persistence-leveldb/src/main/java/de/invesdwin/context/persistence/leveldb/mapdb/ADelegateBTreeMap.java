@@ -79,7 +79,7 @@ public abstract class ADelegateBTreeMap<K extends Serializable, V extends Serial
     protected BTreeMap<K, V> newDelegate() {
         //TODO test file channel
         final DB db = DBMaker.fileDB(getFile()).fileMmapEnable().fileMmapPreclearDisable().cleanerHackEnable().make();
-        return db.treeMap(name, newKeySerializier(), newValueSerializer()).createOrOpen();
+        return db.treeMap(name, newKeySerializier(), newValueSerializer()).counterEnable().createOrOpen();
     }
 
     private GroupSerializer<V> newValueSerializer() {

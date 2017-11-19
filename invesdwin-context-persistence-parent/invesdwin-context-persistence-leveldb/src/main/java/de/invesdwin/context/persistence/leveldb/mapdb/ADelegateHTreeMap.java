@@ -78,7 +78,7 @@ public abstract class ADelegateHTreeMap<K extends Serializable, V extends Serial
     protected HTreeMap<K, V> newDelegate() {
         //TODO test file channel
         final DB db = DBMaker.fileDB(getFile()).fileMmapEnable().fileMmapPreclearDisable().cleanerHackEnable().make();
-        return db.hashMap(name, newKeySerializier(), newValueSerializer()).createOrOpen();
+        return db.hashMap(name, newKeySerializier(), newValueSerializer()).counterEnable().createOrOpen();
     }
 
     private Serializer<V> newValueSerializer() {
