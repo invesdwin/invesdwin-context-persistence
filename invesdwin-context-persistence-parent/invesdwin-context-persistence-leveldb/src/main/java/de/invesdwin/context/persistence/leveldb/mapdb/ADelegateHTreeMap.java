@@ -1,6 +1,5 @@
-package de.invesdwin.context.persistence.leveldb.phashmap;
+package de.invesdwin.context.persistence.leveldb.mapdb;
 
-import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
@@ -40,7 +39,7 @@ import net.jpountz.xxhash.XXHashFactory;
  * elements.
  */
 @ThreadSafe
-public abstract class ADelegatePersistentHashMap<K extends Serializable, V extends Serializable>
+public abstract class ADelegateHTreeMap<K extends Serializable, V extends Serializable>
         implements ConcurrentMap<K, V>, Closeable {
 
     public static final int DEFAULT_COMPRESSION_LEVEL = SerializingCollection.DEFAULT_COMPRESSION_LEVEL;
@@ -60,7 +59,7 @@ public abstract class ADelegatePersistentHashMap<K extends Serializable, V exten
     @GuardedBy("this")
     private HTreeMap<K, V> delegate;
 
-    public ADelegatePersistentHashMap(final String name) {
+    public ADelegateHTreeMap(final String name) {
         this.name = name;
     }
 
@@ -82,26 +81,25 @@ public abstract class ADelegatePersistentHashMap<K extends Serializable, V exten
                 .fileMmapPreclearDisable()
                 .cleanerHackEnable()
                 .make();
-        return db.hashMap(name, newKeySerializier(), newValueSerializer()).create();
+        return db.hashMap(name, newKeySerializier(), newValueSerializer()).createOrOpen();
     }
 
     private Serializer<V> newValueSerializer() {
-        return newSerializer(newValueSerde(), getValueFixedLength());
+        return newSerializer(newValueSerde());
     }
 
     private Serializer<K> newKeySerializier() {
-        return newSerializer(newKeySerde(), getKeyFixedLength());
+        return newSerializer(newKeySerde());
     }
 
-    private <T> Serializer<T> newSerializer(final Serde<T> serde, final Integer fixedLength) {
+    private <T> Serializer<T> newSerializer(final Serde<T> serde) {
         return new Serializer<T>() {
 
             @Override
             public void serialize(final DataOutput2 out, final T value) throws IOException {
                 final byte[] entry;
                 entry = serde.toBytes(value);
-                final ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                final OutputStream compressor = newCompressor(bos);
+                final OutputStream compressor = newCompressor(out);
                 try {
                     /*
                      * directly write the key value without wasting time creating another byte array in the serde
@@ -112,12 +110,11 @@ public abstract class ADelegatePersistentHashMap<K extends Serializable, V exten
                 } finally {
                     IOUtils.closeQuietly(compressor);
                 }
-                out.write(bos.toByteArray());
             }
 
             @Override
             public T deserialize(final DataInput2 input, final int available) throws IOException {
-                final ByteArrayInputStream bis = new ByteArrayInputStream(input.internalByteArray());
+                final InputStream bis = new DataInput2.DataInputToStream(input);
                 final InputStream decompressor = newDecompressor(bis);
                 try {
                     final ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -134,18 +131,10 @@ public abstract class ADelegatePersistentHashMap<K extends Serializable, V exten
             }
 
             @Override
-            public int fixedSize() {
-                if (fixedLength == null) {
-                    return -1;
-                } else {
-                    return fixedLength;
-                }
-            }
-
-            @Override
             public boolean isTrusted() {
                 return true;
             }
+
         };
     }
 
@@ -178,14 +167,6 @@ public abstract class ADelegatePersistentHashMap<K extends Serializable, V exten
         return new ExtendedTypeDelegateSerde<V>(getValueType());
     }
 
-    protected Integer getKeyFixedLength() {
-        return null;
-    }
-
-    protected Integer getValueFixedLength() {
-        return null;
-    }
-
     protected File getDirectory() {
         return new File(getBaseDirectory(), ADelegateRangeTable.class.getSimpleName());
     }
@@ -203,7 +184,7 @@ public abstract class ADelegatePersistentHashMap<K extends Serializable, V exten
 
     @SuppressWarnings("unchecked")
     private Class<K> determineKeyType() {
-        return (Class<K>) Reflections.resolveTypeArguments(getClass(), ADelegatePersistentHashMap.class)[0];
+        return (Class<K>) Reflections.resolveTypeArguments(getClass(), ADelegateHTreeMap.class)[0];
     }
 
     protected Class<V> getValueType() {
@@ -215,7 +196,7 @@ public abstract class ADelegatePersistentHashMap<K extends Serializable, V exten
 
     @SuppressWarnings("unchecked")
     private Class<V> determineValueType() {
-        return (Class<V>) Reflections.resolveTypeArguments(getClass(), ADelegatePersistentHashMap.class)[1];
+        return (Class<V>) Reflections.resolveTypeArguments(getClass(), ADelegateHTreeMap.class)[1];
     }
 
     @Override
