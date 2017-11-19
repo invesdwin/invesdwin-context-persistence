@@ -24,7 +24,6 @@ import org.mapdb.DataOutput2;
 import org.mapdb.Serializer;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.persistence.leveldb.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.leveldb.serde.ExtendedTypeDelegateSerde;
 import de.invesdwin.context.persistence.leveldb.timeseries.SerializingCollection;
 import de.invesdwin.util.lang.Reflections;
@@ -135,7 +134,7 @@ public abstract class ADelegateMapDB<K extends Serializable, V extends Serializa
     }
 
     protected File getDirectory() {
-        return new File(getBaseDirectory(), ADelegateRangeTable.class.getSimpleName());
+        return new File(getBaseDirectory(), ADelegateMapDB.class.getSimpleName());
     }
 
     protected File getBaseDirectory() {
