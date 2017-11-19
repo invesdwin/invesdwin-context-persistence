@@ -80,9 +80,6 @@ public abstract class ADelegateMapDB<K extends Serializable, V extends Serializa
                 entry = serde.toBytes(value);
                 final OutputStream compressor = newCompressor(out);
                 try {
-                    /*
-                     * directly write the key value without wasting time creating another byte array in the serde
-                     */
                     IOUtils.write(entry, compressor);
                 } catch (final IOException e) {
                     throw new RuntimeException(e);
