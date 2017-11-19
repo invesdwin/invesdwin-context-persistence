@@ -46,6 +46,11 @@
 		</dependency>
 
 		<dependency>
+			<groupId>org.mapdb</groupId>
+			<artifactId>mapdb</artifactId>
+		</dependency>
+
+		<dependency>
 			<groupId>net.jpountz.lz4</groupId>
 			<artifactId>lz4</artifactId>
 		</dependency>

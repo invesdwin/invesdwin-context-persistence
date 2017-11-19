@@ -47,6 +47,7 @@
 		<version.leveldbjni-libs>1.8</version.leveldbjni-libs>
 		<version.leveldb>0.7</version.leveldb>
 		<version.lz4>1.3.0</version.lz4>
+		<version.mapdb>3.0.5</version.mapdb>
 	</properties>
 
 	<dependencyManagement>
@@ -277,6 +278,11 @@
 				<groupId>net.jpountz.lz4</groupId>
 				<artifactId>lz4</artifactId>
 				<version>${version.lz4}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.mapdb</groupId>
+				<artifactId>mapdb</artifactId>
+				<version>${version.mapdb}</version>
 			</dependency>
 
 			<dependency>
