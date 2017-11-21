@@ -18,7 +18,9 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.mapdb.DB;
+import org.mapdb.DB.HashMapMaker;
 import org.mapdb.DBMaker;
+import org.mapdb.DBMaker.Maker;
 import org.mapdb.DataInput2;
 import org.mapdb.DataOutput2;
 import org.mapdb.Serializer;
@@ -58,8 +60,24 @@ public abstract class ADelegateMapDB<K extends Serializable, V extends Serializa
     }
 
     protected ConcurrentMap<K, V> newDelegate() {
-        final DB db = DBMaker.fileDB(getFile()).fileMmapEnable().fileMmapPreclearDisable().cleanerHackEnable().make();
-        return db.hashMap(name, newKeySerializier(), newValueSerializer()).counterEnable().createOrOpen();
+        final Maker fileDB = createDB();
+        final DB db = configureDB(fileDB).make();
+        final HashMapMaker<K, V> maker = db.hashMap(name, newKeySerializier(), newValueSerializer());
+        return configureHashMap(maker).createOrOpen();
+    }
+
+    protected Maker createDB() {
+        return DBMaker.fileDB(getFile());
+    }
+
+    protected Maker configureDB(final Maker maker) {
+        //        return maker.fileMmapEnable().fileMmapPreclearDisable().cleanerHackEnable();
+        //file channel supports parallel writes
+        return maker.fileChannelEnable();
+    }
+
+    protected HashMapMaker<K, V> configureHashMap(final HashMapMaker<K, V> maker) {
+        return maker.counterEnable();
     }
 
     private Serializer<V> newValueSerializer() {

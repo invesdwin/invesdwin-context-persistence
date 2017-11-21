@@ -19,7 +19,7 @@ import de.invesdwin.util.collections.iterable.ASkippingIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.concurrent.AParallelChunkConsumerIterator;
-import de.invesdwin.util.collections.iterable.concurrent.ProducerQueueIterator;
+import de.invesdwin.util.collections.iterable.concurrent.AProducerQueueIterator;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.fdate.FDate;
@@ -133,9 +133,13 @@ public abstract class ATimeSeriesUpdater<K, V> {
                 }
             };
             //do IO in a different thread than batch filling
-            try (ACloseableIterator<UpdateProgress> batchProducer = new ProducerQueueIterator<UpdateProgress>(
-                    getClass().getSimpleName() + "_batchProducer_" + table.hashKeyToString(key), batchWriterProducer,
-                    BATCH_QUEUE_SIZE)) {
+            try (ACloseableIterator<UpdateProgress> batchProducer = new AProducerQueueIterator<UpdateProgress>(
+                    getClass().getSimpleName() + "_batchProducer_" + table.hashKeyToString(key), BATCH_QUEUE_SIZE) {
+                @Override
+                protected ICloseableIterator<ATimeSeriesUpdater<K, V>.UpdateProgress> newProducer() {
+                    return batchWriterProducer;
+                }
+            }) {
                 final AtomicInteger flushIndex = new AtomicInteger();
                 try (ACloseableIterator<UpdateProgress> parallelConsumer = new AParallelChunkConsumerIterator<UpdateProgress, UpdateProgress>(
                         getClass().getSimpleName() + "_batchConsumer_" + table.hashKeyToString(key), batchProducer,
