@@ -591,6 +591,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
         private final RangeBatch<H_, R_, V_> delegate;
         private final ReadWriteLock tableLockDelegate;
+        private boolean closed = false;
 
         public DelegateRangeBatch(final RangeBatch<H_, R_, V_> delegate, final ReadWriteLock tableLockDelegate) {
             this.delegate = delegate;
@@ -614,12 +615,21 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
         @Override
         public void close() throws IOException {
-            try {
-                delegate.flush();
-                delegate.close();
-            } finally {
-                tableLockDelegate.readLock().unlock();
+            if (!closed) {
+                try {
+                    delegate.flush();
+                    delegate.close();
+                    closed = true;
+                } finally {
+                    tableLockDelegate.readLock().unlock();
+                }
             }
+        }
+
+        @Override
+        protected void finalize() throws Throwable {
+            super.finalize();
+            close();
         }
 
         @Override
@@ -671,6 +681,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         private final TableIterator<_H, _R, _V> delegate;
         private final ReadWriteLock tableLockDelegate;
         private final boolean allowHasNext;
+        private boolean closed = false;
 
         public DelegateTableIterator(final TableIterator<_H, _R, _V> delegate, final ReadWriteLock tableLockDelegate,
                 final boolean allowHasNext) {
@@ -701,11 +712,20 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         }
 
         @Override
+        protected void finalize() throws Throwable {
+            super.finalize();
+            close();
+        }
+
+        @Override
         protected void innerClose() {
-            try {
-                delegate.close();
-            } finally {
-                tableLockDelegate.readLock().unlock();
+            if (!closed) {
+                try {
+                    delegate.close();
+                    closed = true;
+                } finally {
+                    tableLockDelegate.readLock().unlock();
+                }
             }
         }
 
