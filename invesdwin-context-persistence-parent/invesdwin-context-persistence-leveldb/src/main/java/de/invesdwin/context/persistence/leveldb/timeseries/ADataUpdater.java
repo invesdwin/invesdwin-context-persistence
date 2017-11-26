@@ -112,9 +112,13 @@ public abstract class ADataUpdater<K, V> {
         final ATimeSeriesUpdater<K, V> updater = new ATimeSeriesUpdater<K, V>(key, getTable()) {
 
             private static final int BATCH_LOG_INTERVAL = 100_000 / BATCH_FLUSH_INTERVAL;
+            @GuardedBy("this")
             private Integer lastFlushIndex;
+            @GuardedBy("this")
             private Duration flushDuration;
+            @GuardedBy("this")
             private long flushElementCount;
+            @GuardedBy("this")
             private FDate lastFlushMaxTime;
 
             @Override
@@ -139,7 +143,8 @@ public abstract class ADataUpdater<K, V> {
             }
 
             @Override
-            protected void onFlush(final int flushIndex, final Instant flushStart, final UpdateProgress progress) {
+            protected synchronized void onFlush(final int flushIndex, final Instant flushStart,
+                    final UpdateProgress progress) {
                 lastFlushIndex = Integers.max(lastFlushIndex, flushIndex);
                 if (flushDuration == null) {
                     flushDuration = flushStart.toDuration();
@@ -167,7 +172,7 @@ public abstract class ADataUpdater<K, V> {
             }
 
             @Override
-            protected void onUpdateFinished(final Instant updateStart) {
+            protected synchronized void onUpdateFinished(final Instant updateStart) {
                 if (lastFlushIndex != null) {
                     logFlush();
                 }
