@@ -60,7 +60,7 @@ public abstract class ADataUpdater<K, V> {
     public final void maybeUpdate() {
         final FDate newUpdateCheck = new FDate();
         if (shouldCheckForUpdate(newUpdateCheck)) {
-            if (isSkipUpdateOnCurrentThreadIfAlreadyRunning()) {
+            if (shouldSkipUpdateOnCurrentThreadIfAlreadyRunning()) {
                 try {
                     if (!updateLock.tryLock(5, TimeUnit.SECONDS)) {
                         return;
@@ -102,6 +102,10 @@ public abstract class ADataUpdater<K, V> {
                 updateLock.unlock();
             }
         }
+    }
+
+    protected boolean shouldSkipUpdateOnCurrentThreadIfAlreadyRunning() {
+        return isSkipUpdateOnCurrentThreadIfAlreadyRunning();
     }
 
     protected boolean shouldCheckForUpdate(final FDate curTime) {
