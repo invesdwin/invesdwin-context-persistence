@@ -172,13 +172,13 @@ public abstract class ADataUpdater<K, V> {
                     log.info("Persisted %s. %s batch for [%s]. Reached time [%s]. Processed [%s] during %s",
                             lastFlushIndex, getElementsName(), keyToString(key), lastFlushMaxTime,
                             new ProcessedEventsRateString(flushElementCount, flushDuration), flushDuration);
+                    lastFlushTime = new Instant();
                 }
 
                 lastFlushIndex = null;
                 flushDuration = null;
                 flushElementCount = 0;
                 lastFlushMaxTime = null;
-                lastFlushTime = new Instant();
             }
 
             @Override
