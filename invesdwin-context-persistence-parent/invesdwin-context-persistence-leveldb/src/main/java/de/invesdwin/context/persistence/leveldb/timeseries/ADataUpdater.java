@@ -124,6 +124,8 @@ public abstract class ADataUpdater<K, V> {
             private long flushElementCount;
             @GuardedBy("this")
             private FDate lastFlushMaxTime;
+            @GuardedBy("this")
+            private Instant lastFlushTime;
 
             @Override
             protected FDate extractTime(final V element) {
@@ -165,14 +167,18 @@ public abstract class ADataUpdater<K, V> {
             private void logFlush() {
                 Assertions.assertThat(lastFlushIndex).isNotNull();
 
-                log.info("Persisted %s. %s batch for [%s]. Reached time [%s]. Processed [%s] during %s", lastFlushIndex,
-                        getElementsName(), keyToString(key), lastFlushMaxTime,
-                        new ProcessedEventsRateString(flushElementCount, flushDuration), flushDuration);
+                //if we are too fast, only print status once a second
+                if (lastFlushTime == null || lastFlushTime.toDuration().isGreaterThan(Duration.ONE_SECOND)) {
+                    log.info("Persisted %s. %s batch for [%s]. Reached time [%s]. Processed [%s] during %s",
+                            lastFlushIndex, getElementsName(), keyToString(key), lastFlushMaxTime,
+                            new ProcessedEventsRateString(flushElementCount, flushDuration), flushDuration);
+                }
 
                 lastFlushIndex = null;
                 flushDuration = null;
                 flushElementCount = 0;
                 lastFlushMaxTime = null;
+                lastFlushTime = new Instant();
             }
 
             @Override
