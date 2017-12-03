@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.leveldb.serde;
 
 import javax.annotation.concurrent.Immutable;
 
+import de.invesdwin.util.math.Bytes;
 import ezdb.serde.Serde;
 
 // TODO: move this class into ezdb itself sometime
@@ -9,7 +10,6 @@ import ezdb.serde.Serde;
 public class VoidSerde implements Serde<Void> {
 
     public static final VoidSerde GET = new VoidSerde();
-    private static final byte[] EMPTY_BYTES = new byte[0];
 
     @Override
     public Void fromBytes(final byte[] bytes) {
@@ -18,7 +18,7 @@ public class VoidSerde implements Serde<Void> {
 
     @Override
     public byte[] toBytes(final Void obj) {
-        return EMPTY_BYTES;
+        return Bytes.EMPTY_ARRAY;
     }
 
 }

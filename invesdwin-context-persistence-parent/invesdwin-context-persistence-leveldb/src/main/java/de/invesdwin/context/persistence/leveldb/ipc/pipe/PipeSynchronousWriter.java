@@ -8,6 +8,7 @@ import java.io.IOException;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.leveldb.ipc.ISynchronousWriter;
+import de.invesdwin.util.math.Bytes;
 
 @NotThreadSafe
 public class PipeSynchronousWriter extends APipeSynchronousChannel implements ISynchronousWriter {
@@ -26,7 +27,7 @@ public class PipeSynchronousWriter extends APipeSynchronousChannel implements IS
     @Override
     public void close() throws IOException {
         try {
-            writeWithoutTypeCheck(TYPE_CLOSED_VALUE, new byte[0]);
+            writeWithoutTypeCheck(TYPE_CLOSED_VALUE, Bytes.EMPTY_ARRAY);
         } catch (final Throwable t) {
             //ignore
         }
