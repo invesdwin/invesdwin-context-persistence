@@ -48,7 +48,6 @@ import net.jpountz.xxhash.XXHashFactory;
 @NotThreadSafe
 public class SerializingCollection<E> implements Collection<E>, IReverseCloseableIterable<E>, Serializable, Closeable {
 
-    public static final int DEFAULT_COMPRESSION_LEVEL = 99;
     public static final int LARGE_BLOCK_SIZE = new ByteSize(new Decimal("1"), ByteSizeScale.MEGABYTES)
             .getValue(ByteSizeScale.BYTES)
             .intValue();
@@ -173,16 +172,24 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     }
 
     public static LZ4BlockOutputStream newDefaultLZ4BlockOutputStream(final OutputStream out) {
-        return newLZ4BlockOutputStream(out, DEFAULT_BLOCK_SIZE, DEFAULT_COMPRESSION_LEVEL);
+        return newLZ4BlockOutputStream(out, DEFAULT_BLOCK_SIZE);
     }
 
     public static LZ4BlockOutputStream newLargeLZ4BlockOutputStream(final OutputStream out) {
-        return newLZ4BlockOutputStream(out, LARGE_BLOCK_SIZE, DEFAULT_COMPRESSION_LEVEL);
+        return newLZ4BlockOutputStream(out, LARGE_BLOCK_SIZE);
     }
 
-    public static LZ4BlockOutputStream newLZ4BlockOutputStream(final OutputStream out, final int blockSize,
-            final int compressionLevel) {
-        return new LZ4BlockOutputStream(out, blockSize, LZ4Factory.fastestInstance().highCompressor(compressionLevel),
+    /**
+     * Chain fast compressor twice to achieve compression similar to high compressor while keeping good throughput
+     * 
+     * http://java-performance.info/performance-general-compression/
+     */
+    public static LZ4BlockOutputStream newLZ4BlockOutputStream(final OutputStream out, final int blockSize) {
+        return newFastLZ4BlockOutputStream(newFastLZ4BlockOutputStream(out, blockSize), blockSize);
+    }
+
+    public static LZ4BlockOutputStream newFastLZ4BlockOutputStream(final OutputStream out, final int blockSize) {
+        return new LZ4BlockOutputStream(out, blockSize, LZ4Factory.fastestInstance().fastCompressor(),
                 XXHashFactory.fastestInstance().newStreamingHash32(DEFAULT_SEED).asChecksum(), true);
     }
 
