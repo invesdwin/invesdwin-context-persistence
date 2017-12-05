@@ -171,30 +171,33 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         return newDefaultLZ4BlockInputStream(inputStream);
     }
 
-    public static LZ4BlockOutputStream newDefaultLZ4BlockOutputStream(final OutputStream out) {
-        return newLZ4BlockOutputStream(out, DEFAULT_BLOCK_SIZE);
-    }
-
-    public static LZ4BlockOutputStream newLargeLZ4BlockOutputStream(final OutputStream out) {
-        return newLZ4BlockOutputStream(out, LARGE_BLOCK_SIZE);
-    }
-
     /**
      * Chain fast compressor twice to achieve compression similar to high compressor while keeping good throughput
      * 
      * http://java-performance.info/performance-general-compression/
      */
-    public static LZ4BlockOutputStream newLZ4BlockOutputStream(final OutputStream out, final int blockSize) {
-        return newFastLZ4BlockOutputStream(newFastLZ4BlockOutputStream(out, blockSize), blockSize);
+    public static LZ4BlockOutputStream newDefaultLZ4BlockOutputStream(final OutputStream out) {
+        final LZ4BlockOutputStream layer1 = newLZ4BlockOutputStream(out, DEFAULT_BLOCK_SIZE);
+        final LZ4BlockOutputStream layer2 = newLZ4BlockOutputStream(layer1, DEFAULT_BLOCK_SIZE);
+        return layer2;
     }
 
-    public static LZ4BlockOutputStream newFastLZ4BlockOutputStream(final OutputStream out, final int blockSize) {
+    public static LZ4BlockOutputStream newLargeLZ4BlockOutputStream(final OutputStream out) {
+        final LZ4BlockOutputStream layer1 = newLZ4BlockOutputStream(out, LARGE_BLOCK_SIZE);
+        final LZ4BlockOutputStream layer2 = newLZ4BlockOutputStream(layer1, LARGE_BLOCK_SIZE);
+        return layer2;
+    }
+
+    private static LZ4BlockOutputStream newLZ4BlockOutputStream(final OutputStream out, final int blockSize) {
         return new LZ4BlockOutputStream(out, blockSize, LZ4Factory.fastestInstance().fastCompressor(),
                 XXHashFactory.fastestInstance().newStreamingHash32(DEFAULT_SEED).asChecksum(), true);
     }
 
     public static LZ4BlockInputStream newDefaultLZ4BlockInputStream(final InputStream in) {
-        return new LZ4BlockInputStream(in, LZ4Factory.fastestInstance().fastDecompressor());
+        final LZ4BlockInputStream layer1 = new LZ4BlockInputStream(in, LZ4Factory.fastestInstance().fastDecompressor());
+        final LZ4BlockInputStream layer2 = new LZ4BlockInputStream(layer1,
+                LZ4Factory.fastestInstance().fastDecompressor());
+        return layer2;
     }
 
     protected Serde<E> newSerde() {
