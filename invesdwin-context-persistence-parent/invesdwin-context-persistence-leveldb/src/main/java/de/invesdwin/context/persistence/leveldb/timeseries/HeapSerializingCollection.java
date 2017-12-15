@@ -22,10 +22,10 @@ public class HeapSerializingCollection<E> extends SerializingCollection<E> {
         this.bytes = null;
     }
 
-    public HeapSerializingCollection(final byte[] trades) {
+    public HeapSerializingCollection(final byte[] bytes) {
         super(null, true);
         this.bos = null;
-        this.bytes = trades;
+        this.bytes = bytes;
     }
 
     @Override
