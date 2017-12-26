@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.leveldb.timeseries;
 
 import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.DataInputStream;
@@ -27,6 +26,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.SerializationException;
 
 import de.invesdwin.context.ContextProperties;
+import de.invesdwin.context.integration.streams.LZ4Streams;
 import de.invesdwin.context.log.error.Err;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
@@ -36,32 +36,11 @@ import de.invesdwin.util.collections.iterable.LimitingIterator;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.UniqueNameGenerator;
-import de.invesdwin.util.math.decimal.Decimal;
-import de.invesdwin.util.math.decimal.scaled.ByteSize;
-import de.invesdwin.util.math.decimal.scaled.ByteSizeScale;
 import ezdb.serde.Serde;
-import net.jpountz.lz4.LZ4BlockInputStream;
-import net.jpountz.lz4.LZ4BlockOutputStream;
-import net.jpountz.lz4.LZ4Factory;
-import net.jpountz.xxhash.XXHashFactory;
 
 @NotThreadSafe
 public class SerializingCollection<E> implements Collection<E>, IReverseCloseableIterable<E>, Serializable, Closeable {
 
-    public static final int DEFAULT_COMPRESSION_LEVEL = 99;
-    public static final int LARGE_BLOCK_SIZE = new ByteSize(new Decimal("1"), ByteSizeScale.MEGABYTES)
-            .getValue(ByteSizeScale.BYTES)
-            .intValue();
-    /*
-     * 64KB is default in LZ4OutputStream (1 << 16) though 128K is almost the same speed with a bit better compression
-     * on fast compressor
-     * 
-     * http://java-performance.info/performance-general-compression/
-     */
-    public static final int DEFAULT_BLOCK_SIZE = new ByteSize(new Decimal("64"), ByteSizeScale.KILOBYTES)
-            .getValue(ByteSizeScale.BYTES)
-            .intValue();
-    public static final int DEFAULT_SEED = 0x9747b28c;
     private static final int READ_ONLY_FILE_SIZE = Integer.MAX_VALUE;
     private static final UniqueNameGenerator UNIQUE_NAME_GENERATOR = new UniqueNameGenerator() {
         @Override
@@ -165,29 +144,11 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
     protected OutputStream newCompressor(final OutputStream out) {
         //LZ4HC is read optimized, you can write optimize by using fastCompressor()
-        return new BufferedOutputStream(newDefaultLZ4BlockOutputStream(out), DEFAULT_BLOCK_SIZE);
+        return LZ4Streams.newDefaultLZ4BlockOutputStream(out);
     }
 
     protected InputStream newDecompressor(final InputStream inputStream) {
-        return newDefaultLZ4BlockInputStream(inputStream);
-    }
-
-    public static LZ4BlockOutputStream newDefaultLZ4BlockOutputStream(final OutputStream out) {
-        return newLZ4BlockOutputStream(out, DEFAULT_BLOCK_SIZE, DEFAULT_COMPRESSION_LEVEL);
-    }
-
-    public static LZ4BlockOutputStream newLargeLZ4BlockOutputStream(final OutputStream out) {
-        return newLZ4BlockOutputStream(out, LARGE_BLOCK_SIZE, DEFAULT_COMPRESSION_LEVEL);
-    }
-
-    public static LZ4BlockOutputStream newLZ4BlockOutputStream(final OutputStream out, final int blockSize,
-            final int compressionLevel) {
-        return new LZ4BlockOutputStream(out, blockSize, LZ4Factory.fastestInstance().highCompressor(compressionLevel),
-                XXHashFactory.fastestInstance().newStreamingHash32(DEFAULT_SEED).asChecksum(), true);
-    }
-
-    public static LZ4BlockInputStream newDefaultLZ4BlockInputStream(final InputStream in) {
-        return new LZ4BlockInputStream(in, LZ4Factory.fastestInstance().fastDecompressor());
+        return LZ4Streams.newDefaultLZ4BlockInputStream(inputStream);
     }
 
     protected Serde<E> newSerde() {

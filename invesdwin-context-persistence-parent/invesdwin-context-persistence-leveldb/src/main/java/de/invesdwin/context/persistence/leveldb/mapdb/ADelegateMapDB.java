@@ -26,8 +26,8 @@ import org.mapdb.DataOutput2;
 import org.mapdb.Serializer;
 
 import de.invesdwin.context.ContextProperties;
+import de.invesdwin.context.integration.streams.LZ4Streams;
 import de.invesdwin.context.persistence.leveldb.serde.ExtendedTypeDelegateSerde;
-import de.invesdwin.context.persistence.leveldb.timeseries.SerializingCollection;
 import de.invesdwin.util.lang.Reflections;
 import ezdb.serde.Serde;
 
@@ -132,11 +132,11 @@ public abstract class ADelegateMapDB<K extends Serializable, V extends Serializa
     }
 
     protected InputStream newDecompressor(final InputStream in) {
-        return SerializingCollection.newDefaultLZ4BlockInputStream(in);
+        return LZ4Streams.newDefaultLZ4BlockInputStream(in);
     }
 
     protected OutputStream newCompressor(final OutputStream out) {
-        return SerializingCollection.newDefaultLZ4BlockOutputStream(out);
+        return LZ4Streams.newDefaultLZ4BlockOutputStream(out);
     }
 
     protected Serde<K> newKeySerde() {

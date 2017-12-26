@@ -5,12 +5,11 @@ import java.io.OutputStream;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import de.invesdwin.context.integration.streams.LZ4Streams;
 import de.invesdwin.context.persistence.leveldb.serde.CompressingDelegateSerde;
-import de.invesdwin.context.persistence.leveldb.timeseries.SerializingCollection;
 import ezdb.serde.Serde;
 import net.jpountz.lz4.LZ4BlockInputStream;
 import net.jpountz.lz4.LZ4BlockOutputStream;
-import net.jpountz.lz4.LZ4Factory;
 
 /**
  * Behaves just like a SoftReference, with the distinction that the value is not discarded, but instead serialized until
@@ -51,11 +50,11 @@ public class SerdeCompressingSoftReference<T> extends ACompressingSoftReference<
     }
 
     protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
-        return SerializingCollection.newDefaultLZ4BlockOutputStream(out);
+        return LZ4Streams.newDefaultLZ4BlockOutputStream(out);
     }
 
     protected LZ4BlockInputStream newDecompressor(final ByteArrayInputStream bis) {
-        return new LZ4BlockInputStream(bis, LZ4Factory.fastestInstance().fastDecompressor());
+        return LZ4Streams.newDefaultLZ4BlockInputStream(bis);
     }
 
 }

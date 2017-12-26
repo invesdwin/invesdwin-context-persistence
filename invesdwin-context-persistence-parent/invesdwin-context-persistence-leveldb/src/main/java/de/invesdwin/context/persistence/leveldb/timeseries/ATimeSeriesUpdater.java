@@ -13,6 +13,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.io.FileUtils;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
+import de.invesdwin.context.integration.streams.LZ4Streams;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ASkippingIterable;
@@ -236,7 +237,7 @@ public abstract class ATimeSeriesUpdater<K, V> {
 
                 @Override
                 protected OutputStream newCompressor(final OutputStream out) {
-                    return SerializingCollection.newLargeLZ4BlockOutputStream(out);
+                    return LZ4Streams.newLargeLZ4BlockOutputStream(out);
                 }
 
                 @Override
