@@ -237,7 +237,7 @@ public abstract class ATimeSeriesUpdater<K, V> {
 
                 @Override
                 protected OutputStream newCompressor(final OutputStream out) {
-                    return LZ4Streams.newLargeLZ4BlockOutputStream(out);
+                    return LZ4Streams.newLargeLZ4OutputStream(out);
                 }
 
                 @Override

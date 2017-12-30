@@ -144,11 +144,11 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
     protected OutputStream newCompressor(final OutputStream out) {
         //LZ4HC is read optimized, you can write optimize by using fastCompressor()
-        return LZ4Streams.newDefaultLZ4BlockOutputStream(out);
+        return LZ4Streams.newDefaultLZ4OutputStream(out);
     }
 
     protected InputStream newDecompressor(final InputStream inputStream) {
-        return LZ4Streams.newDefaultLZ4BlockInputStream(inputStream);
+        return LZ4Streams.newDefaultLZ4InputStream(inputStream);
     }
 
     protected Serde<E> newSerde() {

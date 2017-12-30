@@ -51,11 +51,11 @@ public class CompressingDelegateSerde<E> implements Serde<E> {
     }
 
     protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
-        return LZ4Streams.newDefaultLZ4BlockOutputStream(out);
+        return LZ4Streams.newDefaultLZ4OutputStream(out);
     }
 
     protected LZ4BlockInputStream newDecompressor(final ByteArrayInputStream bis) {
-        return LZ4Streams.newDefaultLZ4BlockInputStream(bis);
+        return LZ4Streams.newDefaultLZ4InputStream(bis);
     }
 
 }

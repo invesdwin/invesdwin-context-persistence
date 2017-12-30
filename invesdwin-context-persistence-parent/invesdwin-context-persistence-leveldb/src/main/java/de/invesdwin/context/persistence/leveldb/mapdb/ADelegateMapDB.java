@@ -132,11 +132,11 @@ public abstract class ADelegateMapDB<K extends Serializable, V extends Serializa
     }
 
     protected InputStream newDecompressor(final InputStream in) {
-        return LZ4Streams.newDefaultLZ4BlockInputStream(in);
+        return LZ4Streams.newDefaultLZ4InputStream(in);
     }
 
     protected OutputStream newCompressor(final OutputStream out) {
-        return LZ4Streams.newDefaultLZ4BlockOutputStream(out);
+        return LZ4Streams.newDefaultLZ4OutputStream(out);
     }
 
     protected Serde<K> newKeySerde() {
