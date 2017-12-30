@@ -60,10 +60,6 @@
 					<artifactId>jcip-annotations</artifactId>
 				</exclusion>
 				<exclusion>
-					<groupId>net.jpountz.lz4</groupId>
-					<artifactId>lz4</artifactId>
-				</exclusion>
-				<exclusion>
 					<!-- need to downgrade because of corrupt jar -->
 					<groupId>org.eclipse.collections</groupId>
 					<artifactId>eclipse-collections</artifactId>

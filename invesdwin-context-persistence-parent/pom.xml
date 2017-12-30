@@ -287,10 +287,6 @@
 						<groupId>net.jcip</groupId>
 						<artifactId>jcip-annotations</artifactId>
 					</exclusion>
-					<exclusion>
-						<groupId>net.jpountz.lz4</groupId>
-						<artifactId>lz4</artifactId>
-					</exclusion>
 				</exclusions>
 			</dependency>
 			<dependency>
