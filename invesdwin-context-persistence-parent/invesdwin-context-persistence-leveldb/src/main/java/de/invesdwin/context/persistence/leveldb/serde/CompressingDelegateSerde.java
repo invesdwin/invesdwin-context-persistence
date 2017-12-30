@@ -12,8 +12,6 @@ import org.apache.commons.io.IOUtils;
 
 import de.invesdwin.context.integration.streams.LZ4Streams;
 import ezdb.serde.Serde;
-import net.jpountz.lz4.LZ4BlockInputStream;
-import net.jpountz.lz4.LZ4BlockOutputStream;
 
 @Immutable
 public class CompressingDelegateSerde<E> implements Serde<E> {
@@ -50,11 +48,11 @@ public class CompressingDelegateSerde<E> implements Serde<E> {
         }
     }
 
-    protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
+    protected OutputStream newCompressor(final OutputStream out) {
         return LZ4Streams.newDefaultLZ4OutputStream(out);
     }
 
-    protected LZ4BlockInputStream newDecompressor(final ByteArrayInputStream bis) {
+    protected InputStream newDecompressor(final ByteArrayInputStream bis) {
         return LZ4Streams.newDefaultLZ4InputStream(bis);
     }
 

@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.leveldb.reference;
 
 import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.io.OutputStream;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -8,8 +9,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import de.invesdwin.context.integration.streams.LZ4Streams;
 import de.invesdwin.context.persistence.leveldb.serde.CompressingDelegateSerde;
 import ezdb.serde.Serde;
-import net.jpountz.lz4.LZ4BlockInputStream;
-import net.jpountz.lz4.LZ4BlockOutputStream;
 
 /**
  * Behaves just like a WeakReference, with the distinction that the value is not discarded, but instead serialized until
@@ -28,12 +27,12 @@ public class SerdeCompressingWeakReference<T> extends ACompressingWeakReference<
         super(referent);
         this.compressingSerde = new CompressingDelegateSerde<T>(serde) {
             @Override
-            protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
+            protected OutputStream newCompressor(final OutputStream out) {
                 return SerdeCompressingWeakReference.this.newCompressor(out);
             }
 
             @Override
-            protected LZ4BlockInputStream newDecompressor(final ByteArrayInputStream bis) {
+            protected InputStream newDecompressor(final ByteArrayInputStream bis) {
                 return SerdeCompressingWeakReference.this.newDecompressor(bis);
             }
         };
@@ -49,11 +48,11 @@ public class SerdeCompressingWeakReference<T> extends ACompressingWeakReference<
         return compressingSerde.toBytes(referent);
     }
 
-    protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
+    protected OutputStream newCompressor(final OutputStream out) {
         return LZ4Streams.newDefaultLZ4OutputStream(out);
     }
 
-    protected LZ4BlockInputStream newDecompressor(final ByteArrayInputStream bis) {
+    protected InputStream newDecompressor(final ByteArrayInputStream bis) {
         return LZ4Streams.newDefaultLZ4InputStream(bis);
     }
 
