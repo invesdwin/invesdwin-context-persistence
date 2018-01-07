@@ -9,6 +9,7 @@ import org.apache.commons.lang3.SerializationException;
 import org.nustaq.serialization.simpleapi.DefaultCoder;
 import org.nustaq.serialization.simpleapi.FSTCoder;
 
+import de.invesdwin.util.math.Bytes;
 import ezdb.serde.Serde;
 
 /**
@@ -35,6 +36,9 @@ public class RemoteFastSerializingSerde<E> implements Serde<E> {
     @SuppressWarnings("unchecked")
     @Override
     public synchronized E fromBytes(final byte[] bytes) {
+        if (bytes.length == 0) {
+            return null;
+        }
         try {
             return (E) coder.toObject(bytes);
         } catch (final Throwable t) {
@@ -44,6 +48,9 @@ public class RemoteFastSerializingSerde<E> implements Serde<E> {
 
     @Override
     public synchronized byte[] toBytes(final E obj) {
+        if (obj == null) {
+            return Bytes.EMPTY_ARRAY;
+        }
         return coder.toByteArray(obj);
     }
 
