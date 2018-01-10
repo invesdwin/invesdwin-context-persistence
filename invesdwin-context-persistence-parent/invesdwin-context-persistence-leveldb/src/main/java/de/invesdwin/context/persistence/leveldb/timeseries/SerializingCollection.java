@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.leveldb.timeseries;
 
 import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.DataInputStream;
@@ -96,7 +95,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                 throw new IllegalStateException("false expected");
             }
             try {
-                fos = newCompressor(new BufferedOutputStream(newFileOutputStream(file)));
+                fos = newCompressor(newFileOutputStream(file));
             } catch (final IOException e) {
                 throw Err.process(e);
             }
