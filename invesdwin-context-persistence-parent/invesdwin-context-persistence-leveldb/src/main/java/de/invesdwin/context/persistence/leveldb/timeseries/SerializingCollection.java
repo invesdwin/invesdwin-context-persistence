@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.leveldb.timeseries;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.DataInputStream;
@@ -302,7 +303,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     }
 
     protected OutputStream newFileOutputStream(final File file) throws IOException {
-        return new FileOutputStream(file);
+        return new BufferedOutputStream(new FileOutputStream(file));
     }
 
     @NotThreadSafe
