@@ -371,6 +371,12 @@
 			<url>http://invesdwin.de/artifactory/invesdwin-oss-remote</url>
 		</pluginRepository>
 	</pluginRepositories>
+	
+	<scm>
+		<url>https://github.com/subes/invesdwin-context-persistence</url>
+		<connection>scm:git:https://github.com/subes/invesdwin-context-persistence.git</connection>
+		<tag>HEAD</tag>
+	</scm>
 
 </project>
 
