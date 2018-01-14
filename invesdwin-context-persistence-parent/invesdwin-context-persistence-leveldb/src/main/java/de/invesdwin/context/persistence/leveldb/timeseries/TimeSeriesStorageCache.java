@@ -92,6 +92,9 @@ public class TimeSeriesStorageCache<K, V> {
                             }
                         }
                     });
+            if (value == null) {
+                return null;
+            }
             return value.getValue(valueSerde);
         }
     };
