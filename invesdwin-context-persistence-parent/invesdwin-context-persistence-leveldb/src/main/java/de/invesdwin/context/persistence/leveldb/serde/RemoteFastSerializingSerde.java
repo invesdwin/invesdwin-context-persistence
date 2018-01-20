@@ -26,7 +26,7 @@ public class RemoteFastSerializingSerde<E> implements Serde<E> {
     private final FSTCoder coder;
 
     public RemoteFastSerializingSerde(final boolean shared, final Class<E> type) {
-        if (Serializable.class.isAssignableFrom(type)) {
+        if (type != null && Serializable.class.isAssignableFrom(type)) {
             this.coder = new DefaultCoder(shared, type);
         } else {
             this.coder = new DefaultCoder(shared);
