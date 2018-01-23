@@ -35,7 +35,7 @@ public class RangeTableProperties extends AProperties {
 
             @Override
             protected File getDirectory() {
-                return new File(super.getDirectory(), RangeTableProperties.class.getSimpleName());
+                return new File(getBaseDirectory(), RangeTableProperties.class.getSimpleName());
             }
         };
     }
