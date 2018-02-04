@@ -2,16 +2,16 @@ package de.invesdwin.context.persistence.leveldb.timeseries;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -21,7 +21,6 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.SerializationException;
@@ -50,12 +49,10 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         }
     };
 
-    private static final byte[] ELEMENT_DELIMITER = "\n".getBytes();
     private int size;
     private final File file;
-    private OutputStream fos;
+    private DataOutputStream fos;
     private boolean closed;
-    private boolean firstElement = true;
     private final Integer fixedLength = getFixedLength();
     private final Serde<E> serde = newSerde();
 
@@ -89,14 +86,14 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         return tempFolder;
     }
 
-    private OutputStream getFos() {
+    private DataOutputStream getFos() {
         if (fos == null) {
             //Lazy init to prevent too many open files Exceptions
             if (closed) {
                 throw new IllegalStateException("false expected");
             }
             try {
-                fos = newCompressor(newFileOutputStream(file));
+                fos = new DataOutputStream(newCompressor(newFileOutputStream(file)));
             } catch (final IOException e) {
                 throw Err.process(e);
             }
@@ -115,25 +112,17 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             if (bytes == null || bytes.length == 0) {
                 throw new IllegalStateException("bytes should contain actual data: " + element);
             }
+            final DataOutputStream fos = getFos();
             if (fixedLength == null) {
-                final byte[] encoded = Base64.encodeBase64(bytes);
-                if (encoded.length == 0) {
-                    throw new IllegalStateException(
-                            "empty encoded bytes should not occur since empty bytes should aready be filtered");
-                }
-                if (firstElement) {
-                    firstElement = false;
-                } else {
-                    getFos().write(ELEMENT_DELIMITER);
-                }
-                getFos().write(encoded);
+                fos.writeInt(bytes.length);
+                fos.write(bytes);
             } else {
                 if (bytes.length != fixedLength) {
                     throw new IllegalArgumentException(
                             "Serialized object [" + element + "] has unexpected byte length of [" + bytes.length
                                     + "] while fixed length [" + fixedLength + "] was expected!");
                 }
-                getFos().write(bytes);
+                fos.write(bytes);
             }
 
         } catch (final IOException e) {
@@ -309,14 +298,14 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     @NotThreadSafe
     private class DynamicLengthDeserializingIterator extends ACloseableIterator<E> {
 
-        private BufferedReader lineReader;
+        private DataInputStream inputStream;
         private boolean innerClosed;
 
         private E cachedElement;
 
         {
             try {
-                lineReader = new BufferedReader(new InputStreamReader(newDecompressor(newFileInputStream(file))));
+                inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));
             } catch (final IOException e) {
                 throw Err.process(e);
             }
@@ -342,20 +331,19 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                 if (innerClosed) {
                     return (E) null;
                 }
-                final String line = lineReader.readLine();
-                if (line == null) {
+                final int size;
+                try {
+                    size = inputStream.readInt();
+                } catch (final EOFException e) {
                     innerClose();
-                    return (E) null;
+                    return null;
                 }
-                final byte[] bytes = line.getBytes();
+                final byte[] bytes = new byte[size];
+                inputStream.readFully(bytes);
                 if (bytes.length == 0) {
                     throw new IllegalStateException("empty encoded entries should have been filtered by add()");
                 }
-                final byte[] decoded = Base64.decodeBase64(bytes);
-                if (decoded.length == 0) {
-                    throw new IllegalStateException("empty entries should have been filtered by add()");
-                }
-                return serde.fromBytes(decoded);
+                return serde.fromBytes(bytes);
             } catch (final IOException e) {
                 throw Err.process(e);
             }
@@ -377,9 +365,9 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             if (!innerClosed) {
                 innerClosed = true;
                 try {
-                    lineReader.close();
+                    inputStream.close();
                     //free memory
-                    lineReader = null;
+                    inputStream = null;
                     cachedElement = null;
                 } catch (final IOException e) {
                     throw new RuntimeException(e);
