@@ -15,8 +15,10 @@ import org.apache.commons.io.FileUtils;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.integration.streams.LZ4Streams;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ASkippingIterable;
+import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.concurrent.AParallelChunkConsumerIterator;
@@ -97,7 +99,10 @@ public abstract class ATimeSeriesUpdater<K, V> {
     }
 
     private void doUpdate() {
-        final FDate updateFrom = lookupTable.prepareForUpdate();
+        final Pair<FDate, List<V>> pair = lookupTable.prepareForUpdate();
+        final FDate updateFrom = pair.getFirst();
+        final List<V> lastValues = pair.getSecond();
+        Assertions.checkNotNull(lastValues);
         ICloseableIterable<? extends V> source = getSource(updateFrom);
         if (updateFrom != null) {
             //ensure we add no duplicate values
@@ -108,7 +113,8 @@ public abstract class ATimeSeriesUpdater<K, V> {
                 }
             };
         }
-        try (ICloseableIterator<? extends V> elements = source.iterator()) {
+        final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues, source);
+        try (ICloseableIterator<? extends V> elements = flatteningSources.iterator()) {
             final ICloseableIterator<UpdateProgress> batchWriterProducer = new ICloseableIterator<UpdateProgress>() {
 
                 @Override

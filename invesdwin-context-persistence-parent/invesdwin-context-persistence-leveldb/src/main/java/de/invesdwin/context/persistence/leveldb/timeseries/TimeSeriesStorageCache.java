@@ -6,6 +6,8 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 
@@ -692,14 +694,23 @@ public class TimeSeriesStorageCache<K, V> {
      * Deletes the last file in order to create a new updated one (so the files do not get fragmented too much between
      * updates
      */
-    public FDate prepareForUpdate() {
+    public Pair<FDate, List<V>> prepareForUpdate() {
         final FDate latestRangeKey = storage.getFileLookupTable().getLatestRangeKey(hashKey, FDate.MAX_DATE);
+        FDate updateFrom = latestRangeKey;
+        final List<V> lastValues = new ArrayList<V>();
         if (latestRangeKey != null) {
-            newFile(latestRangeKey).delete();
+            final File lastFile = newFile(latestRangeKey);
+            try (SerializingCollection<V> lastColl = newSerializingCollection(lastFile)) {
+                lastValues.addAll(lastColl);
+            }
+            //remove last value because it might be an incomplete bar
+            final V lastValue = lastValues.remove(lastValues.size() - 1);
+            updateFrom = extractTime.apply(lastValue);
+            lastFile.delete();
             storage.getFileLookupTable().deleteRange(hashKey, latestRangeKey);
         }
         clearCaches();
-        return latestRangeKey;
+        return Pair.of(updateFrom, lastValues);
     }
 
     private void assertShiftUnitsPositiveNonZero(final int shiftUnits) {
