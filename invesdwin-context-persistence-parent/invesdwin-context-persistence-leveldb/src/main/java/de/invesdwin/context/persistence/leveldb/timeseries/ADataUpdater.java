@@ -13,7 +13,7 @@ import de.invesdwin.context.log.Log;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.concurrent.ANestedExecutor;
-import de.invesdwin.util.concurrent.Futures;
+import de.invesdwin.util.concurrent.future.Futures;
 import de.invesdwin.util.lang.ProcessedEventsRateString;
 import de.invesdwin.util.math.Integers;
 import de.invesdwin.util.time.Instant;

@@ -5,7 +5,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.Serializable;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -37,8 +36,7 @@ import ezdb.serde.Serde;
  * elements.
  */
 @ThreadSafe
-public abstract class ADelegateMapDB<K extends Serializable, V extends Serializable>
-        implements ConcurrentMap<K, V>, Closeable {
+public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Closeable {
 
     private final String name;
     @GuardedBy("this")
