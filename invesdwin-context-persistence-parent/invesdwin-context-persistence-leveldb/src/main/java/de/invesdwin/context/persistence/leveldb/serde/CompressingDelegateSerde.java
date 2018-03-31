@@ -11,6 +11,7 @@ import javax.annotation.concurrent.Immutable;
 import org.apache.commons.io.IOUtils;
 
 import de.invesdwin.context.integration.streams.LZ4Streams;
+import de.invesdwin.util.math.Bytes;
 import ezdb.serde.Serde;
 
 @Immutable
@@ -24,6 +25,9 @@ public class CompressingDelegateSerde<E> implements Serde<E> {
 
     @Override
     public E fromBytes(final byte[] bytes) {
+        if (bytes.length == 0) {
+            return null;
+        }
         try {
             final ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
             final InputStream in = newDecompressor(bis);
@@ -37,6 +41,9 @@ public class CompressingDelegateSerde<E> implements Serde<E> {
 
     @Override
     public byte[] toBytes(final E obj) {
+        if (obj == null) {
+            return Bytes.EMPTY_ARRAY;
+        }
         try {
             final ByteArrayOutputStream bos = new ByteArrayOutputStream();
             final OutputStream out = newCompressor(bos);
