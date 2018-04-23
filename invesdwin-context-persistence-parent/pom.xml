@@ -74,6 +74,11 @@
 			</dependency>
 			<dependency>
 				<groupId>de.invesdwin</groupId>
+				<artifactId>invesdwin-context-persistence-jpa-eclipselink</artifactId>
+				<version>${version.invesdwin-context-persistence}</version>
+			</dependency>
+			<dependency>
+				<groupId>de.invesdwin</groupId>
 				<artifactId>invesdwin-context-persistence-jpa-hibernate</artifactId>
 				<version>${version.invesdwin-context-persistence}</version>
 				<type>test-jar</type>
