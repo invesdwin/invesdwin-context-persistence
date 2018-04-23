@@ -97,7 +97,8 @@ public final class PersistenceUnitContext {
     private DataSource createDataSource() {
         final String dataSourceBeanName = getPersistenceUnitName() + PersistenceProperties.DATA_SOURCE_NAME_SUFFIX;
         final DataSource dataSourceBean = persistenceUnitContextManager
-                .getDialectSpecificDelegate(getConnectionDialect()).createDataSource(this);
+                .getDialectSpecificDelegate(getConnectionDialect())
+                .createDataSource(this);
         MergedContext.getInstance().registerBean(dataSourceBeanName, dataSourceBean);
         Assertions.assertThat(MergedContext.getInstance().getBean(dataSourceBeanName)).isNotNull();
         return dataSourceBean;
@@ -195,8 +196,9 @@ public final class PersistenceUnitContext {
     }
 
     public Map<String, String> getPersistenceProperties() {
-        return Collections.unmodifiableMap(persistenceUnitContextManager
-                .getDialectSpecificDelegate(getConnectionDialect()).getPersistenceProperties(this));
+        return Collections
+                .unmodifiableMap(persistenceUnitContextManager.getDialectSpecificDelegate(getConnectionDialect())
+                        .getPersistenceProperties(this));
     }
 
     public synchronized DataSource getDataSource() {

@@ -1,0 +1,30 @@
+<configuration>
+
+    <logger name="org.jdbcdslog.StatementLogger" additivity="false" level="INFO">
+        <appender-ref ref="persistence" />
+    </logger>
+    
+    <logger name="org.jdbcdslog.SlowQueryLogger" additivity="false" level="INFO">
+        <appender-ref ref="persistence" />
+    </logger>
+    
+    <logger name="org.hibernate.tool.hbm2ddl.SchemaExport" additivity="false" level="WARN">
+    	<appender-ref ref="persistence" />
+    </logger>
+    
+    <logger name="org.hibernate.engine.jdbc.spi.SqlExceptionHelper" additivity="false" level="WARN">
+    	<appender-ref ref="persistence" />
+    </logger>
+    
+    <logger name="org.hibernate.cache.ehcache.AbstractEhcacheRegionFactory" additivity="false" level="WARN">
+		<appender-ref ref="persistence" />
+	</logger>
+	
+	<logger name="org.hibernate.engine.jdbc.internal.JdbcCoordinatorImpl" additivity="false" level="ERROR">
+		<appender-ref ref="stdout" />
+		<appender-ref ref="stderr" />
+		<appender-ref ref="common" />
+		<appender-ref ref="error" />
+	</logger>
+    
+</configuration>

@@ -140,6 +140,7 @@ public class QueryByExampleHelper<E, PK extends Serializable> {
             if (!first) {
                 sb.append(" OR ");
             }
+            sb.append("e.");
             sb.append(IEntity.ID_COLUMN_NAME);
             sb.append(" = ");
             sb.append(id);

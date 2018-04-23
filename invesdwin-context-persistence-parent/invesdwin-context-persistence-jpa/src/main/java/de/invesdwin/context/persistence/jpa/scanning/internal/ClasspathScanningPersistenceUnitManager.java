@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.jpa.scanning.internal;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -21,7 +22,6 @@ import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.jpa.PersistenceProperties;
 import de.invesdwin.context.persistence.jpa.PersistenceUnitContext;
 import de.invesdwin.context.persistence.jpa.scanning.IEntityClasspathScanningHook;
-import de.invesdwin.context.persistence.jpa.scanning.datasource.PersistenceUnitDataSourceLookup;
 import de.invesdwin.context.persistence.jpa.scanning.transaction.ContextDelegatingTransactionManager;
 import de.invesdwin.context.persistence.jpa.spi.delegate.IDialectSpecificDelegate;
 import de.invesdwin.context.persistence.jpa.spi.impl.PersistenceUnitAnnotationUtil;
@@ -44,8 +44,6 @@ public final class ClasspathScanningPersistenceUnitManager extends MergingPersis
     @Inject
     private List<IEntityClasspathScanningHook> entityClasspathScanningHooks;
     @Inject
-    private PersistenceUnitDataSourceLookup dataSourceLookup;
-    @Inject
     private IDialectSpecificDelegate[] dialectSpecificDelegates;
 
     private PersistenceUnitContextManager persistenceUnitContextManager;
@@ -59,11 +57,13 @@ public final class ClasspathScanningPersistenceUnitManager extends MergingPersis
     @Override
     protected void postProcessPersistenceUnitInfo(final MutablePersistenceUnitInfo pu) {
         super.postProcessPersistenceUnitInfo(pu);
-        final Set<Class<?>> entityClasses = PersistenceProperties.getPersistenceUnitContext(pu.getPersistenceUnitName())
-                .getEntityClasses();
+        final PersistenceUnitContext persistenceUnitContext = PersistenceProperties
+                .getPersistenceUnitContext(pu.getPersistenceUnitName());
+        final Set<Class<?>> entityClasses = persistenceUnitContext.getEntityClasses();
         for (final Class<?> entityClass : entityClasses) {
             pu.addManagedClassName(entityClass.getName());
         }
+        pu.setNonJtaDataSource(persistenceUnitContext.getDataSource());
     }
 
     @Override
@@ -74,7 +74,7 @@ public final class ClasspathScanningPersistenceUnitManager extends MergingPersis
         entityClasspathScanningHooks.add(0, persistenceUnitContextManager);
         scan();
         writePersistenceXml();
-        setDataSourceLookup(dataSourceLookup);
+        //        setDataSourceLookup(dataSourceLookup);
         ContextDelegatingTransactionManager.setEnabled(true);
         super.afterPropertiesSet();
         initializeContexts();
@@ -83,8 +83,9 @@ public final class ClasspathScanningPersistenceUnitManager extends MergingPersis
     private void initializeContexts() {
         //initialize entitymanagerfactory and transactionmanager for scanned repositories
         for (final String persistenceUnitName : PersistenceProperties.getPersistenceUnitNames()) {
-            Assertions.assertThat(
-                    PersistenceProperties.getPersistenceUnitContext(persistenceUnitName).getTransactionManager())
+            Assertions
+                    .assertThat(PersistenceProperties.getPersistenceUnitContext(persistenceUnitName)
+                            .getTransactionManager())
                     .isNotNull();
         }
     }
@@ -96,7 +97,7 @@ public final class ClasspathScanningPersistenceUnitManager extends MergingPersis
             final File file = new File(metaInfDir, "persistence.xml");
             FileUtils.deleteQuietly(file);
             final String content = generatePersistenceXml();
-            FileUtils.write(file, content);
+            FileUtils.write(file, content, Charset.defaultCharset());
         } catch (final IOException e) {
             throw Err.process(e);
         }
@@ -125,10 +126,6 @@ public final class ClasspathScanningPersistenceUnitManager extends MergingPersis
         sb.append("\n\t\t<provider>");
         sb.append(context.getPersistenceProvider().getClass().getName());
         sb.append("</provider>");
-        //using PersistenceUnitDataSourceLookup to create a datasource according to the PersistenceUnitContext
-        sb.append("\n\t\t<jta-data-source>");
-        sb.append(persistenceUnitName + PersistenceProperties.DATA_SOURCE_NAME_SUFFIX);
-        sb.append("</jta-data-source>");
         final Set<Class<?>> entityClasses = context.getEntityClasses();
         for (final Class<?> entityClass : entityClasses) {
             sb.append("\n\t\t<class>");

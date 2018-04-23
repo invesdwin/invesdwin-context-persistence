@@ -500,7 +500,7 @@ public class SimpleTestDaoTest extends APersistenceTest {
         public void testQueryWithNullParameter() {
             final EntityManager em = factory.createEntityManager();
             final List<SimpleTestEntity> res = em
-                    .createQuery("SELECT e FROM " + SimpleTestEntity.class.getName() + " e WHERE name = :name")
+                    .createQuery("SELECT e FROM " + SimpleTestEntity.class.getName() + " e WHERE e.name = :name")
                     .setParameter("name", null)
                     .getResultList();
             Assertions.assertThat(res.size()).isZero();

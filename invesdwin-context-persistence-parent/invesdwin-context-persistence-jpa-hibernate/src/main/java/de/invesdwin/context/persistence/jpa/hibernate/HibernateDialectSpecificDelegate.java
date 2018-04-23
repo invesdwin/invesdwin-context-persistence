@@ -14,7 +14,7 @@ import org.hibernate.cache.ehcache.SingletonEhCacheRegionFactory;
 import org.hibernate.cfg.AvailableSettings;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.dialect.H2Dialect;
-import org.hibernate.dialect.MySQL5InnoDBDialect;
+import org.hibernate.dialect.MySQL55Dialect;
 import org.hibernate.dialect.Oracle10gDialect;
 import org.hibernate.dialect.PostgreSQL9Dialect;
 import org.hibernate.dialect.SQLServerDialect;
@@ -95,7 +95,8 @@ public class HibernateDialectSpecificDelegate implements IDialectSpecificDelegat
         props.put(SingletonEhCacheRegionFactory.NET_SF_EHCACHE_CONFIGURATION_RESOURCE_NAME,
                 ehCacheConfigurationMerger.newEhCacheXml().toString());
         props.put(AvailableSettings.USE_NEW_ID_GENERATOR_MAPPINGS, String.valueOf(true));
-        props.put(AvailableSettings.PREFER_POOLED_VALUES_LO, String.valueOf(true));
+        //https://vladmihalcea.com/hibernate-hidden-gem-the-pooled-lo-optimizer/
+        props.put(AvailableSettings.PREFERRED_POOLED_OPTIMIZER, "pooled-lo");
         return props;
     }
 
@@ -121,7 +122,7 @@ public class HibernateDialectSpecificDelegate implements IDialectSpecificDelegat
         case MSSQLSERVER:
             return SQLServerDialect.class;
         case MYSQL:
-            return MySQL5InnoDBDialect.class;
+            return MySQL55Dialect.class;
         case POSTGRESQL:
             return PostgreSQL9Dialect.class;
         case ORACLE:

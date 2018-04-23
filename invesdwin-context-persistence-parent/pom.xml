@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0                              http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
@@ -22,6 +23,7 @@
 	<modules>
 		<module>invesdwin-context-persistence-jpa</module>
 		<module>invesdwin-context-persistence-jpa-hibernate</module>
+		<module>invesdwin-context-persistence-jpa-eclipselink</module>
 		<module>invesdwin-context-persistence-jpa-datanucleus</module>
 		<module>invesdwin-context-persistence-jpa-kundera</module>
 		<module>invesdwin-context-persistence-jpa-kundera-rdbms</module>
@@ -49,6 +51,7 @@
 		<version.leveldb>0.7</version.leveldb>
 		<version.mapdb>3.0.5</version.mapdb>
 		<version.eclipse-collections>7.1.0</version.eclipse-collections>
+		<version.eclipselink>2.7.1</version.eclipselink>
 	</properties>
 
 	<dependencyManagement>
@@ -344,6 +347,11 @@
 					</exclusion>
 				</exclusions>
 			</dependency>
+			<dependency>
+				<groupId>org.eclipse.persistence</groupId>
+				<artifactId>eclipselink</artifactId>
+				<version>${version.eclipselink}</version>
+			</dependency>
 		</dependencies>
 	</dependencyManagement>
 
@@ -372,7 +380,7 @@
 			<url>http://invesdwin.de/artifactory/invesdwin-oss-remote</url>
 		</pluginRepository>
 	</pluginRepositories>
-	
+
 	<scm>
 		<url>https://github.com/subes/invesdwin-context-persistence</url>
 		<connection>scm:git:https://github.com/subes/invesdwin-context-persistence.git</connection>
