@@ -6,10 +6,8 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
 import org.junit.runners.Suite.SuiteClasses;
 
-import de.invesdwin.context.persistence.jpa.PersistenceTestSuite;
-
 @RunWith(Suite.class)
-@SuiteClasses({ MultiplePersistenceUnitsTest.class, PersistenceTestSuite.class })
+@SuiteClasses({ SimpleTestDaoTest.class })
 @Immutable
 public class EclipseLinkTestSuite {
 
