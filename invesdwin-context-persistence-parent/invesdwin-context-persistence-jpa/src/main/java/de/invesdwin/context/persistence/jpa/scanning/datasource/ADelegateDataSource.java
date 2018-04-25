@@ -22,6 +22,14 @@ public abstract class ADelegateDataSource implements DataSource {
         return delegate;
     }
 
+    protected synchronized DataSource getDelegateDirect() {
+        return delegate;
+    }
+
+    protected synchronized void setDelegateDirect(final DataSource delegate) {
+        this.delegate = delegate;
+    }
+
     @Override
     public PrintWriter getLogWriter() throws SQLException {
         return getDelegate().getLogWriter();

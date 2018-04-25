@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.jpa.spi.impl;
 
 import java.beans.PropertyVetoException;
+import java.io.Closeable;
 
 import javax.annotation.concurrent.ThreadSafe;
 import javax.sql.DataSource;
@@ -18,7 +19,7 @@ import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.fdate.FTimeUnit;
 
 @ThreadSafe
-public class ConfiguredCPDataSource extends ADelegateDataSource {
+public class ConfiguredCPDataSource extends ADelegateDataSource implements Closeable {
 
     private final PersistenceUnitContext context;
     private final boolean logging;
@@ -29,8 +30,11 @@ public class ConfiguredCPDataSource extends ADelegateDataSource {
         this.logging = logging;
     }
 
+    @Override
     public void close() {
         closeableDs.close();
+        closeableDs = null;
+        setDelegateDirect(null);
     }
 
     @Override
