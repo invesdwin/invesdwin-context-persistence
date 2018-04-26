@@ -32,9 +32,11 @@ public class ConfiguredCPDataSource extends ADelegateDataSource implements Close
 
     @Override
     public void close() {
-        closeableDs.close();
-        closeableDs = null;
-        setDelegateDirect(null);
+        if (closeableDs != null) {
+            closeableDs.close();
+            closeableDs = null;
+            setDelegateDirect(null);
+        }
     }
 
     @Override
