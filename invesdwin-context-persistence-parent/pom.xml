@@ -34,7 +34,7 @@
 		<version.invesdwin-context-persistence>${version.invesdwin-context}</version.invesdwin-context-persistence>
 
 		<version.asm>3.3.1</version.asm>
-		<version.spring-data-jpa>2.0.0.RELEASE</version.spring-data-jpa>
+		<version.spring-data-jpa>2.0.7.RELEASE</version.spring-data-jpa>
 		<version.jboss-transaction-api_1.1_spec>1.0.1.Final</version.jboss-transaction-api_1.1_spec>
 		<version.c3p0>0.9.5.2</version.c3p0>
 		<version.jdbcdslogexp2>2.1</version.jdbcdslogexp2>
