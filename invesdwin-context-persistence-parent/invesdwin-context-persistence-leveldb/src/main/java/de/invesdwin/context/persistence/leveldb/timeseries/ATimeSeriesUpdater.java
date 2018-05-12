@@ -80,7 +80,7 @@ public abstract class ATimeSeriesUpdater<K, V> {
         try {
             if (updateLockFile.exists()) {
                 throw new IncompleteUpdateFoundException("Incomplete update found for table [" + table.getName()
-                        + "], need to clean everything up to restore all from scratch.");
+                        + "] and key [" + key + "], need to clean everything up to restore all from scratch.");
             }
             try {
                 FileUtils.touch(updateLockFile);
@@ -210,7 +210,8 @@ public abstract class ATimeSeriesUpdater<K, V> {
             }
             if (maxTime != null && maxTime.isAfterOrEqualTo(time)) {
                 throw new IllegalArgumentException("New element time [" + time
-                        + "] is not after previous element end time [" + maxTime
+                        + "] is not after previous element end time [" + maxTime + "] for table [" + table.getName()
+                        + "] and key [" + key
                         + "]; maybe you forgot to subtract 1ms from the end time to not overlap with the next element?");
             }
             final FDate endTime = extractEndTime(element);
