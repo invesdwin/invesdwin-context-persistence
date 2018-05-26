@@ -19,16 +19,16 @@ public final class ShiftUnitsRangeKeySerde implements Serde<ShiftUnitsRangeKey> 
     @Override
     public ShiftUnitsRangeKey fromBytes(final byte[] bytes) {
         final ByteBuffer buf = ByteBuffer.wrap(bytes);
-        final int shiftUnits = buf.getInt();
         final FDate rangeKey = FDates.extractFDate(buf);
-        return new ShiftUnitsRangeKey(shiftUnits, rangeKey);
+        final int shiftUnits = buf.getInt();
+        return new ShiftUnitsRangeKey(rangeKey, shiftUnits);
     }
 
     @Override
     public byte[] toBytes(final ShiftUnitsRangeKey obj) {
         final ByteBuffer buf = ByteBuffer.allocate(FIXED_LENGTH);
-        buf.putInt(obj.getShiftUnits());
         FDates.putFDate(buf, obj.getRangeKey());
+        buf.putInt(obj.getShiftUnits());
         return buf.array();
     }
 

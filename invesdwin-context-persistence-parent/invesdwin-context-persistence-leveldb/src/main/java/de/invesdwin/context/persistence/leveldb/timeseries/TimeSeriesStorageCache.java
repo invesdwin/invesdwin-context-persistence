@@ -117,7 +117,7 @@ public class TimeSeriesStorageCache<K, V> {
             final FDate date = key.getFirst();
             final int shiftBackUnits = key.getSecond();
             final SingleValue value = storage.getPreviousValueLookupTable().getOrLoad(hashKey,
-                    new ShiftUnitsRangeKey(shiftBackUnits, date),
+                    new ShiftUnitsRangeKey(date, shiftBackUnits),
                     new Function<Pair<String, ShiftUnitsRangeKey>, SingleValue>() {
 
                         @Override
@@ -155,7 +155,7 @@ public class TimeSeriesStorageCache<K, V> {
             final FDate date = key.getFirst();
             final int shiftForwardUnits = key.getSecond();
             final SingleValue value = storage.getNextValueLookupTable().getOrLoad(hashKey,
-                    new ShiftUnitsRangeKey(shiftForwardUnits, date),
+                    new ShiftUnitsRangeKey(date, shiftForwardUnits),
                     new Function<Pair<String, ShiftUnitsRangeKey>, SingleValue>() {
 
                         @Override
@@ -694,7 +694,7 @@ public class TimeSeriesStorageCache<K, V> {
      * Deletes the last file in order to create a new updated one (so the files do not get fragmented too much between
      * updates
      */
-    public Pair<FDate, List<V>> prepareForUpdate() {
+    public synchronized Pair<FDate, List<V>> prepareForUpdate() {
         final FDate latestRangeKey = storage.getFileLookupTable().getLatestRangeKey(hashKey, FDate.MAX_DATE);
         FDate updateFrom = latestRangeKey;
         final List<V> lastValues = new ArrayList<V>();
@@ -708,6 +708,9 @@ public class TimeSeriesStorageCache<K, V> {
             updateFrom = extractTime.apply(lastValue);
             lastFile.delete();
             storage.getFileLookupTable().deleteRange(hashKey, latestRangeKey);
+            storage.getLatestValueLookupTable().deleteRange(hashKey, latestRangeKey);
+            storage.getNextValueLookupTable().deleteRange(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
+            storage.getPreviousValueLookupTable().deleteRange(hashKey, new ShiftUnitsRangeKey(latestRangeKey, 0));
         }
         clearCaches();
         return Pair.of(updateFrom, lastValues);

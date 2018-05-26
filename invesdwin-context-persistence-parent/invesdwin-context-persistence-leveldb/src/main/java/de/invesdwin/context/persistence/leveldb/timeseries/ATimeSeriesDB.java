@@ -1,6 +1,5 @@
 package de.invesdwin.context.persistence.leveldb.timeseries;
 
-import java.io.Closeable;
 import java.io.File;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
@@ -29,7 +28,7 @@ import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
 
 @ThreadSafe
-public abstract class ATimeSeriesDB<K, V> implements Closeable {
+public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
     private final String name;
     private final Serde<V> valueSerde;
@@ -66,7 +65,7 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
         };
     }
 
-    private synchronized TimeSeriesStorage getStorage() {
+    protected synchronized TimeSeriesStorage getStorage() {
         if (storage == null) {
             storage = corruptionHandlingNewStorage();
         }
@@ -80,14 +79,19 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
             if (Throwables.isCausedByType(t, CorruptedTimeSeriesStorageException.class)) {
                 Err.process(new RuntimeException("Resetting " + ATimeSeriesDB.class.getSimpleName() + " ["
                         + getDirectory() + "] because the storage has been corrupted"));
-                FileUtils.deleteQuietly(directory);
-                return new TimeSeriesStorage(directory);
+                deleteCorruptedStorage(directory);
+                return newStorage(directory);
             } else {
                 throw Throwables.propagate(t);
             }
         }
     }
 
+    protected void deleteCorruptedStorage(final File directory) {
+        FileUtils.deleteQuietly(directory);
+    }
+
+    @Override
     public File getDirectory() {
         return directory;
     }
@@ -106,10 +110,11 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
 
     protected abstract Integer newFixedLength();
 
-    public final Integer getFixedLength() {
+    protected Integer getFixedLength() {
         return fixedLength;
     }
 
+    @Override
     public ReadWriteLock getTableLock(final K key) {
         return key_tableLock.get(key);
     }
@@ -118,8 +123,8 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
 
     protected abstract FDate extractTime(V value);
 
+    @Override
     public ICloseableIterator<V> rangeValues(final K key, final FDate from, final FDate to) {
-
         return new ACloseableIterator<V>() {
 
             private final Lock readLock = getTableLock(key).readLock();
@@ -158,6 +163,47 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
         };
     }
 
+    @Override
+    public ICloseableIterator<V> rangeReverseValues(final K key, final FDate from, final FDate to) {
+        return new ACloseableIterator<V>() {
+
+            private final Lock readLock = getTableLock(key).readLock();
+            private ICloseableIterator<V> readRangeValues;
+
+            private ICloseableIterator<V> getReadRangeValues() {
+                if (readRangeValues == null) {
+                    readLock.lock();
+                    readRangeValues = getLookupTableCache(key).readRangeValuesReverse(from, to);
+                }
+                return readRangeValues;
+            }
+
+            @Override
+            public boolean innerHasNext() {
+                return getReadRangeValues().hasNext();
+            }
+
+            @Override
+            public V innerNext() {
+                return getReadRangeValues().next();
+            }
+
+            @Override
+            public void innerClose() {
+                if (readRangeValues instanceof EmptyCloseableIterator) {
+                    //already closed
+                    return;
+                }
+                if (readRangeValues != null) {
+                    getReadRangeValues().close();
+                    readLock.unlock();
+                }
+                readRangeValues = EmptyCloseableIterator.getInstance();
+            }
+        };
+    }
+
+    @Override
     public V getLatestValue(final K key, final FDate date) {
         final Lock readLock = getTableLock(key).readLock();
         readLock.lock();
@@ -174,15 +220,17 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
         }
     }
 
+    @Override
     public FDate getLatestValueKey(final K key, final FDate date) {
-        final V latestValue = getLatestValue(key, date);
-        if (latestValue == null) {
+        final V value = getLatestValue(key, date);
+        if (value == null) {
             return null;
         } else {
-            return extractTime(latestValue);
+            return extractTime(value);
         }
     }
 
+    @Override
     public V getPreviousValue(final K key, final FDate date, final int shiftBackUnits) {
         final Lock readLock = getTableLock(key).readLock();
         readLock.lock();
@@ -197,15 +245,17 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
         }
     }
 
+    @Override
     public FDate getPreviousValueKey(final K key, final FDate date, final int shiftBackUnits) {
-        final V latestValue = getPreviousValue(key, date, shiftBackUnits);
-        if (latestValue == null) {
+        final V value = getPreviousValue(key, date, shiftBackUnits);
+        if (value == null) {
             return null;
         } else {
-            return extractTime(latestValue);
+            return extractTime(value);
         }
     }
 
+    @Override
     public boolean isEmptyOrInconsistent(final K key) {
         final Lock readLock = getTableLock(key).readLock();
         readLock.lock();
@@ -216,6 +266,7 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
         }
     }
 
+    @Override
     public V getNextValue(final K key, final FDate date, final int shiftForwardUnits) {
         final Lock readLock = getTableLock(key).readLock();
         readLock.lock();
@@ -230,15 +281,17 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
         }
     }
 
+    @Override
     public FDate getNextValueKey(final K key, final FDate date, final int shiftForwardUnits) {
-        final V nextValue = getNextValue(key, date, shiftForwardUnits);
-        if (nextValue == null) {
+        final V value = getNextValue(key, date, shiftForwardUnits);
+        if (value == null) {
             return null;
         } else {
-            return extractTime(nextValue);
+            return extractTime(value);
         }
     }
 
+    @Override
     @Retry
     public void deleteRange(final K key) {
         final Lock writeLock = getTableLock(key).writeLock();
@@ -257,6 +310,7 @@ public abstract class ATimeSeriesDB<K, V> implements Closeable {
         }
     }
 
+    @Override
     public String getName() {
         return name;
     }

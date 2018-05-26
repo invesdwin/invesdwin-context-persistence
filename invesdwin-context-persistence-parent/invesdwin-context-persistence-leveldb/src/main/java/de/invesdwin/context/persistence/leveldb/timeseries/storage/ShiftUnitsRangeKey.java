@@ -2,25 +2,19 @@ package de.invesdwin.context.persistence.leveldb.timeseries.storage;
 
 import javax.annotation.concurrent.Immutable;
 
-import de.invesdwin.util.lang.ADelegateComparator;
+import org.apache.commons.lang3.builder.CompareToBuilder;
+
 import de.invesdwin.util.time.fdate.FDate;
 
 @Immutable
 public class ShiftUnitsRangeKey implements Comparable<Object> {
 
-    public static final ADelegateComparator<ShiftUnitsRangeKey> COMPARATOR = new ADelegateComparator<ShiftUnitsRangeKey>() {
-        @Override
-        protected Comparable<?> getCompareCriteria(final ShiftUnitsRangeKey e) {
-            return e.getRangeKey();
-        }
-    };
-
     private final int shiftUnits;
     private final FDate rangeKey;
 
-    public ShiftUnitsRangeKey(final int shiftUnits, final FDate rangeKey) {
-        this.shiftUnits = shiftUnits;
+    public ShiftUnitsRangeKey(final FDate rangeKey, final int shiftUnits) {
         this.rangeKey = rangeKey;
+        this.shiftUnits = shiftUnits;
     }
 
     public int getShiftUnits() {
@@ -33,7 +27,14 @@ public class ShiftUnitsRangeKey implements Comparable<Object> {
 
     @Override
     public int compareTo(final Object o) {
-        return COMPARATOR.compare(this, o);
+        if (o instanceof ShiftUnitsRangeKey) {
+            final ShiftUnitsRangeKey cO = (ShiftUnitsRangeKey) o;
+            return new CompareToBuilder().append(rangeKey, cO.rangeKey)
+                    .append(shiftUnits, cO.shiftUnits)
+                    .toComparison();
+        } else {
+            return 1;
+        }
     }
 
 }
