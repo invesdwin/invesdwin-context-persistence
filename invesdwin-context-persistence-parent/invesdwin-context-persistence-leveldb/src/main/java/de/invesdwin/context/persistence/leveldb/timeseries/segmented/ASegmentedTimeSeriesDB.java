@@ -2,7 +2,6 @@ package de.invesdwin.context.persistence.leveldb.timeseries.segmented;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.NoSuchElementException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -11,8 +10,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
-import de.invesdwin.context.persistence.leveldb.ezdb.ADelegateRangeTable;
-import de.invesdwin.context.persistence.leveldb.ezdb.ADelegateRangeTable.DelegateTableIterator;
 import de.invesdwin.context.persistence.leveldb.timeseries.ATimeSeriesDB;
 import de.invesdwin.context.persistence.leveldb.timeseries.ITimeSeriesDB;
 import de.invesdwin.context.persistence.leveldb.timeseries.storage.TimeSeriesStorage;
@@ -23,7 +20,6 @@ import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.time.TimeRange;
 import de.invesdwin.util.time.fdate.FDate;
-import ezdb.TableRow;
 import ezdb.serde.Serde;
 
 @ThreadSafe
@@ -195,17 +191,6 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
             throw new RuntimeException(e);
         }
         try {
-            final ADelegateRangeTable<String, TimeRange, Boolean> segmentsTable = getStorage().getSegmentsTable();
-            final String hashKey = hashKeyToString(key);
-            try (DelegateTableIterator<String, TimeRange, Boolean> range = segmentsTable.range(hashKey)) {
-                while (true) {
-                    final TableRow<String, TimeRange, Boolean> row = range.next();
-                    segmentedTable.deleteRange(new SegmentedKey<K>(key, row.getRangeKey()));
-                }
-            } catch (final NoSuchElementException e) {
-                //end reached
-            }
-            segmentsTable.deleteRange(hashKey);
             getLookupTableCache(key).deleteAll();
         } finally {
             writeLock.unlock();

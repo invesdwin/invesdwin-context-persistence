@@ -322,6 +322,16 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
     }
 
     public synchronized void deleteAll() {
+        final ADelegateRangeTable<String, TimeRange, Boolean> segmentsTable = storage.getSegmentsTable();
+        try (DelegateTableIterator<String, TimeRange, Boolean> range = segmentsTable.range(hashKey)) {
+            while (true) {
+                final TableRow<String, TimeRange, Boolean> row = range.next();
+                segmentedTable.deleteRange(new SegmentedKey<K>(key, row.getRangeKey()));
+            }
+        } catch (final NoSuchElementException e) {
+            //end reached
+        }
+        segmentsTable.deleteRange(hashKey);
         storage.getLatestValueLookupTable().deleteRange(hashKey);
         storage.getNextValueLookupTable().deleteRange(hashKey);
         storage.getPreviousValueLookupTable().deleteRange(hashKey);
