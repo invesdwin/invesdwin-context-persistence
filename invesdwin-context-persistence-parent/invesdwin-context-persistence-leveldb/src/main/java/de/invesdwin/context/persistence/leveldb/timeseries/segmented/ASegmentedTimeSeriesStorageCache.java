@@ -265,6 +265,10 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                 final Lock segmentWriteLock = segmentTableLock.writeLock();
                 try {
                     if (!segmentWriteLock.tryLock(1, TimeUnit.MINUTES)) {
+                        /*
+                         * should not happen here because segment did not yet exist. Though if it happens we would
+                         * rather like an exception instead of a deadlock!
+                         */
                         throw new RetryLaterRuntimeException(
                                 "Write lock could not be acquired for table [" + segmentedTable.getName()
                                         + "] and key [" + segmentedKey + "]. Please ensure all iterators are closed!");
