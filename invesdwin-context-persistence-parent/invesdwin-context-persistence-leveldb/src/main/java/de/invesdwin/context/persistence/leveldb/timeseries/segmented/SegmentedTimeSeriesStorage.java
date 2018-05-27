@@ -12,11 +12,11 @@ import de.invesdwin.util.time.TimeRange;
 @ThreadSafe
 public class SegmentedTimeSeriesStorage extends TimeSeriesStorage {
 
-    private final ADelegateRangeTable<String, TimeRange, Boolean> segmentsTable;
+    private final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable;
 
     public SegmentedTimeSeriesStorage(final File directory) {
         super(directory);
-        segmentsTable = new ADelegateRangeTable<String, TimeRange, Boolean>("fileLookupTable") {
+        segmentStatusTable = new ADelegateRangeTable<String, TimeRange, SegmentStatus>("segmentStatusTable") {
             @Override
             protected boolean allowPutWithoutBatch() {
                 return true;
@@ -39,14 +39,14 @@ public class SegmentedTimeSeriesStorage extends TimeSeriesStorage {
         };
     }
 
-    public ADelegateRangeTable<String, TimeRange, Boolean> getSegmentsTable() {
-        return segmentsTable;
+    public ADelegateRangeTable<String, TimeRange, SegmentStatus> getSegmentStatusTable() {
+        return segmentStatusTable;
     }
 
     @Override
     public void close() {
         super.close();
-        segmentsTable.close();
+        segmentStatusTable.close();
     }
 
 }

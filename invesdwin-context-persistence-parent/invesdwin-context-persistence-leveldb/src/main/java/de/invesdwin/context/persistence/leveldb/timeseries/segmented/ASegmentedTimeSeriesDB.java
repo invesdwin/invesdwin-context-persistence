@@ -55,15 +55,6 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
                         return ASegmentedTimeSeriesDB.this.getFirstAvailableSegmentFrom(key);
                     }
 
-                    @Override
-                    protected void maybeInitSegment(final SegmentedKey<K> segmentedKey) {
-                        //1. check segment status in series storage
-                        //2. if not existing or false, set status to false -> start segment update -> after update set status to true
-                        //      throw error if a segment is being updated that is beyond the lastAvailableSegmentTo
-                        //3. if true do nothing
-                        System.out.println("TODO");
-                    }
-
                 };
             }
 

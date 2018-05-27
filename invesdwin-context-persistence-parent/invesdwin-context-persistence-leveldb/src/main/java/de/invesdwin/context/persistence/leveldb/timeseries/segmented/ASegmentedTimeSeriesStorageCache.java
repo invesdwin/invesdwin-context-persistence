@@ -2,6 +2,8 @@ package de.invesdwin.context.persistence.leveldb.timeseries.segmented;
 
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
 
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -214,7 +216,6 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                         final FDate segmentAdjTo = FDates.min(adjTo, value.getTo());
                         return segmentedTable.rangeValues(segmentedKey, segmentAdjFrom, segmentAdjTo);
                     }
-
                 };
             }
         };
@@ -243,7 +244,59 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
         return filteredSegments;
     }
 
-    protected abstract void maybeInitSegment(SegmentedKey<K> segmentedKey);
+    private void maybeInitSegment(final SegmentedKey<K> segmentedKey) {
+        //1. check segment status in series storage
+        final ReadWriteLock segmentTableLock = segmentedTable.getTableLock(segmentedKey);
+        SegmentStatus status;
+        final Lock segmentReadLock = segmentTableLock.readLock();
+        segmentReadLock.lock();
+        try {
+            status = storage.getSegmentStatusTable().get(hashKey, segmentedKey.getSegment());
+        } finally {
+            segmentReadLock.unlock();
+        }
+        //2. if not existing or false, set status to false -> start segment update -> after update set status to true
+        if (status == null || status == SegmentStatus.INITIALIZING) {
+            final Lock segmentWriteLock = segmentTableLock.writeLock();
+            segmentWriteLock.lock();
+            try {
+                /*
+                 * check status again now that we have the write lock, between read and write lock change someone else
+                 * might have slipped in and already gotten the write lock before us and already initialized the segment
+                 */
+                status = storage.getSegmentStatusTable().get(hashKey, segmentedKey.getSegment());
+                if (status == null || status == SegmentStatus.INITIALIZING) {
+                    if (status == SegmentStatus.INITIALIZING) {
+                        //initialization got aborted, retry from a fresh state
+                        segmentedTable.deleteRange(segmentedKey);
+                        storage.getSegmentStatusTable().delete(hashKey, segmentedKey.getSegment());
+                    }
+                    //throw error if a segment is being updated that is beyond the lastAvailableSegmentTo
+                    final FDate segmentFrom = segmentedKey.getSegment().getTo();
+                    final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(segmentedKey.getKey());
+                    if (segmentFrom.isBefore(firstAvailableSegmentFrom)) {
+                        throw new IllegalStateException(
+                                "segmentFrom [" + segmentFrom + "] should not be before firstAvailableSegmentFrom ["
+                                        + firstAvailableSegmentFrom + "]");
+                    }
+                    final FDate segmentTo = segmentedKey.getSegment().getTo();
+                    final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(segmentedKey.getKey());
+                    if (segmentTo.isAfter(lastAvailableSegmentTo)) {
+                        throw new IllegalStateException("segmentTo [" + segmentTo
+                                + "] should not be after lastAvailableSegmentTo [" + lastAvailableSegmentTo + "]");
+                    }
+                    storage.getSegmentStatusTable().put(hashKey, segmentedKey.getSegment(), SegmentStatus.INITIALIZING);
+                    initSegment(segmentedKey);
+                    storage.getSegmentStatusTable().put(hashKey, segmentedKey.getSegment(), SegmentStatus.COMPLETE);
+                }
+            } finally {
+                segmentWriteLock.unlock();
+            }
+        }
+        //3. if true do nothing
+    }
+
+    private void initSegment(final SegmentedKey<K> segmentedKey) {}
 
     protected abstract FDate getLastAvailableSegmentTo(K key);
 
