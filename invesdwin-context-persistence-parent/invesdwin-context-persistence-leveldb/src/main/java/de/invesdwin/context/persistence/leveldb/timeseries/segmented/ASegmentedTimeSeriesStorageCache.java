@@ -287,6 +287,10 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                     }
                     storage.getSegmentStatusTable().put(hashKey, segmentedKey.getSegment(), SegmentStatus.INITIALIZING);
                     initSegment(segmentedKey);
+                    if (segmentedTable.isEmptyOrInconsistent(segmentedKey)) {
+                        throw new IllegalStateException("Initialization of segment [" + segmentedKey
+                                + "] should have added at least one entry");
+                    }
                     storage.getSegmentStatusTable().put(hashKey, segmentedKey.getSegment(), SegmentStatus.COMPLETE);
                 }
             } finally {

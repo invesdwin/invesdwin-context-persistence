@@ -2,10 +2,11 @@ package de.invesdwin.context.persistence.leveldb.timeseries.segmented;
 
 import javax.annotation.concurrent.Immutable;
 
+import de.invesdwin.util.bean.AValueObject;
 import de.invesdwin.util.time.TimeRange;
 
 @Immutable
-public class SegmentedKey<K> {
+public class SegmentedKey<K> extends AValueObject {
 
     private final K key;
     private final TimeRange segment;
