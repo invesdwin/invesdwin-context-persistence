@@ -267,7 +267,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                     if (!segmentWriteLock.tryLock(1, TimeUnit.MINUTES)) {
                         throw new RetryLaterRuntimeException(
                                 "Write lock could not be acquired for table [" + segmentedTable.getName()
-                                        + "] and key [" + key + "]. Please ensure all iterators are closed!");
+                                        + "] and key [" + segmentedKey + "]. Please ensure all iterators are closed!");
                     }
                 } catch (final InterruptedException e1) {
                     throw new RuntimeException(e1);
