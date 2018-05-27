@@ -56,6 +56,10 @@ public abstract class ATimeSeriesUpdater<K, V> {
         this.updateLockFile = lookupTable.getUpdateLockFile();
     }
 
+    public K getKey() {
+        return key;
+    }
+
     public FDate getMinTime() {
         return minTime;
     }

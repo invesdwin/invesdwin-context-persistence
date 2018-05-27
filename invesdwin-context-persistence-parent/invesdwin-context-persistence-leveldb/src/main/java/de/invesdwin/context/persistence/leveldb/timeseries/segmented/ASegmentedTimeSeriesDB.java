@@ -15,6 +15,7 @@ import de.invesdwin.context.persistence.leveldb.timeseries.ITimeSeriesDB;
 import de.invesdwin.context.persistence.leveldb.timeseries.storage.TimeSeriesStorage;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
+import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
@@ -55,11 +56,19 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
                         return ASegmentedTimeSeriesDB.this.getFirstAvailableSegmentFrom(key);
                     }
 
+                    @Override
+                    protected ICloseableIterable<? extends V> downloadSegmentElements(final K key, final FDate from,
+                            final FDate to) {
+                        return ASegmentedTimeSeriesDB.this.downloadSegmentElements(key, from, to);
+                    }
+
                 };
             }
 
         };
     }
+
+    protected abstract ICloseableIterable<? extends V> downloadSegmentElements(K key, FDate from, FDate to);
 
     protected SegmentedTimeSeriesStorage newStorage(final File directory) {
         return new SegmentedTimeSeriesStorage(directory);
@@ -82,6 +91,8 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
     protected abstract Serde<V> newValueSerde();
 
     protected abstract FDate extractTime(V value);
+
+    protected abstract FDate extractEndTime(V value);
 
     protected abstract String hashKeyToString(K key);
 
@@ -119,6 +130,10 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
             return ASegmentedTimeSeriesDB.this.extractTime(value);
         }
 
+        public FDate extractEndTime(final V value) {
+            return ASegmentedTimeSeriesDB.this.extractEndTime(value);
+        }
+
         @Override
         public String hashKeyToString(final SegmentedKey<K> key) {
             return ASegmentedTimeSeriesDB.this.hashKeyToString(key.getKey()) + "/"
@@ -140,6 +155,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         public synchronized TimeSeriesStorage getStorage() {
             return super.getStorage();
         }
+
     }
 
     @Override

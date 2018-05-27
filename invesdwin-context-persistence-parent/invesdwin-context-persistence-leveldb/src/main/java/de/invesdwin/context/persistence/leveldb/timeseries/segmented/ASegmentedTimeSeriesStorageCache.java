@@ -11,13 +11,18 @@ import org.apache.commons.lang3.SerializationException;
 
 import com.google.common.base.Function;
 
+import de.invesdwin.context.integration.retry.ARetryingRunnable;
+import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
+import de.invesdwin.context.integration.retry.RetryOriginator;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.leveldb.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.leveldb.ezdb.ADelegateRangeTable.DelegateTableIterator;
+import de.invesdwin.context.persistence.leveldb.timeseries.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.leveldb.timeseries.TimeSeriesStorageCache;
 import de.invesdwin.context.persistence.leveldb.timeseries.storage.ChunkValue;
 import de.invesdwin.context.persistence.leveldb.timeseries.storage.ShiftUnitsRangeKey;
 import de.invesdwin.context.persistence.leveldb.timeseries.storage.SingleValue;
+import de.invesdwin.context.persistence.leveldb.timeseries.updater.ALoggingTimeSeriesUpdater;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.eviction.EvictionMode;
 import de.invesdwin.util.collections.iterable.ASkippingIterable;
@@ -275,18 +280,18 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                     final FDate segmentFrom = segmentedKey.getSegment().getTo();
                     final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(segmentedKey.getKey());
                     if (segmentFrom.isBefore(firstAvailableSegmentFrom)) {
-                        throw new IllegalStateException(
-                                "segmentFrom [" + segmentFrom + "] should not be before firstAvailableSegmentFrom ["
-                                        + firstAvailableSegmentFrom + "]");
+                        throw new IllegalStateException(segmentedKey + ": segmentFrom [" + segmentFrom
+                                + "] should not be before firstAvailableSegmentFrom [" + firstAvailableSegmentFrom
+                                + "]");
                     }
                     final FDate segmentTo = segmentedKey.getSegment().getTo();
                     final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(segmentedKey.getKey());
                     if (segmentTo.isAfter(lastAvailableSegmentTo)) {
-                        throw new IllegalStateException("segmentTo [" + segmentTo
+                        throw new IllegalStateException(segmentedKey + ": segmentTo [" + segmentTo
                                 + "] should not be after lastAvailableSegmentTo [" + lastAvailableSegmentTo + "]");
                     }
                     storage.getSegmentStatusTable().put(hashKey, segmentedKey.getSegment(), SegmentStatus.INITIALIZING);
-                    initSegment(segmentedKey);
+                    initSegmentRetry(segmentedKey);
                     if (segmentedTable.isEmptyOrInconsistent(segmentedKey)) {
                         throw new IllegalStateException("Initialization of segment [" + segmentedKey
                                 + "] should have added at least one entry");
@@ -300,7 +305,68 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
         //3. if true do nothing
     }
 
-    private void initSegment(final SegmentedKey<K> segmentedKey) {}
+    private void initSegmentRetry(final SegmentedKey<K> segmentedKey) {
+        new ARetryingRunnable(new RetryOriginator(ASegmentedTimeSeriesDB.class, "initSegment", segmentedKey)) {
+            @Override
+            protected void runRetryable() throws Exception {
+                initSegment(segmentedKey);
+            }
+        }.run();
+    }
+
+    private void initSegment(final SegmentedKey<K> segmentedKey) {
+        try {
+            final ALoggingTimeSeriesUpdater<SegmentedKey<K>, V> updater = new ALoggingTimeSeriesUpdater<SegmentedKey<K>, V>(
+                    segmentedKey, segmentedTable, log) {
+
+                @Override
+                protected ICloseableIterable<? extends V> getSource(final FDate updateFrom) {
+                    return downloadSegmentElements(segmentedKey.getKey(), segmentedKey.getSegment().getFrom(),
+                            segmentedKey.getSegment().getTo());
+                }
+
+                @Override
+                protected FDate extractTime(final V element) {
+                    return segmentedTable.extractTime(element);
+                }
+
+                @Override
+                protected FDate extractEndTime(final V element) {
+                    return segmentedTable.extractEndTime(element);
+                }
+
+                @Override
+                protected String keyToString(final SegmentedKey<K> key) {
+                    return segmentedTable.hashKeyToString(segmentedKey);
+                }
+
+                @Override
+                protected String getElementsName() {
+                    return "segment values";
+                }
+
+            };
+            //write lock is reentrant
+            updater.update();
+            final FDate minTime = updater.getMinTime();
+            final FDate segmentFrom = segmentedKey.getSegment().getFrom();
+            if (minTime.isBefore(segmentFrom)) {
+                throw new IllegalStateException(segmentedKey + ": minTime [" + minTime
+                        + "] should not be before segmentFrom [" + segmentFrom + "]");
+            }
+            final FDate maxTime = updater.getMaxTime();
+            final FDate segmentTo = segmentedKey.getSegment().getTo();
+            if (maxTime.isAfter(segmentTo)) {
+                throw new IllegalStateException(segmentedKey + ": maxTime [" + maxTime
+                        + "] should not be before segmentTo [" + segmentTo + "]");
+            }
+        } catch (final IncompleteUpdateFoundException e) {
+            segmentedTable.deleteRange(new SegmentedKey<K>(segmentedKey.getKey(), segmentedKey.getSegment()));
+            throw new RetryLaterRuntimeException(e);
+        }
+    }
+
+    protected abstract ICloseableIterable<? extends V> downloadSegmentElements(K key, FDate from, FDate to);
 
     protected abstract FDate getLastAvailableSegmentTo(K key);
 

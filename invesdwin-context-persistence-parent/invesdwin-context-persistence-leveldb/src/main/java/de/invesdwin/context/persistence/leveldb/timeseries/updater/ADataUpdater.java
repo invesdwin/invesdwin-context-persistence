@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.leveldb.timeseries;
+package de.invesdwin.context.persistence.leveldb.timeseries.updater;
 
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -10,14 +10,12 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.commons.lang3.BooleanUtils;
 
 import de.invesdwin.context.log.Log;
-import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.context.persistence.leveldb.timeseries.ATimeSeriesDB;
+import de.invesdwin.context.persistence.leveldb.timeseries.ATimeSeriesUpdater;
+import de.invesdwin.context.persistence.leveldb.timeseries.IncompleteUpdateFoundException;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.concurrent.ANestedExecutor;
 import de.invesdwin.util.concurrent.future.Futures;
-import de.invesdwin.util.lang.ProcessedEventsRateString;
-import de.invesdwin.util.math.Integers;
-import de.invesdwin.util.time.Instant;
-import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.fdate.FDates;
 import io.netty.util.concurrent.FastThreadLocal;
@@ -113,19 +111,7 @@ public abstract class ADataUpdater<K, V> {
     }
 
     protected final FDate doUpdate() throws IncompleteUpdateFoundException {
-        final ATimeSeriesUpdater<K, V> updater = new ATimeSeriesUpdater<K, V>(key, getTable()) {
-
-            private static final int BATCH_LOG_INTERVAL = 100_000 / BATCH_FLUSH_INTERVAL;
-            @GuardedBy("this")
-            private Integer lastFlushIndex;
-            @GuardedBy("this")
-            private Duration flushDuration;
-            @GuardedBy("this")
-            private long flushElementCount;
-            @GuardedBy("this")
-            private FDate lastFlushMaxTime;
-            @GuardedBy("this")
-            private Instant lastFlushTime;
+        final ATimeSeriesUpdater<K, V> updater = new ALoggingTimeSeriesUpdater<K, V>(key, getTable(), log) {
 
             @Override
             protected FDate extractTime(final V element) {
@@ -139,56 +125,20 @@ public abstract class ADataUpdater<K, V> {
 
             @Override
             protected ICloseableIterable<? extends V> getSource(final FDate updateFrom) {
-                final ICloseableIterable<? extends V> downloadElements = downloadElements(key, updateFrom);
+                final ICloseableIterable<? extends V> downloadElements = downloadElements(getKey(), updateFrom);
                 return downloadElements;
             }
 
             @Override
-            protected void onUpdateStart() {
-                log.info("Updating %s for [%s]", getElementsName(), keyToString(key));
+            protected String keyToString(final K key) {
+                return ADataUpdater.this.keyToString(key);
             }
 
             @Override
-            protected synchronized void onFlush(final int flushIndex, final Instant flushStart,
-                    final UpdateProgress progress) {
-                lastFlushIndex = Integers.max(lastFlushIndex, flushIndex);
-                if (flushDuration == null) {
-                    flushDuration = flushStart.toDuration();
-                } else {
-                    flushDuration = flushDuration.add(flushStart.toDuration());
-                }
-                flushElementCount += progress.getCount();
-                lastFlushMaxTime = FDates.max(lastFlushMaxTime, progress.getMaxTime());
-                if (flushIndex % BATCH_LOG_INTERVAL == 0) {
-                    logFlush();
-                }
+            protected String getElementsName() {
+                return ADataUpdater.this.getElementsName();
             }
 
-            private void logFlush() {
-                Assertions.assertThat(lastFlushIndex).isNotNull();
-
-                //if we are too fast, only print status once a second
-                if (lastFlushTime == null || lastFlushTime.toDuration().isGreaterThan(Duration.ONE_SECOND)) {
-                    log.info("Persisted %s. %s batch for [%s]. Reached time [%s]. Processed [%s] during %s",
-                            lastFlushIndex, getElementsName(), keyToString(key), lastFlushMaxTime,
-                            new ProcessedEventsRateString(flushElementCount, flushDuration), flushDuration);
-                    lastFlushTime = new Instant();
-                }
-
-                lastFlushIndex = null;
-                flushDuration = null;
-                flushElementCount = 0;
-                lastFlushMaxTime = null;
-            }
-
-            @Override
-            protected synchronized void onUpdateFinished(final Instant updateStart) {
-                if (lastFlushIndex != null) {
-                    logFlush();
-                }
-                log.info("Finished updating %s %s for [%s] from [%s] to [%s] after %s", getCount(), getElementsName(),
-                        keyToString(key), getMinTime(), getMaxTime(), updateStart);
-            }
         };
         updater.update();
         return updater.getMaxTime();
