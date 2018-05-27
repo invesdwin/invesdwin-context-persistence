@@ -375,16 +375,17 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
     }
 
     public synchronized void deleteAll() {
-        final ADelegateRangeTable<String, TimeRange, Boolean> segmentsTable = storage.getSegmentsTable();
-        try (DelegateTableIterator<String, TimeRange, Boolean> range = segmentsTable.range(hashKey)) {
+        final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable = storage
+                .getSegmentStatusTable();
+        try (DelegateTableIterator<String, TimeRange, SegmentStatus> range = segmentStatusTable.range(hashKey)) {
             while (true) {
-                final TableRow<String, TimeRange, Boolean> row = range.next();
+                final TableRow<String, TimeRange, SegmentStatus> row = range.next();
                 segmentedTable.deleteRange(new SegmentedKey<K>(key, row.getRangeKey()));
             }
         } catch (final NoSuchElementException e) {
             //end reached
         }
-        segmentsTable.deleteRange(hashKey);
+        segmentStatusTable.deleteRange(hashKey);
         storage.getLatestValueLookupTable().deleteRange(hashKey);
         storage.getNextValueLookupTable().deleteRange(hashKey);
         storage.getPreviousValueLookupTable().deleteRange(hashKey);
@@ -485,12 +486,15 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
             }
         }
         boolean empty = true;
-        final ADelegateRangeTable<String, TimeRange, Boolean> segmentsTable = storage.getSegmentsTable();
-        try (DelegateTableIterator<String, TimeRange, Boolean> range = segmentsTable.range(hashKey)) {
+        final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentsTable = storage.getSegmentStatusTable();
+        try (DelegateTableIterator<String, TimeRange, SegmentStatus> range = segmentsTable.range(hashKey)) {
             while (true) {
-                final TableRow<String, TimeRange, Boolean> row = range.next();
-                if (segmentedTable.isEmptyOrInconsistent(new SegmentedKey<K>(key, row.getRangeKey()))) {
-                    return true;
+                final TableRow<String, TimeRange, SegmentStatus> row = range.next();
+                final SegmentStatus status = row.getValue();
+                if (status == SegmentStatus.COMPLETE) {
+                    if (segmentedTable.isEmptyOrInconsistent(new SegmentedKey<K>(key, row.getRangeKey()))) {
+                        return true;
+                    }
                 }
                 empty = false;
             }
