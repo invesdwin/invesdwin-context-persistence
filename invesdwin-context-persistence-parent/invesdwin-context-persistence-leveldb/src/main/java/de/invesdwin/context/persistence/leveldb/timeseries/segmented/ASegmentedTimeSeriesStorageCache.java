@@ -266,7 +266,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                 try {
                     if (!segmentWriteLock.tryLock(1, TimeUnit.MINUTES)) {
                         /*
-                         * should not happen here because segment did not yet exist. Though if it happens we would
+                         * should not happen here because segment should not yet exist. Though if it happens we would
                          * rather like an exception instead of a deadlock!
                          */
                         throw new RetryLaterRuntimeException(
