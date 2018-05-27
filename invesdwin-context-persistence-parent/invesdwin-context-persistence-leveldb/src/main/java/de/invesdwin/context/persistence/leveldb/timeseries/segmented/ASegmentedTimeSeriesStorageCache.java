@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.leveldb.timeseries.segmented;
 
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 
@@ -252,25 +253,27 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
     private void maybeInitSegment(final SegmentedKey<K> segmentedKey) {
         //1. check segment status in series storage
         final ReadWriteLock segmentTableLock = segmentedTable.getTableLock(segmentedKey);
-        SegmentStatus status;
-        final Lock segmentReadLock = segmentTableLock.readLock();
-        segmentReadLock.lock();
-        try {
-            status = storage.getSegmentStatusTable().get(hashKey, segmentedKey.getSegment());
-        } finally {
-            segmentReadLock.unlock();
-        }
-        //2. if not existing or false, set status to false -> start segment update -> after update set status to true
-        if (status == null || status == SegmentStatus.INITIALIZING) {
-            final Lock segmentWriteLock = segmentTableLock.writeLock();
-            segmentWriteLock.lock();
-            try {
-                /*
-                 * check status again now that we have the write lock, between read and write lock change someone else
-                 * might have slipped in and already gotten the write lock before us and already initialized the segment
-                 */
-                status = storage.getSegmentStatusTable().get(hashKey, segmentedKey.getSegment());
-                if (status == null || status == SegmentStatus.INITIALIZING) {
+        /*
+         * We need this synchronized block so that we don't collide on the write lock not being possible to be acquired
+         * after 1 minute. The ReadWriteLock object should be safe to lock via synchronized keyword since no internal
+         * synchronization occurs on that object itself
+         */
+        synchronized (segmentTableLock) {
+            final SegmentStatus status = getSegmentStatusWithReadLock(segmentedKey, segmentTableLock);
+            //2. if not existing or false, set status to false -> start segment update -> after update set status to true
+            if (status == null || status == SegmentStatus.INITIALIZING) {
+                final Lock segmentWriteLock = segmentTableLock.writeLock();
+                try {
+                    if (!segmentWriteLock.tryLock(1, TimeUnit.MINUTES)) {
+                        throw new RetryLaterRuntimeException(
+                                "Write lock could not be acquired for table [" + segmentedTable.getName()
+                                        + "] and key [" + key + "]. Please ensure all iterators are closed!");
+                    }
+                } catch (final InterruptedException e1) {
+                    throw new RuntimeException(e1);
+                }
+                try {
+                    // no double checked locking required between read and write lock here because of the outer synchronized block
                     if (status == SegmentStatus.INITIALIZING) {
                         //initialization got aborted, retry from a fresh state
                         segmentedTable.deleteRange(segmentedKey);
@@ -297,12 +300,23 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                                 + "] should have added at least one entry");
                     }
                     storage.getSegmentStatusTable().put(hashKey, segmentedKey.getSegment(), SegmentStatus.COMPLETE);
+                } finally {
+                    segmentWriteLock.unlock();
                 }
-            } finally {
-                segmentWriteLock.unlock();
             }
         }
         //3. if true do nothing
+    }
+
+    private SegmentStatus getSegmentStatusWithReadLock(final SegmentedKey<K> segmentedKey,
+            final ReadWriteLock segmentTableLock) {
+        final Lock segmentReadLock = segmentTableLock.readLock();
+        segmentReadLock.lock();
+        try {
+            return storage.getSegmentStatusTable().get(hashKey, segmentedKey.getSegment());
+        } finally {
+            segmentReadLock.unlock();
+        }
     }
 
     private void initSegmentRetry(final SegmentedKey<K> segmentedKey) {
