@@ -494,12 +494,24 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
 
     public V getPreviousValue(final FDate date, final int shiftBackUnits) {
         assertShiftUnitsPositiveNonZero(shiftBackUnits);
-        return previousValueLookupCache.get(Pair.of(date, shiftBackUnits));
+        final V firstValue = getFirstValue();
+        final FDate firstTime = segmentedTable.extractTime(firstValue);
+        if (date.isBeforeOrEqualTo(firstTime)) {
+            return firstValue;
+        } else {
+            return previousValueLookupCache.get(Pair.of(date, shiftBackUnits));
+        }
     }
 
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
         assertShiftUnitsPositiveNonZero(shiftForwardUnits);
-        return nextValueLookupCache.get(Pair.of(date, shiftForwardUnits));
+        final V lastValue = getLastValue();
+        final FDate lastTime = segmentedTable.extractTime(lastValue);
+        if (date.isAfterOrEqualTo(lastTime)) {
+            return lastValue;
+        } else {
+            return nextValueLookupCache.get(Pair.of(date, shiftForwardUnits));
+        }
     }
 
     public synchronized void prepareForUpdate() {

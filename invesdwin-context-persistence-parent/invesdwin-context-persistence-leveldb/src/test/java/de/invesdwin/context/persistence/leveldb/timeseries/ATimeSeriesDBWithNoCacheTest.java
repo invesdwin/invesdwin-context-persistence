@@ -22,6 +22,7 @@ import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.Lists;
+import de.invesdwin.util.collections.iterable.ASkippingIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
@@ -41,6 +42,7 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
 
     private static final String KEY = "asdf";
     private ATimeSeriesDB<String, FDate> table;
+    private ATimeSeriesUpdater<String, FDate> updater;
 
     private final List<FDate> entities;
 
@@ -94,11 +96,16 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
                 return ContextProperties.TEMP_DIRECTORY;
             }
         };
-        new ATimeSeriesUpdater<String, FDate>(KEY, table) {
+        updater = new ATimeSeriesUpdater<String, FDate>(KEY, table) {
 
             @Override
             protected ICloseableIterable<? extends FDate> getSource(final FDate updateFrom) {
-                return WrapperCloseableIterable.maybeWrap(entities);
+                return new ASkippingIterable<FDate>(WrapperCloseableIterable.maybeWrap(entities)) {
+                    @Override
+                    protected boolean skip(final FDate element) {
+                        return element.isBefore(updateFrom);
+                    }
+                };
             }
 
             @Override
@@ -122,7 +129,8 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
                     final ATimeSeriesUpdater<String, FDate>.UpdateProgress updateProgress) {
 
             }
-        }.update();
+        };
+        updater.update();
     }
 
     @Override
@@ -311,56 +319,56 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
     public void testPreviousKey() {
         FDate previousKey = cache.query().getPreviousKey(new FDate(), entities.size());
         Assertions.assertThat(previousKey).isEqualTo(entities.get(0));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
         //loading newest entity is faster than always loading all entities
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(9);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
 
         previousKey = cache.query().getPreviousKey(new FDate(), 1);
         Assertions.assertThat(previousKey).isEqualTo(entities.get(entities.size() - 2));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(8);
-        Assertions.assertThat(countReadNewestValueTo).isLessThanOrEqualTo(10);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
     }
 
     @Test
     public void testNextKey() {
         FDate previousKey = cache.query().withFuture().getNextKey(FDate.MIN_DATE, entities.size());
         Assertions.assertThat(previousKey).isEqualTo(entities.get(entities.size() - 1));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         //loading newest entity is faster than always loading all entities
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
 
         previousKey = cache.query().withFuture().getNextKey(FDate.MIN_DATE, 1);
         Assertions.assertThat(previousKey).isEqualTo(entities.get(1));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(3);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(5);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
     }
 
     @Test
     public void testPreviousValueWithDistance() {
         FDate previousValue = cache.query().getPreviousValue(new FDate(), entities.size());
-        Assertions.assertThat(previousValue).isSameAs(entities.get(0));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
+        Assertions.assertThat(previousValue).isEqualTo(entities.get(0));
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
         //loading newest entity is faster than always loading all entities
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(9);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
 
         previousValue = cache.query().getPreviousValue(new FDate(), 1);
-        Assertions.assertThat(previousValue).isSameAs(entities.get(entities.size() - 2));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(8);
-        Assertions.assertThat(countReadNewestValueTo).isLessThanOrEqualTo(10);
+        Assertions.assertThat(previousValue).isEqualTo(entities.get(entities.size() - 2));
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
     }
 
     @Test
     public void testNextValueWithDistance() {
         FDate previousValue = cache.query().withFuture().getNextValue(FDate.MIN_DATE, entities.size());
-        Assertions.assertThat(previousValue).isSameAs(entities.get(entities.size() - 1));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
+        Assertions.assertThat(previousValue).isEqualTo(entities.get(entities.size() - 1));
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         //loading newest entity is faster than always loading all entities
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
 
         previousValue = cache.query().withFuture().getNextValue(FDate.MIN_DATE, 1);
-        Assertions.assertThat(previousValue).isSameAs(entities.get(1));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(3);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(5);
+        Assertions.assertThat(previousValue).isEqualTo(entities.get(1));
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
     }
 
     @Test
@@ -368,29 +376,29 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
         FDate previousValue = cache.query()
 
                 .getPreviousValue(entities.get(entities.size() - 1), entities.size());
-        Assertions.assertThat(previousValue).isSameAs(entities.get(0));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
+        Assertions.assertThat(previousValue).isEqualTo(entities.get(0));
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
         //loading newest entity is faster than always loading all entities
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(8);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
         previousValue = cache.query().getPreviousValue(entities.get(entities.size() - 1), 1);
-        Assertions.assertThat(previousValue).isSameAs(entities.get(entities.size() - 2));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(8);
+        Assertions.assertThat(previousValue).isEqualTo(entities.get(entities.size() - 2));
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
     }
 
     @Test
     public void testNextValueWithoutDistance() {
         FDate nextValue = cache.query().withFuture().getNextValue(entities.get(0), entities.size());
-        Assertions.assertThat(nextValue).isSameAs(entities.get(entities.size() - 1));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
+        Assertions.assertThat(nextValue).isEqualTo(entities.get(entities.size() - 1));
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         //loading newest entity is faster than always loading all entities
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
         nextValue = cache.query().withFuture().getNextValue(entities.get(0), 1);
-        Assertions.assertThat(nextValue).isSameAs(entities.get(1));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(3);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
+        Assertions.assertThat(nextValue).isEqualTo(entities.get(1));
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
     }
 
     @Test
@@ -398,7 +406,7 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
         final Collection<FDate> previousKeys = asList(cache.query().getPreviousKeys(new FDate(), entities.size()));
         Assertions.assertThat(previousKeys).isEqualTo(entities);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(8);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
     }
 
     @Test
@@ -407,17 +415,17 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
                 cache.query().withFuture().getPreviousKeys(FDate.MIN_DATE, entities.size()));
         Assertions.assertThat(previousKeys).isEqualTo(Arrays.asList(entities.get(0)));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
 
         previousKeys = asList(cache.query().withFutureNull().getPreviousKeys(FDate.MIN_DATE, entities.size()));
         Assertions.assertThat(previousKeys).isEmpty();
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
 
         previousKeys = asList(cache.query().withFuture().getPreviousKeys(FDate.MIN_DATE, entities.size()));
         Assertions.assertThat(previousKeys).isEqualTo(Arrays.asList(entities.get(0)));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
     }
 
     @Test
@@ -425,17 +433,17 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
         FDate previousKey = cache.query().withFuture().getPreviousKey(FDate.MIN_DATE, entities.size());
         Assertions.assertThat(previousKey).isEqualTo(entities.get(0));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
 
         previousKey = cache.query().withFutureNull().getPreviousKey(FDate.MIN_DATE, entities.size());
         Assertions.assertThat(previousKey).isNull();
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
 
         previousKey = cache.query().withFuture().getPreviousKey(FDate.MIN_DATE, entities.size());
         Assertions.assertThat(previousKey).isEqualTo(entities.get(0));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
     }
 
     @Test
@@ -449,12 +457,12 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
         previousKeys = asList(cache.query().withFuture().getPreviousKeys(FDate.MIN_DATE, entities.size()));
         Assertions.assertThat(previousKeys).isEqualTo(Arrays.asList(entities.get(0)));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(5);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
 
         previousKeys = asList(cache.query().withFutureNull().getPreviousKeys(FDate.MIN_DATE, entities.size()));
         Assertions.assertThat(previousKeys).isEmpty();
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(5);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
     }
 
     @Test
@@ -467,12 +475,12 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
         previousKey = cache.query().withFuture().getPreviousKey(FDate.MIN_DATE, entities.size());
         Assertions.assertThat(previousKey).isEqualTo(entities.get(0));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(5);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
 
         previousKey = cache.query().withFutureNull().getPreviousKey(FDate.MIN_DATE, entities.size());
         Assertions.assertThat(previousKey).isNull();
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(5);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
     }
 
     @Test
@@ -498,8 +506,8 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
             previousKeys.add(d);
         }
         Assertions.assertThat(previousKeys).isEqualTo(entities);
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
     }
 
     @Test
@@ -512,8 +520,8 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
             previousKeys.add(d);
         }
         Assertions.assertThat(previousKeys).isEqualTo(entities);
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
     }
 
     @Test
@@ -521,7 +529,7 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
         final Collection<FDate> previousValues = asList(cache.query().getPreviousValues(new FDate(), entities.size()));
         Assertions.assertThat(previousValues).isEqualTo(entities);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(8);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
     }
 
     @Test
@@ -539,7 +547,7 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
                 cache.query().getPreviousValues(entities.get(entities.size() - 1), entities.size()));
         Assertions.assertThat(previousValues).isEqualTo(entities);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
     }
 
     @Test
@@ -558,10 +566,10 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
                         entities.size()));
         Assertions.assertThat(previousValues.size()).isEqualTo(entities.size());
         for (final FDate d : previousValues) {
-            Assertions.assertThat(d).isSameAs(entities.get(0));
+            Assertions.assertThat(d).isEqualTo(entities.get(0));
         }
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
     }
 
     @Test
@@ -571,10 +579,10 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
                         entities.size()));
         Assertions.assertThat(nextValues.size()).isEqualTo(entities.size());
         for (final FDate d : nextValues) {
-            Assertions.assertThat(d).isSameAs(entities.get(entities.size() - 1));
+            Assertions.assertThat(d).isEqualTo(entities.get(entities.size() - 1));
         }
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
     }
 
     @Test
@@ -583,10 +591,10 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
                 cache.query().withFilterDuplicateKeys(false).getPreviousValues(entities.get(0), entities.size()));
         Assertions.assertThat(previousValues.size()).isEqualTo(entities.size());
         for (final FDate d : previousValues) {
-            Assertions.assertThat(d).isSameAs(entities.get(0));
+            Assertions.assertThat(d).isEqualTo(entities.get(0));
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
     }
 
     @Test
@@ -596,16 +604,16 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
                         entities.get(entities.size() - 1), entities.size()));
         Assertions.assertThat(nextValues.size()).isEqualTo(entities.size());
         for (final FDate d : nextValues) {
-            Assertions.assertThat(d).isSameAs(entities.get(entities.size() - 1));
+            Assertions.assertThat(d).isEqualTo(entities.get(entities.size() - 1));
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
     }
 
     @Test
     public void testNoData() {
         final List<FDate> liste = new ArrayList<FDate>(entities);
-        entities.clear();
+        table.deleteRange(KEY);
         for (final FDate entity : liste) {
             final FDate cachedEntity = cache.query().getValue(entity);
             Assertions.assertThat(cachedEntity).isNull();
@@ -636,7 +644,7 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
             Assertions.assertThat(d).isEqualTo(entities.get(0));
         }
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
     }
 
     @Test
@@ -645,14 +653,14 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
 
         FDate previousKey = cache.query().getPreviousKey(new FDate(), entities.size());
         Assertions.assertThat(previousKey).isEqualTo(entities.get(0));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(4);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(3);
         //loading newest entity is faster than always loading all entities
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
         previousKey = cache.query().getPreviousKey(new FDate(), 1);
         Assertions.assertThat(previousKey).isEqualTo(entities.get(entities.size() - 2));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(6);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(4);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
     }
 
     @Test
@@ -661,13 +669,13 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
 
         FDate nextKey = cache.query().withFuture().getNextKey(FDate.MIN_DATE, entities.size());
         Assertions.assertThat(nextKey).isEqualTo(entities.get(entities.size() - 1));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         //loading newest entity is faster than always loading all entities
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
 
         nextKey = cache.query().withFuture().getNextKey(FDate.MIN_DATE, 1);
         Assertions.assertThat(nextKey).isEqualTo(entities.get(1));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(3);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
     }
 
@@ -677,14 +685,14 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
 
         FDate previousKey = cache.query().getPreviousKey(new FDate(), entities.size());
         Assertions.assertThat(previousKey).isEqualTo(entities.get(0));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
         //loading newest entity is faster than always loading all entities
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(9);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
 
         previousKey = cache.query().getPreviousKey(new FDate(), 1);
         Assertions.assertThat(previousKey).isEqualTo(entities.get(entities.size() - 2));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(9);
-        Assertions.assertThat(countReadNewestValueTo).isLessThanOrEqualTo(10);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
     }
 
     @Test
@@ -693,14 +701,14 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
 
         FDate nextKey = cache.query().withFuture().getNextKey(FDate.MIN_DATE, entities.size());
         Assertions.assertThat(nextKey).isEqualTo(entities.get(entities.size() - 1));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(4);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(3);
         //loading newest entity is faster than always loading all entities
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
 
         nextKey = cache.query().withFuture().getNextKey(FDate.MIN_DATE, 1);
         Assertions.assertThat(nextKey).isEqualTo(entities.get(1));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(5);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(4);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
     }
 
     @Test
@@ -710,14 +718,14 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
 
         FDate previousKey = cache.query().getPreviousKey(new FDate(), entities.size());
         Assertions.assertThat(previousKey).isEqualTo(entities.get(0));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(4);
         //loading newest entity is faster than always loading all entities
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
         previousKey = cache.query().getPreviousKey(new FDate(), 1);
         Assertions.assertThat(previousKey).isEqualTo(entities.get(entities.size() - 2));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(7);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
     }
 
     @Test
@@ -727,13 +735,13 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
 
         FDate nextKey = cache.query().withFuture().getNextKey(FDate.MIN_DATE, entities.size());
         Assertions.assertThat(nextKey).isEqualTo(entities.get(entities.size() - 1));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         //loading newest entity is faster than always loading all entities
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
 
         nextKey = cache.query().withFuture().getNextKey(FDate.MIN_DATE, 1);
         Assertions.assertThat(nextKey).isEqualTo(entities.get(1));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(3);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
     }
 
@@ -743,12 +751,12 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
                 .assertThat(
                         asList(cache.query().withFilterDuplicateKeys(false).getPreviousKeys(new FDate(), 100)).size())
                 .isSameAs(100);
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(9);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
         Assertions.assertThat(asList(cache.query().getPreviousKeys(new FDate(), 100)).size())
                 .isEqualTo(entities.size());
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(8);
-        Assertions.assertThat(countReadNewestValueTo).isLessThanOrEqualTo(101);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
     }
 
     @Test
@@ -757,12 +765,12 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
                 asList(cache.query().withFilterDuplicateKeys(false).withFuture().getNextKeys(FDate.MIN_DATE, 100))
                         .size())
                 .isSameAs(100);
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
         Assertions.assertThat(asList(cache.query().withFuture().getNextKeys(FDate.MIN_DATE, 100)).size())
                 .isEqualTo(entities.size());
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(4);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(6);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
     }
 
     @Test
@@ -771,12 +779,12 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
                 .assertThat(
                         asList(cache.query().withFilterDuplicateKeys(false).getPreviousValues(new FDate(), 100)).size())
                 .isSameAs(100);
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(9);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
         Assertions.assertThat(asList(cache.query().getPreviousValues(new FDate(), 100)).size())
                 .isEqualTo(entities.size());
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(8);
-        Assertions.assertThat(countReadNewestValueTo).isLessThanOrEqualTo(101);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
     }
 
     @Test
@@ -785,12 +793,12 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
                 asList(cache.query().withFilterDuplicateKeys(false).withFuture().getNextValues(FDate.MIN_DATE, 100))
                         .size())
                 .isSameAs(100);
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
         Assertions.assertThat(asList(cache.query().withFuture().getNextValues(FDate.MIN_DATE, 100)).size())
                 .isEqualTo(entities.size());
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(4);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(6);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
     }
 
     @Test
@@ -814,7 +822,7 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
     }
 
     @Test
-    public void testNewEntityIncomingAfterClear() {
+    public void testNewEntityIncomingAfterClear() throws IncompleteUpdateFoundException {
         final List<FDate> newEntities = new ArrayList<FDate>(entities);
         final FDate newEntity = FDateBuilder.newDate(1996, 1, 1);
         newEntities.add(newEntity);
@@ -828,6 +836,7 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
             }
         }
         entities.add(newEntity);
+        updater.update();
         final FDate wrongValue = cache.query().getValue(newEntity);
         Assertions.assertThat(wrongValue).isEqualTo(newEntity);
         HistoricalCacheRefreshManager.forceRefresh();
@@ -836,7 +845,7 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
     }
 
     @Test
-    public void testNewEntityIncomingPullingAdjustKeyProvider() {
+    public void testNewEntityIncomingPullingAdjustKeyProvider() throws IncompleteUpdateFoundException {
         cache.setAdjustKeyProvider(new APullingHistoricalCacheAdjustKeyProvider(cache) {
             @Override
             protected FDate innerGetHighestAllowedKey() {
@@ -856,12 +865,13 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
             }
         }
         entities.add(newEntity);
+        updater.update();
         final FDate correctValue = cache.query().getValue(newEntity);
         Assertions.assertThat(correctValue).isEqualTo(newEntity);
     }
 
     @Test
-    public void testNewEntityIncomingPushingAdjustKeyProvider() {
+    public void testNewEntityIncomingPushingAdjustKeyProvider() throws IncompleteUpdateFoundException {
         final APushingHistoricalCacheAdjustKeyProvider adjustKeyProvider = new APushingHistoricalCacheAdjustKeyProvider(
                 cache) {
             @Override
@@ -885,12 +895,14 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
         }
         adjustKeyProvider.pushHighestAllowedKey(newEntity);
         entities.add(newEntity);
+        updater.update();
         final FDate correctValue = cache.query().getValue(newEntity);
         Assertions.assertThat(correctValue).isEqualTo(newEntity);
     }
 
     @Test
-    public void testNewEntityIncomingPushingAdjustKeyProviderWithoutInitialPush() {
+    public void testNewEntityIncomingPushingAdjustKeyProviderWithoutInitialPush()
+            throws IncompleteUpdateFoundException {
         final APushingHistoricalCacheAdjustKeyProvider adjustKeyProvider = new APushingHistoricalCacheAdjustKeyProvider(
                 cache) {
             @Override
@@ -913,12 +925,13 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
         }
         adjustKeyProvider.pushHighestAllowedKey(newEntity);
         entities.add(newEntity);
+        updater.update();
         final FDate correctValue = cache.query().getValue(newEntity);
         Assertions.assertThat(correctValue).isEqualTo(newEntity);
     }
 
     @Test
-    public void testNewEntityIncomingPushingAdjustKeyProviderWithoutPush() {
+    public void testNewEntityIncomingPushingAdjustKeyProviderWithoutPush() throws IncompleteUpdateFoundException {
         final APushingHistoricalCacheAdjustKeyProvider adjustKeyProvider = new APushingHistoricalCacheAdjustKeyProvider(
                 cache) {
             @Override
@@ -941,6 +954,7 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
         }
         adjustKeyProvider.pushHighestAllowedKey(newEntity);
         entities.add(newEntity);
+        updater.update();
         final FDate correctValue = cache.query().getValue(newEntity);
         Assertions.assertThat(correctValue).isEqualTo(newEntity);
     }
@@ -967,8 +981,8 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
             Assertions.assertThat(previousValues).isEqualTo(expectedValues);
         }
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(6);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(55);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(51);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 
@@ -994,9 +1008,9 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
             final List<FDate> expectedValues = entities.subList(0, index + 1);
             Assertions.assertThat(previousValues).isEqualTo(expectedValues);
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(79);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(73);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 
@@ -1008,9 +1022,9 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
             final List<FDate> expectedValues = entities.subList(0, index + 1);
             Assertions.assertThat(previousValues).isEqualTo(expectedValues);
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(64);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(57);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 
@@ -1078,8 +1092,8 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
         List<FDate> expectedValues = entities.subList(0, 2);
         Assertions.assertThat(previousValues).isEqualTo(expectedValues);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(19);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(18);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
 
         //last
@@ -1087,18 +1101,18 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
                 cache.query().withFilterDuplicateKeys(false).getPreviousValues(entities.get(entities.size() - 1), 2));
         expectedValues = entities.subList(entities.size() - 2, entities.size());
         Assertions.assertThat(previousValues).isEqualTo(expectedValues);
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(4);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(5);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(58);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(53);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
 
         //first +1
         previousValues = asList(cache.query().withFilterDuplicateKeys(false).getPreviousValues(entities.get(2), 2));
         expectedValues = entities.subList(1, 3);
         Assertions.assertThat(previousValues).isEqualTo(expectedValues);
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(6);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(76);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(4);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(71);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
 
         //last -1
@@ -1106,161 +1120,9 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
                 cache.query().withFilterDuplicateKeys(false).getPreviousValues(entities.get(entities.size() - 2), 2));
         expectedValues = entities.subList(entities.size() - 3, entities.size() - 1);
         Assertions.assertThat(previousValues).isEqualTo(expectedValues);
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(6);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(99);
-        Assertions.assertThat(countAdjustKey).isEqualTo(0);
-    }
-
-    @Test
-    public void testPreviousValueWithQueryCacheWithAlwaysSameKey() {
-        for (int size = 1; size < entities.size(); size++) {
-            final FDate previousValue = cache.query().withFilterDuplicateKeys(false).getPreviousValue(
-                    entities.get(entities.size() - 1), size);
-            final FDate expectedValue = entities.get(entities.size() - size - 1);
-            Assertions.assertThat(previousValue).isEqualTo(expectedValue);
-        }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(57);
-        Assertions.assertThat(countAdjustKey).isEqualTo(0);
-    }
-
-    @Test
-    public void testPreviousValueWithQueryCacheWithIncrementingKey() {
-        for (int index = 0; index < entities.size(); index++) {
-            final FDate previousValue = cache.query().withFilterDuplicateKeys(false).getPreviousValue(
-                    entities.get(index), index + 1);
-            final FDate expectedValue = entities.get(0);
-            Assertions.assertThat(previousValue).isEqualTo(expectedValue);
-        }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(3);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(88);
-        Assertions.assertThat(countAdjustKey).isEqualTo(0);
-    }
-
-    @Test
-    public void testPreviousValueWithQueryCacheWithIncrementingAlwaysOneValue() {
-        for (int index = 1; index < entities.size(); index++) {
-            final FDate previousValue = cache.query().withFilterDuplicateKeys(false).getPreviousValue(
-                    entities.get(index), 1);
-            final FDate expectedValue = entities.get(index - 1);
-            Assertions.assertThat(previousValue).isEqualTo(expectedValue);
-        }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(3);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(76);
-        Assertions.assertThat(countAdjustKey).isEqualTo(0);
-    }
-
-    @Test
-    public void testPreviousValueWithQueryCacheWithDecrementingKey() {
-        for (int index = entities.size() - 1; index >= 0; index--) {
-            final FDate previousValue = cache.query().withFilterDuplicateKeys(false).getPreviousValue(
-                    entities.get(index), index + 1);
-            final FDate expectedValue = entities.get(0);
-            Assertions.assertThat(previousValue).isEqualTo(expectedValue);
-        }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(8);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(66);
-        Assertions.assertThat(countAdjustKey).isEqualTo(0);
-    }
-
-    @Test
-    public void testPreviousValueWithQueryCacheWithDecrementingKeyAlwaysOne() {
-        for (int index = entities.size() - 1; index > 0; index--) {
-            final FDate previousValue = cache.query().withFilterDuplicateKeys(false).getPreviousValue(
-                    entities.get(index), 1);
-            final FDate expectedValue = entities.get(index - 1);
-            Assertions.assertThat(previousValue).isEqualTo(expectedValue);
-        }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(57);
-        Assertions.assertThat(countAdjustKey).isEqualTo(0);
-    }
-
-    @Test
-    public void testPreviousValueWithQueryCacheWithJumpingAround() {
-        //first
-        FDate previousValue = cache.query().withFilterDuplicateKeys(false).getPreviousValue(entities.get(0), 1);
-        FDate expectedValue = entities.get(0);
-        Assertions.assertThat(previousValue).isEqualTo(expectedValue);
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(19);
-        Assertions.assertThat(countAdjustKey).isEqualTo(0);
-
-        //last
-        previousValue = cache.query().withFilterDuplicateKeys(false).getPreviousValue(entities.get(entities.size() - 1),
-                1);
-        expectedValue = entities.get(entities.size() - 2);
-        Assertions.assertThat(previousValue).isEqualTo(expectedValue);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(4);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(5);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(59);
-        Assertions.assertThat(countAdjustKey).isEqualTo(0);
-
-        //first +1
-        previousValue = cache.query().withFilterDuplicateKeys(false).getPreviousValue(entities.get(1), 1);
-        expectedValue = entities.get(0);
-        Assertions.assertThat(previousValue).isEqualTo(expectedValue);
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(6);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(77);
-        Assertions.assertThat(countAdjustKey).isEqualTo(0);
-
-        //last -1
-        previousValue = cache.query().withFilterDuplicateKeys(false).getPreviousValue(entities.get(entities.size() - 2),
-                1);
-        expectedValue = entities.get(entities.size() - 3);
-        Assertions.assertThat(previousValue).isEqualTo(expectedValue);
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(6);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(101);
-        Assertions.assertThat(countAdjustKey).isEqualTo(0);
-    }
-
-    @Test
-    public void testPreviousValueWithQueryCacheWithJumpingAroundTwoValues() {
-        //first
-        FDate previousValue = cache.query().withFilterDuplicateKeys(false).getPreviousValue(entities.get(1), 2);
-        FDate expectedValue = entities.get(0);
-        Assertions.assertThat(previousValue).isEqualTo(expectedValue);
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(3);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(27);
-        Assertions.assertThat(countAdjustKey).isEqualTo(0);
-
-        //last
-        previousValue = cache.query().withFilterDuplicateKeys(false).getPreviousValue(entities.get(entities.size() - 1),
-                2);
-        expectedValue = entities.get(entities.size() - 3);
-        Assertions.assertThat(previousValue).isEqualTo(expectedValue);
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(76);
-        Assertions.assertThat(countAdjustKey).isEqualTo(0);
-
-        //first +1
-        previousValue = cache.query().withFilterDuplicateKeys(false).getPreviousValue(entities.get(2), 2);
-        expectedValue = entities.get(0);
-        Assertions.assertThat(previousValue).isEqualTo(expectedValue);
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(9);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(9);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(103);
-        Assertions.assertThat(countAdjustKey).isEqualTo(0);
-
-        //last -1
-        previousValue = cache.query().withFilterDuplicateKeys(false).getPreviousValue(entities.get(entities.size() - 2),
-                2);
-        expectedValue = entities.get(entities.size() - 4);
-        Assertions.assertThat(previousValue).isEqualTo(expectedValue);
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(11);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(10);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(141);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(95);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 
@@ -1271,16 +1133,16 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
         final FDate expectedValue = entities.get(entities.size() - 5);
         Assertions.assertThat(previousValue).isEqualTo(expectedValue);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(39);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(35);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
 
         final Collection<FDate> previousValues = asList(cache.query().getPreviousValues(key, 4));
         final List<FDate> expectedValues = entities.subList(2, 6);
         Assertions.assertThat(previousValues).isEqualTo(expectedValues);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(40);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(36);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 
@@ -1290,9 +1152,9 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
         final Collection<FDate> previousValues = asList(cache.query().getPreviousValues(key, 10));
         final List<FDate> expectedValues = entities;
         Assertions.assertThat(previousValues).isEqualTo(expectedValues);
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(9);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(55);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(47);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
 
         final Collection<FDate> previousValuesCached = asList(
@@ -1303,9 +1165,9 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
         }
         expectedValuesCached.addAll(entities);
         Assertions.assertThat(previousValuesCached).isEqualTo(expectedValuesCached);
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(9);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(56);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(48);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 
