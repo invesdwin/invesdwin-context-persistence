@@ -9,6 +9,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.persistence.leveldb.timeseries.ATimeSeriesDB;
 import de.invesdwin.context.persistence.leveldb.timeseries.ITimeSeriesDB;
@@ -154,6 +155,11 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         @Override
         public synchronized TimeSeriesStorage getStorage() {
             return super.getStorage();
+        }
+
+        @Override
+        protected File getBaseDirectory() {
+            return ASegmentedTimeSeriesDB.this.getBaseDirectory();
         }
 
     }
@@ -368,6 +374,10 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         } finally {
             readLock.unlock();
         }
+    }
+
+    protected File getBaseDirectory() {
+        return ContextProperties.getHomeDirectory();
     }
 
 }
