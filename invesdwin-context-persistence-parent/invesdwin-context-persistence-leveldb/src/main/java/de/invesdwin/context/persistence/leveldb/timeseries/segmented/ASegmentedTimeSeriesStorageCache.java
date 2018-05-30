@@ -24,6 +24,7 @@ import de.invesdwin.context.persistence.leveldb.timeseries.storage.ChunkValue;
 import de.invesdwin.context.persistence.leveldb.timeseries.storage.ShiftUnitsRangeKey;
 import de.invesdwin.context.persistence.leveldb.timeseries.storage.SingleValue;
 import de.invesdwin.context.persistence.leveldb.timeseries.updater.ALoggingTimeSeriesUpdater;
+import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.eviction.EvictionMode;
 import de.invesdwin.util.collections.iterable.ASkippingIterable;
@@ -66,9 +67,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                         @Override
                         public SingleValue apply(final Pair<String, FDate> input) {
                             final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
-                            final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key);
                             final FDate adjFrom = firstAvailableSegmentFrom;
-                            final FDate adjTo = FDates.min(input.getSecond(), lastAvailableSegmentTo);
+                            //already adjusted on the outside
+                            final FDate adjTo = input.getSecond();
                             final ICloseableIterable<TimeRange> segmentsReverse = getSegmentsReverse(adjFrom, adjTo);
                             try (ICloseableIterator<TimeRange> it = segmentsReverse.iterator()) {
                                 V latestValue = null;
@@ -182,6 +183,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
 
     private volatile Optional<V> cachedFirstValue;
     private volatile Optional<V> cachedLastValue;
+    private volatile Optional<FDate> cachedPrevLastAvailableSegmentTo;
     private final Log log = new Log(this);
 
     private final AHistoricalCache<TimeRange> segmentFinder;
@@ -303,6 +305,10 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
         if (lastAvailableSegmentTo == null) {
             throw new IllegalStateException("lastAvailableSegmentTo should not be null here");
         }
+        if (firstAvailableSegmentFrom.isAfter(lastAvailableSegmentTo)) {
+            throw new IllegalStateException(segmentedKey + ": firstAvailableSegmentFrom [" + firstAvailableSegmentFrom
+                    + "] should not be after lastAvailableSegmentTo [" + lastAvailableSegmentTo + "]");
+        }
         //throw error if a segment is being updated that is beyond the lastAvailableSegmentTo
         final FDate segmentFrom = segmentedKey.getSegment().getTo();
         if (segmentFrom.isBefore(firstAvailableSegmentFrom)) {
@@ -318,6 +324,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
 
     private void initSegmentWithStatusHandling(final SegmentedKey<K> segmentedKey) {
         storage.getSegmentStatusTable().put(hashKey, segmentedKey.getSegment(), SegmentStatus.INITIALIZING);
+        maybePrepareForUpdate(segmentedKey.getSegment());
         initSegmentRetry(segmentedKey);
         if (segmentedTable.isEmptyOrInconsistent(segmentedKey)) {
             throw new IllegalStateException(
@@ -501,10 +508,13 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
         previousValueLookupCache.clear();
         cachedFirstValue = null;
         cachedLastValue = null;
+        cachedPrevLastAvailableSegmentTo = null;
     }
 
     public V getLatestValue(final FDate date) {
-        return latestValueLookupCache.get(date);
+        final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key);
+        final FDate adjDate = FDates.min(date, lastAvailableSegmentTo);
+        return latestValueLookupCache.get(adjDate);
     }
 
     public V getPreviousValue(final FDate date, final int shiftBackUnits) {
@@ -529,14 +539,40 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
         }
     }
 
-    public synchronized void prepareForUpdate() {
-        final FDate lastTime = segmentedTable.extractTime(getLastValue());
-        if (lastTime != null) {
-            storage.getLatestValueLookupTable().deleteRange(hashKey, lastTime);
-            storage.getNextValueLookupTable().deleteRange(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
-            storage.getPreviousValueLookupTable().deleteRange(hashKey, new ShiftUnitsRangeKey(lastTime, 0));
+    private synchronized void maybePrepareForUpdate(final TimeRange segmentToBeInitialized) {
+        final FDate prevLastAvailableSegmentTo = getPrevLastAvailableSegmentTo();
+        if (isNewSegmentAtTheEnd(prevLastAvailableSegmentTo, segmentToBeInitialized)) {
+            if (prevLastAvailableSegmentTo != null) {
+                storage.getLatestValueLookupTable().deleteRange(hashKey, prevLastAvailableSegmentTo);
+                storage.getNextValueLookupTable().deleteRange(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
+                storage.getPreviousValueLookupTable().deleteRange(hashKey,
+                        new ShiftUnitsRangeKey(prevLastAvailableSegmentTo, 0));
+            }
+            clearCaches();
         }
-        clearCaches();
+    }
+
+    private FDate getPrevLastAvailableSegmentTo() {
+        if (cachedPrevLastAvailableSegmentTo == null) {
+            final TableRow<String, TimeRange, SegmentStatus> latestRow = storage.getSegmentStatusTable()
+                    .getLatest(hashKey);
+            if (latestRow != null) {
+                cachedPrevLastAvailableSegmentTo = Optional.of(latestRow.getRangeKey().getTo());
+            } else {
+                cachedPrevLastAvailableSegmentTo = Optional.empty();
+            }
+        }
+        return cachedPrevLastAvailableSegmentTo.orElse(null);
+    }
+
+    private boolean isNewSegmentAtTheEnd(final FDate prevLastAvailableSegmentTo,
+            final TimeRange segmentToBeInitialized) {
+        if (prevLastAvailableSegmentTo == null) {
+            return true;
+        }
+        final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key);
+        return !lastAvailableSegmentTo.equals(prevLastAvailableSegmentTo) && (segmentToBeInitialized == null
+                || segmentToBeInitialized.getFrom().isAfter(prevLastAvailableSegmentTo));
     }
 
     private void assertShiftUnitsPositiveNonZero(final int shiftUnits) {
@@ -546,12 +582,16 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
     }
 
     public V getFirstValue() {
+        if (cachedFirstValue != null) {
+            maybePrepareForUpdate(null);
+        }
         if (cachedFirstValue == null) {
             final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
             if (firstAvailableSegmentFrom == null) {
-                cachedFirstValue = Optional.ofNullable(null);
+                cachedFirstValue = Optional.empty();
             } else {
                 final TimeRange segment = segmentFinder.query().getValue(firstAvailableSegmentFrom);
+                Assertions.assertThat(segment.getFrom()).isEqualTo(firstAvailableSegmentFrom);
                 final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
                 maybeInitSegment(segmentedKey);
                 final String segmentedHashKey = segmentedTable.hashKeyToString(segmentedKey);
@@ -570,12 +610,16 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
     }
 
     public V getLastValue() {
+        if (cachedLastValue != null) {
+            maybePrepareForUpdate(null);
+        }
         if (cachedLastValue == null) {
             final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key);
             if (lastAvailableSegmentTo == null) {
-                cachedLastValue = Optional.ofNullable(null);
+                cachedLastValue = Optional.empty();
             } else {
                 final TimeRange segment = segmentFinder.query().getValue(lastAvailableSegmentTo);
+                Assertions.assertThat(segment.getTo()).isEqualTo(lastAvailableSegmentTo);
                 final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
                 maybeInitSegment(segmentedKey);
                 final String segmentedHashKey = segmentedTable.hashKeyToString(segmentedKey);
