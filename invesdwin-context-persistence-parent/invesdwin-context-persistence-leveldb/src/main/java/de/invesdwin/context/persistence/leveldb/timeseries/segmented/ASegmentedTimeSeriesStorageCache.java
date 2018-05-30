@@ -240,7 +240,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                     throw new IllegalStateException(
                             "segmentTo [" + segmentTo + "] should not be before adjFrom [" + adjFrom + "]");
                 }
-                if (segmentTo.isAfter(adjTo)) {
+                final FDate segmentFrom = element.getFrom();
+                if (segmentFrom.isAfter(adjTo)) {
                     //no need to continue going higher
                     throw new FastNoSuchElementException("ASegmentedTimeSeriesStorageCache getSegments end reached");
                 }
@@ -251,6 +252,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
     }
 
     private void maybeInitSegment(final SegmentedKey<K> segmentedKey) {
+        assertValidSegment(segmentedKey);
         //1. check segment status in series storage
         final ReadWriteLock segmentTableLock = segmentedTable.getTableLock(segmentedKey);
         /*
@@ -283,33 +285,45 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                         segmentedTable.deleteRange(segmentedKey);
                         storage.getSegmentStatusTable().delete(hashKey, segmentedKey.getSegment());
                     }
-                    //throw error if a segment is being updated that is beyond the lastAvailableSegmentTo
-                    final FDate segmentFrom = segmentedKey.getSegment().getTo();
-                    final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(segmentedKey.getKey());
-                    if (segmentFrom.isBefore(firstAvailableSegmentFrom)) {
-                        throw new IllegalStateException(segmentedKey + ": segmentFrom [" + segmentFrom
-                                + "] should not be before firstAvailableSegmentFrom [" + firstAvailableSegmentFrom
-                                + "]");
-                    }
-                    final FDate segmentTo = segmentedKey.getSegment().getTo();
-                    final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(segmentedKey.getKey());
-                    if (segmentTo.isAfter(lastAvailableSegmentTo)) {
-                        throw new IllegalStateException(segmentedKey + ": segmentTo [" + segmentTo
-                                + "] should not be after lastAvailableSegmentTo [" + lastAvailableSegmentTo + "]");
-                    }
-                    storage.getSegmentStatusTable().put(hashKey, segmentedKey.getSegment(), SegmentStatus.INITIALIZING);
-                    initSegmentRetry(segmentedKey);
-                    if (segmentedTable.isEmptyOrInconsistent(segmentedKey)) {
-                        throw new IllegalStateException("Initialization of segment [" + segmentedKey
-                                + "] should have added at least one entry");
-                    }
-                    storage.getSegmentStatusTable().put(hashKey, segmentedKey.getSegment(), SegmentStatus.COMPLETE);
+                    initSegmentWithStatusHandling(segmentedKey);
                 } finally {
                     segmentWriteLock.unlock();
                 }
             }
         }
         //3. if true do nothing
+    }
+
+    private void assertValidSegment(final SegmentedKey<K> segmentedKey) {
+        final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(segmentedKey.getKey());
+        if (firstAvailableSegmentFrom == null) {
+            throw new IllegalStateException("firstAvailableSegmentFrom should not be null here");
+        }
+        final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(segmentedKey.getKey());
+        if (lastAvailableSegmentTo == null) {
+            throw new IllegalStateException("lastAvailableSegmentTo should not be null here");
+        }
+        //throw error if a segment is being updated that is beyond the lastAvailableSegmentTo
+        final FDate segmentFrom = segmentedKey.getSegment().getTo();
+        if (segmentFrom.isBefore(firstAvailableSegmentFrom)) {
+            throw new IllegalStateException(segmentedKey + ": segmentFrom [" + segmentFrom
+                    + "] should not be before firstAvailableSegmentFrom [" + firstAvailableSegmentFrom + "]");
+        }
+        final FDate segmentTo = segmentedKey.getSegment().getTo();
+        if (segmentTo.isAfter(lastAvailableSegmentTo)) {
+            throw new IllegalStateException(segmentedKey + ": segmentTo [" + segmentTo
+                    + "] should not be after lastAvailableSegmentTo [" + lastAvailableSegmentTo + "]");
+        }
+    }
+
+    private void initSegmentWithStatusHandling(final SegmentedKey<K> segmentedKey) {
+        storage.getSegmentStatusTable().put(hashKey, segmentedKey.getSegment(), SegmentStatus.INITIALIZING);
+        initSegmentRetry(segmentedKey);
+        if (segmentedTable.isEmptyOrInconsistent(segmentedKey)) {
+            throw new IllegalStateException(
+                    "Initialization of segment [" + segmentedKey + "] should have added at least one entry");
+        }
+        storage.getSegmentStatusTable().put(hashKey, segmentedKey.getSegment(), SegmentStatus.COMPLETE);
     }
 
     private SegmentStatus getSegmentStatusWithReadLock(final SegmentedKey<K> segmentedKey,
@@ -394,8 +408,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
         final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
         final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key);
         //adjust dates directly to prevent unnecessary segment calculations
-        final FDate adjFrom = FDates.max(from, firstAvailableSegmentFrom);
-        final FDate adjTo = FDates.min(to, lastAvailableSegmentTo);
+        final FDate adjFrom = FDates.min(from, lastAvailableSegmentTo);
+        final FDate adjTo = FDates.max(to, firstAvailableSegmentFrom);
         final ICloseableIterable<TimeRange> filteredSegments = getSegmentsReverse(adjFrom, adjTo);
         final ATransformingCloseableIterable<TimeRange, ICloseableIterable<V>> segmentQueries = new ATransformingCloseableIterable<TimeRange, ICloseableIterable<V>>(
                 filteredSegments) {
@@ -406,15 +420,15 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                     public ICloseableIterator<V> iterator() {
                         final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, value);
                         maybeInitSegment(segmentedKey);
-                        final FDate segmentAdjFrom = FDates.max(adjFrom, value.getFrom());
-                        final FDate segmentAdjTo = FDates.min(adjTo, value.getTo());
+                        final FDate segmentAdjFrom = FDates.min(adjFrom, value.getTo());
+                        final FDate segmentAdjTo = FDates.max(adjTo, value.getFrom());
                         return segmentedTable.rangeReverseValues(segmentedKey, segmentAdjFrom, segmentAdjTo);
                     }
-
                 };
             }
         };
         final ICloseableIterable<V> rangeValues = new FlatteningIterable<V>(segmentQueries);
+
         return rangeValues;
     }
 
@@ -424,11 +438,11 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
             public ICloseableIterator<TimeRange> iterator() {
                 return new ICloseableIterator<TimeRange>() {
 
-                    private TimeRange curSegment = segmentFinder.query().getValue(adjTo);
+                    private TimeRange curSegment = segmentFinder.query().getValue(adjFrom);
 
                     @Override
                     public boolean hasNext() {
-                        return curSegment.getTo().isAfter(adjFrom);
+                        return curSegment.getTo().isAfter(adjTo);
                     }
 
                     @Override
@@ -451,12 +465,13 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
             protected boolean skip(final TimeRange element) {
                 //though additionally skip ranges that exceed the available dates
                 final FDate segmentTo = element.getTo();
-                if (segmentTo.isBefore(adjFrom)) {
+                if (segmentTo.isBefore(adjTo)) {
                     //no need to continue going lower
                     throw new FastNoSuchElementException("ASegmentedTimeSeriesStorageCache getSegments end reached");
                 }
                 //skip last value and continue with earlier ones
-                return segmentTo.isAfter(adjTo);
+                final FDate segmentFrom = element.getFrom();
+                return segmentFrom.isAfter(adjFrom);
             }
         };
         return filteredSegments;
@@ -533,19 +548,23 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
     public V getFirstValue() {
         if (cachedFirstValue == null) {
             final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
-            final TimeRange segment = segmentFinder.query().getValue(firstAvailableSegmentFrom);
-            final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
-            maybeInitSegment(segmentedKey);
-            final String segmentedHashKey = segmentedTable.hashKeyToString(segmentedKey);
-            final ChunkValue latestValue = storage.getFileLookupTable().getLatestValue(segmentedHashKey,
-                    FDate.MIN_DATE);
-            final V firstValue;
-            if (latestValue == null) {
-                firstValue = null;
+            if (firstAvailableSegmentFrom == null) {
+                cachedFirstValue = Optional.ofNullable(null);
             } else {
-                firstValue = latestValue.getFirstValue(valueSerde);
+                final TimeRange segment = segmentFinder.query().getValue(firstAvailableSegmentFrom);
+                final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
+                maybeInitSegment(segmentedKey);
+                final String segmentedHashKey = segmentedTable.hashKeyToString(segmentedKey);
+                final ChunkValue latestValue = storage.getFileLookupTable().getLatestValue(segmentedHashKey,
+                        FDate.MIN_DATE);
+                final V firstValue;
+                if (latestValue == null) {
+                    firstValue = null;
+                } else {
+                    firstValue = latestValue.getFirstValue(valueSerde);
+                }
+                cachedFirstValue = Optional.ofNullable(firstValue);
             }
-            cachedFirstValue = Optional.ofNullable(firstValue);
         }
         return cachedFirstValue.orElse(null);
     }
@@ -553,19 +572,23 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
     public V getLastValue() {
         if (cachedLastValue == null) {
             final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key);
-            final TimeRange segment = segmentFinder.query().getValue(lastAvailableSegmentTo);
-            final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
-            maybeInitSegment(segmentedKey);
-            final String segmentedHashKey = segmentedTable.hashKeyToString(segmentedKey);
-            final ChunkValue latestValue = storage.getFileLookupTable().getLatestValue(segmentedHashKey,
-                    FDate.MAX_DATE);
-            final V lastValue;
-            if (latestValue == null) {
-                lastValue = null;
+            if (lastAvailableSegmentTo == null) {
+                cachedLastValue = Optional.ofNullable(null);
             } else {
-                lastValue = latestValue.getLastValue(valueSerde);
+                final TimeRange segment = segmentFinder.query().getValue(lastAvailableSegmentTo);
+                final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
+                maybeInitSegment(segmentedKey);
+                final String segmentedHashKey = segmentedTable.hashKeyToString(segmentedKey);
+                final ChunkValue latestValue = storage.getFileLookupTable().getLatestValue(segmentedHashKey,
+                        FDate.MAX_DATE);
+                final V lastValue;
+                if (latestValue == null) {
+                    lastValue = null;
+                } else {
+                    lastValue = latestValue.getLastValue(valueSerde);
+                }
+                cachedLastValue = Optional.ofNullable(lastValue);
             }
-            cachedLastValue = Optional.ofNullable(lastValue);
         }
         return cachedLastValue.orElse(null);
     }

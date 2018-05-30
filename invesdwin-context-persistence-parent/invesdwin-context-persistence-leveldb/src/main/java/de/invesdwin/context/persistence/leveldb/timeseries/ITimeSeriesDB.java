@@ -15,6 +15,9 @@ public interface ITimeSeriesDB<K, V> extends Closeable {
 
     ICloseableIterator<V> rangeValues(K key, FDate from, FDate to);
 
+    /**
+     * from should be greater than or equal to to, so it is inverted from rangeValues(...)
+     */
     ICloseableIterator<V> rangeReverseValues(K key, FDate from, FDate to);
 
     V getLatestValue(K key, FDate date);

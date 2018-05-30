@@ -33,6 +33,7 @@ import de.invesdwin.util.collections.loadingcache.historical.key.APullingHistori
 import de.invesdwin.util.collections.loadingcache.historical.key.APushingHistoricalCacheAdjustKeyProvider;
 import de.invesdwin.util.collections.loadingcache.historical.key.IHistoricalCacheAdjustKeyProvider;
 import de.invesdwin.util.collections.loadingcache.historical.refresh.HistoricalCacheRefreshManager;
+import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.time.TimeRange;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.fdate.FDate;
@@ -119,11 +120,17 @@ public class ASegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
 
             @Override
             protected FDate getFirstAvailableSegmentFrom(final String key) {
+                if (entities.isEmpty()) {
+                    return null;
+                }
                 return segmentFinder.query().getValue(entities.get(0)).getFrom();
             }
 
             @Override
             protected FDate getLastAvailableSegmentTo(final String key) {
+                if (entities.isEmpty()) {
+                    return null;
+                }
                 return segmentFinder.query().getValue(entities.get(entities.size() - 1)).getTo();
             }
         };
@@ -341,6 +348,7 @@ public class ASegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
 
     @Test
     public void testPreviousValueWithDistance() {
+        Throwables.setDebugStackTraceEnabled(true);
         FDate previousValue = cache.query().getPreviousValue(new FDate(), entities.size());
         Assertions.assertThat(previousValue).isEqualTo(entities.get(0));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(4);
@@ -603,6 +611,7 @@ public class ASegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
     public void testNoData() {
         final List<FDate> liste = new ArrayList<FDate>(entities);
         table.deleteRange(KEY);
+        entities.clear();
         for (final FDate entity : liste) {
             final FDate cachedEntity = cache.query().getValue(entity);
             Assertions.assertThat(cachedEntity).isNull();
