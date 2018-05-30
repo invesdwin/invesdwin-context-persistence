@@ -29,6 +29,7 @@ import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.eviction.EvictionMode;
 import de.invesdwin.util.collections.iterable.ASkippingIterable;
 import de.invesdwin.util.collections.iterable.ATransformingCloseableIterable;
+import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -205,7 +206,13 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
 
     public ICloseableIterable<V> readRangeValues(final FDate from, final FDate to) {
         final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
+        if (firstAvailableSegmentFrom == null) {
+            return EmptyCloseableIterable.getInstance();
+        }
         final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key);
+        if (lastAvailableSegmentTo == null) {
+            return EmptyCloseableIterable.getInstance();
+        }
         //adjust dates directly to prevent unnecessary segment calculations
         final FDate adjFrom = FDates.max(from, firstAvailableSegmentFrom);
         final FDate adjTo = FDates.min(to, lastAvailableSegmentTo);
@@ -253,7 +260,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
     }
 
     private void maybeInitSegment(final SegmentedKey<K> segmentedKey) {
-        assertValidSegment(segmentedKey);
+        if (!assertValidSegment(segmentedKey)) {
+            return;
+        }
         //1. check segment status in series storage
         final ReadWriteLock segmentTableLock = segmentedTable.getTableLock(segmentedKey);
         /*
@@ -295,14 +304,14 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
         //3. if true do nothing
     }
 
-    private void assertValidSegment(final SegmentedKey<K> segmentedKey) {
+    private boolean assertValidSegment(final SegmentedKey<K> segmentedKey) {
         final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(segmentedKey.getKey());
         if (firstAvailableSegmentFrom == null) {
-            throw new IllegalStateException("firstAvailableSegmentFrom should not be null here");
+            return false;
         }
         final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(segmentedKey.getKey());
         if (lastAvailableSegmentTo == null) {
-            throw new IllegalStateException("lastAvailableSegmentTo should not be null here");
+            return false;
         }
         if (firstAvailableSegmentFrom.isAfter(lastAvailableSegmentTo)) {
             throw new IllegalStateException(segmentedKey + ": firstAvailableSegmentFrom [" + firstAvailableSegmentFrom
@@ -319,6 +328,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
             throw new IllegalStateException(segmentedKey + ": segmentTo [" + segmentTo
                     + "] should not be after lastAvailableSegmentTo [" + lastAvailableSegmentTo + "]");
         }
+        return true;
     }
 
     private void initSegmentWithStatusHandling(final SegmentedKey<K> segmentedKey) {

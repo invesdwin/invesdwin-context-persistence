@@ -119,11 +119,17 @@ public class ASegmentedTimeSeriesDBWithLimitedCacheTest extends ATest {
 
             @Override
             protected FDate getFirstAvailableSegmentFrom(final String key) {
+                if (entities.isEmpty()) {
+                    return null;
+                }
                 return segmentFinder.query().getValue(entities.get(0)).getFrom();
             }
 
             @Override
             protected FDate getLastAvailableSegmentTo(final String key) {
+                if (entities.isEmpty()) {
+                    return null;
+                }
                 return segmentFinder.query().getValue(entities.get(entities.size() - 1)).getTo();
             }
         };

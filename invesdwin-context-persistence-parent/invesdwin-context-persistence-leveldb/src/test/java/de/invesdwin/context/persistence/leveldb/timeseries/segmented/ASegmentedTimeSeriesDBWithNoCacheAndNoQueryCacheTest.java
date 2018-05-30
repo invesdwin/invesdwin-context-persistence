@@ -74,8 +74,43 @@ public class ASegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        final AHistoricalCache<TimeRange> segmentFinder = PeriodicalSegmentFinder
-                .newCache(new Duration(2, FTimeUnit.YEARS));
+        final AHistoricalCache<TimeRange> segmentFinder = new AHistoricalCache<TimeRange>() {
+
+            private final PeriodicalSegmentFinder calculation = PeriodicalSegmentFinder
+                    .newInstance(new Duration(2, FTimeUnit.YEARS));
+
+            @Override
+            protected Integer getInitialMaximumSize() {
+                return 1000;
+            }
+
+            @Override
+            protected FDate innerExtractKey(final FDate key, final TimeRange value) {
+                return value.getFrom();
+            }
+
+            @Override
+            protected synchronized TimeRange loadValue(final FDate key) {
+                final TimeRange value = calculation.getSegment(key);
+                final TimeRange upperTimeRange = new TimeRange(value.getFrom().addYears(1), value.getTo().addYears(1));
+                if (upperTimeRange.contains(key)) {
+                    return upperTimeRange;
+                } else {
+                    return new TimeRange(value.getFrom().addYears(-1), value.getTo().addYears(-1));
+                }
+            }
+
+            @Override
+            protected FDate innerCalculateNextKey(final FDate key) {
+                return query().getValue(key).getTo().addMilliseconds(1);
+            }
+
+            @Override
+            protected FDate innerCalculatePreviousKey(final FDate key) {
+                return query().getValue(key).getFrom().addMilliseconds(-1);
+            }
+
+        };
         table = new ASegmentedTimeSeriesDB<String, FDate>(getClass().getSimpleName(), segmentFinder) {
 
             @Override
@@ -121,11 +156,17 @@ public class ASegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest 
 
             @Override
             protected FDate getFirstAvailableSegmentFrom(final String key) {
+                if (entities.isEmpty()) {
+                    return null;
+                }
                 return segmentFinder.query().getValue(entities.get(0)).getFrom();
             }
 
             @Override
             protected FDate getLastAvailableSegmentTo(final String key) {
+                if (entities.isEmpty()) {
+                    return null;
+                }
                 return segmentFinder.query().getValue(entities.get(entities.size() - 1)).getTo();
             }
         };
@@ -823,7 +864,7 @@ public class ASegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest 
     @Test
     public void testNewEntityIncomingAfterClear() throws IncompleteUpdateFoundException {
         final List<FDate> newEntities = new ArrayList<FDate>(entities);
-        final FDate newEntity = FDateBuilder.newDate(1996, 1, 1);
+        final FDate newEntity = FDateBuilder.newDate(1997, 1, 1);
         newEntities.add(newEntity);
         for (final FDate entity : newEntities) {
             final FDate value = cache.query().getValue(entity);
@@ -851,7 +892,7 @@ public class ASegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest 
             }
         });
         final List<FDate> newEntities = new ArrayList<FDate>(entities);
-        final FDate newEntity = FDateBuilder.newDate(1996, 1, 1);
+        final FDate newEntity = FDateBuilder.newDate(1997, 1, 1);
         newEntities.add(newEntity);
         for (final FDate entity : newEntities) {
             final FDate value = cache.query().getValue(entity);
@@ -879,7 +920,7 @@ public class ASegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest 
         cache.setAdjustKeyProvider(adjustKeyProvider);
         adjustKeyProvider.pushHighestAllowedKey(entities.get(entities.size() - 1));
         final List<FDate> newEntities = new ArrayList<FDate>(entities);
-        final FDate newEntity = FDateBuilder.newDate(1996, 1, 1);
+        final FDate newEntity = FDateBuilder.newDate(1997, 1, 1);
         newEntities.add(newEntity);
         for (final FDate entity : newEntities) {
             final FDate value = cache.query().getValue(entity);
@@ -908,7 +949,7 @@ public class ASegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest 
         };
         cache.setAdjustKeyProvider(adjustKeyProvider);
         final List<FDate> newEntities = new ArrayList<FDate>(entities);
-        final FDate newEntity = FDateBuilder.newDate(1996, 1, 1);
+        final FDate newEntity = FDateBuilder.newDate(1997, 1, 1);
         newEntities.add(newEntity);
         for (final FDate entity : newEntities) {
             final FDate value = cache.query().getValue(entity);
@@ -936,7 +977,7 @@ public class ASegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest 
         };
         cache.setAdjustKeyProvider(adjustKeyProvider);
         final List<FDate> newEntities = new ArrayList<FDate>(entities);
-        final FDate newEntity = FDateBuilder.newDate(1996, 1, 1);
+        final FDate newEntity = FDateBuilder.newDate(1997, 1, 1);
         newEntities.add(newEntity);
         for (final FDate entity : newEntities) {
             final FDate value = cache.query().getValue(entity);

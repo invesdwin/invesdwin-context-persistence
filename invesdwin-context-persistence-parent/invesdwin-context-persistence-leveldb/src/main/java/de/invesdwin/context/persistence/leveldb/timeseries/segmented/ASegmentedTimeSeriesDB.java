@@ -230,6 +230,9 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
                 if (readRangeValues == null) {
                     readLock.lock();
                     readRangeValues = getLookupTableCache(key).readRangeValues(from, to).iterator();
+                    if (readRangeValues instanceof EmptyCloseableIterator) {
+                        readLock.unlock();
+                    }
                 }
                 return readRangeValues;
             }
@@ -270,6 +273,9 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
                 if (readRangeValues == null) {
                     readLock.lock();
                     readRangeValues = getLookupTableCache(key).readRangeValuesReverse(from, to).iterator();
+                    if (readRangeValues instanceof EmptyCloseableIterator) {
+                        readLock.unlock();
+                    }
                 }
                 return readRangeValues;
             }
