@@ -67,9 +67,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                         @Override
                         public SingleValue apply(final Pair<String, FDate> input) {
                             final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
-                            final FDate adjFrom = firstAvailableSegmentFrom;
                             //already adjusted on the outside
-                            final FDate adjTo = input.getSecond();
+                            final FDate adjFrom = input.getSecond();
+                            final FDate adjTo = firstAvailableSegmentFrom;
                             final ICloseableIterable<TimeRange> segmentsReverse = getSegmentsReverse(adjFrom, adjTo);
                             try (ICloseableIterator<TimeRange> it = segmentsReverse.iterator()) {
                                 V latestValue = null;
@@ -79,15 +79,14 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                                     maybeInitSegment(segmentedKey);
                                     final V newValue = segmentedTable.getLatestValue(segmentedKey, date);
                                     final FDate newValueTime = segmentedTable.extractTime(newValue);
-                                    if (newValueTime.isAfter(date)) {
+                                    if (newValueTime.isBeforeOrEqualTo(date)) {
                                         /*
                                          * even if we got the first value in this segment and it is after the desired
                                          * key we just continue to the beginning to search for an earlier value until we
                                          * reach the overall firstValue
                                          */
-                                        break;
-                                    } else {
                                         latestValue = newValue;
+                                        break;
                                     }
                                 }
                                 if (latestValue == null) {

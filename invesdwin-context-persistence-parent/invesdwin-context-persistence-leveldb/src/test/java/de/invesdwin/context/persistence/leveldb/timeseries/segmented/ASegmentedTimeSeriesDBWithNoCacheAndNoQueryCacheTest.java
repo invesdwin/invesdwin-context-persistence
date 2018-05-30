@@ -612,6 +612,7 @@ public class ASegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest 
     public void testNoData() {
         final List<FDate> liste = new ArrayList<FDate>(entities);
         table.deleteRange(KEY);
+        entities.clear();
         for (final FDate entity : liste) {
             final FDate cachedEntity = cache.query().getValue(entity);
             Assertions.assertThat(cachedEntity).isNull();
