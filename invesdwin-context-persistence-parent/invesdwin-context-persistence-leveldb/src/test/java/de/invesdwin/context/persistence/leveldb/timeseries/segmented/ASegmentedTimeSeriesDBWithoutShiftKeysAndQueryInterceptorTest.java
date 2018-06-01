@@ -122,7 +122,7 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
             }
 
             @Override
-            protected FDate getFirstAvailableSegmentFrom(final String key) {
+            protected FDate getFirstAvailableHistoricalSegmentFrom(final String key) {
                 if (entities.isEmpty()) {
                     return null;
                 }
@@ -130,7 +130,7 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
             }
 
             @Override
-            protected FDate getLastAvailableSegmentTo(final String key) {
+            protected FDate getLastAvailableHistoricalSegmentTo(final String key) {
                 if (entities.isEmpty()) {
                     return null;
                 }

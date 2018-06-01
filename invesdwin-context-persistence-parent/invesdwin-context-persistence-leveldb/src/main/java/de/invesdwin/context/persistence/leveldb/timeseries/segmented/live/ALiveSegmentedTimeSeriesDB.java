@@ -144,12 +144,12 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         }
 
         @Override
-        public FDate getFirstAvailableSegmentFrom(final K key) {
+        public FDate getFirstAvailableHistoricalSegmentFrom(final K key) {
             return ALiveSegmentedTimeSeriesDB.this.getFirstAvailableHistoricalSegmentFrom(key);
         }
 
         @Override
-        public FDate getLastAvailableSegmentTo(final K key) {
+        public FDate getLastAvailableHistoricalSegmentTo(final K key) {
             return ALiveSegmentedTimeSeriesDB.this.getLastAvailableHistoricalSegmentTo(key);
         }
 

@@ -118,7 +118,7 @@ public class ASegmentedTimeSeriesDBWithLimitedCacheTest extends ATest {
             }
 
             @Override
-            protected FDate getFirstAvailableSegmentFrom(final String key) {
+            protected FDate getFirstAvailableHistoricalSegmentFrom(final String key) {
                 if (entities.isEmpty()) {
                     return null;
                 }
@@ -126,7 +126,7 @@ public class ASegmentedTimeSeriesDBWithLimitedCacheTest extends ATest {
             }
 
             @Override
-            protected FDate getLastAvailableSegmentTo(final String key) {
+            protected FDate getLastAvailableHistoricalSegmentTo(final String key) {
                 if (entities.isEmpty()) {
                     return null;
                 }

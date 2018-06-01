@@ -48,12 +48,12 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
                     @Override
                     protected FDate getLastAvailableSegmentTo(final K key) {
-                        return ASegmentedTimeSeriesDB.this.getLastAvailableSegmentTo(key);
+                        return ASegmentedTimeSeriesDB.this.getLastAvailableHistoricalSegmentTo(key);
                     }
 
                     @Override
                     protected FDate getFirstAvailableSegmentFrom(final K key) {
-                        return ASegmentedTimeSeriesDB.this.getFirstAvailableSegmentFrom(key);
+                        return ASegmentedTimeSeriesDB.this.getFirstAvailableHistoricalSegmentFrom(key);
                     }
 
                     @Override
@@ -100,9 +100,9 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
     protected abstract String hashKeyToString(K key);
 
-    protected abstract FDate getFirstAvailableSegmentFrom(K key);
+    protected abstract FDate getFirstAvailableHistoricalSegmentFrom(K key);
 
-    protected abstract FDate getLastAvailableSegmentTo(K key);
+    protected abstract FDate getLastAvailableHistoricalSegmentTo(K key);
 
     public final class SegmentedTable extends ATimeSeriesDB<SegmentedKey<K>, V> {
         private SegmentedTable(final String name) {

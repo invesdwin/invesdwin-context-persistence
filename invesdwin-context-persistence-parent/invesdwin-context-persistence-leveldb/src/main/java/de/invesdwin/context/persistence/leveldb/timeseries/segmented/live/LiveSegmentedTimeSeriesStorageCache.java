@@ -192,7 +192,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> {
 
     public void putNextLiveValue(final V nextLiveValue) {
         final FDate nextLiveKey = historicalSegmentTable.extractTime(nextLiveValue);
-        final FDate lastAvailableHistoricalSegmentTo = historicalSegmentTable.getLastAvailableSegmentTo(key);
+        final FDate lastAvailableHistoricalSegmentTo = historicalSegmentTable.getLastAvailableHistoricalSegmentTo(key);
         final TimeRange segment = segmentFinder.query().getValue(nextLiveKey);
         if (lastAvailableHistoricalSegmentTo.isAfterOrEqualTo(segment.getFrom())) {
             throw new IllegalStateException("lastAvailableHistoricalSegmentTo [" + lastAvailableHistoricalSegmentTo
