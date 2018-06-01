@@ -118,7 +118,11 @@ public class LiveSegment<K, V> {
         } catch (final NoSuchElementException e) {
             //ignore
         }
-        return nextValue;
+        if (nextValue != null) {
+            return nextValue;
+        } else {
+            return getLastValue();
+        }
     }
 
     public V getLatestValue(final FDate date) {

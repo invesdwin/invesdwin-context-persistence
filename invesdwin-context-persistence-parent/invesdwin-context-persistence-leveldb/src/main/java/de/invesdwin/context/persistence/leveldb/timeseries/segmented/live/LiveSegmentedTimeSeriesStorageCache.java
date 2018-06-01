@@ -172,9 +172,10 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> {
         if (liveSegment == null) {
             //no live segment, go with historical
             return historicalSegmentTable.getNextValue(key, date, shiftForwardUnits);
-        } else if (liveSegment.getSegmentedKey().getSegment().getFrom().isAfter(date)) {
+        } else if (liveSegment.getSegmentedKey().getSegment().getFrom().isBefore(date)) {
             //live segment is after requested range, go with live
-            return liveSegment.getNextValue(date, shiftForwardUnits);
+            final V nextValue = liveSegment.getNextValue(date, shiftForwardUnits);
+            return nextValue;
         } else {
             //use both segments
             V nextValue = null;
@@ -191,17 +192,21 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> {
 
     public void putNextLiveValue(final V nextLiveValue) {
         final FDate nextLiveKey = historicalSegmentTable.extractTime(nextLiveValue);
+        final FDate lastAvailableHistoricalSegmentTo = historicalSegmentTable.getLastAvailableSegmentTo(key);
+        final TimeRange segment = segmentFinder.query().getValue(nextLiveKey);
+        if (lastAvailableHistoricalSegmentTo.isAfterOrEqualTo(segment.getFrom())) {
+            throw new IllegalStateException("lastAvailableHistoricalSegmentTo [" + lastAvailableHistoricalSegmentTo
+                    + "] should be before segmentFrom [" + segment.getFrom() + "]");
+        }
         if (liveSegment != null && nextLiveKey.isAfter(liveSegment.getSegmentedKey().getSegment().getTo())) {
+            if (!lastAvailableHistoricalSegmentTo.equals(liveSegment.getSegmentedKey().getSegment().getTo())) {
+                throw new IllegalStateException("lastAvailableHistoricalSegmentTo [" + lastAvailableHistoricalSegmentTo
+                        + "] should be equal to liveSegmentTo [" + segment.getFrom() + "]");
+            }
             convertLiveSegmentToHistorical();
             liveSegment = null;
         }
         if (liveSegment == null) {
-            final TimeRange segment = segmentFinder.query().getValue(nextLiveKey);
-            final FDate lastAvailableHistoricalSegmentTo = historicalSegmentTable.getLastAvailableSegmentTo(key);
-            if (lastAvailableHistoricalSegmentTo.isAfterOrEqualTo(segment.getFrom())) {
-                throw new IllegalStateException("lastAvailableHistoricalSegmentTo [" + lastAvailableHistoricalSegmentTo
-                        + "] should be before liveSegmentFrom [" + segment.getFrom() + "]");
-            }
             final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
             liveSegment = new LiveSegment<>(segmentedKey);
         }
