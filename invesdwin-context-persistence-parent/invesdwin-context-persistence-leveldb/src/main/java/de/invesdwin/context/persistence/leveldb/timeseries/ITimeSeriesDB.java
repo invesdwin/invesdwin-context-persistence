@@ -4,7 +4,7 @@ import java.io.Closeable;
 import java.io.File;
 import java.util.concurrent.locks.ReadWriteLock;
 
-import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.time.fdate.FDate;
 
 public interface ITimeSeriesDB<K, V> extends Closeable {
@@ -13,12 +13,12 @@ public interface ITimeSeriesDB<K, V> extends Closeable {
 
     ReadWriteLock getTableLock(K key);
 
-    ICloseableIterator<V> rangeValues(K key, FDate from, FDate to);
+    ICloseableIterable<V> rangeValues(K key, FDate from, FDate to);
 
     /**
      * from should be greater than or equal to to, so it is inverted from rangeValues(...)
      */
-    ICloseableIterator<V> rangeReverseValues(K key, FDate from, FDate to);
+    ICloseableIterable<V> rangeReverseValues(K key, FDate from, FDate to);
 
     V getLatestValue(K key, FDate date);
 

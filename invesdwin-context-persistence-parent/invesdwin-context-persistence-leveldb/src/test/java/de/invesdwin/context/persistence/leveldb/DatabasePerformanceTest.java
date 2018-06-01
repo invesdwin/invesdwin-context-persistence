@@ -178,7 +178,7 @@ public class DatabasePerformanceTest extends ATest {
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
             FDate prevValue = null;
-            final ICloseableIterator<? extends FDate> range = table.rangeValues(HASH_KEY, null, null);
+            final ICloseableIterator<? extends FDate> range = table.rangeValues(HASH_KEY, null, null).iterator();
             int count = 0;
             while (true) {
                 try {

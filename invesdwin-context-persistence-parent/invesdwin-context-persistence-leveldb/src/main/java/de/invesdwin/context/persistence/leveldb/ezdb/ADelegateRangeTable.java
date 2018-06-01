@@ -7,14 +7,13 @@ import java.util.Map.Entry;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Function;
 
 import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.commons.io.FileUtils;
 import org.iq80.leveldb.DB;
 import org.iq80.leveldb.DBIterator;
-
-import com.google.common.base.Function;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;

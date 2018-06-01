@@ -5,12 +5,11 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
+import java.util.function.Function;
 
-import javax.annotation.concurrent.ThreadSafe;
+import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.lang3.SerializationException;
-
-import com.google.common.base.Function;
 
 import de.invesdwin.context.integration.retry.ARetryingRunnable;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
@@ -43,7 +42,7 @@ import de.invesdwin.util.time.fdate.FDates;
 import ezdb.TableRow;
 import ezdb.serde.Serde;
 
-@ThreadSafe
+@NotThreadSafe
 public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
     public static final Integer MAXIMUM_SIZE = TimeSeriesStorageCache.MAXIMUM_SIZE;
     public static final EvictionMode EVICTION_MODE = TimeSeriesStorageCache.EVICTION_MODE;
@@ -192,6 +191,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
     private final K key;
     private final String hashKey;
     private final Serde<V> valueSerde;
+    private final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source;
 
     public ASegmentedTimeSeriesStorageCache(final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable,
             final SegmentedTimeSeriesStorage storage, final K key, final String hashKey,
@@ -202,6 +202,12 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
         this.hashKey = hashKey;
         this.segmentFinder = segmentFinder;
         this.valueSerde = segmentedTable.getValueSerde();
+        this.source = new Function<SegmentedKey<K>, ICloseableIterable<? extends V>>() {
+            @Override
+            public ICloseableIterable<? extends V> apply(final SegmentedKey<K> t) {
+                return downloadSegmentElements(t.getKey(), t.getSegment().getFrom(), t.getSegment().getTo());
+            }
+        };
     }
 
     public ICloseableIterable<V> readRangeValues(final FDate from, final FDate to) {
@@ -228,7 +234,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                         maybeInitSegment(segmentedKey);
                         final FDate segmentAdjFrom = FDates.max(adjFrom, value.getFrom());
                         final FDate segmentAdjTo = FDates.min(adjTo, value.getTo());
-                        return segmentedTable.rangeValues(segmentedKey, segmentAdjFrom, segmentAdjTo);
+                        return segmentedTable.rangeValues(segmentedKey, segmentAdjFrom, segmentAdjTo).iterator();
                     }
                 };
             }
@@ -260,8 +266,13 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
     }
 
     private void maybeInitSegment(final SegmentedKey<K> segmentedKey) {
+        maybeInitSegment(segmentedKey, source);
+    }
+
+    public boolean maybeInitSegment(final SegmentedKey<K> segmentedKey,
+            final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
         if (!assertValidSegment(segmentedKey)) {
-            return;
+            return false;
         }
         //1. check segment status in series storage
         final ReadWriteLock segmentTableLock = segmentedTable.getTableLock(segmentedKey);
@@ -295,13 +306,15 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                         segmentedTable.deleteRange(segmentedKey);
                         storage.getSegmentStatusTable().delete(hashKey, segmentedKey.getSegment());
                     }
-                    initSegmentWithStatusHandling(segmentedKey);
+                    initSegmentWithStatusHandling(segmentedKey, source);
+                    return true;
                 } finally {
                     segmentWriteLock.unlock();
                 }
             }
         }
         //3. if true do nothing
+        return false;
     }
 
     private boolean assertValidSegment(final SegmentedKey<K> segmentedKey) {
@@ -331,10 +344,11 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
         return true;
     }
 
-    private void initSegmentWithStatusHandling(final SegmentedKey<K> segmentedKey) {
+    private void initSegmentWithStatusHandling(final SegmentedKey<K> segmentedKey,
+            final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
         storage.getSegmentStatusTable().put(hashKey, segmentedKey.getSegment(), SegmentStatus.INITIALIZING);
         maybePrepareForUpdate(segmentedKey.getSegment());
-        initSegmentRetry(segmentedKey);
+        initSegmentRetry(segmentedKey, source);
         if (segmentedTable.isEmptyOrInconsistent(segmentedKey)) {
             throw new IllegalStateException(
                     "Initialization of segment [" + segmentedKey + "] should have added at least one entry");
@@ -353,24 +367,26 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
         }
     }
 
-    private void initSegmentRetry(final SegmentedKey<K> segmentedKey) {
+    private void initSegmentRetry(final SegmentedKey<K> segmentedKey,
+            final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
         new ARetryingRunnable(new RetryOriginator(ASegmentedTimeSeriesDB.class, "initSegment", segmentedKey)) {
             @Override
             protected void runRetryable() throws Exception {
-                initSegment(segmentedKey);
+                initSegment(segmentedKey, source);
             }
         }.run();
     }
 
-    private void initSegment(final SegmentedKey<K> segmentedKey) {
+    private void initSegment(final SegmentedKey<K> segmentedKey,
+            final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
         try {
             final ALoggingTimeSeriesUpdater<SegmentedKey<K>, V> updater = new ALoggingTimeSeriesUpdater<SegmentedKey<K>, V>(
                     segmentedKey, segmentedTable, log) {
 
                 @Override
                 protected ICloseableIterable<? extends V> getSource(final FDate updateFrom) {
-                    return downloadSegmentElements(segmentedKey.getKey(), segmentedKey.getSegment().getFrom(),
-                            segmentedKey.getSegment().getTo());
+                    Assertions.checkNull(updateFrom);
+                    return source.apply(segmentedKey);
                 }
 
                 @Override
@@ -385,7 +401,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
 
                 @Override
                 protected String keyToString(final SegmentedKey<K> key) {
-                    return segmentedTable.hashKeyToString(segmentedKey);
+                    return segmentedTable.hashKeyToString(key);
                 }
 
                 @Override
@@ -438,7 +454,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                         maybeInitSegment(segmentedKey);
                         final FDate segmentAdjFrom = FDates.min(adjFrom, value.getTo());
                         final FDate segmentAdjTo = FDates.max(adjTo, value.getFrom());
-                        return segmentedTable.rangeReverseValues(segmentedKey, segmentAdjFrom, segmentAdjTo);
+                        return segmentedTable.rangeReverseValues(segmentedKey, segmentAdjFrom, segmentAdjTo).iterator();
                     }
                 };
             }

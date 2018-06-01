@@ -12,7 +12,7 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 
 import javax.annotation.concurrent.GuardedBy;
-import javax.annotation.concurrent.ThreadSafe;
+import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
@@ -44,7 +44,7 @@ import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
 
-@ThreadSafe
+@NotThreadSafe
 public class TimeSeriesStorageCache<K, V> {
     public static final Integer MAXIMUM_SIZE = 1_000;
     public static final EvictionMode EVICTION_MODE = AHistoricalCache.EVICTION_MODE;

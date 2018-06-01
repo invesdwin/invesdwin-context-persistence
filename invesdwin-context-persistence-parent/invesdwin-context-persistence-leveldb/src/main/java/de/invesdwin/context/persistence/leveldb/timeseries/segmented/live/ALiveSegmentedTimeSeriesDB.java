@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.leveldb.timeseries.segmented;
+package de.invesdwin.context.persistence.leveldb.timeseries.segmented.live;
 
 import java.io.File;
 import java.io.IOException;
@@ -12,7 +12,9 @@ import javax.annotation.concurrent.ThreadSafe;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.persistence.leveldb.timeseries.ATimeSeriesDB;
 import de.invesdwin.context.persistence.leveldb.timeseries.ITimeSeriesDB;
-import de.invesdwin.context.persistence.leveldb.timeseries.storage.TimeSeriesStorage;
+import de.invesdwin.context.persistence.leveldb.timeseries.segmented.ASegmentedTimeSeriesDB;
+import de.invesdwin.context.persistence.leveldb.timeseries.segmented.ASegmentedTimeSeriesStorageCache;
+import de.invesdwin.context.persistence.leveldb.timeseries.segmented.SegmentedTimeSeriesStorage;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -24,9 +26,9 @@ import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
 
 @ThreadSafe
-public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
+public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
-    private final SegmentedTable segmentedTable;
+    private final HistoricalSegmentTable historicalSegmentTable;
     private final ALoadingCache<K, ReadWriteLock> key_tableLock = new ALoadingCache<K, ReadWriteLock>() {
         @Override
         protected ReadWriteLock loadValue(final K key) {
@@ -34,35 +36,15 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         }
     };
     private final AHistoricalCache<TimeRange> segmentFinder;
-    private final ALoadingCache<K, ASegmentedTimeSeriesStorageCache<K, V>> key_lookupTableCache;
+    private final ALoadingCache<K, LiveSegmentedTimeSeriesStorageCache<K, V>> key_lookupTableCache;
 
-    public ASegmentedTimeSeriesDB(final String name, final AHistoricalCache<TimeRange> segmentFinder) {
-        this.segmentedTable = new SegmentedTable(name);
+    public ALiveSegmentedTimeSeriesDB(final String name, final AHistoricalCache<TimeRange> segmentFinder) {
+        this.historicalSegmentTable = new HistoricalSegmentTable(name, segmentFinder);
         this.segmentFinder = segmentFinder;
-        this.key_lookupTableCache = new ALoadingCache<K, ASegmentedTimeSeriesStorageCache<K, V>>() {
+        this.key_lookupTableCache = new ALoadingCache<K, LiveSegmentedTimeSeriesStorageCache<K, V>>() {
             @Override
-            protected ASegmentedTimeSeriesStorageCache<K, V> loadValue(final K key) {
-                final String hashKey = hashKeyToString(key);
-                return new ASegmentedTimeSeriesStorageCache<K, V>(segmentedTable, getStorage(), key, hashKey,
-                        segmentFinder) {
-
-                    @Override
-                    protected FDate getLastAvailableSegmentTo(final K key) {
-                        return ASegmentedTimeSeriesDB.this.getLastAvailableSegmentTo(key);
-                    }
-
-                    @Override
-                    protected FDate getFirstAvailableSegmentFrom(final K key) {
-                        return ASegmentedTimeSeriesDB.this.getFirstAvailableSegmentFrom(key);
-                    }
-
-                    @Override
-                    protected ICloseableIterable<? extends V> downloadSegmentElements(final K key, final FDate from,
-                            final FDate to) {
-                        return ASegmentedTimeSeriesDB.this.downloadSegmentElements(key, from, to);
-                    }
-
-                };
+            protected LiveSegmentedTimeSeriesStorageCache<K, V> loadValue(final K key) {
+                return new LiveSegmentedTimeSeriesStorageCache<K, V>(historicalSegmentTable, key, segmentFinder);
             }
 
         };
@@ -74,10 +56,6 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         return new SegmentedTimeSeriesStorage(directory);
     }
 
-    protected SegmentedTable getSegmentedTable() {
-        return segmentedTable;
-    }
-
     protected void deleteCorruptedStorage(final File directory) {
         directory.delete();
     }
@@ -87,7 +65,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
     }
 
     protected SegmentedTimeSeriesStorage getStorage() {
-        return (SegmentedTimeSeriesStorage) segmentedTable.getStorage();
+        return historicalSegmentTable.getStorage();
     }
 
     protected abstract Integer newFixedLength();
@@ -100,83 +78,98 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
     protected abstract String hashKeyToString(K key);
 
-    protected abstract FDate getFirstAvailableSegmentFrom(K key);
+    protected abstract FDate getFirstAvailableHistoricalSegmentFrom(K key);
 
-    protected abstract FDate getLastAvailableSegmentTo(K key);
+    protected abstract FDate getLastAvailableHistoricalSegmentTo(K key);
 
-    public final class SegmentedTable extends ATimeSeriesDB<SegmentedKey<K>, V> {
-        private SegmentedTable(final String name) {
-            super(name);
-        }
-
-        @Override
-        public Serde<V> getValueSerde() {
-            return super.getValueSerde();
+    protected final class HistoricalSegmentTable extends ASegmentedTimeSeriesDB<K, V> {
+        private HistoricalSegmentTable(final String name, final AHistoricalCache<TimeRange> segmentFinder) {
+            super(name, segmentFinder);
         }
 
         @Override
         protected Integer newFixedLength() {
-            return ASegmentedTimeSeriesDB.this.newFixedLength();
-        }
-
-        @Override
-        public Integer getFixedLength() {
-            return super.getFixedLength();
+            return ALiveSegmentedTimeSeriesDB.this.newFixedLength();
         }
 
         @Override
         protected Serde<V> newValueSerde() {
-            return ASegmentedTimeSeriesDB.this.newValueSerde();
+            return ALiveSegmentedTimeSeriesDB.this.newValueSerde();
         }
 
         @Override
         public FDate extractTime(final V value) {
-            return ASegmentedTimeSeriesDB.this.extractTime(value);
+            return ALiveSegmentedTimeSeriesDB.this.extractTime(value);
         }
 
+        @Override
         public FDate extractEndTime(final V value) {
-            return ASegmentedTimeSeriesDB.this.extractEndTime(value);
+            return ALiveSegmentedTimeSeriesDB.this.extractEndTime(value);
         }
 
         @Override
-        public String hashKeyToString(final SegmentedKey<K> key) {
-            return ASegmentedTimeSeriesDB.this.hashKeyToString(key.getKey()) + "/"
-                    + key.getSegment().getFrom().toString(FDate.FORMAT_TIMESTAMP_UNDERSCORE) + "-"
-                    + key.getSegment().getTo().toString(FDate.FORMAT_TIMESTAMP_UNDERSCORE);
+        public String hashKeyToString(final K key) {
+            return ALiveSegmentedTimeSeriesDB.this.hashKeyToString(key);
         }
 
         @Override
-        protected TimeSeriesStorage newStorage(final File directory) {
-            return ASegmentedTimeSeriesDB.this.newStorage(directory);
+        protected SegmentedTimeSeriesStorage newStorage(final File directory) {
+            return ALiveSegmentedTimeSeriesDB.this.newStorage(directory);
         }
 
         @Override
         protected void deleteCorruptedStorage(final File directory) {
-            ASegmentedTimeSeriesDB.this.deleteCorruptedStorage(directory);
+            ALiveSegmentedTimeSeriesDB.this.deleteCorruptedStorage(directory);
         }
 
         @Override
-        public synchronized TimeSeriesStorage getStorage() {
+        public synchronized SegmentedTimeSeriesStorage getStorage() {
             return super.getStorage();
         }
 
         @Override
+        public ASegmentedTimeSeriesDB<K, V>.SegmentedTable getSegmentedTable() {
+            return super.getSegmentedTable();
+        }
+
+        @Override
         protected File getBaseDirectory() {
-            return ASegmentedTimeSeriesDB.this.getBaseDirectory();
+            return ALiveSegmentedTimeSeriesDB.this.getBaseDirectory();
+        }
+
+        @Override
+        protected ICloseableIterable<? extends V> downloadSegmentElements(final K key, final FDate from,
+                final FDate to) {
+            return ALiveSegmentedTimeSeriesDB.this.downloadSegmentElements(key, from, to);
+        }
+
+        @Override
+        public FDate getFirstAvailableSegmentFrom(final K key) {
+            return ALiveSegmentedTimeSeriesDB.this.getFirstAvailableHistoricalSegmentFrom(key);
+        }
+
+        @Override
+        public FDate getLastAvailableSegmentTo(final K key) {
+            return ALiveSegmentedTimeSeriesDB.this.getLastAvailableHistoricalSegmentTo(key);
+        }
+
+        @Override
+        public ASegmentedTimeSeriesStorageCache<K, V> getLookupTableCache(final K key) {
+            return super.getLookupTableCache(key);
         }
 
     }
 
     @Override
     public synchronized void close() throws IOException {
-        segmentedTable.close();
+        historicalSegmentTable.close();
         key_lookupTableCache.clear();
         key_tableLock.clear();
     }
 
     @Override
     public File getDirectory() {
-        return segmentedTable.getDirectory();
+        return historicalSegmentTable.getDirectory();
     }
 
     @Override
@@ -215,10 +208,10 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
     @Override
     public String getName() {
-        return segmentedTable.getName();
+        return historicalSegmentTable.getName();
     }
 
-    protected ASegmentedTimeSeriesStorageCache<K, V> getLookupTableCache(final K key) {
+    private LiveSegmentedTimeSeriesStorageCache<K, V> getLookupTableCache(final K key) {
         return key_lookupTableCache.get(key);
     }
 
@@ -401,4 +394,13 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         return ATimeSeriesDB.getDefaultBaseDirectory();
     }
 
+    public void putNextLiveValue(final K key, final V nextLiveValue) {
+        final Lock writeLock = getTableLock(key).readLock();
+        writeLock.lock();
+        try {
+            getLookupTableCache(key).putNextLiveValue(nextLiveValue);
+        } finally {
+            writeLock.unlock();
+        }
+    }
 }

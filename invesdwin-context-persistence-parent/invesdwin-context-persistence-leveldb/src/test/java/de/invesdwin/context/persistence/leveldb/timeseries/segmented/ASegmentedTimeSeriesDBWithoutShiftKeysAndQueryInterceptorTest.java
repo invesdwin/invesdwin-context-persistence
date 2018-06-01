@@ -27,7 +27,6 @@ import de.invesdwin.util.collections.Lists;
 import de.invesdwin.util.collections.iterable.ASkippingIterable;
 import de.invesdwin.util.collections.iterable.ATransformingCloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
-import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.loadingcache.historical.AGapHistoricalCache;
@@ -1422,12 +1421,7 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
 
                 @Override
                 public ICloseableIterable<Entry<FDate, FDate>> innerGetEntries(final FDate from, final FDate to) {
-                    final ICloseableIterable<FDate> iterable = new ICloseableIterable<FDate>() {
-                        @Override
-                        public ICloseableIterator<FDate> iterator() {
-                            return table.rangeValues(KEY, from, to);
-                        }
-                    };
+                    final ICloseableIterable<FDate> iterable = table.rangeValues(KEY, from, to);
                     return new ATransformingCloseableIterable<FDate, Entry<FDate, FDate>>(iterable) {
                         @Override
                         protected Entry<FDate, FDate> transform(final FDate value) {
