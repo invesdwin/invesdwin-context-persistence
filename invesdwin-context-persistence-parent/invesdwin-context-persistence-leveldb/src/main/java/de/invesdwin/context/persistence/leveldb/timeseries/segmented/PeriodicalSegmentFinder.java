@@ -2,7 +2,8 @@ package de.invesdwin.context.persistence.leveldb.timeseries.segmented;
 
 import java.util.function.Function;
 
-import javax.annotation.concurrent.NotThreadSafe;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.time.TimeRange;
@@ -11,7 +12,7 @@ import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.fdate.FTimeUnit;
 import de.invesdwin.util.time.fdate.FWeekday;
 
-@NotThreadSafe
+@ThreadSafe
 public class PeriodicalSegmentFinder {
 
     private static final Duration TEN_MILLISECONDS = new Duration(10, FTimeUnit.MILLISECONDS);
@@ -21,7 +22,9 @@ public class PeriodicalSegmentFinder {
 
     private final Duration period;
     private final FTimeUnit boundsTimeUnit;
+    @GuardedBy("this")
     private TimeRange calculationBounds = null;
+    @GuardedBy("this")
     private TimeRange curTimeRange = null;
 
     public PeriodicalSegmentFinder(final Duration period, final FTimeUnit incrementTimeUnit, final int incrementCount,
@@ -59,7 +62,7 @@ public class PeriodicalSegmentFinder {
         this.boundsTimeUnit = boundsTimeUnit;
     }
 
-    public TimeRange getSegment(final FDate key) {
+    public synchronized TimeRange getSegment(final FDate key) {
         if (calculationBounds == null || calculationBounds.getFrom().isAfter(key)
                 || calculationBounds.getTo().isBefore(key)) {
             calculationBounds = newCalculationBounds(key);
@@ -236,7 +239,7 @@ public class PeriodicalSegmentFinder {
             }
 
             @Override
-            protected synchronized TimeRange loadValue(final FDate key) {
+            protected TimeRange loadValue(final FDate key) {
                 return calculation.getSegment(key);
             }
 
