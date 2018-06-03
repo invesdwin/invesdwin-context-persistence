@@ -111,7 +111,12 @@ public class ASegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest 
             }
 
         };
-        table = new ASegmentedTimeSeriesDB<String, FDate>(getClass().getSimpleName(), segmentFinder) {
+        table = new ASegmentedTimeSeriesDB<String, FDate>(getClass().getSimpleName()) {
+
+            @Override
+            protected AHistoricalCache<TimeRange> getSegmentFinder(final String key) {
+                return segmentFinder;
+            }
 
             @Override
             protected Serde<FDate> newValueSerde() {

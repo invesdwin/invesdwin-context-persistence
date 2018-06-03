@@ -33,18 +33,15 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
             return new ReentrantReadWriteLock();
         }
     };
-    private final AHistoricalCache<TimeRange> segmentFinder;
     private final ALoadingCache<K, ASegmentedTimeSeriesStorageCache<K, V>> key_lookupTableCache;
 
-    public ASegmentedTimeSeriesDB(final String name, final AHistoricalCache<TimeRange> segmentFinder) {
+    public ASegmentedTimeSeriesDB(final String name) {
         this.segmentedTable = new SegmentedTable(name);
-        this.segmentFinder = segmentFinder;
         this.key_lookupTableCache = new ALoadingCache<K, ASegmentedTimeSeriesStorageCache<K, V>>() {
             @Override
             protected ASegmentedTimeSeriesStorageCache<K, V> loadValue(final K key) {
                 final String hashKey = hashKeyToString(key);
-                return new ASegmentedTimeSeriesStorageCache<K, V>(segmentedTable, getStorage(), key, hashKey,
-                        segmentFinder) {
+                return new ASegmentedTimeSeriesStorageCache<K, V>(segmentedTable, getStorage(), key, hashKey) {
 
                     @Override
                     protected FDate getLastAvailableSegmentTo(final K key) {
@@ -60,6 +57,11 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
                     protected ICloseableIterable<? extends V> downloadSegmentElements(final K key, final FDate from,
                             final FDate to) {
                         return ASegmentedTimeSeriesDB.this.downloadSegmentElements(key, from, to);
+                    }
+
+                    @Override
+                    protected AHistoricalCache<TimeRange> getSegmentFinder(final K key) {
+                        return ASegmentedTimeSeriesDB.this.getSegmentFinder(key);
                     }
 
                 };
@@ -82,9 +84,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         directory.delete();
     }
 
-    public AHistoricalCache<TimeRange> getTimeRangeFinder() {
-        return segmentFinder;
-    }
+    protected abstract AHistoricalCache<TimeRange> getSegmentFinder(K key);
 
     protected SegmentedTimeSeriesStorage getStorage() {
         return (SegmentedTimeSeriesStorage) segmentedTable.getStorage();

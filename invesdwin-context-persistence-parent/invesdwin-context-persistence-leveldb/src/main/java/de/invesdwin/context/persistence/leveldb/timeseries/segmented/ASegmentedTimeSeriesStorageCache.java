@@ -185,7 +185,6 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
     private volatile Optional<FDate> cachedPrevLastAvailableSegmentTo;
     private final Log log = new Log(this);
 
-    private final AHistoricalCache<TimeRange> segmentFinder;
     private final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable;
     private final SegmentedTimeSeriesStorage storage;
     private final K key;
@@ -194,13 +193,11 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
     private final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source;
 
     public ASegmentedTimeSeriesStorageCache(final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable,
-            final SegmentedTimeSeriesStorage storage, final K key, final String hashKey,
-            final AHistoricalCache<TimeRange> segmentFinder) {
+            final SegmentedTimeSeriesStorage storage, final K key, final String hashKey) {
         this.storage = storage;
         this.segmentedTable = segmentedTable;
         this.key = key;
         this.hashKey = hashKey;
-        this.segmentFinder = segmentFinder;
         this.valueSerde = segmentedTable.getValueSerde();
         this.source = new Function<SegmentedKey<K>, ICloseableIterable<? extends V>>() {
             @Override
@@ -244,7 +241,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
     }
 
     private ICloseableIterable<TimeRange> getSegments(final FDate adjFrom, final FDate adjTo) {
-        final ICloseableIterable<TimeRange> segments = segmentFinder.query().getValues(adjFrom, adjTo);
+        final ICloseableIterable<TimeRange> segments = getSegmentFinder(key).query().getValues(adjFrom, adjTo);
         final ASkippingIterable<TimeRange> filteredSegments = new ASkippingIterable<TimeRange>(segments) {
             @Override
             protected boolean skip(final TimeRange element) {
@@ -264,6 +261,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
         };
         return filteredSegments;
     }
+
+    protected abstract AHistoricalCache<TimeRange> getSegmentFinder(K key);
 
     private void maybeInitSegment(final SegmentedKey<K> segmentedKey) {
         maybeInitSegment(segmentedKey, source);
@@ -470,7 +469,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
             public ICloseableIterator<TimeRange> iterator() {
                 return new ICloseableIterator<TimeRange>() {
 
-                    private TimeRange curSegment = segmentFinder.query().getValue(adjFrom);
+                    private TimeRange curSegment = getSegmentFinder(key).query().getValue(adjFrom);
 
                     @Override
                     public boolean hasNext() {
@@ -481,7 +480,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                     public TimeRange next() {
                         final TimeRange next = curSegment;
                         //get one segment earlier
-                        curSegment = segmentFinder.query().getValue(curSegment.getFrom().addMilliseconds(-1));
+                        curSegment = getSegmentFinder(key).query().getValue(curSegment.getFrom().addMilliseconds(-1));
                         return next;
                     }
 
@@ -615,7 +614,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
             if (firstAvailableSegmentFrom == null) {
                 cachedFirstValue = Optional.empty();
             } else {
-                final TimeRange segment = segmentFinder.query().getValue(firstAvailableSegmentFrom);
+                final TimeRange segment = getSegmentFinder(key).query().getValue(firstAvailableSegmentFrom);
                 Assertions.assertThat(segment.getFrom()).isEqualTo(firstAvailableSegmentFrom);
                 final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
                 maybeInitSegment(segmentedKey);
@@ -643,7 +642,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
             if (lastAvailableSegmentTo == null) {
                 cachedLastValue = Optional.empty();
             } else {
-                final TimeRange segment = segmentFinder.query().getValue(lastAvailableSegmentTo);
+                final TimeRange segment = getSegmentFinder(key).query().getValue(lastAvailableSegmentTo);
                 Assertions.assertThat(segment.getTo()).isEqualTo(lastAvailableSegmentTo);
                 final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
                 maybeInitSegment(segmentedKey);

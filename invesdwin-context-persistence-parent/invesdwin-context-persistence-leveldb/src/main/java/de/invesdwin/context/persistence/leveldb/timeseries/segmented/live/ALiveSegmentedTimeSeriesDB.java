@@ -35,18 +35,15 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
             return new ReentrantReadWriteLock();
         }
     };
-    private final AHistoricalCache<TimeRange> segmentFinder;
     private final ALoadingCache<K, LiveSegmentedTimeSeriesStorageCache<K, V>> key_lookupTableCache;
 
-    public ALiveSegmentedTimeSeriesDB(final String name, final AHistoricalCache<TimeRange> segmentFinder) {
-        this.historicalSegmentTable = new HistoricalSegmentTable(name, segmentFinder);
-        this.segmentFinder = segmentFinder;
+    public ALiveSegmentedTimeSeriesDB(final String name) {
+        this.historicalSegmentTable = new HistoricalSegmentTable(name);
         this.key_lookupTableCache = new ALoadingCache<K, LiveSegmentedTimeSeriesStorageCache<K, V>>() {
             @Override
             protected LiveSegmentedTimeSeriesStorageCache<K, V> loadValue(final K key) {
-                return new LiveSegmentedTimeSeriesStorageCache<K, V>(historicalSegmentTable, key, segmentFinder);
+                return new LiveSegmentedTimeSeriesStorageCache<K, V>(historicalSegmentTable, key);
             }
-
         };
     }
 
@@ -60,9 +57,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         directory.delete();
     }
 
-    public AHistoricalCache<TimeRange> getTimeRangeFinder() {
-        return segmentFinder;
-    }
+    protected abstract AHistoricalCache<TimeRange> getSegmentFinder(K key);
 
     protected SegmentedTimeSeriesStorage getStorage() {
         return historicalSegmentTable.getStorage();
@@ -83,8 +78,8 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
     protected abstract FDate getLastAvailableHistoricalSegmentTo(K key);
 
     protected final class HistoricalSegmentTable extends ASegmentedTimeSeriesDB<K, V> {
-        private HistoricalSegmentTable(final String name, final AHistoricalCache<TimeRange> segmentFinder) {
-            super(name, segmentFinder);
+        private HistoricalSegmentTable(final String name) {
+            super(name);
         }
 
         @Override
@@ -156,6 +151,11 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         @Override
         public ASegmentedTimeSeriesStorageCache<K, V> getLookupTableCache(final K key) {
             return super.getLookupTableCache(key);
+        }
+
+        @Override
+        public AHistoricalCache<TimeRange> getSegmentFinder(final K key) {
+            return ALiveSegmentedTimeSeriesDB.this.getSegmentFinder(key);
         }
 
     }

@@ -13,7 +13,6 @@ import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
-import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.time.TimeRange;
 import de.invesdwin.util.time.fdate.FDate;
 
@@ -22,7 +21,6 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> {
 
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
     private final K key;
-    private final AHistoricalCache<TimeRange> segmentFinder;
     private LiveSegment<K, V> liveSegment;
     private final Function<FDate, V> liveSegmentLatestValueProvider = new Function<FDate, V>() {
         @Override
@@ -40,11 +38,9 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> {
             historicalSegmentLatestValueProvider);
 
     public LiveSegmentedTimeSeriesStorageCache(
-            final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable, final K key,
-            final AHistoricalCache<TimeRange> segmentFinder) {
+            final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable, final K key) {
         this.historicalSegmentTable = historicalSegmentTable;
         this.key = key;
-        this.segmentFinder = segmentFinder;
     }
 
     public boolean isEmptyOrInconsistent() {
@@ -193,7 +189,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> {
     public void putNextLiveValue(final V nextLiveValue) {
         final FDate nextLiveKey = historicalSegmentTable.extractTime(nextLiveValue);
         final FDate lastAvailableHistoricalSegmentTo = historicalSegmentTable.getLastAvailableHistoricalSegmentTo(key);
-        final TimeRange segment = segmentFinder.query().getValue(nextLiveKey);
+        final TimeRange segment = historicalSegmentTable.getSegmentFinder(key).query().getValue(nextLiveKey);
         if (lastAvailableHistoricalSegmentTo.isAfterOrEqualTo(segment.getFrom())) {
             throw new IllegalStateException("lastAvailableHistoricalSegmentTo [" + lastAvailableHistoricalSegmentTo
                     + "] should be before segmentFrom [" + segment.getFrom() + "]");

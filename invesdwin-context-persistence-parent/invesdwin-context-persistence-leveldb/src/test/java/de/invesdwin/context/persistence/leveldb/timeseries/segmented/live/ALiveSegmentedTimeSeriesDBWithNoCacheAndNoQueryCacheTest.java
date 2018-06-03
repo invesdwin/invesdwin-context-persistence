@@ -113,9 +113,14 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends AT
             }
 
         };
-        table = new ALiveSegmentedTimeSeriesDB<String, FDate>(getClass().getSimpleName(), segmentFinder) {
+        table = new ALiveSegmentedTimeSeriesDB<String, FDate>(getClass().getSimpleName()) {
 
             private FDate curTime = null;
+
+            @Override
+            protected AHistoricalCache<TimeRange> getSegmentFinder(final String key) {
+                return segmentFinder;
+            }
 
             @Override
             protected Serde<FDate> newValueSerde() {
