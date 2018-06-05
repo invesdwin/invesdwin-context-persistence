@@ -1,5 +1,6 @@
 package de.invesdwin.context.persistence.leveldb.timeseries.segmented;
 
+import java.io.OutputStream;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -41,6 +42,7 @@ import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.fdate.FDates;
 import ezdb.TableRow;
 import ezdb.serde.Serde;
+import net.jpountz.lz4.LZ4BlockOutputStream;
 
 @NotThreadSafe
 public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
@@ -408,6 +410,11 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                     return "segment values";
                 }
 
+                @Override
+                protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
+                    return ASegmentedTimeSeriesStorageCache.this.newCompressor(out);
+                }
+
             };
             //write lock is reentrant
             updater.update();
@@ -428,6 +435,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
             throw new RetryLaterRuntimeException(e);
         }
     }
+
+    protected abstract LZ4BlockOutputStream newCompressor(OutputStream out);
 
     protected abstract ICloseableIterable<? extends V> downloadSegmentElements(K key, FDate from, FDate to);
 

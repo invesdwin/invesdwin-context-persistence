@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.leveldb.timeseries.segmented;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -11,6 +12,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.persistence.leveldb.timeseries.ATimeSeriesDB;
+import de.invesdwin.context.persistence.leveldb.timeseries.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.leveldb.timeseries.ITimeSeriesDB;
 import de.invesdwin.context.persistence.leveldb.timeseries.storage.TimeSeriesStorage;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
@@ -22,6 +24,7 @@ import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.time.TimeRange;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
+import net.jpountz.lz4.LZ4BlockOutputStream;
 
 @ThreadSafe
 public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
@@ -64,10 +67,19 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
                         return ASegmentedTimeSeriesDB.this.getSegmentFinder(key);
                     }
 
+                    @Override
+                    protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
+                        return ASegmentedTimeSeriesDB.this.newCompressor(out);
+                    }
+
                 };
             }
 
         };
+    }
+
+    protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
+        return ATimeSeriesUpdater.newDefaultCompressor(out);
     }
 
     protected abstract ICloseableIterable<? extends V> downloadSegmentElements(K key, FDate from, FDate to);

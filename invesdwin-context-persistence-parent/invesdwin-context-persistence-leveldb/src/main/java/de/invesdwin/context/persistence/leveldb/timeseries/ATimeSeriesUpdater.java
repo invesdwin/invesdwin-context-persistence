@@ -27,6 +27,7 @@ import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
+import net.jpountz.lz4.LZ4BlockOutputStream;
 
 @NotThreadSafe
 public abstract class ATimeSeriesUpdater<K, V> {
@@ -188,6 +189,14 @@ public abstract class ATimeSeriesUpdater<K, V> {
 
     protected abstract void onFlush(int flushIndex, Instant flushStart, UpdateProgress updateProgress);
 
+    protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
+        return newDefaultCompressor(out);
+    }
+
+    public static LZ4BlockOutputStream newDefaultCompressor(final OutputStream out) {
+        return LZ4Streams.newLargeHighLZ4OutputStream(out);
+    }
+
     public class UpdateProgress {
 
         private final List<V> batch = new ArrayList<V>(BATCH_FLUSH_INTERVAL);
@@ -248,7 +257,7 @@ public abstract class ATimeSeriesUpdater<K, V> {
 
                 @Override
                 protected OutputStream newCompressor(final OutputStream out) {
-                    return LZ4Streams.newLargeLZ4OutputStream(out);
+                    return ATimeSeriesUpdater.this.newCompressor(out);
                 }
 
                 @Override
