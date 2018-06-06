@@ -22,6 +22,8 @@ public class LiveSegment<K, V> {
     //CHECKSTYLE:OFF
     private final TreeMap<FDate, V> values = new TreeMap<FDate, V>(FDate.COMPARATOR);
     //CHECKSTYLE:ON
+    private FDate lastValueKey;
+    private V lastValue;
     private final SegmentedKey<K> segmentedKey;
 
     public LiveSegment(final SegmentedKey<K> segmentedKey) {
@@ -38,12 +40,7 @@ public class LiveSegment<K, V> {
     }
 
     public V getLastValue() {
-        final Entry<FDate, V> lastEntry = values.lastEntry();
-        if (lastEntry != null) {
-            return lastEntry.getValue();
-        } else {
-            return null;
-        }
+        return lastValue;
     }
 
     public SegmentedKey<K> getSegmentedKey() {
@@ -101,12 +98,13 @@ public class LiveSegment<K, V> {
     }
 
     public void putNextLiveValue(final FDate nextLiveKey, final V nextLiveValue) {
-        final Entry<FDate, V> lastLiveEntry = values.lastEntry();
-        if (lastLiveEntry != null && lastLiveEntry.getKey().isAfterOrEqualTo(nextLiveKey)) {
+        if (lastValue != null && lastValueKey.isAfterOrEqualTo(nextLiveKey)) {
             throw new IllegalStateException(segmentedKey + ": nextLiveKey [" + nextLiveKey
-                    + "] should be after lastLiveKey [" + lastLiveEntry.getKey() + "]");
+                    + "] should be after lastLiveKey [" + lastValueKey + "]");
         }
         values.put(nextLiveKey, nextLiveValue);
+        lastValue = nextLiveValue;
+        lastValueKey = nextLiveKey;
     }
 
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
