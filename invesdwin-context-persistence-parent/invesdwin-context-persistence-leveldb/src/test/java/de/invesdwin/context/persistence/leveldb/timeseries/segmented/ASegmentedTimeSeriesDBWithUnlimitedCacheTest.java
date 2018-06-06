@@ -513,6 +513,18 @@ public class ASegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
     }
 
     @Test
+    public void testValues() {
+        final Iterable<FDate> iterable = cache.query().getValues(entities.get(0).addMilliseconds(1), FDate.MAX_DATE);
+        final List<FDate> previousKeys = new ArrayList<FDate>();
+        for (final FDate d : iterable) {
+            previousKeys.add(d);
+        }
+        Assertions.assertThat(previousKeys).isEqualTo(entities.subList(1, entities.size()));
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
+    }
+
+    @Test
     public void testKeysWithReturnMaxResults() {
         returnMaxResults = testReturnMaxResultsValue;
 

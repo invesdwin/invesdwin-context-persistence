@@ -243,7 +243,33 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
     }
 
     private ICloseableIterable<TimeRange> getSegments(final FDate adjFrom, final FDate adjTo) {
-        final ICloseableIterable<TimeRange> segments = getSegmentFinder(key).query().getValues(adjFrom, adjTo);
+        final ICloseableIterable<TimeRange> segments = new ICloseableIterable<TimeRange>() {
+            @Override
+            public ICloseableIterator<TimeRange> iterator() {
+                return new ICloseableIterator<TimeRange>() {
+
+                    private TimeRange curSegment = getSegmentFinder(key).query().getValue(adjFrom);
+
+                    @Override
+                    public boolean hasNext() {
+                        return curSegment.getFrom().isBefore(adjTo);
+                    }
+
+                    @Override
+                    public TimeRange next() {
+                        final TimeRange next = curSegment;
+                        //get one segment later
+                        curSegment = getSegmentFinder(key).query().getValue(curSegment.getTo().addMilliseconds(1));
+                        return next;
+                    }
+
+                    @Override
+                    public void close() {
+                        curSegment = new TimeRange(FDate.MIN_DATE, FDate.MIN_DATE);
+                    }
+                };
+            }
+        };
         final ASkippingIterable<TimeRange> filteredSegments = new ASkippingIterable<TimeRange>(segments) {
             @Override
             protected boolean skip(final TimeRange element) {

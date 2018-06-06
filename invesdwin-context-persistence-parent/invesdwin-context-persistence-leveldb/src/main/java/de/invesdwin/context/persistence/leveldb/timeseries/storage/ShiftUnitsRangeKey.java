@@ -4,10 +4,11 @@ import javax.annotation.concurrent.Immutable;
 
 import org.apache.commons.lang3.builder.CompareToBuilder;
 
+import de.invesdwin.util.bean.AValueObject;
 import de.invesdwin.util.time.fdate.FDate;
 
 @Immutable
-public class ShiftUnitsRangeKey implements Comparable<Object> {
+public class ShiftUnitsRangeKey extends AValueObject implements Comparable<Object> {
 
     private final int shiftUnits;
     private final FDate rangeKey;
