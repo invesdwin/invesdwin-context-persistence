@@ -23,7 +23,7 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
     @GuardedBy("this")
     private Integer lastFlushIndex;
     @GuardedBy("this")
-    private Duration flushDuration;
+    private Instant updateStart;
     @GuardedBy("this")
     private long flushElementCount;
     @GuardedBy("this")
@@ -39,16 +39,12 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
     @Override
     protected void onUpdateStart() {
         log.info("Updating %s for [%s]", getElementsName(), keyToString(getKey()));
+        updateStart = new Instant();
     }
 
     @Override
     protected synchronized void onFlush(final int flushIndex, final Instant flushStart, final UpdateProgress progress) {
         lastFlushIndex = Integers.max(lastFlushIndex, flushIndex);
-        if (flushDuration == null) {
-            flushDuration = flushStart.toDuration();
-        } else {
-            flushDuration = flushDuration.add(flushStart.toDuration());
-        }
         flushElementCount += progress.getCount();
         lastFlushMaxTime = FDates.max(lastFlushMaxTime, progress.getMaxTime());
         if (flushIndex % BATCH_LOG_INTERVAL == 0) {
@@ -61,6 +57,7 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
 
         //if we are too fast, only print status once a second
         if (lastFlushTime == null || lastFlushTime.toDuration().isGreaterThan(Duration.ONE_SECOND)) {
+            final Duration flushDuration = updateStart.toDuration();
             log.info("Persisted %s. %s batch for [%s]. Reached time [%s]. Processed [%s] during %s", lastFlushIndex,
                     getElementsName(), keyToString(getKey()), lastFlushMaxTime,
                     new ProcessedEventsRateString(flushElementCount, flushDuration), flushDuration);
@@ -68,8 +65,6 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
         }
 
         lastFlushIndex = null;
-        flushDuration = null;
-        flushElementCount = 0;
         lastFlushMaxTime = null;
     }
 
