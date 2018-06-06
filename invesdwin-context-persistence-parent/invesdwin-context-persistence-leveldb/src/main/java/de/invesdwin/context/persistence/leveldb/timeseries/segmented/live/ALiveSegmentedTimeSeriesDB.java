@@ -229,100 +229,12 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
 
     @Override
     public ICloseableIterable<V> rangeValues(final K key, final FDate from, final FDate to) {
-        return new ICloseableIterable<V>() {
-
-            @Override
-            public ICloseableIterator<V> iterator() {
-                return new ACloseableIterator<V>() {
-
-                    private final Lock readLock = getTableLock(key).readLock();
-                    private ICloseableIterator<V> readRangeValues;
-
-                    private ICloseableIterator<V> getReadRangeValues() {
-                        if (readRangeValues == null) {
-                            readLock.lock();
-                            readRangeValues = getLookupTableCache(key).readRangeValues(from, to).iterator();
-                            if (readRangeValues instanceof EmptyCloseableIterator) {
-                                readLock.unlock();
-                            }
-                        }
-                        return readRangeValues;
-                    }
-
-                    @Override
-                    public boolean innerHasNext() {
-                        return getReadRangeValues().hasNext();
-                    }
-
-                    @Override
-                    public V innerNext() {
-                        return getReadRangeValues().next();
-                    }
-
-                    @Override
-                    public void innerClose() {
-                        if (readRangeValues instanceof EmptyCloseableIterator) {
-                            //already closed
-                            return;
-                        }
-                        if (readRangeValues != null) {
-                            getReadRangeValues().close();
-                            readLock.unlock();
-                        }
-                        readRangeValues = EmptyCloseableIterator.getInstance();
-                    }
-                };
-            }
-        };
+        return new RangeValues(to, key, from);
     }
 
     @Override
     public ICloseableIterable<V> rangeReverseValues(final K key, final FDate from, final FDate to) {
-        return new ICloseableIterable<V>() {
-
-            @Override
-            public ICloseableIterator<V> iterator() {
-                return new ACloseableIterator<V>() {
-
-                    private final Lock readLock = getTableLock(key).readLock();
-                    private ICloseableIterator<V> readRangeValues;
-
-                    private ICloseableIterator<V> getReadRangeValues() {
-                        if (readRangeValues == null) {
-                            readLock.lock();
-                            readRangeValues = getLookupTableCache(key).readRangeValuesReverse(from, to).iterator();
-                            if (readRangeValues instanceof EmptyCloseableIterator) {
-                                readLock.unlock();
-                            }
-                        }
-                        return readRangeValues;
-                    }
-
-                    @Override
-                    public boolean innerHasNext() {
-                        return getReadRangeValues().hasNext();
-                    }
-
-                    @Override
-                    public V innerNext() {
-                        return getReadRangeValues().next();
-                    }
-
-                    @Override
-                    public void innerClose() {
-                        if (readRangeValues instanceof EmptyCloseableIterator) {
-                            //already closed
-                            return;
-                        }
-                        if (readRangeValues != null) {
-                            getReadRangeValues().close();
-                            readLock.unlock();
-                        }
-                        readRangeValues = EmptyCloseableIterator.getInstance();
-                    }
-                };
-            }
-        };
+        return new RangeReverseValues(from, to, key);
     }
 
     @Override
@@ -413,6 +325,116 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
             getLookupTableCache(key).putNextLiveValue(nextLiveValue);
         } finally {
             writeLock.unlock();
+        }
+    }
+
+    private final class RangeReverseValues implements ICloseableIterable<V> {
+        private final FDate from;
+        private final FDate to;
+        private final K key;
+
+        private RangeReverseValues(final FDate from, final FDate to, final K key) {
+            this.from = from;
+            this.to = to;
+            this.key = key;
+        }
+
+        @Override
+        public ICloseableIterator<V> iterator() {
+            return new ACloseableIterator<V>() {
+
+                private final Lock readLock = getTableLock(key).readLock();
+                private ICloseableIterator<V> readRangeValues;
+
+                private ICloseableIterator<V> getReadRangeValues() {
+                    if (readRangeValues == null) {
+                        readLock.lock();
+                        readRangeValues = getLookupTableCache(key).readRangeValuesReverse(from, to).iterator();
+                        if (readRangeValues instanceof EmptyCloseableIterator) {
+                            readLock.unlock();
+                        }
+                    }
+                    return readRangeValues;
+                }
+
+                @Override
+                public boolean innerHasNext() {
+                    return getReadRangeValues().hasNext();
+                }
+
+                @Override
+                public V innerNext() {
+                    return getReadRangeValues().next();
+                }
+
+                @Override
+                public void innerClose() {
+                    if (readRangeValues instanceof EmptyCloseableIterator) {
+                        //already closed
+                        return;
+                    }
+                    if (readRangeValues != null) {
+                        getReadRangeValues().close();
+                        readLock.unlock();
+                    }
+                    readRangeValues = EmptyCloseableIterator.getInstance();
+                }
+            };
+        }
+    }
+
+    private final class RangeValues implements ICloseableIterable<V> {
+        private final FDate to;
+        private final K key;
+        private final FDate from;
+
+        private RangeValues(final FDate to, final K key, final FDate from) {
+            this.to = to;
+            this.key = key;
+            this.from = from;
+        }
+
+        @Override
+        public ICloseableIterator<V> iterator() {
+            return new ACloseableIterator<V>() {
+
+                private final Lock readLock = getTableLock(key).readLock();
+                private ICloseableIterator<V> readRangeValues;
+
+                private ICloseableIterator<V> getReadRangeValues() {
+                    if (readRangeValues == null) {
+                        readLock.lock();
+                        readRangeValues = getLookupTableCache(key).readRangeValues(from, to).iterator();
+                        if (readRangeValues instanceof EmptyCloseableIterator) {
+                            readLock.unlock();
+                        }
+                    }
+                    return readRangeValues;
+                }
+
+                @Override
+                public boolean innerHasNext() {
+                    return getReadRangeValues().hasNext();
+                }
+
+                @Override
+                public V innerNext() {
+                    return getReadRangeValues().next();
+                }
+
+                @Override
+                public void innerClose() {
+                    if (readRangeValues instanceof EmptyCloseableIterator) {
+                        //already closed
+                        return;
+                    }
+                    if (readRangeValues != null) {
+                        getReadRangeValues().close();
+                        readLock.unlock();
+                    }
+                    readRangeValues = EmptyCloseableIterator.getInstance();
+                }
+            };
         }
     }
 }

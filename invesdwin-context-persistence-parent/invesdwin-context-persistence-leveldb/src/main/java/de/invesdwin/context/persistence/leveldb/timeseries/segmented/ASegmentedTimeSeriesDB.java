@@ -116,69 +116,6 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
     protected abstract FDate getLastAvailableHistoricalSegmentTo(K key);
 
-    public final class SegmentedTable extends ATimeSeriesDB<SegmentedKey<K>, V> {
-        private SegmentedTable(final String name) {
-            super(name);
-        }
-
-        @Override
-        public Serde<V> getValueSerde() {
-            return super.getValueSerde();
-        }
-
-        @Override
-        protected Integer newFixedLength() {
-            return ASegmentedTimeSeriesDB.this.newFixedLength();
-        }
-
-        @Override
-        public Integer getFixedLength() {
-            return super.getFixedLength();
-        }
-
-        @Override
-        protected Serde<V> newValueSerde() {
-            return ASegmentedTimeSeriesDB.this.newValueSerde();
-        }
-
-        @Override
-        public FDate extractTime(final V value) {
-            return ASegmentedTimeSeriesDB.this.extractTime(value);
-        }
-
-        public FDate extractEndTime(final V value) {
-            return ASegmentedTimeSeriesDB.this.extractEndTime(value);
-        }
-
-        @Override
-        public String hashKeyToString(final SegmentedKey<K> key) {
-            return ASegmentedTimeSeriesDB.this.hashKeyToString(key.getKey()) + "/"
-                    + key.getSegment().getFrom().toString(FDate.FORMAT_TIMESTAMP_UNDERSCORE) + "-"
-                    + key.getSegment().getTo().toString(FDate.FORMAT_TIMESTAMP_UNDERSCORE);
-        }
-
-        @Override
-        protected TimeSeriesStorage newStorage(final File directory) {
-            return ASegmentedTimeSeriesDB.this.newStorage(directory);
-        }
-
-        @Override
-        protected void deleteCorruptedStorage(final File directory) {
-            ASegmentedTimeSeriesDB.this.deleteCorruptedStorage(directory);
-        }
-
-        @Override
-        public synchronized TimeSeriesStorage getStorage() {
-            return super.getStorage();
-        }
-
-        @Override
-        protected File getBaseDirectory() {
-            return ASegmentedTimeSeriesDB.this.getBaseDirectory();
-        }
-
-    }
-
     @Override
     public synchronized void close() throws IOException {
         segmentedTable.close();
@@ -236,100 +173,12 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
     @Override
     public ICloseableIterable<V> rangeValues(final K key, final FDate from, final FDate to) {
-        return new ICloseableIterable<V>() {
-
-            @Override
-            public ICloseableIterator<V> iterator() {
-                return new ACloseableIterator<V>() {
-
-                    private final Lock readLock = getTableLock(key).readLock();
-                    private ICloseableIterator<V> readRangeValues;
-
-                    private ICloseableIterator<V> getReadRangeValues() {
-                        if (readRangeValues == null) {
-                            readLock.lock();
-                            readRangeValues = getLookupTableCache(key).readRangeValues(from, to).iterator();
-                            if (readRangeValues instanceof EmptyCloseableIterator) {
-                                readLock.unlock();
-                            }
-                        }
-                        return readRangeValues;
-                    }
-
-                    @Override
-                    public boolean innerHasNext() {
-                        return getReadRangeValues().hasNext();
-                    }
-
-                    @Override
-                    public V innerNext() {
-                        return getReadRangeValues().next();
-                    }
-
-                    @Override
-                    public void innerClose() {
-                        if (readRangeValues instanceof EmptyCloseableIterator) {
-                            //already closed
-                            return;
-                        }
-                        if (readRangeValues != null) {
-                            getReadRangeValues().close();
-                            readLock.unlock();
-                        }
-                        readRangeValues = EmptyCloseableIterator.getInstance();
-                    }
-                };
-            }
-        };
+        return new RangeValues(key, from, to);
     }
 
     @Override
     public ICloseableIterable<V> rangeReverseValues(final K key, final FDate from, final FDate to) {
-        return new ICloseableIterable<V>() {
-
-            @Override
-            public ICloseableIterator<V> iterator() {
-                return new ACloseableIterator<V>() {
-
-                    private final Lock readLock = getTableLock(key).readLock();
-                    private ICloseableIterator<V> readRangeValues;
-
-                    private ICloseableIterator<V> getReadRangeValues() {
-                        if (readRangeValues == null) {
-                            readLock.lock();
-                            readRangeValues = getLookupTableCache(key).readRangeValuesReverse(from, to).iterator();
-                            if (readRangeValues instanceof EmptyCloseableIterator) {
-                                readLock.unlock();
-                            }
-                        }
-                        return readRangeValues;
-                    }
-
-                    @Override
-                    public boolean innerHasNext() {
-                        return getReadRangeValues().hasNext();
-                    }
-
-                    @Override
-                    public V innerNext() {
-                        return getReadRangeValues().next();
-                    }
-
-                    @Override
-                    public void innerClose() {
-                        if (readRangeValues instanceof EmptyCloseableIterator) {
-                            //already closed
-                            return;
-                        }
-                        if (readRangeValues != null) {
-                            getReadRangeValues().close();
-                            readLock.unlock();
-                        }
-                        readRangeValues = EmptyCloseableIterator.getInstance();
-                    }
-                };
-            }
-        };
+        return new RangeReverseValues(key, from, to);
     }
 
     @Override
@@ -411,6 +260,179 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
     protected File getBaseDirectory() {
         return ATimeSeriesDB.getDefaultBaseDirectory();
+    }
+
+    private final class RangeReverseValues implements ICloseableIterable<V> {
+        private final K key;
+        private final FDate from;
+        private final FDate to;
+
+        private RangeReverseValues(final K key, final FDate from, final FDate to) {
+            this.key = key;
+            this.from = from;
+            this.to = to;
+        }
+
+        @Override
+        public ICloseableIterator<V> iterator() {
+            return new ACloseableIterator<V>() {
+
+                private final Lock readLock = getTableLock(key).readLock();
+                private ICloseableIterator<V> readRangeValues;
+
+                private ICloseableIterator<V> getReadRangeValues() {
+                    if (readRangeValues == null) {
+                        readLock.lock();
+                        readRangeValues = getLookupTableCache(key).readRangeValuesReverse(from, to).iterator();
+                        if (readRangeValues instanceof EmptyCloseableIterator) {
+                            readLock.unlock();
+                        }
+                    }
+                    return readRangeValues;
+                }
+
+                @Override
+                public boolean innerHasNext() {
+                    return getReadRangeValues().hasNext();
+                }
+
+                @Override
+                public V innerNext() {
+                    return getReadRangeValues().next();
+                }
+
+                @Override
+                public void innerClose() {
+                    if (readRangeValues instanceof EmptyCloseableIterator) {
+                        //already closed
+                        return;
+                    }
+                    if (readRangeValues != null) {
+                        getReadRangeValues().close();
+                        readLock.unlock();
+                    }
+                    readRangeValues = EmptyCloseableIterator.getInstance();
+                }
+            };
+        }
+    }
+
+    private final class RangeValues implements ICloseableIterable<V> {
+        private final K key;
+        private final FDate from;
+        private final FDate to;
+
+        private RangeValues(final K key, final FDate from, final FDate to) {
+            this.key = key;
+            this.from = from;
+            this.to = to;
+        }
+
+        @Override
+        public ICloseableIterator<V> iterator() {
+            return new ACloseableIterator<V>() {
+
+                private final Lock readLock = getTableLock(key).readLock();
+                private ICloseableIterator<V> readRangeValues;
+
+                private ICloseableIterator<V> getReadRangeValues() {
+                    if (readRangeValues == null) {
+                        readLock.lock();
+                        readRangeValues = getLookupTableCache(key).readRangeValues(from, to).iterator();
+                        if (readRangeValues instanceof EmptyCloseableIterator) {
+                            readLock.unlock();
+                        }
+                    }
+                    return readRangeValues;
+                }
+
+                @Override
+                public boolean innerHasNext() {
+                    return getReadRangeValues().hasNext();
+                }
+
+                @Override
+                public V innerNext() {
+                    return getReadRangeValues().next();
+                }
+
+                @Override
+                public void innerClose() {
+                    if (readRangeValues instanceof EmptyCloseableIterator) {
+                        //already closed
+                        return;
+                    }
+                    if (readRangeValues != null) {
+                        getReadRangeValues().close();
+                        readLock.unlock();
+                    }
+                    readRangeValues = EmptyCloseableIterator.getInstance();
+                }
+            };
+        }
+    }
+
+    public final class SegmentedTable extends ATimeSeriesDB<SegmentedKey<K>, V> {
+        private SegmentedTable(final String name) {
+            super(name);
+        }
+
+        @Override
+        public Serde<V> getValueSerde() {
+            return super.getValueSerde();
+        }
+
+        @Override
+        protected Integer newFixedLength() {
+            return ASegmentedTimeSeriesDB.this.newFixedLength();
+        }
+
+        @Override
+        public Integer getFixedLength() {
+            return super.getFixedLength();
+        }
+
+        @Override
+        protected Serde<V> newValueSerde() {
+            return ASegmentedTimeSeriesDB.this.newValueSerde();
+        }
+
+        @Override
+        public FDate extractTime(final V value) {
+            return ASegmentedTimeSeriesDB.this.extractTime(value);
+        }
+
+        public FDate extractEndTime(final V value) {
+            return ASegmentedTimeSeriesDB.this.extractEndTime(value);
+        }
+
+        @Override
+        public String hashKeyToString(final SegmentedKey<K> key) {
+            return ASegmentedTimeSeriesDB.this.hashKeyToString(key.getKey()) + "/"
+                    + key.getSegment().getFrom().toString(FDate.FORMAT_TIMESTAMP_UNDERSCORE) + "-"
+                    + key.getSegment().getTo().toString(FDate.FORMAT_TIMESTAMP_UNDERSCORE);
+        }
+
+        @Override
+        protected TimeSeriesStorage newStorage(final File directory) {
+            return ASegmentedTimeSeriesDB.this.newStorage(directory);
+        }
+
+        @Override
+        protected void deleteCorruptedStorage(final File directory) {
+            ASegmentedTimeSeriesDB.this.deleteCorruptedStorage(directory);
+        }
+
+        @Override
+        public synchronized TimeSeriesStorage getStorage() {
+            return super.getStorage();
+        }
+
+        @Override
+        protected File getBaseDirectory() {
+            return ASegmentedTimeSeriesDB.this.getBaseDirectory();
+        }
+
     }
 
 }
