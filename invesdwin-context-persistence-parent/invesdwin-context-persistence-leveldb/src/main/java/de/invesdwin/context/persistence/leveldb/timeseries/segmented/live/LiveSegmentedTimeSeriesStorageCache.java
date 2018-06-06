@@ -192,7 +192,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> {
         final TimeRange segment = historicalSegmentTable.getSegmentFinder(key).query().getValue(nextLiveKey);
         if (lastAvailableHistoricalSegmentTo.isAfterOrEqualTo(segment.getFrom())) {
             throw new IllegalStateException("lastAvailableHistoricalSegmentTo [" + lastAvailableHistoricalSegmentTo
-                    + "] should be before segmentFrom [" + segment.getFrom() + "]");
+                    + "] should be before liveSegmentFrom [" + segment.getFrom() + "]");
         }
         if (liveSegment != null && nextLiveKey.isAfter(liveSegment.getSegmentedKey().getSegment().getTo())) {
             if (!lastAvailableHistoricalSegmentTo.equals(liveSegment.getSegmentedKey().getSegment().getTo())) {
