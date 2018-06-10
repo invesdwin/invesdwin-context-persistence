@@ -3,7 +3,6 @@ package de.invesdwin.context.persistence.leveldb.timeseries.segmented.live;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.SortedMap;
-import java.util.TreeMap;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -15,12 +14,13 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.time.fdate.FDate;
+import uk.co.omegaprime.btreemap.BTreeMap;
 
 @NotThreadSafe
 public class LiveSegment<K, V> {
 
     //CHECKSTYLE:OFF
-    private final TreeMap<FDate, V> values = new TreeMap<FDate, V>(FDate.COMPARATOR);
+    private final BTreeMap<FDate, V> values = BTreeMap.create(FDate.COMPARATOR);
     //CHECKSTYLE:ON
     private FDate lastValueKey;
     private V lastValue;
