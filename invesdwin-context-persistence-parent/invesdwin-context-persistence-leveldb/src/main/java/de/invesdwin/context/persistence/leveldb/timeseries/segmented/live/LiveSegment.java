@@ -55,15 +55,20 @@ public class LiveSegment<K, V> {
             tailMap = values.tailMap(from.millisValue());
         }
         final ICloseableIterable<Entry<Long, V>> tail = WrapperCloseableIterable.maybeWrap(tailMap.entrySet());
-        final ASkippingIterable<Entry<Long, V>> skipping = new ASkippingIterable<Entry<Long, V>>(tail) {
-            @Override
-            protected boolean skip(final Entry<Long, V> element) {
-                if (element.getKey() > to.millisValue()) {
-                    throw new FastNoSuchElementException("LiveSegment rangeValues end reached");
+        final ICloseableIterable<Entry<Long, V>> skipping;
+        if (to == null) {
+            skipping = tail;
+        } else {
+            skipping = new ASkippingIterable<Entry<Long, V>>(tail) {
+                @Override
+                protected boolean skip(final Entry<Long, V> element) {
+                    if (element.getKey() > to.millisValue()) {
+                        throw new FastNoSuchElementException("LiveSegment rangeValues end reached");
+                    }
+                    return false;
                 }
-                return false;
-            }
-        };
+            };
+        }
         return new ATransformingCloseableIterable<Entry<Long, V>, V>(skipping) {
             @Override
             protected V transform(final Entry<Long, V> value) {
@@ -80,15 +85,20 @@ public class LiveSegment<K, V> {
             headMap = values.descendingMap().tailMap(from.millisValue());
         }
         final ICloseableIterable<Entry<Long, V>> tail = WrapperCloseableIterable.maybeWrap(headMap.entrySet());
-        final ASkippingIterable<Entry<Long, V>> skipping = new ASkippingIterable<Entry<Long, V>>(tail) {
-            @Override
-            protected boolean skip(final Entry<Long, V> element) {
-                if (element.getKey() > to.millisValue()) {
-                    throw new FastNoSuchElementException("LiveSegment rangeValues end reached");
+        final ICloseableIterable<Entry<Long, V>> skipping;
+        if (to == null) {
+            skipping = tail;
+        } else {
+            skipping = new ASkippingIterable<Entry<Long, V>>(tail) {
+                @Override
+                protected boolean skip(final Entry<Long, V> element) {
+                    if (element.getKey() > to.millisValue()) {
+                        throw new FastNoSuchElementException("LiveSegment rangeReverseValues end reached");
+                    }
+                    return false;
                 }
-                return false;
-            }
-        };
+            };
+        }
         return new ATransformingCloseableIterable<Entry<Long, V>, V>(skipping) {
             @Override
             protected V transform(final Entry<Long, V> value) {
