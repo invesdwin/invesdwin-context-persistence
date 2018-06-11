@@ -7,7 +7,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import de.invesdwin.context.persistence.leveldb.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.leveldb.timeseries.storage.CorruptedTimeSeriesStorageException;
 import de.invesdwin.context.persistence.leveldb.timeseries.storage.TimeSeriesStorage;
-import de.invesdwin.util.time.TimeRange;
+import de.invesdwin.util.time.range.TimeRange;
 
 @ThreadSafe
 public class SegmentedTimeSeriesStorage extends TimeSeriesStorage {

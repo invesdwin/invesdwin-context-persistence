@@ -34,11 +34,11 @@ import de.invesdwin.util.collections.loadingcache.historical.key.APushingHistori
 import de.invesdwin.util.collections.loadingcache.historical.key.IHistoricalCacheAdjustKeyProvider;
 import de.invesdwin.util.collections.loadingcache.historical.refresh.HistoricalCacheRefreshManager;
 import de.invesdwin.util.error.Throwables;
-import de.invesdwin.util.time.TimeRange;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.fdate.FDateBuilder;
 import de.invesdwin.util.time.fdate.FTimeUnit;
+import de.invesdwin.util.time.range.TimeRange;
 import ezdb.serde.Serde;
 
 @ThreadSafe

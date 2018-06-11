@@ -21,8 +21,8 @@ import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
-import de.invesdwin.util.time.TimeRange;
 import de.invesdwin.util.time.fdate.FDate;
+import de.invesdwin.util.time.range.TimeRange;
 import ezdb.serde.Serde;
 import net.jpountz.lz4.LZ4BlockOutputStream;
 

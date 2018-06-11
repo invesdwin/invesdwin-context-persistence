@@ -4,7 +4,7 @@ import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.AValueObject;
-import de.invesdwin.util.time.TimeRange;
+import de.invesdwin.util.time.range.TimeRange;
 
 @Immutable
 public class SegmentedKey<K> extends AValueObject {

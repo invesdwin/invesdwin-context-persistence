@@ -13,8 +13,8 @@ import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
-import de.invesdwin.util.time.TimeRange;
 import de.invesdwin.util.time.fdate.FDate;
+import de.invesdwin.util.time.range.TimeRange;
 
 @ThreadSafe
 public class LiveSegmentedTimeSeriesStorageCache<K, V> {
