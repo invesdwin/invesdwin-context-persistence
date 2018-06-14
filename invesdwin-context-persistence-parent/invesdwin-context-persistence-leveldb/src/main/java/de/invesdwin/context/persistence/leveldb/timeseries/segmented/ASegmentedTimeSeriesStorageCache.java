@@ -453,8 +453,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
             final FDate maxTime = updater.getMaxTime();
             final FDate segmentTo = segmentedKey.getSegment().getTo();
             if (maxTime.isAfter(segmentTo)) {
-                throw new IllegalStateException(segmentedKey + ": maxTime [" + maxTime
-                        + "] should not be before segmentTo [" + segmentTo + "]");
+                throw new IllegalStateException(
+                        segmentedKey + ": maxTime [" + maxTime + "] should not be after segmentTo [" + segmentTo + "]");
             }
         } catch (final IncompleteUpdateFoundException e) {
             segmentedTable.deleteRange(new SegmentedKey<K>(segmentedKey.getKey(), segmentedKey.getSegment()));
