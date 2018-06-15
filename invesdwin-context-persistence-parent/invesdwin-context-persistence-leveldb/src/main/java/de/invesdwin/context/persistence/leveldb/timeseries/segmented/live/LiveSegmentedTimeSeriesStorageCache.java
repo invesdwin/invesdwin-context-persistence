@@ -9,7 +9,6 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.persistence.leveldb.timeseries.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.leveldb.timeseries.segmented.SegmentedKey;
-import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -218,7 +217,9 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> {
                         return liveSegment.rangeValues(t.getSegment().getFrom(), t.getSegment().getTo());
                     }
                 });
-        Assertions.checkTrue(initialized);
+        if (!initialized) {
+            throw new IllegalStateException("true expected");
+        }
     }
 
 }
