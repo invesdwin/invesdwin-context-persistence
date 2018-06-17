@@ -72,11 +72,18 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
                         return ASegmentedTimeSeriesDB.this.newCompressor(out);
                     }
 
+                    @Override
+                    protected String getElementsName() {
+                        return ASegmentedTimeSeriesDB.this.getElementsName();
+                    }
+
                 };
             }
 
         };
     }
+
+    protected abstract String getElementsName();
 
     protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
         return ATimeSeriesUpdater.newDefaultCompressor(out);

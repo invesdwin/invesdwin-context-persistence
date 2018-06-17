@@ -433,7 +433,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
 
                 @Override
                 protected String getElementsName() {
-                    return "segment values";
+                    return "segment " + ASegmentedTimeSeriesStorageCache.this.getElementsName();
                 }
 
                 @Override
@@ -461,6 +461,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
             throw new RetryLaterRuntimeException(e);
         }
     }
+
+    protected abstract String getElementsName();
 
     protected abstract LZ4BlockOutputStream newCompressor(OutputStream out);
 

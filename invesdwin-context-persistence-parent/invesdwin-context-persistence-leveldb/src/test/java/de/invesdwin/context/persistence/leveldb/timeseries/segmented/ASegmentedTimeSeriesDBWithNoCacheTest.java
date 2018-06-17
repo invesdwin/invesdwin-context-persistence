@@ -137,6 +137,11 @@ public class ASegmentedTimeSeriesDBWithNoCacheTest extends ATest {
                 }
                 return segmentFinder.query().getValue(entities.get(entities.size() - 1)).getTo();
             }
+
+            @Override
+            protected String getElementsName() {
+                return "values";
+            }
         };
     }
 

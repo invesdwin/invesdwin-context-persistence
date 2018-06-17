@@ -166,11 +166,18 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
             return ALiveSegmentedTimeSeriesDB.this.newCompressor(out);
         }
 
+        @Override
+        protected String getElementsName() {
+            return ALiveSegmentedTimeSeriesDB.this.getElementsName();
+        }
+
     }
 
     protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
         return ATimeSeriesUpdater.newDefaultCompressor(out);
     }
+
+    protected abstract String getElementsName();
 
     @Override
     public synchronized void close() throws IOException {

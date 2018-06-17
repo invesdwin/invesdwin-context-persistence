@@ -195,6 +195,11 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends AT
                 curTime = nextLiveValue;
                 super.putNextLiveValue(key, nextLiveValue);
             }
+
+            @Override
+            protected String getElementsName() {
+                return "values";
+            }
         };
         for (final FDate entity : entities) {
             table.putNextLiveValue(KEY, entity);
