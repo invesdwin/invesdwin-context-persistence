@@ -469,4 +469,10 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         throw new UnsupportedOperationException();
     }
 
+    public void flush() throws IOException {
+        if (fos != null) {
+            fos.flush();
+        }
+    }
+
 }
