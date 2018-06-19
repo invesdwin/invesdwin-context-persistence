@@ -152,7 +152,7 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
 
             @Override
             protected boolean shouldWriteInParallel() {
-                return false;
+                return true;
             }
         };
         try {
