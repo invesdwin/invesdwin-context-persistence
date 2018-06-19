@@ -23,7 +23,7 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
     private final ASegmentedTimeSeriesDB<K, V>.SegmentedTable table;
     private boolean empty = true;
-    private final String hashKey;;
+    private final String hashKey;
 
     public PersistentLiveSegment(final SegmentedKey<K> segmentedKey,
             final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable) {
@@ -31,6 +31,17 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
         this.historicalSegmentTable = historicalSegmentTable;
         this.table = historicalSegmentTable.getSegmentedTable();
         this.hashKey = historicalSegmentTable.hashKeyToString(segmentedKey.getKey());
+
+        final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable = historicalSegmentTable
+                .getStorage()
+                .getSegmentStatusTable();
+        final SegmentStatus existingStatus = segmentStatusTable.get(hashKey, segmentedKey.getSegment());
+        if (existingStatus == SegmentStatus.INITIALIZING) {
+            //cleanup initially
+            this.table.deleteRange(segmentedKey);
+        } else if (existingStatus != null) {
+            throw UnknownArgumentException.newInstance(SegmentStatus.class, existingStatus);
+        }
     }
 
     @Override
