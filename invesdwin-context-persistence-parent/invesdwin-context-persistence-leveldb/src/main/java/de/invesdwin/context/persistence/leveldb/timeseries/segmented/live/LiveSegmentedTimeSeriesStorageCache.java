@@ -1,5 +1,6 @@
 package de.invesdwin.context.persistence.leveldb.timeseries.segmented.live;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
@@ -18,7 +19,7 @@ import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.range.TimeRange;
 
 @ThreadSafe
-public class LiveSegmentedTimeSeriesStorageCache<K, V> {
+public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
 
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
     private final K key;
@@ -208,6 +209,11 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> {
                         + "] should be equal to liveSegmentTo [" + segment.getFrom() + "]");
             }
             liveSegment.convertLiveSegmentToHistorical();
+            try {
+                liveSegment.close();
+            } catch (final IOException e) {
+                throw new RuntimeException(e);
+            }
             liveSegment = null;
         }
         if (liveSegment == null) {
@@ -215,6 +221,17 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> {
             liveSegment = new MemoryLiveSegment<K, V>(segmentedKey, historicalSegmentTable);
         }
         liveSegment.putNextLiveValue(nextLiveKey, nextLiveValue);
+    }
+
+    @Override
+    public void close() {
+        if (liveSegment != null) {
+            try {
+                liveSegment.close();
+            } catch (final IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
 }

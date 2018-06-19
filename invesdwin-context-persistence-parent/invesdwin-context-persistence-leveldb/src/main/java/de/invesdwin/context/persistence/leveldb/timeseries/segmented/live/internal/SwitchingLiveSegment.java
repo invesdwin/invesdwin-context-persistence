@@ -1,49 +1,58 @@
 package de.invesdwin.context.persistence.leveldb.timeseries.segmented.live.internal;
 
-import java.util.Map.Entry;
+import java.util.Arrays;
+import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.SortedMap;
 import java.util.function.Function;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import de.invesdwin.context.persistence.leveldb.timeseries.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.leveldb.timeseries.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.leveldb.timeseries.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.leveldb.timeseries.segmented.live.ALiveSegmentedTimeSeriesDB;
-import de.invesdwin.util.collections.iterable.ASkippingIterable;
-import de.invesdwin.util.collections.iterable.ATransformingCloseableIterable;
+import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
-import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
-import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.time.fdate.FDate;
-import uk.co.omegaprime.btreemap.LongObjectBTreeMap;
 
 @NotThreadSafe
 public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
-    //CHECKSTYLE:OFF
-    private final LongObjectBTreeMap<V> values = LongObjectBTreeMap.create();
-    //CHECKSTYLE:ON
-    private FDate lastValueKey;
-    private V lastValue;
     private final SegmentedKey<K> segmentedKey;
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
+    private final MemoryLiveSegment<K, V> memory;
+    private final PersistentLiveSegment<K, V> persistent;
+    private final List<ILiveSegment<K, V>> latestValueProviders;
+
+    private FDate firstValueKey;
+    private V firstValue;
+    private FDate lastValueKey;
+    private V lastValue;
+    private int memorySize = 0;
 
     public SwitchingLiveSegment(final SegmentedKey<K> segmentedKey,
             final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable) {
         this.segmentedKey = segmentedKey;
         this.historicalSegmentTable = historicalSegmentTable;
+        this.memory = new MemoryLiveSegment<>(segmentedKey, historicalSegmentTable);
+        this.persistent = new PersistentLiveSegment<>(segmentedKey, historicalSegmentTable);
+        this.latestValueProviders = Arrays.asList(memory, persistent);
+    }
+
+    @Override
+    public FDate getFirstValueKey() {
+        return firstValueKey;
     }
 
     @Override
     public V getFirstValue() {
-        final Entry<Long, V> firstEntry = values.firstEntry();
-        if (firstEntry != null) {
-            return firstEntry.getValue();
-        } else {
-            return null;
-        }
+        return firstValue;
+    }
+
+    @Override
+    public FDate getLastValueKey() {
+        return lastValueKey;
     }
 
     @Override
@@ -58,64 +67,48 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public ICloseableIterable<V> rangeValues(final FDate from, final FDate to) {
-        final SortedMap<Long, V> tailMap;
-        if (from == null) {
-            tailMap = values;
+        if (memory.isEmpty()) {
+            //no live segment, go with historical
+            return persistent.rangeValues(from, to);
         } else {
-            tailMap = values.tailMap(from.millisValue());
-        }
-        final ICloseableIterable<Entry<Long, V>> tail = WrapperCloseableIterable.maybeWrap(tailMap.entrySet());
-        final ICloseableIterable<Entry<Long, V>> skipping;
-        if (to == null) {
-            skipping = tail;
-        } else {
-            skipping = new ASkippingIterable<Entry<Long, V>>(tail) {
-                @Override
-                protected boolean skip(final Entry<Long, V> element) {
-                    if (element.getKey() > to.millisValue()) {
-                        throw new FastNoSuchElementException("LiveSegment rangeValues end reached");
-                    }
-                    return false;
-                }
-            };
-        }
-        return new ATransformingCloseableIterable<Entry<Long, V>, V>(skipping) {
-            @Override
-            protected V transform(final Entry<Long, V> value) {
-                return value.getValue();
+            final FDate memoryFrom = memory.getFirstValueKey();
+            if (memoryFrom.isAfter(to)) {
+                //live segment is after requested range, go with historical
+                return persistent.rangeValues(from, to);
+            } else if (memoryFrom.isBeforeOrEqualTo(from)) {
+                //historical segment is before requested range, go with live
+                return memory.rangeValues(from, to);
+            } else {
+                //use both segments
+                final ICloseableIterable<V> historicalRangeValues = persistent.rangeValues(from,
+                        memoryFrom.addMilliseconds(-1));
+                final ICloseableIterable<V> liveRangeValues = memory.rangeValues(memoryFrom, to);
+                return new FlatteningIterable<V>(historicalRangeValues, liveRangeValues);
             }
-        };
+        }
     }
 
     @Override
     public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to) {
-        final SortedMap<Long, V> headMap;
-        if (from == null) {
-            headMap = values.descendingMap();
+        if (memory.isEmpty()) {
+            //no live segment, go with historical
+            return persistent.rangeReverseValues(from, to);
         } else {
-            headMap = values.descendingMap().tailMap(from.millisValue());
-        }
-        final ICloseableIterable<Entry<Long, V>> tail = WrapperCloseableIterable.maybeWrap(headMap.entrySet());
-        final ICloseableIterable<Entry<Long, V>> skipping;
-        if (to == null) {
-            skipping = tail;
-        } else {
-            skipping = new ASkippingIterable<Entry<Long, V>>(tail) {
-                @Override
-                protected boolean skip(final Entry<Long, V> element) {
-                    if (element.getKey() > to.millisValue()) {
-                        throw new FastNoSuchElementException("LiveSegment rangeReverseValues end reached");
-                    }
-                    return false;
-                }
-            };
-        }
-        return new ATransformingCloseableIterable<Entry<Long, V>, V>(skipping) {
-            @Override
-            protected V transform(final Entry<Long, V> value) {
-                return value.getValue();
+            final FDate memoryFrom = memory.getFirstValueKey();
+            if (memoryFrom.isAfter(from)) {
+                //live segment is after requested range, go with historical
+                return persistent.rangeReverseValues(from, to);
+            } else if (memoryFrom.isBeforeOrEqualTo(to)) {
+                //historical segment is before requested range, go with live
+                return memory.rangeReverseValues(from, to);
+            } else {
+                //use both segments
+                final ICloseableIterable<V> liveRangeValues = memory.rangeReverseValues(from, memoryFrom);
+                final ICloseableIterable<V> historicalRangeValues = persistent
+                        .rangeReverseValues(memoryFrom.addMilliseconds(-1), to);
+                return new FlatteningIterable<V>(liveRangeValues, historicalRangeValues);
             }
-        };
+        }
     }
 
     @Override
@@ -124,45 +117,82 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
             throw new IllegalStateException(segmentedKey + ": nextLiveKey [" + nextLiveKey
                     + "] should be after lastLiveKey [" + lastValueKey + "]");
         }
-        values.put(nextLiveKey.millisValue(), nextLiveValue);
+        memory.putNextLiveValue(nextLiveKey, nextLiveValue);
+        if (firstValue == null) {
+            firstValue = nextLiveValue;
+            firstValueKey = nextLiveKey;
+        }
         lastValue = nextLiveValue;
         lastValueKey = nextLiveKey;
+        memorySize++;
+        if (memorySize >= ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
+            persistent.putNextLiveValues(memory.rangeValues(memory.getFirstValueKey(), memory.getLastValueKey()));
+            memorySize = 0;
+            memory.close();
+        }
     }
 
     @Override
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
-        V nextValue = null;
-        try (ICloseableIterator<V> rangeValues = rangeValues(date, null).iterator()) {
-            for (int i = 0; i < shiftForwardUnits; i++) {
-                nextValue = rangeValues.next();
-            }
-        } catch (final NoSuchElementException e) {
-            //ignore
-        }
-        if (nextValue != null) {
+        if (memory.isEmpty()) {
+            //no live segment, go with historical
+            return persistent.getNextValue(date, shiftForwardUnits);
+        } else if (memory.getFirstValueKey().isBefore(date)) {
+            //live segment is after requested range, go with live
+            final V nextValue = memory.getNextValue(date, shiftForwardUnits);
             return nextValue;
         } else {
-            return getLastValue();
+            //use both segments
+            V nextValue = null;
+            try (ICloseableIterator<V> rangeValues = rangeValues(date, null).iterator()) {
+                for (int i = 0; i < shiftForwardUnits; i++) {
+                    nextValue = rangeValues.next();
+                }
+            } catch (final NoSuchElementException e) {
+                //ignore
+            }
+            return nextValue;
         }
     }
 
     @Override
     public V getLatestValue(final FDate date) {
-        final Entry<Long, V> floorEntry = values.floorEntry(date.millisValue());
-        if (floorEntry != null) {
-            return floorEntry.getValue();
-        } else {
-            return getFirstValue();
+        if (memory.isEmpty()) {
+            return persistent.getLatestValue(date);
         }
+        V latestValue = null;
+        for (int i = 0; i < latestValueProviders.size(); i++) {
+            final ILiveSegment<K, V> latestValueProvider = latestValueProviders.get(i);
+            final V newValue = latestValueProvider.getLatestValue(date);
+            final FDate newValueTime = historicalSegmentTable.extractTime(newValue);
+            if (newValueTime.isBeforeOrEqualTo(date)) {
+                /*
+                 * even if we got the first value in this segment and it is after the desired key we just continue to
+                 * the beginning to search for an earlier value until we reach the overall firstValue
+                 */
+                latestValue = newValue;
+                break;
+            }
+        }
+        if (latestValue == null) {
+            latestValue = getFirstValue();
+        }
+        return latestValue;
     }
 
     @Override
     public boolean isEmpty() {
-        return values.isEmpty();
+        return firstValue == null;
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        firstValue = null;
+        lastValue = null;
+        lastValueKey = null;
+        memory.close();
+        persistent.close();
+    }
 
     @Override
     public void convertLiveSegmentToHistorical() {

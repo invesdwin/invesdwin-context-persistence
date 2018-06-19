@@ -28,4 +28,8 @@ public interface ILiveSegment<K, V> extends Closeable {
 
     void convertLiveSegmentToHistorical();
 
+    FDate getFirstValueKey();
+
+    FDate getLastValueKey();
+
 }

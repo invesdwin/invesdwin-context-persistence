@@ -25,10 +25,12 @@ public class MemoryLiveSegment<K, V> implements ILiveSegment<K, V> {
     //CHECKSTYLE:OFF
     private final LongObjectBTreeMap<V> values = LongObjectBTreeMap.create();
     //CHECKSTYLE:ON
-    private FDate lastValueKey;
-    private V lastValue;
     private final SegmentedKey<K> segmentedKey;
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
+    private FDate firstValueKey;
+    private V firstValue;
+    private FDate lastValueKey;
+    private V lastValue;
 
     public MemoryLiveSegment(final SegmentedKey<K> segmentedKey,
             final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable) {
@@ -38,12 +40,7 @@ public class MemoryLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public V getFirstValue() {
-        final Entry<Long, V> firstEntry = values.firstEntry();
-        if (firstEntry != null) {
-            return firstEntry.getValue();
-        } else {
-            return null;
-        }
+        return firstValue;
     }
 
     @Override
@@ -120,11 +117,11 @@ public class MemoryLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public void putNextLiveValue(final FDate nextLiveKey, final V nextLiveValue) {
-        if (lastValue != null && lastValueKey.isAfterOrEqualTo(nextLiveKey)) {
-            throw new IllegalStateException(segmentedKey + ": nextLiveKey [" + nextLiveKey
-                    + "] should be after lastLiveKey [" + lastValueKey + "]");
-        }
         values.put(nextLiveKey.millisValue(), nextLiveValue);
+        if (firstValue == null) {
+            firstValue = nextLiveValue;
+            firstValueKey = nextLiveKey;
+        }
         lastValue = nextLiveValue;
         lastValueKey = nextLiveKey;
     }
@@ -164,6 +161,10 @@ public class MemoryLiveSegment<K, V> implements ILiveSegment<K, V> {
     @Override
     public void close() {
         values.clear();
+        firstValue = null;
+        firstValueKey = null;
+        lastValue = null;
+        lastValueKey = null;
     }
 
     @Override
@@ -180,6 +181,16 @@ public class MemoryLiveSegment<K, V> implements ILiveSegment<K, V> {
         if (!initialized) {
             throw new IllegalStateException("true expected");
         }
+    }
+
+    @Override
+    public FDate getFirstValueKey() {
+        return firstValueKey;
+    }
+
+    @Override
+    public FDate getLastValueKey() {
+        return lastValueKey;
     }
 
 }

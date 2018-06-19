@@ -86,12 +86,12 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         }
 
         @Override
-        protected Integer newFixedLength() {
+        public Integer newFixedLength() {
             return ALiveSegmentedTimeSeriesDB.this.newFixedLength();
         }
 
         @Override
-        protected Serde<V> newValueSerde() {
+        public Serde<V> newValueSerde() {
             return ALiveSegmentedTimeSeriesDB.this.newValueSerde();
         }
 
@@ -182,6 +182,9 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
     @Override
     public synchronized void close() throws IOException {
         historicalSegmentTable.close();
+        for (final LiveSegmentedTimeSeriesStorageCache<K, V> cache : key_lookupTableCache.values()) {
+            cache.close();
+        }
         key_lookupTableCache.clear();
         key_tableLock.clear();
     }
