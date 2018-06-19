@@ -11,7 +11,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.persistence.leveldb.timeseries.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.leveldb.timeseries.segmented.live.internal.ILiveSegment;
-import de.invesdwin.context.persistence.leveldb.timeseries.segmented.live.internal.MemoryLiveSegment;
+import de.invesdwin.context.persistence.leveldb.timeseries.segmented.live.internal.SwitchingLiveSegment;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -53,7 +53,6 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
     }
 
     public void deleteAll() {
-        historicalSegmentTable.deleteRange(key);
         if (liveSegment != null) {
             try {
                 liveSegment.close();
@@ -62,6 +61,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
             }
         }
         liveSegment = null;
+        historicalSegmentTable.deleteRange(key);
     }
 
     public V getFirstValue() {
@@ -218,7 +218,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
         }
         if (liveSegment == null) {
             final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
-            liveSegment = new MemoryLiveSegment<K, V>(segmentedKey, historicalSegmentTable);
+            liveSegment = new SwitchingLiveSegment<K, V>(segmentedKey, historicalSegmentTable);
         }
         liveSegment.putNextLiveValue(nextLiveKey, nextLiveValue);
     }

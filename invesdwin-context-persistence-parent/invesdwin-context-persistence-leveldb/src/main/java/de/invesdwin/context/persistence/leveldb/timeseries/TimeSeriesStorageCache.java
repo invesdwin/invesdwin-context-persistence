@@ -703,22 +703,24 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     /**
-     * Deletes the last file in order to create a new updated one (so the files do not get fragmented too much between
-     * updates
+     * When shouldRedoLastFile=true this deletes the last file in order to create a new updated one (so the files do not
+     * get fragmented too much between updates
      */
-    public synchronized Pair<FDate, List<V>> prepareForUpdate() {
+    public synchronized Pair<FDate, List<V>> prepareForUpdate(final boolean shouldRedoLastFile) {
         final FDate latestRangeKey = storage.getFileLookupTable().getLatestRangeKey(hashKey, FDate.MAX_DATE);
         FDate updateFrom = latestRangeKey;
         final List<V> lastValues = new ArrayList<V>();
         if (latestRangeKey != null) {
-            final File lastFile = newFile(latestRangeKey);
-            try (SerializingCollection<V> lastColl = newSerializingCollection(lastFile)) {
-                lastValues.addAll(lastColl);
+            if (shouldRedoLastFile) {
+                final File lastFile = newFile(latestRangeKey);
+                try (SerializingCollection<V> lastColl = newSerializingCollection(lastFile)) {
+                    lastValues.addAll(lastColl);
+                }
+                //remove last value because it might be an incomplete bar
+                final V lastValue = lastValues.remove(lastValues.size() - 1);
+                updateFrom = extractTime.apply(lastValue);
+                lastFile.delete();
             }
-            //remove last value because it might be an incomplete bar
-            final V lastValue = lastValues.remove(lastValues.size() - 1);
-            updateFrom = extractTime.apply(lastValue);
-            lastFile.delete();
             storage.getFileLookupTable().deleteRange(hashKey, latestRangeKey);
             storage.getLatestValueLookupTable().deleteRange(hashKey, latestRangeKey);
             storage.getNextValueLookupTable().deleteRange(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large

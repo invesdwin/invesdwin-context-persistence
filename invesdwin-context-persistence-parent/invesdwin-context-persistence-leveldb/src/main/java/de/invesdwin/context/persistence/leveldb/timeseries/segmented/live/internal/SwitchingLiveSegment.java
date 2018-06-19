@@ -3,12 +3,10 @@ package de.invesdwin.context.persistence.leveldb.timeseries.segmented.live.inter
 import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.function.Function;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.leveldb.timeseries.ATimeSeriesUpdater;
-import de.invesdwin.context.persistence.leveldb.timeseries.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.leveldb.timeseries.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.leveldb.timeseries.segmented.live.ALiveSegmentedTimeSeriesDB;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
@@ -19,6 +17,7 @@ import de.invesdwin.util.time.fdate.FDate;
 @NotThreadSafe
 public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
+    public static final int BATCH_FLUSH_INTERVAL = ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL;
     private final SegmentedKey<K> segmentedKey;
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
     private final MemoryLiveSegment<K, V> memory;
@@ -70,6 +69,8 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
         if (memory.isEmpty()) {
             //no live segment, go with historical
             return persistent.rangeValues(from, to);
+        } else if (persistent.isEmpty()) {
+            return memory.rangeValues(from, to);
         } else {
             final FDate memoryFrom = memory.getFirstValueKey();
             if (memoryFrom.isAfter(to)) {
@@ -93,6 +94,8 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
         if (memory.isEmpty()) {
             //no live segment, go with historical
             return persistent.rangeReverseValues(from, to);
+        } else if (persistent.isEmpty()) {
+            return memory.rangeReverseValues(from, to);
         } else {
             final FDate memoryFrom = memory.getFirstValueKey();
             if (memoryFrom.isAfter(from)) {
@@ -125,10 +128,8 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
         lastValue = nextLiveValue;
         lastValueKey = nextLiveKey;
         memorySize++;
-        if (memorySize >= ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
-            persistent.putNextLiveValues(memory.rangeValues(memory.getFirstValueKey(), memory.getLastValueKey()));
-            memorySize = 0;
-            memory.close();
+        if (memorySize >= BATCH_FLUSH_INTERVAL) {
+            convertLiveSegmentToHistorical();
         }
     }
 
@@ -137,7 +138,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
         if (memory.isEmpty()) {
             //no live segment, go with historical
             return persistent.getNextValue(date, shiftForwardUnits);
-        } else if (memory.getFirstValueKey().isBefore(date)) {
+        } else if (persistent.isEmpty() || memory.getFirstValueKey().isBefore(date)) {
             //live segment is after requested range, go with live
             final V nextValue = memory.getNextValue(date, shiftForwardUnits);
             return nextValue;
@@ -159,6 +160,8 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
     public V getLatestValue(final FDate date) {
         if (memory.isEmpty()) {
             return persistent.getLatestValue(date);
+        } else if (persistent.isEmpty()) {
+            return memory.getLatestValue(date);
         }
         V latestValue = null;
         for (int i = 0; i < latestValueProviders.size(); i++) {
@@ -196,17 +199,10 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public void convertLiveSegmentToHistorical() {
-        final ASegmentedTimeSeriesStorageCache<K, V> lookupTableCache = historicalSegmentTable
-                .getLookupTableCache(getSegmentedKey().getKey());
-        final boolean initialized = lookupTableCache.maybeInitSegment(getSegmentedKey(),
-                new Function<SegmentedKey<K>, ICloseableIterable<? extends V>>() {
-                    @Override
-                    public ICloseableIterable<? extends V> apply(final SegmentedKey<K> t) {
-                        return rangeValues(t.getSegment().getFrom(), t.getSegment().getTo());
-                    }
-                });
-        if (!initialized) {
-            throw new IllegalStateException("true expected");
+        if (!memory.isEmpty()) {
+            persistent.putNextLiveValues(memory.rangeValues(memory.getFirstValueKey(), memory.getLastValueKey()));
+            memorySize = 0;
+            memory.close();
         }
     }
 
