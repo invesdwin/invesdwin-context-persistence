@@ -229,7 +229,7 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     public File newDataDirectory() {
-        return new File(storage.getDirectory(), "storage/" + hashKey.replace(":", "_"));
+        return storage.newDataDirectory(hashKey);
     }
 
     public File getUpdateLockFile() {

@@ -6,9 +6,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
-import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentNavigableMap;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -16,13 +18,15 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.output.ByteArrayOutputStream;
+import org.mapdb.BTreeMap;
 import org.mapdb.DB;
-import org.mapdb.DB.HashMapMaker;
+import org.mapdb.DB.TreeMapMaker;
 import org.mapdb.DBMaker;
 import org.mapdb.DBMaker.Maker;
 import org.mapdb.DataInput2;
 import org.mapdb.DataOutput2;
-import org.mapdb.Serializer;
+import org.mapdb.serializer.GroupSerializer;
+import org.mapdb.serializer.GroupSerializerObjectArray;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.streams.LZ4Streams;
@@ -36,13 +40,13 @@ import ezdb.serde.Serde;
  * elements.
  */
 @ThreadSafe
-public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Closeable {
+public abstract class ADelegateTreeMapDB<K, V> implements ConcurrentNavigableMap<K, V>, Closeable {
 
     private final String name;
     @GuardedBy("this")
-    private ConcurrentMap<K, V> delegate;
+    private BTreeMap<K, V> delegate;
 
-    public ADelegateMapDB(final String name) {
+    public ADelegateTreeMapDB(final String name) {
         this.name = name;
     }
 
@@ -50,17 +54,17 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
         return name;
     }
 
-    protected synchronized ConcurrentMap<K, V> getDelegate() {
+    protected synchronized BTreeMap<K, V> getDelegate() {
         if (delegate == null) {
             this.delegate = newDelegate();
         }
         return delegate;
     }
 
-    protected ConcurrentMap<K, V> newDelegate() {
+    protected BTreeMap<K, V> newDelegate() {
         final Maker fileDB = createDB();
         final DB db = configureDB(fileDB).make();
-        final HashMapMaker<K, V> maker = db.hashMap(name, newKeySerializier(), newValueSerializer());
+        final TreeMapMaker<K, V> maker = db.treeMap(name, newKeySerializier(), newValueSerializer());
         return configureHashMap(maker).createOrOpen();
     }
 
@@ -80,20 +84,20 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
         return maker.fileChannelEnable();
     }
 
-    protected HashMapMaker<K, V> configureHashMap(final HashMapMaker<K, V> maker) {
+    protected TreeMapMaker<K, V> configureHashMap(final TreeMapMaker<K, V> maker) {
         return maker.counterEnable();
     }
 
-    private Serializer<V> newValueSerializer() {
+    private GroupSerializer<V> newValueSerializer() {
         return newSerializer(newValueSerde());
     }
 
-    private Serializer<K> newKeySerializier() {
+    private GroupSerializer<K> newKeySerializier() {
         return newSerializer(newKeySerde());
     }
 
-    private <T> Serializer<T> newSerializer(final Serde<T> serde) {
-        return new Serializer<T>() {
+    private <T> GroupSerializer<T> newSerializer(final Serde<T> serde) {
+        return new GroupSerializerObjectArray<T>() {
 
             @Override
             public void serialize(final DataOutput2 out, final T value) throws IOException {
@@ -156,7 +160,7 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
     }
 
     protected File getDirectory() {
-        return new File(getBaseDirectory(), ADelegateMapDB.class.getSimpleName());
+        return new File(getBaseDirectory(), ADelegateTreeMapDB.class.getSimpleName());
     }
 
     protected File getBaseDirectory() {
@@ -165,12 +169,12 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
 
     @SuppressWarnings("unchecked")
     private Class<K> getKeyType() {
-        return (Class<K>) Reflections.resolveTypeArguments(getClass(), ADelegateMapDB.class)[0];
+        return (Class<K>) Reflections.resolveTypeArguments(getClass(), ADelegateTreeMapDB.class)[0];
     }
 
     @SuppressWarnings("unchecked")
     private Class<V> getValueType() {
-        return (Class<V>) Reflections.resolveTypeArguments(getClass(), ADelegateMapDB.class)[1];
+        return (Class<V>) Reflections.resolveTypeArguments(getClass(), ADelegateTreeMapDB.class)[1];
     }
 
     @Override
@@ -219,8 +223,8 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
     }
 
     @Override
-    public Set<K> keySet() {
-        return getDelegate().keySet();
+    public NavigableSet<K> keySet() {
+        return getDelegate().navigableKeySet();
     }
 
     @Override
@@ -256,7 +260,7 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
     @Override
     public synchronized void close() {
         if (delegate != null) {
-            final Closeable cDelegate = (Closeable) delegate;
+            final Closeable cDelegate = delegate;
             try {
                 cDelegate.close();
             } catch (final IOException e) {
@@ -269,6 +273,127 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
     public synchronized void deleteTable() {
         close();
         FileUtils.deleteQuietly(getFile());
+    }
+
+    @Override
+    public Comparator<? super K> comparator() {
+        return getDelegate().comparator();
+    }
+
+    @Override
+    public K firstKey() {
+        return getDelegate().firstKey();
+    }
+
+    @Override
+    public K lastKey() {
+        return getDelegate().lastKey();
+    }
+
+    @Override
+    public Entry<K, V> lowerEntry(final K key) {
+        return getDelegate().lowerEntry(key);
+    }
+
+    @Override
+    public K lowerKey(final K key) {
+        return getDelegate().lowerKey(key);
+    }
+
+    @Override
+    public Entry<K, V> floorEntry(final K key) {
+        return getDelegate().floorEntry(key);
+    }
+
+    @Override
+    public K floorKey(final K key) {
+        return getDelegate().floorKey(key);
+    }
+
+    @Override
+    public Entry<K, V> ceilingEntry(final K key) {
+        return getDelegate().ceilingEntry(key);
+    }
+
+    @Override
+    public K ceilingKey(final K key) {
+        return getDelegate().ceilingKey(key);
+    }
+
+    @Override
+    public Entry<K, V> higherEntry(final K key) {
+        return getDelegate().higherEntry(key);
+    }
+
+    @Override
+    public K higherKey(final K key) {
+        return getDelegate().higherKey(key);
+    }
+
+    @Override
+    public Entry<K, V> firstEntry() {
+        return getDelegate().firstEntry();
+    }
+
+    @Override
+    public Entry<K, V> lastEntry() {
+        return getDelegate().lastEntry();
+    }
+
+    @Override
+    public Entry<K, V> pollFirstEntry() {
+        return getDelegate().pollFirstEntry();
+    }
+
+    @Override
+    public Entry<K, V> pollLastEntry() {
+        return getDelegate().pollLastEntry();
+    }
+
+    @Override
+    public ConcurrentNavigableMap<K, V> descendingMap() {
+        return getDelegate().descendingMap();
+    }
+
+    @Override
+    public NavigableSet<K> navigableKeySet() {
+        return getDelegate().navigableKeySet();
+    }
+
+    @Override
+    public NavigableSet<K> descendingKeySet() {
+        return getDelegate().descendingKeySet();
+    }
+
+    @Override
+    public ConcurrentNavigableMap<K, V> subMap(final K fromKey, final boolean fromInclusive, final K toKey,
+            final boolean toInclusive) {
+        return getDelegate().subMap(fromKey, fromInclusive, toKey, toInclusive);
+    }
+
+    @Override
+    public ConcurrentNavigableMap<K, V> headMap(final K toKey, final boolean inclusive) {
+        return getDelegate().headMap(toKey, inclusive);
+    }
+
+    @Override
+    public ConcurrentNavigableMap<K, V> tailMap(final K fromKey, final boolean inclusive) {
+        return getDelegate().tailMap(fromKey, inclusive);
+    }
+
+    @Override
+    public ConcurrentNavigableMap<K, V> subMap(final K fromKey, final K toKey) {
+        return getDelegate().subMap(fromKey, toKey);
+    }
+
+    @Override
+    public ConcurrentNavigableMap<K, V> headMap(final K toKey) {
+        return getDelegate().headMap(toKey);
+    }
+
+    @Override
+    public ConcurrentNavigableMap<K, V> tailMap(final K fromKey) {
+        return getDelegate().tailMap(fromKey);
     }
 
 }

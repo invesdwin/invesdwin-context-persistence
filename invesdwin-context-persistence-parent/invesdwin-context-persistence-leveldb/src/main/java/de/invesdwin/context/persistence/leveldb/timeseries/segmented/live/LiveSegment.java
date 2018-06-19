@@ -1,11 +1,15 @@
 package de.invesdwin.context.persistence.leveldb.timeseries.segmented.live;
 
+import java.io.Closeable;
+import java.io.File;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.SortedMap;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import de.invesdwin.context.persistence.leveldb.mapdb.ADelegateTreeMapDB;
+import de.invesdwin.context.persistence.leveldb.serde.FDateSerde;
 import de.invesdwin.context.persistence.leveldb.timeseries.segmented.SegmentedKey;
 import de.invesdwin.util.collections.iterable.ASkippingIterable;
 import de.invesdwin.util.collections.iterable.ATransformingCloseableIterable;
@@ -14,24 +18,47 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.time.fdate.FDate;
-import uk.co.omegaprime.btreemap.LongObjectBTreeMap;
+import ezdb.serde.Serde;
 
 @NotThreadSafe
-public class LiveSegment<K, V> {
+public class LiveSegment<K, V> implements Closeable {
 
     //CHECKSTYLE:OFF
-    private final LongObjectBTreeMap<V> values = LongObjectBTreeMap.create();
+    private final ADelegateTreeMapDB<FDate, V> values;
     //CHECKSTYLE:ON
     private FDate lastValueKey;
     private V lastValue;
     private final SegmentedKey<K> segmentedKey;
 
-    public LiveSegment(final SegmentedKey<K> segmentedKey) {
+    public LiveSegment(final SegmentedKey<K> segmentedKey,
+            final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable) {
         this.segmentedKey = segmentedKey;
+        this.values = new ADelegateTreeMapDB<FDate, V>(LiveSegment.class.getSimpleName()) {
+            @Override
+            protected Serde<FDate> newKeySerde() {
+                return FDateSerde.GET;
+            }
+
+            @Override
+            protected Serde<V> newValueSerde() {
+                return historicalSegmentTable.newValueSerde();
+            }
+
+            @Override
+            protected File getBaseDirectory() {
+                return historicalSegmentTable.getStorage()
+                        .newDataDirectory(historicalSegmentTable.hashKeyToString(segmentedKey.getKey()));
+            }
+
+            @Override
+            protected File getDirectory() {
+                return getBaseDirectory();
+            }
+        };
     }
 
     public V getFirstValue() {
-        final Entry<Long, V> firstEntry = values.firstEntry();
+        final Entry<FDate, V> firstEntry = values.firstEntry();
         if (firstEntry != null) {
             return firstEntry.getValue();
         } else {
@@ -48,60 +75,60 @@ public class LiveSegment<K, V> {
     }
 
     public ICloseableIterable<V> rangeValues(final FDate from, final FDate to) {
-        final SortedMap<Long, V> tailMap;
+        final SortedMap<FDate, V> tailMap;
         if (from == null) {
             tailMap = values;
         } else {
-            tailMap = values.tailMap(from.millisValue());
+            tailMap = values.tailMap(from);
         }
-        final ICloseableIterable<Entry<Long, V>> tail = WrapperCloseableIterable.maybeWrap(tailMap.entrySet());
-        final ICloseableIterable<Entry<Long, V>> skipping;
+        final ICloseableIterable<Entry<FDate, V>> tail = WrapperCloseableIterable.maybeWrap(tailMap.entrySet());
+        final ICloseableIterable<Entry<FDate, V>> skipping;
         if (to == null) {
             skipping = tail;
         } else {
-            skipping = new ASkippingIterable<Entry<Long, V>>(tail) {
+            skipping = new ASkippingIterable<Entry<FDate, V>>(tail) {
                 @Override
-                protected boolean skip(final Entry<Long, V> element) {
-                    if (element.getKey() > to.millisValue()) {
+                protected boolean skip(final Entry<FDate, V> element) {
+                    if (element.getKey().isAfter(to)) {
                         throw new FastNoSuchElementException("LiveSegment rangeValues end reached");
                     }
                     return false;
                 }
             };
         }
-        return new ATransformingCloseableIterable<Entry<Long, V>, V>(skipping) {
+        return new ATransformingCloseableIterable<Entry<FDate, V>, V>(skipping) {
             @Override
-            protected V transform(final Entry<Long, V> value) {
+            protected V transform(final Entry<FDate, V> value) {
                 return value.getValue();
             }
         };
     }
 
     public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to) {
-        final SortedMap<Long, V> headMap;
+        final SortedMap<FDate, V> headMap;
         if (from == null) {
             headMap = values.descendingMap();
         } else {
-            headMap = values.descendingMap().tailMap(from.millisValue());
+            headMap = values.descendingMap().tailMap(from);
         }
-        final ICloseableIterable<Entry<Long, V>> tail = WrapperCloseableIterable.maybeWrap(headMap.entrySet());
-        final ICloseableIterable<Entry<Long, V>> skipping;
+        final ICloseableIterable<Entry<FDate, V>> tail = WrapperCloseableIterable.maybeWrap(headMap.entrySet());
+        final ICloseableIterable<Entry<FDate, V>> skipping;
         if (to == null) {
             skipping = tail;
         } else {
-            skipping = new ASkippingIterable<Entry<Long, V>>(tail) {
+            skipping = new ASkippingIterable<Entry<FDate, V>>(tail) {
                 @Override
-                protected boolean skip(final Entry<Long, V> element) {
-                    if (element.getKey() > to.millisValue()) {
+                protected boolean skip(final Entry<FDate, V> element) {
+                    if (element.getKey().isAfter(to)) {
                         throw new FastNoSuchElementException("LiveSegment rangeReverseValues end reached");
                     }
                     return false;
                 }
             };
         }
-        return new ATransformingCloseableIterable<Entry<Long, V>, V>(skipping) {
+        return new ATransformingCloseableIterable<Entry<FDate, V>, V>(skipping) {
             @Override
-            protected V transform(final Entry<Long, V> value) {
+            protected V transform(final Entry<FDate, V> value) {
                 return value.getValue();
             }
         };
@@ -112,7 +139,7 @@ public class LiveSegment<K, V> {
             throw new IllegalStateException(segmentedKey + ": nextLiveKey [" + nextLiveKey
                     + "] should be after lastLiveKey [" + lastValueKey + "]");
         }
-        values.put(nextLiveKey.millisValue(), nextLiveValue);
+        values.put(nextLiveKey, nextLiveValue);
         lastValue = nextLiveValue;
         lastValueKey = nextLiveKey;
     }
@@ -134,7 +161,7 @@ public class LiveSegment<K, V> {
     }
 
     public V getLatestValue(final FDate date) {
-        final Entry<Long, V> floorEntry = values.floorEntry(date.millisValue());
+        final Entry<FDate, V> floorEntry = values.floorEntry(date);
         if (floorEntry != null) {
             return floorEntry.getValue();
         } else {
@@ -144,6 +171,11 @@ public class LiveSegment<K, V> {
 
     public boolean isEmpty() {
         return values.isEmpty();
+    }
+
+    @Override
+    public void close() {
+        values.deleteTable();
     }
 
 }

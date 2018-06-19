@@ -135,4 +135,8 @@ public class TimeSeriesStorage {
         nextValueLookupTable.close();
     }
 
+    public File newDataDirectory(final String hashKey) {
+        return new File(getDirectory(), "storage/" + hashKey.replace(":", "_"));
+    }
+
 }

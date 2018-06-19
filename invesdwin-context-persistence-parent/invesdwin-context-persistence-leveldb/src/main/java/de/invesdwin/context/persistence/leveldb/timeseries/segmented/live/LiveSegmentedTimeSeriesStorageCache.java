@@ -51,6 +51,9 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> {
 
     public void deleteAll() {
         historicalSegmentTable.deleteRange(key);
+        if (liveSegment != null) {
+            liveSegment.close();
+        }
         liveSegment = null;
     }
 
@@ -199,11 +202,12 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> {
                         + "] should be equal to liveSegmentTo [" + segment.getFrom() + "]");
             }
             convertLiveSegmentToHistorical();
+            liveSegment.close();
             liveSegment = null;
         }
         if (liveSegment == null) {
             final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
-            liveSegment = new LiveSegment<>(segmentedKey);
+            liveSegment = new LiveSegment<>(segmentedKey, historicalSegmentTable);
         }
         liveSegment.putNextLiveValue(nextLiveKey, nextLiveValue);
     }
