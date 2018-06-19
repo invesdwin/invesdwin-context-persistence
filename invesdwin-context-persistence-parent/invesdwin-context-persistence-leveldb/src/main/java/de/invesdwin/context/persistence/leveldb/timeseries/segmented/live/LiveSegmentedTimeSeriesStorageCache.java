@@ -1,5 +1,6 @@
 package de.invesdwin.context.persistence.leveldb.timeseries.segmented.live;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -7,8 +8,9 @@ import java.util.function.Function;
 
 import javax.annotation.concurrent.ThreadSafe;
 
-import de.invesdwin.context.persistence.leveldb.timeseries.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.leveldb.timeseries.segmented.SegmentedKey;
+import de.invesdwin.context.persistence.leveldb.timeseries.segmented.live.internal.ILiveSegment;
+import de.invesdwin.context.persistence.leveldb.timeseries.segmented.live.internal.MemoryLiveSegment;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -20,7 +22,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> {
 
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
     private final K key;
-    private LiveSegment<K, V> liveSegment;
+    private ILiveSegment<K, V> liveSegment;
     private final Function<FDate, V> liveSegmentLatestValueProvider = new Function<FDate, V>() {
         @Override
         public V apply(final FDate t) {
@@ -52,7 +54,11 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> {
     public void deleteAll() {
         historicalSegmentTable.deleteRange(key);
         if (liveSegment != null) {
-            liveSegment.close();
+            try {
+                liveSegment.close();
+            } catch (final IOException e) {
+                throw new RuntimeException(e);
+            }
         }
         liveSegment = null;
     }
@@ -201,29 +207,14 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> {
                 throw new IllegalStateException("lastAvailableHistoricalSegmentTo [" + lastAvailableHistoricalSegmentTo
                         + "] should be equal to liveSegmentTo [" + segment.getFrom() + "]");
             }
-            convertLiveSegmentToHistorical();
-            liveSegment.close();
+            liveSegment.convertLiveSegmentToHistorical();
             liveSegment = null;
         }
         if (liveSegment == null) {
             final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
-            liveSegment = new LiveSegment<>(segmentedKey, historicalSegmentTable);
+            liveSegment = new MemoryLiveSegment<K, V>(segmentedKey, historicalSegmentTable);
         }
         liveSegment.putNextLiveValue(nextLiveKey, nextLiveValue);
-    }
-
-    private void convertLiveSegmentToHistorical() {
-        final ASegmentedTimeSeriesStorageCache<K, V> lookupTableCache = historicalSegmentTable.getLookupTableCache(key);
-        final boolean initialized = lookupTableCache.maybeInitSegment(liveSegment.getSegmentedKey(),
-                new Function<SegmentedKey<K>, ICloseableIterable<? extends V>>() {
-                    @Override
-                    public ICloseableIterable<? extends V> apply(final SegmentedKey<K> t) {
-                        return liveSegment.rangeValues(t.getSegment().getFrom(), t.getSegment().getTo());
-                    }
-                });
-        if (!initialized) {
-            throw new IllegalStateException("true expected");
-        }
     }
 
 }

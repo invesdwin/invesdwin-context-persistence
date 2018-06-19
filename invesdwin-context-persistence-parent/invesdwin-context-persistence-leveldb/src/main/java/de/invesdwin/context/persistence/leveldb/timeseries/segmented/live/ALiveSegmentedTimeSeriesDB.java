@@ -80,7 +80,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
 
     protected abstract FDate getLastAvailableHistoricalSegmentTo(K key);
 
-    protected final class HistoricalSegmentTable extends ASegmentedTimeSeriesDB<K, V> {
+    public final class HistoricalSegmentTable extends ASegmentedTimeSeriesDB<K, V> {
         private HistoricalSegmentTable(final String name) {
             super(name);
         }

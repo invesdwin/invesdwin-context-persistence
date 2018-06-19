@@ -1,12 +1,15 @@
-package de.invesdwin.context.persistence.leveldb.timeseries.segmented.live;
+package de.invesdwin.context.persistence.leveldb.timeseries.segmented.live.internal;
 
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.SortedMap;
+import java.util.function.Function;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import de.invesdwin.context.persistence.leveldb.timeseries.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.leveldb.timeseries.segmented.SegmentedKey;
+import de.invesdwin.context.persistence.leveldb.timeseries.segmented.live.ALiveSegmentedTimeSeriesDB;
 import de.invesdwin.util.collections.iterable.ASkippingIterable;
 import de.invesdwin.util.collections.iterable.ATransformingCloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -17,7 +20,7 @@ import de.invesdwin.util.time.fdate.FDate;
 import uk.co.omegaprime.btreemap.LongObjectBTreeMap;
 
 @NotThreadSafe
-public class LiveSegment<K, V> {
+public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     //CHECKSTYLE:OFF
     private final LongObjectBTreeMap<V> values = LongObjectBTreeMap.create();
@@ -25,11 +28,15 @@ public class LiveSegment<K, V> {
     private FDate lastValueKey;
     private V lastValue;
     private final SegmentedKey<K> segmentedKey;
+    private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
 
-    public LiveSegment(final SegmentedKey<K> segmentedKey) {
+    public PersistentLiveSegment(final SegmentedKey<K> segmentedKey,
+            final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable) {
         this.segmentedKey = segmentedKey;
+        this.historicalSegmentTable = historicalSegmentTable;
     }
 
+    @Override
     public V getFirstValue() {
         final Entry<Long, V> firstEntry = values.firstEntry();
         if (firstEntry != null) {
@@ -39,14 +46,17 @@ public class LiveSegment<K, V> {
         }
     }
 
+    @Override
     public V getLastValue() {
         return lastValue;
     }
 
+    @Override
     public SegmentedKey<K> getSegmentedKey() {
         return segmentedKey;
     }
 
+    @Override
     public ICloseableIterable<V> rangeValues(final FDate from, final FDate to) {
         final SortedMap<Long, V> tailMap;
         if (from == null) {
@@ -77,6 +87,7 @@ public class LiveSegment<K, V> {
         };
     }
 
+    @Override
     public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to) {
         final SortedMap<Long, V> headMap;
         if (from == null) {
@@ -107,6 +118,7 @@ public class LiveSegment<K, V> {
         };
     }
 
+    @Override
     public void putNextLiveValue(final FDate nextLiveKey, final V nextLiveValue) {
         if (lastValue != null && lastValueKey.isAfterOrEqualTo(nextLiveKey)) {
             throw new IllegalStateException(segmentedKey + ": nextLiveKey [" + nextLiveKey
@@ -117,6 +129,7 @@ public class LiveSegment<K, V> {
         lastValueKey = nextLiveKey;
     }
 
+    @Override
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
         V nextValue = null;
         try (ICloseableIterator<V> rangeValues = rangeValues(date, null).iterator()) {
@@ -133,6 +146,7 @@ public class LiveSegment<K, V> {
         }
     }
 
+    @Override
     public V getLatestValue(final FDate date) {
         final Entry<Long, V> floorEntry = values.floorEntry(date.millisValue());
         if (floorEntry != null) {
@@ -142,8 +156,28 @@ public class LiveSegment<K, V> {
         }
     }
 
+    @Override
     public boolean isEmpty() {
         return values.isEmpty();
+    }
+
+    @Override
+    public void close() {}
+
+    @Override
+    public void convertLiveSegmentToHistorical() {
+        final ASegmentedTimeSeriesStorageCache<K, V> lookupTableCache = historicalSegmentTable
+                .getLookupTableCache(getSegmentedKey().getKey());
+        final boolean initialized = lookupTableCache.maybeInitSegment(getSegmentedKey(),
+                new Function<SegmentedKey<K>, ICloseableIterable<? extends V>>() {
+                    @Override
+                    public ICloseableIterable<? extends V> apply(final SegmentedKey<K> t) {
+                        return rangeValues(t.getSegment().getFrom(), t.getSegment().getTo());
+                    }
+                });
+        if (!initialized) {
+            throw new IllegalStateException("true expected");
+        }
     }
 
 }
