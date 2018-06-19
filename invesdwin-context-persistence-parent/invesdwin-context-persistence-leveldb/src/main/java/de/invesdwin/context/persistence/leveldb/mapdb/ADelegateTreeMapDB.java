@@ -104,12 +104,16 @@ public abstract class ADelegateTreeMapDB<K, V> implements ConcurrentNavigableMap
                 final byte[] entry;
                 entry = serde.toBytes(value);
                 final OutputStream compressor = newCompressor(out);
-                try {
-                    IOUtils.write(entry, compressor);
-                } catch (final IOException e) {
-                    throw new RuntimeException(e);
-                } finally {
-                    IOUtils.closeQuietly(compressor);
+                if (compressor == out) {
+                    BYTE_ARRAY.serialize(out, entry);
+                } else {
+                    try {
+                        IOUtils.write(entry, compressor);
+                    } catch (final IOException e) {
+                        throw new RuntimeException(e);
+                    } finally {
+                        IOUtils.closeQuietly(compressor);
+                    }
                 }
             }
 
@@ -117,17 +121,22 @@ public abstract class ADelegateTreeMapDB<K, V> implements ConcurrentNavigableMap
             public T deserialize(final DataInput2 input, final int available) throws IOException {
                 final InputStream bis = new DataInput2.DataInputToStream(input);
                 final InputStream decompressor = newDecompressor(bis);
-                try {
-                    final ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                    try {
-                        IOUtils.copy(decompressor, bos);
-                    } catch (final IOException e) {
-                        //ignore, end reached
-                    }
-                    final byte[] bytes = bos.toByteArray();
+                if (decompressor == bis) {
+                    final byte[] bytes = BYTE_ARRAY.deserialize(input, -1);
                     return serde.fromBytes(bytes);
-                } finally {
-                    IOUtils.closeQuietly(decompressor);
+                } else {
+                    try {
+                        final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                        try {
+                            IOUtils.copy(decompressor, bos);
+                        } catch (final IOException e) {
+                            //ignore, end reached
+                        }
+                        final byte[] bytes = bos.toByteArray();
+                        return serde.fromBytes(bytes);
+                    } finally {
+                        IOUtils.closeQuietly(decompressor);
+                    }
                 }
             }
 

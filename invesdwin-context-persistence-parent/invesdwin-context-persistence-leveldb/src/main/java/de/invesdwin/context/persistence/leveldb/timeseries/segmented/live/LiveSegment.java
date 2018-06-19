@@ -2,6 +2,8 @@ package de.invesdwin.context.persistence.leveldb.timeseries.segmented.live;
 
 import java.io.Closeable;
 import java.io.File;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.SortedMap;
@@ -53,6 +55,16 @@ public class LiveSegment<K, V> implements Closeable {
             @Override
             protected File getDirectory() {
                 return getBaseDirectory();
+            }
+
+            @Override
+            protected OutputStream newCompressor(final OutputStream out) {
+                return out;
+            }
+
+            @Override
+            protected InputStream newDecompressor(final InputStream in) {
+                return in;
             }
         };
     }
