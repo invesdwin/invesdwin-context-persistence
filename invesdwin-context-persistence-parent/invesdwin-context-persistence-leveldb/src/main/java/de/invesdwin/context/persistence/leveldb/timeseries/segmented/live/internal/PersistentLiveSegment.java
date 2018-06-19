@@ -84,17 +84,7 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
-    public void close() {
-        if (!isEmpty()) {
-            final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable = historicalSegmentTable
-                    .getStorage()
-                    .getSegmentStatusTable();
-            final SegmentStatus existingStatus = segmentStatusTable.get(hashKey, segmentedKey.getSegment());
-            if (existingStatus == SegmentStatus.INITIALIZING) {
-                segmentStatusTable.put(hashKey, segmentedKey.getSegment(), SegmentStatus.COMPLETE);
-            }
-        }
-    }
+    public void close() {}
 
     @Deprecated
     @Override
@@ -161,6 +151,18 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
             throw new RuntimeException(e);
         }
         empty = false;
+    }
+
+    public void finish() {
+        if (!isEmpty()) {
+            final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable = historicalSegmentTable
+                    .getStorage()
+                    .getSegmentStatusTable();
+            final SegmentStatus existingStatus = segmentStatusTable.get(hashKey, segmentedKey.getSegment());
+            if (existingStatus == SegmentStatus.INITIALIZING) {
+                segmentStatusTable.put(hashKey, segmentedKey.getSegment(), SegmentStatus.COMPLETE);
+            }
+        }
     }
 
 }

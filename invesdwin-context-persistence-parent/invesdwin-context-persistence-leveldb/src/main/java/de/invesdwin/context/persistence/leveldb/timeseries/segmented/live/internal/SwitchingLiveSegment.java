@@ -129,7 +129,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
         lastValueKey = nextLiveKey;
         memorySize++;
         if (memorySize >= BATCH_FLUSH_INTERVAL) {
-            convertLiveSegmentToHistorical();
+            flushLiveSegment();
         }
     }
 
@@ -200,10 +200,15 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
     @Override
     public void convertLiveSegmentToHistorical() {
         if (!memory.isEmpty()) {
-            persistent.putNextLiveValues(memory.rangeValues(memory.getFirstValueKey(), memory.getLastValueKey()));
-            memorySize = 0;
-            memory.close();
+            flushLiveSegment();
         }
+        persistent.finish();
+    }
+
+    private void flushLiveSegment() {
+        persistent.putNextLiveValues(memory.rangeValues(memory.getFirstValueKey(), memory.getLastValueKey()));
+        memorySize = 0;
+        memory.close();
     }
 
 }
