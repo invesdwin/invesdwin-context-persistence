@@ -334,6 +334,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                         storage.getSegmentStatusTable().delete(hashKey, segmentedKey.getSegment());
                     }
                     initSegmentWithStatusHandling(segmentedKey, source);
+                    onSegmentCompleted(segmentedKey,
+                            readRangeValues(segmentedKey.getSegment().getFrom(), segmentedKey.getSegment().getTo()));
                     return true;
                 } finally {
                     segmentWriteLock.unlock();
@@ -461,6 +463,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
             throw new RetryLaterRuntimeException(e);
         }
     }
+
+    public abstract void onSegmentCompleted(SegmentedKey<K> segmentedKey, ICloseableIterable<V> segmentValues);
 
     protected abstract String getElementsName();
 

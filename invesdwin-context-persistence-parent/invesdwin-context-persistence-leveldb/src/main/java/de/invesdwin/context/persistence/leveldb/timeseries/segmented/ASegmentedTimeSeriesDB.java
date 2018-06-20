@@ -77,11 +77,19 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
                         return ASegmentedTimeSeriesDB.this.getElementsName();
                     }
 
+                    @Override
+                    public void onSegmentCompleted(final SegmentedKey<K> segmentedKey,
+                            final ICloseableIterable<V> segmentValues) {
+                        ASegmentedTimeSeriesDB.this.onSegmentCompleted(segmentedKey, segmentValues);
+                    }
+
                 };
             }
 
         };
     }
+
+    protected void onSegmentCompleted(final SegmentedKey<K> segmentedKey, final ICloseableIterable<V> segmentValues) {}
 
     protected abstract String getElementsName();
 

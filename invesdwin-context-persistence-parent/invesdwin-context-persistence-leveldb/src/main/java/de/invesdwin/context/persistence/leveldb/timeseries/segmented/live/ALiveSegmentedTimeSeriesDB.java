@@ -329,7 +329,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
     }
 
     public void putNextLiveValue(final K key, final V nextLiveValue) {
-        final Lock writeLock = getTableLock(key).readLock();
+        final Lock writeLock = getTableLock(key).writeLock();
         writeLock.lock();
         try {
             getLookupTableCache(key).putNextLiveValue(nextLiveValue);
