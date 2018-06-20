@@ -16,6 +16,7 @@ import de.invesdwin.context.persistence.leveldb.timeseries.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.leveldb.timeseries.ITimeSeriesDB;
 import de.invesdwin.context.persistence.leveldb.timeseries.segmented.ASegmentedTimeSeriesDB;
 import de.invesdwin.context.persistence.leveldb.timeseries.segmented.ASegmentedTimeSeriesStorageCache;
+import de.invesdwin.context.persistence.leveldb.timeseries.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.leveldb.timeseries.segmented.SegmentedTimeSeriesStorage;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
@@ -171,11 +172,19 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
             return ALiveSegmentedTimeSeriesDB.this.getElementsName();
         }
 
+        @Override
+        protected void onSegmentCompleted(final SegmentedKey<K> segmentedKey,
+                final ICloseableIterable<V> segmentValues) {
+            ALiveSegmentedTimeSeriesDB.this.onSegmentCompleted(segmentedKey, segmentValues);
+        }
+
     }
 
     protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
         return ATimeSeriesUpdater.newDefaultCompressor(out);
     }
+
+    protected void onSegmentCompleted(final SegmentedKey<K> segmentedKey, final ICloseableIterable<V> segmentValues) {}
 
     protected abstract String getElementsName();
 
