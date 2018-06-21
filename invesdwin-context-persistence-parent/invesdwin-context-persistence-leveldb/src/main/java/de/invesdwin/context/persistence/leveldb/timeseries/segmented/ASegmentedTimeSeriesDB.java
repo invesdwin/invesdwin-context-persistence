@@ -57,9 +57,9 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
                     }
 
                     @Override
-                    protected ICloseableIterable<? extends V> downloadSegmentElements(final K key, final FDate from,
-                            final FDate to) {
-                        return ASegmentedTimeSeriesDB.this.downloadSegmentElements(key, from, to);
+                    protected ICloseableIterable<? extends V> downloadSegmentElements(
+                            final SegmentedKey<K> segmentedKey) {
+                        return ASegmentedTimeSeriesDB.this.downloadSegmentElements(segmentedKey);
                     }
 
                     @Override
@@ -97,7 +97,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         return ATimeSeriesUpdater.newDefaultCompressor(out);
     }
 
-    protected abstract ICloseableIterable<? extends V> downloadSegmentElements(K key, FDate from, FDate to);
+    protected abstract ICloseableIterable<? extends V> downloadSegmentElements(SegmentedKey<K> segmentedKey);
 
     protected SegmentedTimeSeriesStorage newStorage(final File directory) {
         return new SegmentedTimeSeriesStorage(directory);

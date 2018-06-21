@@ -204,7 +204,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
         this.source = new Function<SegmentedKey<K>, ICloseableIterable<? extends V>>() {
             @Override
             public ICloseableIterable<? extends V> apply(final SegmentedKey<K> t) {
-                return downloadSegmentElements(t.getKey(), t.getSegment().getFrom(), t.getSegment().getTo());
+                return downloadSegmentElements(t);
             }
         };
     }
@@ -470,7 +470,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
 
     protected abstract LZ4BlockOutputStream newCompressor(OutputStream out);
 
-    protected abstract ICloseableIterable<? extends V> downloadSegmentElements(K key, FDate from, FDate to);
+    protected abstract ICloseableIterable<? extends V> downloadSegmentElements(SegmentedKey<K> segmentedKey);
 
     protected abstract FDate getLastAvailableSegmentTo(K key);
 

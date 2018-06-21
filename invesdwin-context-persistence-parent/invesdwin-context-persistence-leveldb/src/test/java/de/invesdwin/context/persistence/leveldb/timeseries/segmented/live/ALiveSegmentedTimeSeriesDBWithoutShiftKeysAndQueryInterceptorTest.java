@@ -21,6 +21,7 @@ import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.leveldb.serde.ExtendedTypeDelegateSerde;
 import de.invesdwin.context.persistence.leveldb.timeseries.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.leveldb.timeseries.segmented.PeriodicalSegmentFinder;
+import de.invesdwin.context.persistence.leveldb.timeseries.segmented.SegmentedKey;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.tuple.Pair;
@@ -115,9 +116,12 @@ public class ALiveSegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest e
             }
 
             @Override
-            protected ICloseableIterable<? extends FDate> downloadSegmentElements(final String key, final FDate from,
-                    final FDate to) {
+            protected ICloseableIterable<? extends FDate> downloadSegmentElements(
+                    final SegmentedKey<String> segmentedKey) {
                 return new ASkippingIterable<FDate>(WrapperCloseableIterable.maybeWrap(entities)) {
+                    private final FDate from = segmentedKey.getSegment().getFrom();
+                    private final FDate to = segmentedKey.getSegment().getTo();
+
                     @Override
                     protected boolean skip(final FDate element) {
                         return element.isBefore(from) || element.isAfter(to);
