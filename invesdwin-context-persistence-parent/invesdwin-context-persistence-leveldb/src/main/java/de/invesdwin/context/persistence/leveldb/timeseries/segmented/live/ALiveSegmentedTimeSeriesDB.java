@@ -77,6 +77,10 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
 
     protected abstract String hashKeyToString(K key);
 
+    protected String hashKeyToString(final SegmentedKey<K> segmentedKey) {
+        return historicalSegmentTable.hashKeyToString(segmentedKey);
+    }
+
     protected abstract FDate getFirstAvailableHistoricalSegmentFrom(K key);
 
     protected abstract FDate getLastAvailableHistoricalSegmentTo(K key);
@@ -175,6 +179,11 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         protected void onSegmentCompleted(final SegmentedKey<K> segmentedKey,
                 final ICloseableIterable<V> segmentValues) {
             ALiveSegmentedTimeSeriesDB.this.onSegmentCompleted(segmentedKey, segmentValues);
+        }
+
+        @Override
+        public String hashKeyToString(final SegmentedKey<K> key) {
+            return super.hashKeyToString(key);
         }
 
     }

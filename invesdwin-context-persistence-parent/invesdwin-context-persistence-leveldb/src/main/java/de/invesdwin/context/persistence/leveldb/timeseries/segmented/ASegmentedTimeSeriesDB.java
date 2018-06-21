@@ -127,6 +127,12 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
     protected abstract String hashKeyToString(K key);
 
+    protected String hashKeyToString(final SegmentedKey<K> key) {
+        return ASegmentedTimeSeriesDB.this.hashKeyToString(key.getKey()) + "/"
+                + key.getSegment().getFrom().toString(FDate.FORMAT_TIMESTAMP_UNDERSCORE) + "-"
+                + key.getSegment().getTo().toString(FDate.FORMAT_TIMESTAMP_UNDERSCORE);
+    }
+
     protected abstract FDate getFirstAvailableHistoricalSegmentFrom(K key);
 
     protected abstract FDate getLastAvailableHistoricalSegmentTo(K key);
@@ -423,9 +429,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
         @Override
         public String hashKeyToString(final SegmentedKey<K> key) {
-            return ASegmentedTimeSeriesDB.this.hashKeyToString(key.getKey()) + "/"
-                    + key.getSegment().getFrom().toString(FDate.FORMAT_TIMESTAMP_UNDERSCORE) + "-"
-                    + key.getSegment().getTo().toString(FDate.FORMAT_TIMESTAMP_UNDERSCORE);
+            return ASegmentedTimeSeriesDB.this.hashKeyToString(key);
         }
 
         @Override
