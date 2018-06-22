@@ -172,8 +172,10 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
             final SegmentStatus existingStatus = segmentStatusTable.get(hashKey, segmentedKey.getSegment());
             if (existingStatus == SegmentStatus.INITIALIZING) {
                 segmentStatusTable.put(hashKey, segmentedKey.getSegment(), SegmentStatus.COMPLETE);
+                final ICloseableIterable<V> rangeValues = rangeValues(segmentedKey.getSegment().getFrom(),
+                        segmentedKey.getSegment().getTo());
                 historicalSegmentTable.getLookupTableCache(segmentedKey.getKey()).onSegmentCompleted(segmentedKey,
-                        rangeValues(getFirstValueKey(), getLastValueKey()));
+                        rangeValues);
             }
         }
     }

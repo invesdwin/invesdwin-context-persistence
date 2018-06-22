@@ -707,7 +707,7 @@ public class TimeSeriesStorageCache<K, V> {
      * get fragmented too much between updates
      */
     public synchronized Pair<FDate, List<V>> prepareForUpdate(final boolean shouldRedoLastFile) {
-        final FDate latestRangeKey = storage.getFileLookupTable().getLatestRangeKey(hashKey, FDate.MAX_DATE);
+        FDate latestRangeKey = storage.getFileLookupTable().getLatestRangeKey(hashKey, FDate.MAX_DATE);
         FDate updateFrom = latestRangeKey;
         final List<V> lastValues = new ArrayList<V>();
         if (latestRangeKey != null) {
@@ -720,6 +720,8 @@ public class TimeSeriesStorageCache<K, V> {
                 final V lastValue = lastValues.remove(lastValues.size() - 1);
                 updateFrom = extractTime.apply(lastValue);
                 lastFile.delete();
+            } else {
+                latestRangeKey = latestRangeKey.addMilliseconds(1);
             }
             storage.getFileLookupTable().deleteRange(hashKey, latestRangeKey);
             storage.getLatestValueLookupTable().deleteRange(hashKey, latestRangeKey);
