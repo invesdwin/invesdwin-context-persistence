@@ -1,5 +1,7 @@
 package de.invesdwin.context.persistence.leveldb.timeseries.segmented.live.internal;
 
+import java.io.OutputStream;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.leveldb.ezdb.ADelegateRangeTable;
@@ -15,6 +17,7 @@ import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.range.TimeRange;
+import net.jpountz.lz4.LZ4BlockOutputStream;
 
 @NotThreadSafe
 public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
@@ -154,6 +157,11 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
             @Override
             protected boolean shouldWriteInParallel() {
                 return false;
+            }
+
+            @Override
+            protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
+                return historicalSegmentTable.newCompressor(out);
             }
         };
         try {

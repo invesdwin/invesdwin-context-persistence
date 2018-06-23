@@ -166,7 +166,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         }
 
         @Override
-        protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
+        public LZ4BlockOutputStream newCompressor(final OutputStream out) {
             return ALiveSegmentedTimeSeriesDB.this.newCompressor(out);
         }
 
