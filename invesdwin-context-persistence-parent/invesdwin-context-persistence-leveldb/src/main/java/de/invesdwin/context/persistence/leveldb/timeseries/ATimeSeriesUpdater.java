@@ -114,41 +114,41 @@ public abstract class ATimeSeriesUpdater<K, V> {
             };
         }
         final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues, source);
-        try (ICloseableIterator<? extends V> elements = flatteningSources.iterator()) {
-            try (ICloseableIterator<UpdateProgress> batchWriterProducer = new ICloseableIterator<UpdateProgress>() {
+        try (ICloseableIterator<UpdateProgress> batchWriterProducer = new ICloseableIterator<UpdateProgress>() {
 
-                @Override
-                public boolean hasNext() {
-                    return elements.hasNext();
-                }
+            private final ICloseableIterator<? extends V> elements = flatteningSources.iterator();
 
-                @Override
-                public UpdateProgress next() {
-                    final UpdateProgress progress = new UpdateProgress();
-                    while (elements.hasNext()) {
-                        final V element = elements.next();
-                        if (progress.onElement(element)) {
-                            return progress;
-                        }
+            @Override
+            public boolean hasNext() {
+                return elements.hasNext();
+            }
+
+            @Override
+            public UpdateProgress next() {
+                final UpdateProgress progress = new UpdateProgress();
+                while (elements.hasNext()) {
+                    final V element = elements.next();
+                    if (progress.onElement(element)) {
+                        return progress;
                     }
-                    return progress;
                 }
+                return progress;
+            }
 
-                @Override
-                public void close() {
-                    elements.close();
+            @Override
+            public void close() {
+                elements.close();
+            }
+        }) {
+            final AtomicInteger flushIndex = new AtomicInteger();
+            while (batchWriterProducer.hasNext()) {
+                final UpdateProgress progress = batchWriterProducer.next();
+                progress.write(flushIndex.incrementAndGet());
+                count += progress.getCount();
+                if (minTime == null) {
+                    minTime = progress.getMinTime();
                 }
-            }) {
-                final AtomicInteger flushIndex = new AtomicInteger();
-                while (batchWriterProducer.hasNext()) {
-                    final UpdateProgress progress = batchWriterProducer.next();
-                    progress.write(flushIndex.incrementAndGet());
-                    count += progress.getCount();
-                    if (minTime == null) {
-                        minTime = progress.getMinTime();
-                    }
-                    maxTime = progress.getMaxTime();
-                }
+                maxTime = progress.getMaxTime();
             }
         }
     }
