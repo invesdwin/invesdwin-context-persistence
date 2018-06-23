@@ -16,13 +16,10 @@ import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.integration.streams.LZ4Streams;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.tuple.Pair;
-import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ASkippingIterable;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
-import de.invesdwin.util.collections.iterable.concurrent.AParallelChunkConsumerIterator;
-import de.invesdwin.util.collections.iterable.concurrent.AProducerQueueIterator;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.fdate.FDate;
@@ -145,61 +142,16 @@ public abstract class ATimeSeriesUpdater<K, V> {
                 }
             };
             final AtomicInteger flushIndex = new AtomicInteger();
-            if (shouldWriteInParallel()) {
-                writeParallel(batchWriterProducer, flushIndex);
-            } else {
-                writeSerial(batchWriterProducer, flushIndex);
-            }
-        }
-    }
-
-    private void writeParallel(final ICloseableIterator<UpdateProgress> batchWriterProducer,
-            final AtomicInteger flushIndex) {
-        //do IO in a different thread than batch filling
-        try (ACloseableIterator<UpdateProgress> batchProducer = new AProducerQueueIterator<UpdateProgress>(
-                getClass().getSimpleName() + "_batchProducer_" + table.hashKeyToString(key), BATCH_QUEUE_SIZE) {
-            @Override
-            protected ICloseableIterator<ATimeSeriesUpdater<K, V>.UpdateProgress> newProducer() {
-                return batchWriterProducer;
-            }
-        }) {
-            try (ACloseableIterator<UpdateProgress> parallelConsumer = new AParallelChunkConsumerIterator<UpdateProgress, UpdateProgress>(
-                    getClass().getSimpleName() + "_batchConsumer_" + table.hashKeyToString(key), batchProducer,
-                    BATCH_WRITER_THREADS) {
-
-                @Override
-                protected UpdateProgress doWork(final UpdateProgress request) {
-                    request.write(flushIndex.incrementAndGet());
-                    return request;
+            while (batchWriterProducer.hasNext()) {
+                final UpdateProgress progress = batchWriterProducer.next();
+                progress.write(flushIndex.incrementAndGet());
+                count += progress.getCount();
+                if (minTime == null) {
+                    minTime = progress.getMinTime();
                 }
-            }) {
-                while (parallelConsumer.hasNext()) {
-                    final UpdateProgress progress = parallelConsumer.next();
-                    count += progress.getCount();
-                    if (minTime == null) {
-                        minTime = progress.getMinTime();
-                    }
-                    maxTime = progress.getMaxTime();
-                }
+                maxTime = progress.getMaxTime();
             }
         }
-    }
-
-    private void writeSerial(final ICloseableIterator<UpdateProgress> batchWriterProducer,
-            final AtomicInteger flushIndex) {
-        while (batchWriterProducer.hasNext()) {
-            final UpdateProgress progress = batchWriterProducer.next();
-            progress.write(flushIndex.incrementAndGet());
-            count += progress.getCount();
-            if (minTime == null) {
-                minTime = progress.getMinTime();
-            }
-            maxTime = progress.getMaxTime();
-        }
-    }
-
-    protected boolean shouldWriteInParallel() {
-        return true;
     }
 
     protected boolean shouldRedoLastFile() {
