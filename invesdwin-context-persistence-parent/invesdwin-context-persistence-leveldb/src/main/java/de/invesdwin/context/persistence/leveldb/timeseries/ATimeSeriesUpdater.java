@@ -20,7 +20,6 @@ import de.invesdwin.util.collections.iterable.ASkippingIterable;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
-import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
@@ -31,7 +30,6 @@ public abstract class ATimeSeriesUpdater<K, V> {
 
     public static final int BATCH_FLUSH_INTERVAL = 10_000;
     public static final int BATCH_QUEUE_SIZE = 500_000 / BATCH_FLUSH_INTERVAL;
-    public static final int BATCH_WRITER_THREADS = Executors.getCpuThreadPoolCount();
 
     private final Serde<V> valueSerde;
     private final ATimeSeriesDB<K, V> table;
@@ -117,7 +115,7 @@ public abstract class ATimeSeriesUpdater<K, V> {
         }
         final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues, source);
         try (ICloseableIterator<? extends V> elements = flatteningSources.iterator()) {
-            final ICloseableIterator<UpdateProgress> batchWriterProducer = new ICloseableIterator<UpdateProgress>() {
+            try (ICloseableIterator<UpdateProgress> batchWriterProducer = new ICloseableIterator<UpdateProgress>() {
 
                 @Override
                 public boolean hasNext() {
@@ -140,16 +138,17 @@ public abstract class ATimeSeriesUpdater<K, V> {
                 public void close() {
                     elements.close();
                 }
-            };
-            final AtomicInteger flushIndex = new AtomicInteger();
-            while (batchWriterProducer.hasNext()) {
-                final UpdateProgress progress = batchWriterProducer.next();
-                progress.write(flushIndex.incrementAndGet());
-                count += progress.getCount();
-                if (minTime == null) {
-                    minTime = progress.getMinTime();
+            }) {
+                final AtomicInteger flushIndex = new AtomicInteger();
+                while (batchWriterProducer.hasNext()) {
+                    final UpdateProgress progress = batchWriterProducer.next();
+                    progress.write(flushIndex.incrementAndGet());
+                    count += progress.getCount();
+                    if (minTime == null) {
+                        minTime = progress.getMinTime();
+                    }
+                    maxTime = progress.getMaxTime();
                 }
-                maxTime = progress.getMaxTime();
             }
         }
     }
