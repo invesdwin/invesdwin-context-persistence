@@ -139,9 +139,18 @@ public abstract class ADataUpdater<K, V> {
                 return ADataUpdater.this.getElementsName();
             }
 
+            @Override
+            protected boolean shouldWriteInParallel() {
+                return ADataUpdater.this.shouldWriteInParallel();
+            }
+
         };
         updater.update();
         return updater.getMaxTime();
+    }
+
+    protected boolean shouldWriteInParallel() {
+        return false;
     }
 
     protected abstract ATimeSeriesDB<K, V> getTable();

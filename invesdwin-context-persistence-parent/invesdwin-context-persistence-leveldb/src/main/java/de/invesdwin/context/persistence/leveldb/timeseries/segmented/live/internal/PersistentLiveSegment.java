@@ -155,6 +155,11 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
 
             @Override
+            protected boolean shouldWriteInParallel() {
+                return false;
+            }
+
+            @Override
             protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
                 return historicalSegmentTable.newCompressor(out);
             }
