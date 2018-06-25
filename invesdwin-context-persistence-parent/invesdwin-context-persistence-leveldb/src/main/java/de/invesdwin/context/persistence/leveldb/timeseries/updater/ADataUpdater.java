@@ -150,7 +150,7 @@ public abstract class ADataUpdater<K, V> {
     }
 
     protected boolean shouldWriteInParallel() {
-        return true;
+        return ATimeSeriesUpdater.DEFAULT_SHOULD_WRITE_IN_PARALLEL;
     }
 
     protected abstract ATimeSeriesDB<K, V> getTable();

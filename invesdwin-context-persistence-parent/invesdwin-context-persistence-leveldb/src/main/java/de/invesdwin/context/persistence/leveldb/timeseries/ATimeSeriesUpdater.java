@@ -32,6 +32,7 @@ import net.jpountz.lz4.LZ4BlockOutputStream;
 @NotThreadSafe
 public abstract class ATimeSeriesUpdater<K, V> {
 
+    public static final boolean DEFAULT_SHOULD_WRITE_IN_PARALLEL = false;
     public static final int BATCH_FLUSH_INTERVAL = 10_000;
     public static final int BATCH_QUEUE_SIZE = 500_000 / BATCH_FLUSH_INTERVAL;
     public static final int BATCH_WRITER_THREADS = Executors.getCpuThreadPoolCount();
@@ -202,7 +203,7 @@ public abstract class ATimeSeriesUpdater<K, V> {
     }
 
     protected boolean shouldWriteInParallel() {
-        return false;
+        return DEFAULT_SHOULD_WRITE_IN_PARALLEL;
     }
 
     protected boolean shouldRedoLastFile() {
