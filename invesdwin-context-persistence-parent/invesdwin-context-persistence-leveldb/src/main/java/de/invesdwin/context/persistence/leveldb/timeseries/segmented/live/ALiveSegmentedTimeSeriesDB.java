@@ -38,6 +38,11 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         protected ReadWriteLock loadValue(final K key) {
             return new ReentrantReadWriteLock();
         }
+
+        @Override
+        protected boolean isHighConcurrency() {
+            return true;
+        }
     };
     private final ALoadingCache<K, LiveSegmentedTimeSeriesStorageCache<K, V>> key_lookupTableCache;
 
@@ -47,6 +52,11 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
             @Override
             protected LiveSegmentedTimeSeriesStorageCache<K, V> loadValue(final K key) {
                 return new LiveSegmentedTimeSeriesStorageCache<K, V>(historicalSegmentTable, key);
+            }
+
+            @Override
+            protected boolean isHighConcurrency() {
+                return true;
             }
         };
     }

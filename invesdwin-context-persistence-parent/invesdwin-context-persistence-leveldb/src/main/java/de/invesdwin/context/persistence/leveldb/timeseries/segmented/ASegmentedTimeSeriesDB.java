@@ -35,6 +35,11 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         protected ReadWriteLock loadValue(final K key) {
             return new ReentrantReadWriteLock();
         }
+
+        @Override
+        protected boolean isHighConcurrency() {
+            return true;
+        }
     };
     private final ALoadingCache<K, ASegmentedTimeSeriesStorageCache<K, V>> key_lookupTableCache;
 
@@ -84,6 +89,11 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
                     }
 
                 };
+            }
+
+            @Override
+            protected boolean isHighConcurrency() {
+                return true;
             }
 
         };

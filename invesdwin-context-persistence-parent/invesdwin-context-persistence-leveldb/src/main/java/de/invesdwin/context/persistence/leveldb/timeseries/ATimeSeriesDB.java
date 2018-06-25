@@ -41,6 +41,11 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         protected ReadWriteLock loadValue(final K key) {
             return new ReentrantReadWriteLock();
         }
+
+        @Override
+        protected boolean isHighConcurrency() {
+            return true;
+        }
     };
     @GuardedBy("this")
     private TimeSeriesStorage storage;
@@ -61,6 +66,11 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
                                 return extractTime(input);
                             }
                         });
+            }
+
+            @Override
+            protected boolean isHighConcurrency() {
+                return true;
             }
 
         };
