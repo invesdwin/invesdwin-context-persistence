@@ -379,10 +379,10 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
         maybePrepareForUpdate(segmentedKey.getSegment());
         initSegmentRetry(segmentedKey, source);
         if (segmentedTable.isEmptyOrInconsistent(segmentedKey)) {
-            throw new IllegalStateException(
-                    "Initialization of segment [" + segmentedKey + "] should have added at least one entry");
+            storage.getSegmentStatusTable().put(hashKey, segmentedKey.getSegment(), SegmentStatus.COMPLETE_EMPTY);
+        } else {
+            storage.getSegmentStatusTable().put(hashKey, segmentedKey.getSegment(), SegmentStatus.COMPLETE);
         }
-        storage.getSegmentStatusTable().put(hashKey, segmentedKey.getSegment(), SegmentStatus.COMPLETE);
     }
 
     private SegmentStatus getSegmentStatusWithReadLock(final SegmentedKey<K> segmentedKey,
@@ -447,16 +447,18 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
             //write lock is reentrant
             updater.update();
             final FDate minTime = updater.getMinTime();
-            final FDate segmentFrom = segmentedKey.getSegment().getFrom();
-            if (minTime.isBefore(segmentFrom)) {
-                throw new IllegalStateException(segmentedKey + ": minTime [" + minTime
-                        + "] should not be before segmentFrom [" + segmentFrom + "]");
-            }
-            final FDate maxTime = updater.getMaxTime();
-            final FDate segmentTo = segmentedKey.getSegment().getTo();
-            if (maxTime.isAfter(segmentTo)) {
-                throw new IllegalStateException(
-                        segmentedKey + ": maxTime [" + maxTime + "] should not be after segmentTo [" + segmentTo + "]");
+            if (minTime != null) {
+                final FDate segmentFrom = segmentedKey.getSegment().getFrom();
+                if (minTime.isBefore(segmentFrom)) {
+                    throw new IllegalStateException(segmentedKey + ": minTime [" + minTime
+                            + "] should not be before segmentFrom [" + segmentFrom + "]");
+                }
+                final FDate maxTime = updater.getMaxTime();
+                final FDate segmentTo = segmentedKey.getSegment().getTo();
+                if (maxTime.isAfter(segmentTo)) {
+                    throw new IllegalStateException(segmentedKey + ": maxTime [" + maxTime
+                            + "] should not be after segmentTo [" + segmentTo + "]");
+                }
             }
         } catch (final IncompleteUpdateFoundException e) {
             segmentedTable.deleteRange(new SegmentedKey<K>(segmentedKey.getKey(), segmentedKey.getSegment()));

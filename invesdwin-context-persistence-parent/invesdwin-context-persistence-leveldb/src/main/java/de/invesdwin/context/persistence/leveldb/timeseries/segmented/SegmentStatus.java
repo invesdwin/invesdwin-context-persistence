@@ -5,5 +5,6 @@ import javax.annotation.concurrent.Immutable;
 @Immutable
 public enum SegmentStatus {
     INITIALIZING,
-    COMPLETE;
+    COMPLETE,
+    COMPLETE_EMPTY;
 }
