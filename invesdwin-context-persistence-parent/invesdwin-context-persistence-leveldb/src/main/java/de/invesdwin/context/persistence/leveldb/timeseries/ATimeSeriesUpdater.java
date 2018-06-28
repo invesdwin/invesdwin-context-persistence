@@ -254,11 +254,10 @@ public abstract class ATimeSeriesUpdater<K, V> {
             if (minTime == null) {
                 minTime = time;
             }
-            if (maxTime != null && maxTime.isAfterOrEqualTo(time)) {
-                throw new IllegalArgumentException("New element time [" + time
-                        + "] is not after previous element end time [" + maxTime + "] for table [" + table.getName()
-                        + "] and key [" + key
-                        + "]; maybe you forgot to subtract 1ms from the end time to not overlap with the next element?");
+            if (maxTime != null && maxTime.isAfter(time)) {
+                throw new IllegalArgumentException(
+                        "New element time [" + time + "] is not after or equal to previous element end time [" + maxTime
+                                + "] for table [" + table.getName() + "] and key [" + key + "]");
             }
             final FDate endTime = extractEndTime(element);
             maxTime = endTime;
