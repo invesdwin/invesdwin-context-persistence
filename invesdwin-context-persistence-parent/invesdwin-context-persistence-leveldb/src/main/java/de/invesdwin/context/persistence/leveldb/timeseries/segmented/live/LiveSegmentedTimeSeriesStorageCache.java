@@ -136,14 +136,16 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
         for (int i = 0; i < latestValueProviders.size(); i++) {
             final Function<FDate, V> latestValueProvider = latestValueProviders.get(i);
             final V newValue = latestValueProvider.apply(date);
-            final FDate newValueTime = historicalSegmentTable.extractTime(newValue);
-            if (newValueTime.isBeforeOrEqualTo(date)) {
-                /*
-                 * even if we got the first value in this segment and it is after the desired key we just continue to
-                 * the beginning to search for an earlier value until we reach the overall firstValue
-                 */
-                latestValue = newValue;
-                break;
+            if (newValue != null) {
+                final FDate newValueTime = historicalSegmentTable.extractTime(newValue);
+                if (newValueTime.isBeforeOrEqualTo(date)) {
+                    /*
+                     * even if we got the first value in this segment and it is after the desired key we just continue
+                     * to the beginning to search for an earlier value until we reach the overall firstValue
+                     */
+                    latestValue = newValue;
+                    break;
+                }
             }
         }
         if (latestValue == null) {
