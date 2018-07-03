@@ -80,15 +80,17 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                                     final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
                                     maybeInitSegment(segmentedKey);
                                     final V newValue = segmentedTable.getLatestValue(segmentedKey, date);
-                                    final FDate newValueTime = segmentedTable.extractTime(newValue);
-                                    if (newValueTime.isBeforeOrEqualTo(date)) {
-                                        /*
-                                         * even if we got the first value in this segment and it is after the desired
-                                         * key we just continue to the beginning to search for an earlier value until we
-                                         * reach the overall firstValue
-                                         */
-                                        latestValue = newValue;
-                                        break;
+                                    if (newValue != null) {
+                                        final FDate newValueTime = segmentedTable.extractTime(newValue);
+                                        if (newValueTime.isBeforeOrEqualTo(date)) {
+                                            /*
+                                             * even if we got the first value in this segment and it is after the
+                                             * desired key we just continue to the beginning to search for an earlier
+                                             * value until we reach the overall firstValue
+                                             */
+                                            latestValue = newValue;
+                                            break;
+                                        }
                                     }
                                 }
                                 if (latestValue == null) {
