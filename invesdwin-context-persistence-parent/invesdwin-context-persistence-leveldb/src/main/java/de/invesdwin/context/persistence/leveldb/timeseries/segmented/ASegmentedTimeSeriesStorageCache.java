@@ -96,6 +96,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                                 if (latestValue == null) {
                                     latestValue = getFirstValue();
                                 }
+                                if (latestValue == null) {
+                                    return null;
+                                }
                                 return new SingleValue(valueSerde, latestValue);
                             }
                         }
