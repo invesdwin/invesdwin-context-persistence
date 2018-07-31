@@ -38,11 +38,14 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
     };
     private final List<Function<FDate, V>> latestValueProviders = Arrays.asList(liveSegmentLatestValueProvider,
             historicalSegmentLatestValueProvider);
+    private final int batchFlushInterval;
 
     public LiveSegmentedTimeSeriesStorageCache(
-            final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable, final K key) {
+            final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable, final K key,
+            final int batchFlushInterval) {
         this.historicalSegmentTable = historicalSegmentTable;
         this.key = key;
+        this.batchFlushInterval = batchFlushInterval;
     }
 
     public boolean isEmptyOrInconsistent() {
@@ -220,7 +223,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
         }
         if (liveSegment == null) {
             final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
-            liveSegment = new SwitchingLiveSegment<K, V>(segmentedKey, historicalSegmentTable);
+            liveSegment = new SwitchingLiveSegment<K, V>(segmentedKey, historicalSegmentTable, batchFlushInterval);
         }
         liveSegment.putNextLiveValue(nextLiveKey, nextLiveValue);
     }

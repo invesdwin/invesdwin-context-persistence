@@ -51,7 +51,8 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         this.key_lookupTableCache = new ALoadingCache<K, LiveSegmentedTimeSeriesStorageCache<K, V>>() {
             @Override
             protected LiveSegmentedTimeSeriesStorageCache<K, V> loadValue(final K key) {
-                return new LiveSegmentedTimeSeriesStorageCache<K, V>(historicalSegmentTable, key);
+                return new LiveSegmentedTimeSeriesStorageCache<K, V>(historicalSegmentTable, key,
+                        getBatchFlushInterval());
             }
 
             @Override
@@ -59,6 +60,10 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
                 return true;
             }
         };
+    }
+
+    protected int getBatchFlushInterval() {
+        return ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL;
     }
 
     protected abstract ICloseableIterable<? extends V> downloadSegmentElements(SegmentedKey<K> segmentedKey);

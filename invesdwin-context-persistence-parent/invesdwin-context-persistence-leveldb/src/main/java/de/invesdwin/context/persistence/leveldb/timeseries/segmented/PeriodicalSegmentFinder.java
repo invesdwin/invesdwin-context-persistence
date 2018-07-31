@@ -15,8 +15,38 @@ import de.invesdwin.util.time.range.TimeRange;
 @ThreadSafe
 public class PeriodicalSegmentFinder {
 
-    private static final Duration TEN_MILLISECONDS = new Duration(10, FTimeUnit.MILLISECONDS);
+    public static final TimeRange DUMMY_RANGE = new TimeRange(FDate.MIN_DATE, FDate.MAX_DATE);
 
+    public static final AHistoricalCache<TimeRange> DUMMY_CACHE = new AHistoricalCache<TimeRange>() {
+
+        @Override
+        protected Integer getInitialMaximumSize() {
+            //no caching
+            return 0;
+        }
+
+        @Override
+        protected FDate innerExtractKey(final FDate key, final TimeRange value) {
+            return value.getFrom();
+        }
+
+        @Override
+        protected TimeRange loadValue(final FDate key) {
+            return DUMMY_RANGE;
+        }
+
+        @Override
+        protected FDate innerCalculateNextKey(final FDate key) {
+            return key;
+        }
+
+        @Override
+        protected FDate innerCalculatePreviousKey(final FDate key) {
+            return key;
+        }
+    };
+
+    private static final Duration TEN_MILLISECONDS = new Duration(10, FTimeUnit.MILLISECONDS);
     private final Function<FDate, FDate> incrementFunction;
     private final Function<FDate, FDate> decrementFunction;
 

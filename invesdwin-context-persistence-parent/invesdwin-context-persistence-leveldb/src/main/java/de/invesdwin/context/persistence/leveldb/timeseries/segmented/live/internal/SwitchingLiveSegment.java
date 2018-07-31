@@ -6,7 +6,6 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import de.invesdwin.context.persistence.leveldb.timeseries.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.leveldb.timeseries.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.leveldb.timeseries.segmented.live.ALiveSegmentedTimeSeriesDB;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
@@ -17,7 +16,6 @@ import de.invesdwin.util.time.fdate.FDate;
 @NotThreadSafe
 public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
-    public static final int BATCH_FLUSH_INTERVAL = ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL;
     private final SegmentedKey<K> segmentedKey;
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
     private final MemoryLiveSegment<K, V> memory;
@@ -29,14 +27,17 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
     private FDate lastValueKey;
     private V lastValue;
     private int memorySize = 0;
+    private final int batchFlushInterval;
 
     public SwitchingLiveSegment(final SegmentedKey<K> segmentedKey,
-            final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable) {
+            final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable,
+            final int batchFlushInterval) {
         this.segmentedKey = segmentedKey;
         this.historicalSegmentTable = historicalSegmentTable;
         this.memory = new MemoryLiveSegment<>(segmentedKey, historicalSegmentTable);
         this.persistent = new PersistentLiveSegment<>(segmentedKey, historicalSegmentTable);
         this.latestValueProviders = Arrays.asList(memory, persistent);
+        this.batchFlushInterval = batchFlushInterval;
     }
 
     @Override
@@ -128,7 +129,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
         lastValue = nextLiveValue;
         lastValueKey = nextLiveKey;
         memorySize++;
-        if (memorySize >= BATCH_FLUSH_INTERVAL) {
+        if (memorySize >= batchFlushInterval) {
             flushLiveSegment();
         }
     }
