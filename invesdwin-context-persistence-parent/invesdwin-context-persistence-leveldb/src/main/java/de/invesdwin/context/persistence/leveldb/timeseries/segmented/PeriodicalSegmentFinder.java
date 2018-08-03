@@ -16,6 +16,10 @@ import de.invesdwin.util.time.range.TimeRange;
 public class PeriodicalSegmentFinder {
 
     public static final TimeRange DUMMY_RANGE = new TimeRange(FDate.MIN_DATE, FDate.MAX_DATE);
+    public static final TimeRange BEFORE_DUMMY_RANGE = new TimeRange(FDate.MIN_DATE.addMilliseconds(-1),
+            FDate.MIN_DATE.addMilliseconds(-1));
+    public static final TimeRange AFTER_DUMMY_RANGE = new TimeRange(FDate.MAX_DATE.addMilliseconds(1),
+            FDate.MAX_DATE.addMilliseconds(1));
 
     public static final AHistoricalCache<TimeRange> DUMMY_CACHE = new AHistoricalCache<TimeRange>() {
 
@@ -32,7 +36,13 @@ public class PeriodicalSegmentFinder {
 
         @Override
         protected TimeRange loadValue(final FDate key) {
-            return DUMMY_RANGE;
+            if (key.isBefore(DUMMY_RANGE.getFrom())) {
+                return BEFORE_DUMMY_RANGE;
+            } else if (key.isAfter(DUMMY_RANGE.getTo())) {
+                return AFTER_DUMMY_RANGE;
+            } else {
+                return DUMMY_RANGE;
+            }
         }
 
         @Override
