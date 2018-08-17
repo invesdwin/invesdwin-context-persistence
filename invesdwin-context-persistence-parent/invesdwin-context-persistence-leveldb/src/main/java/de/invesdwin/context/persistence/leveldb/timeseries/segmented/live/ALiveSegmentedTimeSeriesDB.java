@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.leveldb.timeseries.segmented.live;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.OutputStream;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
@@ -212,7 +211,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
     protected abstract String getElementsName();
 
     @Override
-    public synchronized void close() throws IOException {
+    public synchronized void close() {
         historicalSegmentTable.close();
         for (final LiveSegmentedTimeSeriesStorageCache<K, V> cache : key_lookupTableCache.values()) {
             cache.close();

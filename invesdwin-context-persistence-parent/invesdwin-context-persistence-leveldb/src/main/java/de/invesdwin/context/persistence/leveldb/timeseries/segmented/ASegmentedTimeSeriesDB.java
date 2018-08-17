@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.leveldb.timeseries.segmented;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.OutputStream;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
@@ -148,7 +147,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
     protected abstract FDate getLastAvailableHistoricalSegmentTo(K key);
 
     @Override
-    public synchronized void close() throws IOException {
+    public synchronized void close() {
         segmentedTable.close();
         key_lookupTableCache.clear();
         key_tableLock.clear();
