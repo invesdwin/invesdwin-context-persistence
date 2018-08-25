@@ -4,7 +4,6 @@ import java.io.File;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -24,6 +23,7 @@ import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
+import de.invesdwin.util.concurrent.Threads;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
@@ -39,7 +39,8 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
     private final ALoadingCache<K, ReadWriteLock> key_tableLock = new ALoadingCache<K, ReadWriteLock>() {
         @Override
         protected ReadWriteLock loadValue(final K key) {
-            return new ReentrantReadWriteLock();
+            return Threads.getCycleDetectingLockFactory().newReentrantReadWriteLock(
+                    ATimeSeriesDB.class.getSimpleName() + "_" + getName() + "_" + hashKeyToString(key) + "_tableLock");
         }
 
         @Override

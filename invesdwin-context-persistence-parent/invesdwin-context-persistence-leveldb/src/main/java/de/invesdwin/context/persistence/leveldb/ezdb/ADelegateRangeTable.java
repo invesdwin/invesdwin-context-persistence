@@ -6,7 +6,6 @@ import java.util.Comparator;
 import java.util.Map.Entry;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -22,6 +21,7 @@ import de.invesdwin.context.persistence.leveldb.serde.ExtendedTypeDelegateSerde;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.concurrent.Threads;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Reflections;
 import de.invesdwin.util.lang.Strings;
@@ -50,7 +50,8 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     private final Comparator<byte[]> rangeKeyComparator;
 
     private final Db db;
-    private final ReadWriteLock tableLock = new ReentrantReadWriteLock();
+    private final ReadWriteLock tableLock;
+
     private final String name;
     private final File directory;
     private final File timestampFile;
@@ -70,6 +71,8 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         this.valueSerde = newValueSerde();
         this.hashKeyComparator = newHashKeyComparator();
         this.rangeKeyComparator = newRangeKeyComparator();
+        this.tableLock = Threads.getCycleDetectingLockFactory()
+                .newReentrantReadWriteLock(ADelegateRangeTable.class.getSimpleName() + "_" + getName() + "_tableLock");
         this.db = initDB();
     }
 
@@ -393,17 +396,25 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     public V getOrLoad(final H hashKey, final R rangeKey, final Function<Pair<H, R>, V> loadable) {
         final RangeTable<H, R, V> table = getTableWithReadLock();
+        final V cachedValue;
         try {
-            final V cachedValue = table.get(hashKey, rangeKey);
-            if (cachedValue == null) {
-                final V loadedValue = loadable.apply(Pair.of(hashKey, rangeKey));
-                table.put(hashKey, rangeKey, loadedValue);
-                return loadedValue;
-            } else {
-                return cachedValue;
-            }
+            cachedValue = table.get(hashKey, rangeKey);
         } finally {
             tableLock.readLock().unlock();
+        }
+        if (cachedValue == null) {
+            //don't hold read lock while loading value
+            final V loadedValue = loadable.apply(Pair.of(hashKey, rangeKey));
+            //write lock is only for the actual table variable, not the table values, thus read lock is fine here
+            tableLock.readLock().lock();
+            try {
+                table.put(hashKey, rangeKey, loadedValue);
+            } finally {
+                tableLock.readLock().unlock();
+            }
+            return loadedValue;
+        } else {
+            return cachedValue;
         }
     }
 
