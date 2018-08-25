@@ -29,7 +29,6 @@ import de.invesdwin.util.time.fdate.FDate;
 import ezdb.Db;
 import ezdb.RangeTable;
 import ezdb.RawTableRow;
-import ezdb.Table;
 import ezdb.TableIterator;
 import ezdb.TableRow;
 import ezdb.batch.Batch;
@@ -375,27 +374,31 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     }
 
     public V getOrLoad(final H hashKey, final Function<H, V> loadable) {
-        final Table<H, V> table = getTableWithReadLock();
+        RangeTable<H, R, V> table = getTableWithReadLock();
+        final V cachedValue;
         try {
-            final V cachedValue = table.get(hashKey);
-            if (cachedValue == null) {
-                final V loadedValue = loadable.apply(hashKey);
-                if (loadedValue != null) {
-                    table.put(hashKey, loadedValue);
-                }
-                return loadedValue;
-            } else {
-                return cachedValue;
-            }
-        } catch (final Throwable t) {
-            throw new RuntimeException("Key: " + hashKey, t);
+            cachedValue = table.get(hashKey);
         } finally {
             tableLock.readLock().unlock();
+        }
+        if (cachedValue == null) {
+            //don't hold read lock while loading value
+            final V loadedValue = loadable.apply(hashKey);
+            //write lock is only for the actual table variable, not the table values, thus read lock is fine here
+            table = getTableWithReadLock();
+            try {
+                table.put(hashKey, loadedValue);
+            } finally {
+                tableLock.readLock().unlock();
+            }
+            return loadedValue;
+        } else {
+            return cachedValue;
         }
     }
 
     public V getOrLoad(final H hashKey, final R rangeKey, final Function<Pair<H, R>, V> loadable) {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        RangeTable<H, R, V> table = getTableWithReadLock();
         final V cachedValue;
         try {
             cachedValue = table.get(hashKey, rangeKey);
@@ -406,7 +409,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
             //don't hold read lock while loading value
             final V loadedValue = loadable.apply(Pair.of(hashKey, rangeKey));
             //write lock is only for the actual table variable, not the table values, thus read lock is fine here
-            tableLock.readLock().lock();
+            table = getTableWithReadLock();
             try {
                 table.put(hashKey, rangeKey, loadedValue);
             } finally {
