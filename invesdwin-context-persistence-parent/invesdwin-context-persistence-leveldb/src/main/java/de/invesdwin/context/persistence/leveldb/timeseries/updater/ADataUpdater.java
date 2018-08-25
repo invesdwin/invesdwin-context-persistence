@@ -15,8 +15,8 @@ import de.invesdwin.context.persistence.leveldb.timeseries.IncompleteUpdateFound
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.concurrent.ANestedExecutor;
 import de.invesdwin.util.concurrent.future.Futures;
+import de.invesdwin.util.concurrent.lock.IReentrantLock;
 import de.invesdwin.util.concurrent.lock.Locks;
-import de.invesdwin.util.concurrent.lock.WrappedReentrantLock;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.fdate.FDates;
 import io.netty.util.concurrent.FastThreadLocal;
@@ -29,7 +29,7 @@ public abstract class ADataUpdater<K, V> {
     private final K key;
     @GuardedBy("updateLock")
     private volatile FDate lastUpdateCheck = FDate.MIN_DATE;
-    private final WrappedReentrantLock updateLock;
+    private final IReentrantLock updateLock;
 
     public ADataUpdater(final K key) {
         if (key == null) {

@@ -23,6 +23,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.lock.Locks;
+import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.range.TimeRange;
 import ezdb.serde.Serde;
@@ -32,11 +33,12 @@ import net.jpountz.lz4.LZ4BlockOutputStream;
 public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
     private final HistoricalSegmentTable historicalSegmentTable;
-    private final ALoadingCache<K, ReadWriteLock> key_tableLock = new ALoadingCache<K, ReadWriteLock>() {
+    private final ALoadingCache<K, IReadWriteLock> key_tableLock = new ALoadingCache<K, IReadWriteLock>() {
         @Override
-        protected ReadWriteLock loadValue(final K key) {
-            return Locks.newReentrantReadWriteLock(ALiveSegmentedTimeSeriesDB.class.getSimpleName() + "_" + getName()
-                    + "_" + hashKeyToString(key) + "_tableLock");
+        protected IReadWriteLock loadValue(final K key) {
+            final String name = ALiveSegmentedTimeSeriesDB.class.getSimpleName() + "_" + getName() + "_"
+                    + hashKeyToString(key) + "_tableLock";
+            return newTableLock(name);
         }
 
         @Override
@@ -60,6 +62,10 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
                 return true;
             }
         };
+    }
+
+    protected IReadWriteLock newTableLock(final String name) {
+        return Locks.newReentrantReadWriteLock(name);
     }
 
     protected int getBatchFlushInterval() {
