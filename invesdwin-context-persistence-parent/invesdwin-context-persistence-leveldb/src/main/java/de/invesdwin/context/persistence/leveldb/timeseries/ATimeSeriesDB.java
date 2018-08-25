@@ -23,7 +23,7 @@ import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
-import de.invesdwin.util.concurrent.Threads;
+import de.invesdwin.util.concurrent.Locks;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
@@ -39,7 +39,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
     private final ALoadingCache<K, ReadWriteLock> key_tableLock = new ALoadingCache<K, ReadWriteLock>() {
         @Override
         protected ReadWriteLock loadValue(final K key) {
-            return Threads.getCycleDetectingLockFactory().newReentrantReadWriteLock(
+            return Locks.newReentrantReadWriteLock(
                     ATimeSeriesDB.class.getSimpleName() + "_" + getName() + "_" + hashKeyToString(key) + "_tableLock");
         }
 

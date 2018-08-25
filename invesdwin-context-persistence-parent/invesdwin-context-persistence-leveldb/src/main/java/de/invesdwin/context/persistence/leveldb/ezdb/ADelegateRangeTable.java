@@ -21,7 +21,7 @@ import de.invesdwin.context.persistence.leveldb.serde.ExtendedTypeDelegateSerde;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
-import de.invesdwin.util.concurrent.Threads;
+import de.invesdwin.util.concurrent.Locks;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Reflections;
 import de.invesdwin.util.lang.Strings;
@@ -70,7 +70,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         this.valueSerde = newValueSerde();
         this.hashKeyComparator = newHashKeyComparator();
         this.rangeKeyComparator = newRangeKeyComparator();
-        this.tableLock = Threads.getCycleDetectingLockFactory()
+        this.tableLock = Locks
                 .newReentrantReadWriteLock(ADelegateRangeTable.class.getSimpleName() + "_" + getName() + "_tableLock");
         this.db = initDB();
     }

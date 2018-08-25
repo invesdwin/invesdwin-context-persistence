@@ -15,7 +15,7 @@ import de.invesdwin.context.persistence.leveldb.timeseries.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.leveldb.timeseries.IncompleteUpdateFoundException;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.concurrent.ANestedExecutor;
-import de.invesdwin.util.concurrent.Threads;
+import de.invesdwin.util.concurrent.Locks;
 import de.invesdwin.util.concurrent.future.Futures;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.fdate.FDates;
@@ -36,7 +36,7 @@ public abstract class ADataUpdater<K, V> {
             throw new NullPointerException("key should not be null");
         }
         this.key = key;
-        this.updateLock = Threads.getCycleDetectingLockFactory().newReentrantLock(
+        this.updateLock = Locks.newReentrantLock(
                 ADataUpdater.class.getSimpleName() + "_" + getTable().getName() + "_" + key + "_updateLock");
     }
 

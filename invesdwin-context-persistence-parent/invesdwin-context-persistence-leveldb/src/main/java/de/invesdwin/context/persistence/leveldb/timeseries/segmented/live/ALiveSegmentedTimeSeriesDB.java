@@ -22,7 +22,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
-import de.invesdwin.util.concurrent.Threads;
+import de.invesdwin.util.concurrent.Locks;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.range.TimeRange;
 import ezdb.serde.Serde;
@@ -35,9 +35,8 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
     private final ALoadingCache<K, ReadWriteLock> key_tableLock = new ALoadingCache<K, ReadWriteLock>() {
         @Override
         protected ReadWriteLock loadValue(final K key) {
-            return Threads.getCycleDetectingLockFactory()
-                    .newReentrantReadWriteLock(ALiveSegmentedTimeSeriesDB.class.getSimpleName() + "_" + getName() + "_"
-                            + hashKeyToString(key) + "_tableLock");
+            return Locks.newReentrantReadWriteLock(ALiveSegmentedTimeSeriesDB.class.getSimpleName() + "_" + getName()
+                    + "_" + hashKeyToString(key) + "_tableLock");
         }
 
         @Override
