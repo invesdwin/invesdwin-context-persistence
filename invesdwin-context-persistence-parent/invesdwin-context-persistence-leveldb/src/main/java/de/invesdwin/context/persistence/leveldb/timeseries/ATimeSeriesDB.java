@@ -23,7 +23,7 @@ import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
-import de.invesdwin.util.concurrent.Locks;
+import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;

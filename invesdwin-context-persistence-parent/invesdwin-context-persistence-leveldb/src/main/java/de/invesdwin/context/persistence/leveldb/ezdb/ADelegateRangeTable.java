@@ -21,7 +21,7 @@ import de.invesdwin.context.persistence.leveldb.serde.ExtendedTypeDelegateSerde;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
-import de.invesdwin.util.concurrent.Locks;
+import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Reflections;
 import de.invesdwin.util.lang.Strings;

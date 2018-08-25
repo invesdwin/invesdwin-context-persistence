@@ -2,7 +2,6 @@ package de.invesdwin.context.persistence.leveldb.timeseries.updater;
 
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantLock;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -15,8 +14,9 @@ import de.invesdwin.context.persistence.leveldb.timeseries.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.leveldb.timeseries.IncompleteUpdateFoundException;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.concurrent.ANestedExecutor;
-import de.invesdwin.util.concurrent.Locks;
 import de.invesdwin.util.concurrent.future.Futures;
+import de.invesdwin.util.concurrent.lock.Locks;
+import de.invesdwin.util.concurrent.lock.WrappedReentrantLock;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.fdate.FDates;
 import io.netty.util.concurrent.FastThreadLocal;
@@ -29,7 +29,7 @@ public abstract class ADataUpdater<K, V> {
     private final K key;
     @GuardedBy("updateLock")
     private volatile FDate lastUpdateCheck = FDate.MIN_DATE;
-    private final ReentrantLock updateLock;
+    private final WrappedReentrantLock updateLock;
 
     public ADataUpdater(final K key) {
         if (key == null) {
