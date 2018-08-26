@@ -44,7 +44,7 @@
 		<version.datanucleus>5.0.0-release</version.datanucleus>
 		<version.jdo-api>3.0.1</version.jdo-api>
 
-		<version.kundera>3.5</version.kundera>
+		<version.kundera>3.13</version.kundera>
 		<version.ezdb>0.1.12-SNAPSHOT</version.ezdb>
 		<version.leveldbjni>1.8</version.leveldbjni>
 		<version.leveldbjni-libs>1.8</version.leveldbjni-libs>

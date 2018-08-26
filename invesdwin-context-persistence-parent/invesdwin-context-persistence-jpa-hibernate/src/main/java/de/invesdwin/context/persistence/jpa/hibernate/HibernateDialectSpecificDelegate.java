@@ -10,7 +10,7 @@ import javax.inject.Named;
 import javax.persistence.spi.PersistenceProvider;
 import javax.sql.DataSource;
 
-import org.hibernate.cache.ehcache.SingletonEhCacheRegionFactory;
+import org.hibernate.cache.jcache.JCacheRegionFactory;
 import org.hibernate.cfg.AvailableSettings;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.dialect.H2Dialect;
@@ -23,8 +23,7 @@ import org.springframework.orm.jpa.JpaDialect;
 import org.springframework.orm.jpa.JpaVendorAdapter;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 
-import de.invesdwin.context.beans.init.MergedContext;
-import de.invesdwin.context.beans.init.platform.util.EhCacheConfigurationMerger;
+import de.invesdwin.context.jcache.CacheBuilder;
 import de.invesdwin.context.persistence.jpa.ConnectionAutoSchema;
 import de.invesdwin.context.persistence.jpa.ConnectionDialect;
 import de.invesdwin.context.persistence.jpa.PersistenceUnitContext;
@@ -34,7 +33,10 @@ import de.invesdwin.context.persistence.jpa.hibernate.internal.HibernateExtended
 import de.invesdwin.context.persistence.jpa.spi.delegate.IDialectSpecificDelegate;
 import de.invesdwin.context.persistence.jpa.spi.impl.ConfiguredCPDataSource;
 import de.invesdwin.context.persistence.jpa.spi.impl.NativeJdbcIndexCreationHandler;
+import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.error.UnknownArgumentException;
+import de.invesdwin.util.time.duration.Duration;
+import de.invesdwin.util.time.fdate.FTimeUnit;
 
 @Named
 @ThreadSafe
@@ -88,16 +90,24 @@ public class HibernateDialectSpecificDelegate implements IDialectSpecificDelegat
         //        <prop key="hibernate.cache.use_query_cache">true</prop>
         props.put(AvailableSettings.USE_QUERY_CACHE, String.valueOf(true));
         //        <prop key="hibernate.cache.region.factory_class">org.hibernate.cache.ehcache.SingletonEhCacheRegionFactory</prop>
-        props.put(AvailableSettings.CACHE_REGION_FACTORY, SingletonEhCacheRegionFactory.class.getName());
-        //        <prop key="net.sf.ehcache.configurationResourceName">#{ehCacheConfigurationMerger.newEhCacheXml().toString()}</prop>
-        final EhCacheConfigurationMerger ehCacheConfigurationMerger = MergedContext.getInstance()
-                .getBean(EhCacheConfigurationMerger.class);
-        props.put(SingletonEhCacheRegionFactory.NET_SF_EHCACHE_CONFIGURATION_RESOURCE_NAME,
-                ehCacheConfigurationMerger.newEhCacheXml().toString());
+        initCaches();
+        props.put(AvailableSettings.CACHE_REGION_FACTORY, JCacheRegionFactory.class.getName());
         props.put(AvailableSettings.USE_NEW_ID_GENERATOR_MAPPINGS, String.valueOf(true));
         //https://vladmihalcea.com/hibernate-hidden-gem-the-pooled-lo-optimizer/
         props.put(AvailableSettings.PREFERRED_POOLED_OPTIMIZER, "pooled-lo");
         return props;
+    }
+
+    private void initCaches() {
+        Assertions.checkNotNull(new CacheBuilder<Object, Object>()
+                .withName(org.hibernate.cache.internal.StandardQueryCache.class.getName())
+                .withExpireAfterAccess(new Duration(2, FTimeUnit.MINUTES))
+                .withMaximumSize(10000)
+                .getOrCreate());
+        Assertions.checkNotNull(new CacheBuilder<Object, Object>()
+                .withName(org.hibernate.cache.spi.UpdateTimestampsCache.class.getName())
+                .withMaximumSize(1000000)
+                .getOrCreate());
     }
 
     private String getHibernateHbm2DdlAuto(final PersistenceUnitContext context) {

@@ -10,10 +10,6 @@
 	<artifactId>invesdwin-context-persistence-jpa-kundera-rdbms</artifactId>
 	<packaging>jar</packaging>
 
-	<properties>
-		<version.hibernate>4.3.11.Final</version.hibernate>
-	</properties>
-
 	<build>
 		<plugins>
 			<plugin>
@@ -23,13 +19,6 @@
 					<includes>
 						<include>de/invesdwin/context/persistence/jpa/kundera/KunderaTestSuite.java</include>
 					</includes>
-				</configuration>
-			</plugin>
-			<plugin>
-				<artifactId>maven-enforcer-plugin</artifactId>
-				<configuration>
-					<!-- make hibernate downgrade a warning -->
-					<fail>false</fail>
 				</configuration>
 			</plugin>
 		</plugins>

@@ -14,8 +14,7 @@ import org.datanucleus.api.jpa.PersistenceProviderImpl;
 import org.springframework.orm.jpa.JpaDialect;
 import org.springframework.orm.jpa.JpaVendorAdapter;
 
-import de.invesdwin.context.beans.init.MergedContext;
-import de.invesdwin.context.beans.init.platform.util.EhCacheConfigurationMerger;
+import de.invesdwin.context.jcache.CacheBuilder;
 import de.invesdwin.context.persistence.jpa.ConnectionAutoSchema;
 import de.invesdwin.context.persistence.jpa.ConnectionDialect;
 import de.invesdwin.context.persistence.jpa.PersistenceUnitContext;
@@ -26,11 +25,14 @@ import de.invesdwin.context.persistence.jpa.spi.impl.ConfiguredCPDataSource;
 import de.invesdwin.context.persistence.jpa.spi.impl.NativeJdbcIndexCreationHandler;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.error.UnknownArgumentException;
+import de.invesdwin.util.time.duration.Duration;
+import de.invesdwin.util.time.fdate.FTimeUnit;
 
 @Named
 @NotThreadSafe
 public class DatanucleusDialectSpecificDelegate implements IDialectSpecificDelegate {
 
+    private static final String L2_CACHE_NAME = "org.datanucleus.L2Cache";
     private final NativeJdbcIndexCreationHandler nativeJdbcIndexCreationHandler = new NativeJdbcIndexCreationHandler();
 
     @Override
@@ -118,19 +120,20 @@ public class DatanucleusDialectSpecificDelegate implements IDialectSpecificDeleg
         props.put("datanucleus.managedRuntime", String.valueOf(true));
         //        <prop key="datanucleus.cache.level2.type">Soft</prop>
         //        <!-- <prop key="datanucleus.cache.level2.type">EHCache</prop> cannot be found interestingly...-->
-        props.put("datanucleus.cache.level2.type", "EHCache");
+        props.put("datanucleus.cache.level2.type", "javax.cache");
         //        <prop key="datanucleus.cache.level2.cacheName">org.datanucleus.L2Cache</prop>
-        props.put("datanucleus.cache.level2.cacheName", "org.datanucleus.L2Cache");
-        //        <prop key="datanucleus.cache.level2.configurationFile">#{ehCacheConfigurationMerger.newEhCacheXml().toString()}</prop>
-        final EhCacheConfigurationMerger ehCacheConfigurationMerger = MergedContext.getInstance()
-                .getBean(EhCacheConfigurationMerger.class);
-        Assertions.assertThat(ehCacheConfigurationMerger.newEhCacheXml()).isNotNull();
-        props.put("datanucleus.cache.level2.configurationFile",
-                "/" + EhCacheConfigurationMerger.DEFAULT_EHCACHE_CLASSPATH_LOCATION);
-        //        <!-- interestingly doesn't work <prop key="datanucleus.cache.queryResults.type">EHCache</prop>-->
+        initCaches();
+        props.put("datanucleus.cache.level2.cacheName", L2_CACHE_NAME);
         //        <prop key="datanucleus.findObject.validateWhenCached">false</prop>
         props.put("datanucleus.findObject.validateWhenCached", String.valueOf(false));
         return props;
+    }
+
+    private void initCaches() {
+        Assertions.checkNotNull(new CacheBuilder<Object, Object>().withName(L2_CACHE_NAME)
+                .withExpireAfterAccess(new Duration(2, FTimeUnit.MINUTES))
+                .withMaximumSize(10000)
+                .getOrCreate());
     }
 
     @Override

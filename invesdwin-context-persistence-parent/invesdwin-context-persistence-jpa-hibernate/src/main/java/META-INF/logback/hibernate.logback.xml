@@ -16,7 +16,7 @@
     	<appender-ref ref="persistence" />
     </logger>
     
-    <logger name="org.hibernate.cache.ehcache.AbstractEhcacheRegionFactory" additivity="false" level="WARN">
+    <logger name="org.hibernate.cache.jcache.JCacheRegionFactory" additivity="false" level="WARN">
 		<appender-ref ref="persistence" />
 	</logger>
 	
