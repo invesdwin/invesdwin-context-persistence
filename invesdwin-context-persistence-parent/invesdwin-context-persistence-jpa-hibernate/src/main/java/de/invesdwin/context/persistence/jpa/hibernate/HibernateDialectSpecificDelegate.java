@@ -31,7 +31,7 @@ import de.invesdwin.context.persistence.jpa.api.index.Indexes;
 import de.invesdwin.context.persistence.jpa.api.query.IConfigurableQuery;
 import de.invesdwin.context.persistence.jpa.hibernate.internal.HibernateExtendedJpaDialect;
 import de.invesdwin.context.persistence.jpa.spi.delegate.IDialectSpecificDelegate;
-import de.invesdwin.context.persistence.jpa.spi.impl.ConfiguredCPDataSource;
+import de.invesdwin.context.persistence.jpa.spi.impl.ConfiguredDataSource;
 import de.invesdwin.context.persistence.jpa.spi.impl.NativeJdbcIndexCreationHandler;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.error.UnknownArgumentException;
@@ -56,7 +56,7 @@ public class HibernateDialectSpecificDelegate implements IDialectSpecificDelegat
 
     @Override
     public DataSource createDataSource(final PersistenceUnitContext context) {
-        return new ConfiguredCPDataSource(context, true);
+        return new ConfiguredDataSource(context, true);
     }
 
     @Override

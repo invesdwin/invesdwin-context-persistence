@@ -9,7 +9,8 @@ import org.datanucleus.store.rdbms.connectionpool.ConnectionPoolFactory;
 
 import de.invesdwin.context.persistence.jpa.PersistenceProperties;
 import de.invesdwin.context.persistence.jpa.PersistenceUnitContext;
-import de.invesdwin.context.persistence.jpa.spi.impl.ConfiguredCPDataSource;
+import de.invesdwin.context.persistence.jpa.scanning.datasource.ICloseableDataSource;
+import de.invesdwin.context.persistence.jpa.spi.impl.ConfiguredDataSource;
 
 @Immutable
 public class PersistenceUnitContextConnectionPoolFactory implements ConnectionPoolFactory {
@@ -18,14 +19,14 @@ public class PersistenceUnitContextConnectionPoolFactory implements ConnectionPo
     public ConnectionPool createConnectionPool(final StoreManager storeMgr) {
         final String persistenceUnitName = storeMgr.getConnectionUserName();
         final PersistenceUnitContext context = PersistenceProperties.getPersistenceUnitContext(persistenceUnitName);
-        final ConfiguredCPDataSource ds = new ConfiguredCPDataSource(context, false);
+        final ConfiguredDataSource ds = new ConfiguredDataSource(context, false);
         return new PersistenceUnitContextConnectionPool(ds);
     }
 
     public static class PersistenceUnitContextConnectionPool implements ConnectionPool {
-        private final ConfiguredCPDataSource dataSource;
+        private final ICloseableDataSource dataSource;
 
-        public PersistenceUnitContextConnectionPool(final ConfiguredCPDataSource ds) {
+        public PersistenceUnitContextConnectionPool(final ICloseableDataSource ds) {
             dataSource = ds;
         }
 
