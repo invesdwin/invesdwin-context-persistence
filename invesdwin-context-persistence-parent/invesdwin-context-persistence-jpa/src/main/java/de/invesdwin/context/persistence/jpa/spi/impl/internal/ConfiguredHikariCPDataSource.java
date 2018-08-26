@@ -68,12 +68,45 @@ public class ConfiguredHikariCPDataSource extends ADelegateDataSource implements
     }
 
     protected void enableStatementCache(final HikariConfig config) {
-        //mysql statement cache config
         switch (context.getConnectionDialect()) {
         case MYSQL:
+            //https://github.com/brettwooldridge/HikariCP/wiki/MySQL-Configuration
             config.addDataSourceProperty("cachePrepStmts", "true");
             config.addDataSourceProperty("prepStmtCacheSize", "250");
             config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
+            config.addDataSourceProperty("useServerPrepStmts", "true");
+            config.addDataSourceProperty("useLocalSessionState", "true");
+            config.addDataSourceProperty("rewriteBatchedStatements", "true");
+            config.addDataSourceProperty("cacheResultSetMetadata", "true");
+            config.addDataSourceProperty("cacheServerConfiguration", "true");
+            config.addDataSourceProperty("elideSetAutoCommits", "true");
+            config.addDataSourceProperty("maintainTimeStats", "true");
+            break;
+        case ORACLE:
+            //https://stackoverflow.com/questions/43334145/caching-properties-using-hikaricp-in-oracle
+            config.addDataSourceProperty("implicitCachingEnabled", "true");
+            config.addDataSourceProperty("maxStatements", "250");
+            break;
+        case H2:
+            //https://www.h2database.com/javadoc/org/h2/engine/DbSettings.html#QUERY_CACHE_SIZE
+            config.addDataSourceProperty("queryCacheSize", "250");
+            break;
+        case HSQLDB:
+            //https://stackoverflow.com/questions/32702866/how-to-set-cache-size-in-hsql-database
+            config.addDataSourceProperty("hsqldb.cache_size", "250");
+            break;
+        case MSSQLSERVER:
+            //mssql-jdbc https://github.com/Microsoft/mssql-jdbc/issues/166
+            config.addDataSourceProperty("disableStatementPooling", "false");
+            config.addDataSourceProperty("statementPoolingCacheSize", "250");
+            //jtds http://jtds.sourceforge.net/faq.html
+            config.addDataSourceProperty("maxStatements", "250");
+            break;
+        case POSTGRESQL:
+            //pgjdbc-ng https://github.com/impossibl/pgjdbc-ng
+            config.addDataSourceProperty("preparedStatementCacheSize", "250");
+            //https://jdbc.postgresql.org/documentation/head/connect.html#connection-parameters
+            config.addDataSourceProperty("preparedStatementCacheQueries", "250");
             break;
         default:
             //none
