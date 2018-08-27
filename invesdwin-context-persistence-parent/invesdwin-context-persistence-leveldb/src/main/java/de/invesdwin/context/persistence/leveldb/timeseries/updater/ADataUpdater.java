@@ -27,21 +27,28 @@ public abstract class ADataUpdater<K, V> {
     private static final FastThreadLocal<Boolean> SKIP_UPDATE_ON_CURRENT_THREAD_IF_ALREADY_RUNNING = new FastThreadLocal<Boolean>();
     protected final Log log = new Log(this);
     private final K key;
-    @GuardedBy("updateLock")
+    @GuardedBy("getUpdateLock()")
     private volatile FDate lastUpdateCheck = FDate.MIN_DATE;
-    private final IReentrantLock updateLock;
+    @GuardedBy("this")
+    private IReentrantLock updateLock;
 
     public ADataUpdater(final K key) {
         if (key == null) {
             throw new NullPointerException("key should not be null");
         }
         this.key = key;
-        this.updateLock = Locks.newReentrantLock(
-                ADataUpdater.class.getSimpleName() + "_" + getTable().getName() + "_" + key + "_updateLock");
     }
 
     public K getKey() {
         return key;
+    }
+
+    private synchronized IReentrantLock getUpdateLock() {
+        if (updateLock == null) {
+            updateLock = Locks.newReentrantLock(
+                    ADataUpdater.class.getSimpleName() + "_" + getTable().getName() + "_" + key + "_updateLock");
+        }
+        return updateLock;
     }
 
     protected abstract ANestedExecutor getNestedExecutor();
@@ -61,6 +68,7 @@ public abstract class ADataUpdater<K, V> {
     public final void maybeUpdate() {
         final FDate newUpdateCheck = new FDate();
         if (shouldCheckForUpdate(newUpdateCheck)) {
+            final IReentrantLock updateLock = getUpdateLock();
             if (shouldSkipUpdateOnCurrentThreadIfAlreadyRunning()) {
                 try {
                     if (!updateLock.tryLock(5, TimeUnit.SECONDS)) {
