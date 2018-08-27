@@ -70,10 +70,12 @@ public class LoggingDelegateTransactionManager extends ADelegateTransactionManag
     public void commit(final TransactionStatus status) {
         super.commit(status);
         if (status != null && status.isNewTransaction()) {
-            final String info = close("commit");
+            final Stack<String> ndc = TRANSACTIONS_NDC.get();
+            final String info = close(ndc, "commit");
             if (info != null) {
                 LOG.info(info);
             }
+            decrementNdc(ndc);
         }
     }
 
@@ -81,10 +83,12 @@ public class LoggingDelegateTransactionManager extends ADelegateTransactionManag
     public void rollback(final TransactionStatus status) {
         super.rollback(status);
         if (status != null && status.isNewTransaction()) {
-            final String info = close("rollback");
+            final Stack<String> ndc = TRANSACTIONS_NDC.get();
+            final String info = close(ndc, "rollback");
             if (info != null) {
                 LOG.info(info);
             }
+            decrementNdc(ndc);
         }
     }
 
@@ -109,11 +113,9 @@ public class LoggingDelegateTransactionManager extends ADelegateTransactionManag
     /**
      * To make the methodname occur in the log, the calling method needs to log the message.
      */
-    private String close(final String action) {
-        StringBuilder info = null;
-        final Stack<String> ndc = TRANSACTIONS_NDC.get();
+    private String close(final Stack<String> ndc, final String action) {
         if (LOG.isInfoEnabled()) {
-            info = new StringBuilder(action);
+            final StringBuilder info = new StringBuilder(action);
             info.append(" ");
             info.append(PersistenceUnitAnnotationUtil.PERSISTENCE_UNIT_CONFIG_PREFIX);
             info.append(context.getPersistenceUnitName());
@@ -121,7 +123,14 @@ public class LoggingDelegateTransactionManager extends ADelegateTransactionManag
             info.append(ndc.size());
             info.append(": ");
             info.append(ndc);
+            return info.toString();
+        } else {
+            return null;
         }
+    }
+
+    //decrementing nds has to happen after the message has been logged
+    private void decrementNdc(final Stack<String> ndc) {
         ndc.pop();
         if (ndc.size() > 0) {
             MDC.put(MDC_KEY, String.valueOf(ndc.size()));
@@ -129,7 +138,6 @@ public class LoggingDelegateTransactionManager extends ADelegateTransactionManag
             TRANSACTIONS_NDC.remove();
             MDC.remove(MDC_KEY);
         }
-        return Strings.asString(info);
     }
 
     @Override

@@ -1,10 +1,6 @@
 <configuration>
 
-    <logger name="org.jdbcdslog.StatementLogger" additivity="false" level="INFO">
-        <appender-ref ref="persistence" />
-    </logger>
-    
-    <logger name="org.jdbcdslog.SlowQueryLogger" additivity="false" level="INFO">
+    <logger name="p6spy" additivity="false" level="INFO">
         <appender-ref ref="persistence" />
     </logger>
     

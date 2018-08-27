@@ -62,15 +62,9 @@ public class ConfiguredC3p0DataSource extends ADelegateDataSource implements ICl
 
         Assertions.assertThat(this.closeableDs).isNull();
         this.closeableDs = ds;
-
-        if (logging && Reflections.classExists("org.jdbcdslog.ConnectionPoolDataSourceProxy")) {
-            try {
-                final org.jdbcdslog.ConnectionPoolDataSourceProxy proxy = new org.jdbcdslog.ConnectionPoolDataSourceProxy();
-                proxy.setTargetDSDirect(ds);
-                return proxy;
-            } catch (final org.jdbcdslog.JdbcDsLogRuntimeException e) {
-                throw new RuntimeException(e);
-            }
+        if (logging && Reflections.classExists("com.p6spy.engine.spy.P6DataSource")) {
+            final com.p6spy.engine.spy.P6DataSource proxy = new com.p6spy.engine.spy.P6DataSource(ds);
+            return proxy;
         } else {
             return ds;
         }

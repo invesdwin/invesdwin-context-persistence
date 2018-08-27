@@ -59,8 +59,8 @@
 		</dependency>
 
 		<dependency>
-			<groupId>org.jdbcdslog</groupId>
-			<artifactId>jdbcdslogexp2</artifactId>
+			<groupId>p6spy</groupId>
+			<artifactId>p6spy</artifactId>
 		</dependency>
 	</dependencies>
 

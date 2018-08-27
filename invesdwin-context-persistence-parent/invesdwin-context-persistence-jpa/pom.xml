@@ -83,8 +83,8 @@
 		<dependency>
 			<!-- dependant modules need to reference this themselves if they want 
 				to use statement logging -->
-			<groupId>org.jdbcdslog</groupId>
-			<artifactId>jdbcdslogexp2</artifactId>
+			<groupId>p6spy</groupId>
+			<artifactId>p6spy</artifactId>
 			<scope>provided</scope>
 		</dependency>
 	</dependencies>
