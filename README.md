@@ -54,7 +54,7 @@ For now these modules provide a proof of concept that `invesdwin-context-persist
 
 ### Testing and Configuration
 
-- **persistence.log**: per default our transaction manager logs SQL statements into a log file. It adds information about transactions, so you can always troubleshoot your persistence issues properly. If you want to gain some additional performance during production use, just change the log level of `org.jdbcdslog.StatementLogger` to `OFF` in your logback configuration.
+- **persistence.log**: per default our transaction manager logs SQL statements into a log file. It adds information about transactions, so you can always troubleshoot your persistence issues properly. If you want to gain some additional performance during production use, just change the log level of `p6spy` to `OFF` in your logback configuration or remove the dependency to [p6spy:p6spy](https://github.com/p6spy/p6spy).
 - **@PersistenceTest**: per default all JUnit tests run in an in-memory H2 database. Add this annotation to your test case to switch to a real server during testing (e.g. when you want to test against real data you seeded during development of a website). The default non in-memory server is supposed to be a local MySQL instance that is setup with the following sql script:
 ```sql
 USE mysql;
