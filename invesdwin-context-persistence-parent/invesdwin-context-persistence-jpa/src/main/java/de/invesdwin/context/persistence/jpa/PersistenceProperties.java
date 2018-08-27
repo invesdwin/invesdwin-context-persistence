@@ -20,6 +20,8 @@ import de.invesdwin.util.lang.Strings;
 @Immutable
 public final class PersistenceProperties {
 
+    public static final boolean IS_P6SPY_AVAILABLE = Reflections.classExists("com.p6spy.engine.spy.P6DataSource");
+
     public static final String PERSISTENCE_UNIT_NAME_SUFFIX = "_pu";
     public static final String DEFAULT_PERSISTENCE_UNIT_NAME = "default" + PERSISTENCE_UNIT_NAME_SUFFIX;
     public static final String TRANSACTION_MANAGER_NAME_SUFFIX = "_tm";

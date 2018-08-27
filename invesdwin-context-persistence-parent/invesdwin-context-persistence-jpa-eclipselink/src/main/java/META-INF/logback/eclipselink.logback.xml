@@ -1,7 +1,0 @@
-<configuration>
-
-    <logger name="p6spy" additivity="false" level="INFO">
-        <appender-ref ref="persistence" />
-    </logger>
-    
-</configuration>

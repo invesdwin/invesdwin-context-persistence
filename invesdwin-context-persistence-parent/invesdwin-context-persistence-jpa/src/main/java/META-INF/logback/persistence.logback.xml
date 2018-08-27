@@ -2,7 +2,7 @@
 
 	<appender name="persistence" class="de.invesdwin.context.log.logback.ConfiguredFileAppender" />
 
-    <logger name="de.invesdwin.TRANSACTIONS" additivity="false" level="INFO">
+    <logger name="p6spy" additivity="false" level="INFO">
     	<appender-ref ref="persistence" />
     </logger>
     

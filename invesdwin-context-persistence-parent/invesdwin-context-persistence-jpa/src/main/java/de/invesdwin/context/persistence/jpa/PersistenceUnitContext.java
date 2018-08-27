@@ -22,7 +22,6 @@ import de.invesdwin.context.beans.init.MergedContext;
 import de.invesdwin.context.persistence.jpa.api.index.Indexes;
 import de.invesdwin.context.persistence.jpa.api.query.IConfigurableQuery;
 import de.invesdwin.context.persistence.jpa.scanning.internal.PersistenceUnitContextManager;
-import de.invesdwin.context.persistence.jpa.scanning.transaction.LoggingDelegateTransactionManager;
 import de.invesdwin.context.persistence.jpa.spi.impl.PersistenceUnitAnnotationUtil;
 import de.invesdwin.context.persistence.jpa.test.internal.PersistenceContext;
 import de.invesdwin.context.persistence.jpa.test.internal.ProdPersistenceContextLocation;
@@ -85,8 +84,13 @@ public final class PersistenceUnitContext {
         if (jpaDialect != null) {
             jpaTransactionManager.setJpaDialect(jpaDialect);
         }
-        final LoggingDelegateTransactionManager loggingDelegateTransactionManager = new LoggingDelegateTransactionManager(
-                this, jpaTransactionManager);
+        final PlatformTransactionManager loggingDelegateTransactionManager;
+        if (PersistenceProperties.IS_P6SPY_AVAILABLE) {
+            loggingDelegateTransactionManager = new de.invesdwin.context.persistence.jpa.scanning.transaction.P6SpyLoggingDelegateTransactionManager(
+                    this, jpaTransactionManager);
+        } else {
+            loggingDelegateTransactionManager = jpaTransactionManager;
+        }
         final String transactionManagerBeanName = getPersistenceUnitName()
                 + PersistenceProperties.TRANSACTION_MANAGER_NAME_SUFFIX;
         MergedContext.getInstance().registerBean(transactionManagerBeanName, loggingDelegateTransactionManager);

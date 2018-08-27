@@ -8,11 +8,11 @@ import javax.sql.DataSource;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 
 import de.invesdwin.context.log.error.Err;
+import de.invesdwin.context.persistence.jpa.PersistenceProperties;
 import de.invesdwin.context.persistence.jpa.PersistenceUnitContext;
 import de.invesdwin.context.persistence.jpa.scanning.datasource.ADelegateDataSource;
 import de.invesdwin.context.persistence.jpa.scanning.datasource.ICloseableDataSource;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.lang.Reflections;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.fdate.FTimeUnit;
 
@@ -62,7 +62,7 @@ public class ConfiguredC3p0DataSource extends ADelegateDataSource implements ICl
 
         Assertions.assertThat(this.closeableDs).isNull();
         this.closeableDs = ds;
-        if (logging && Reflections.classExists("com.p6spy.engine.spy.P6DataSource")) {
+        if (logging && PersistenceProperties.IS_P6SPY_AVAILABLE) {
             final com.p6spy.engine.spy.P6DataSource proxy = new com.p6spy.engine.spy.P6DataSource(ds);
             return proxy;
         } else {

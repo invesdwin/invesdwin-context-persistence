@@ -16,7 +16,7 @@ import de.invesdwin.util.lang.Strings;
 import io.netty.util.concurrent.FastThreadLocal;
 
 @ThreadSafe
-public class LoggingDelegateTransactionManager extends ADelegateTransactionManager {
+public class P6SpyLoggingDelegateTransactionManager extends ADelegateTransactionManager {
 
     private static final String MDC_KEY = "transactions";
     private static final FastThreadLocal<Stack<String>> TRANSACTIONS_NDC = new FastThreadLocal<Stack<String>>() {
@@ -25,11 +25,11 @@ public class LoggingDelegateTransactionManager extends ADelegateTransactionManag
             return new Stack<String>();
         };
     };
-    private static final Log LOG = new Log("de.invesdwin.TRANSACTIONS");
+    private static final Log LOG = new Log("p6spy");
     private final PlatformTransactionManager delegate;
     private final PersistenceUnitContext context;
 
-    public LoggingDelegateTransactionManager(final PersistenceUnitContext context,
+    public P6SpyLoggingDelegateTransactionManager(final PersistenceUnitContext context,
             final PlatformTransactionManager delegate) {
         this.context = context;
         this.delegate = delegate;
@@ -38,7 +38,7 @@ public class LoggingDelegateTransactionManager extends ADelegateTransactionManag
     /**
      * This constructor fixes reinitialization problems during tests
      */
-    public LoggingDelegateTransactionManager() {
+    public P6SpyLoggingDelegateTransactionManager() {
         this(null, new PlatformTransactionManager() {
 
             @Override

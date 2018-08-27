@@ -1,9 +1,5 @@
 <configuration>
 
-    <logger name="p6spy" additivity="false" level="INFO">
-        <appender-ref ref="persistence" />
-    </logger>
-    
     <logger name="org.hibernate.tool.hbm2ddl.SchemaExport" additivity="false" level="WARN">
     	<appender-ref ref="persistence" />
     </logger>
