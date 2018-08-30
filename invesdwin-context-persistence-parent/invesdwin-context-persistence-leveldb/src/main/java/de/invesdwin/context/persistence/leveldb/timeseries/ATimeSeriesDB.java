@@ -48,7 +48,8 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
             return true;
         }
     };
-    @GuardedBy("this")
+    private final Object storageLock = new Object();
+    @GuardedBy("storageLock")
     private TimeSeriesStorage storage;
 
     public ATimeSeriesDB(final String name) {
@@ -77,11 +78,13 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         };
     }
 
-    protected synchronized TimeSeriesStorage getStorage() {
-        if (storage == null) {
-            storage = corruptionHandlingNewStorage();
+    protected TimeSeriesStorage getStorage() {
+        synchronized (storageLock) {
+            if (storage == null) {
+                storage = corruptionHandlingNewStorage();
+            }
+            return storage;
         }
-        return storage;
     }
 
     private TimeSeriesStorage corruptionHandlingNewStorage() {
@@ -272,10 +275,12 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
     protected abstract String hashKeyToString(K key);
 
     @Override
-    public synchronized void close() {
-        if (storage != null) {
-            storage.close();
-            storage = null;
+    public void close() {
+        synchronized (storageLock) {
+            if (storage != null) {
+                storage.close();
+                storage = null;
+            }
         }
         key_lookupTableCache.clear();
         key_tableLock.clear();
