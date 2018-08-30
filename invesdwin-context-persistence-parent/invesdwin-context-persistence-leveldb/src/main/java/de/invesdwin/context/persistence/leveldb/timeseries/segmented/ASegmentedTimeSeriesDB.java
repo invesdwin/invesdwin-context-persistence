@@ -453,7 +453,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         }
 
         @Override
-        public synchronized TimeSeriesStorage getStorage() {
+        public TimeSeriesStorage getStorage() {
             return super.getStorage();
         }
 
