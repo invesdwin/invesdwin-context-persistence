@@ -147,7 +147,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         }
 
         @Override
-        public synchronized SegmentedTimeSeriesStorage getStorage() {
+        public SegmentedTimeSeriesStorage getStorage() {
             return super.getStorage();
         }
 
