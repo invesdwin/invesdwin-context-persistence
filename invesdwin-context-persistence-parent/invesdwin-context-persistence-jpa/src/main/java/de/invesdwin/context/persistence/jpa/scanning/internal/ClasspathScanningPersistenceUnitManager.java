@@ -152,13 +152,11 @@ public final class ClasspathScanningPersistenceUnitManager extends MergingPersis
      * Scanning cannot happen in afterPropertiesSet because that would already be too late.
      */
     private void scan() {
-        for (final String basePackage : ContextProperties.getBasePackages()) {
-            final Map<String, Set<Class<?>>> entities = PersistenceUnitAnnotationUtil.scanForEntities(basePackage);
-            for (final String persistenceUnitName : entities.keySet()) {
-                for (final Class<?> entityClass : entities.get(persistenceUnitName)) {
-                    for (final IEntityClasspathScanningHook hook : entityClasspathScanningHooks) {
-                        hook.entityAssociated(entityClass, persistenceUnitName);
-                    }
+        final Map<String, Set<Class<?>>> entities = PersistenceUnitAnnotationUtil.scanForEntities();
+        for (final String persistenceUnitName : entities.keySet()) {
+            for (final Class<?> entityClass : entities.get(persistenceUnitName)) {
+                for (final IEntityClasspathScanningHook hook : entityClasspathScanningHooks) {
+                    hook.entityAssociated(entityClass, persistenceUnitName);
                 }
             }
         }
