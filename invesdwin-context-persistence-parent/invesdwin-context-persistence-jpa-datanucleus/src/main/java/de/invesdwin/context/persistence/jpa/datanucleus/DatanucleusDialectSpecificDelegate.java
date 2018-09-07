@@ -11,7 +11,9 @@ import javax.persistence.spi.PersistenceProvider;
 import javax.sql.DataSource;
 
 import org.datanucleus.PropertyNames;
+import org.datanucleus.api.jpa.JPAPropertyNames;
 import org.datanucleus.api.jpa.PersistenceProviderImpl;
+import org.datanucleus.store.rdbms.RDBMSPropertyNames;
 import org.springframework.orm.jpa.JpaDialect;
 import org.springframework.orm.jpa.JpaVendorAdapter;
 
@@ -56,19 +58,19 @@ public class DatanucleusDialectSpecificDelegate implements IDialectSpecificDeleg
         final Map<String, String> props = new HashMap<String, String>();
 
         if (context.getConnectionDialect().isRdbms()) {
-            props.put("datanucleus.ConnectionDriverName", context.getConnectionDriver());
-            props.put("datanucleus.ConnectionURL", context.getConnectionUrl());
-            props.put("datanucleus.ConnectionUserName", context.getPersistenceUnitName());
-            props.put("datanucleus.ConnectionPassword", "NEED_TO_LOOKUP_VIA_PERSISTENCE_UNIT_CONTEXT");
+            props.put(PropertyNames.PROPERTY_CONNECTION_DRIVER_NAME, context.getConnectionDriver());
+            props.put(PropertyNames.PROPERTY_CONNECTION_URL, context.getConnectionUrl());
+            props.put(PropertyNames.PROPERTY_CONNECTION_USER_NAME, context.getPersistenceUnitName());
+            props.put(PropertyNames.PROPERTY_CONNECTION_PASSWORD, "NEED_TO_LOOKUP_VIA_PERSISTENCE_UNIT_CONTEXT");
         } else {
             //        <prop key="datanucleus.ConnectionDriverName">${javax.persistence.jdbc.driver}</prop>
-            props.put("datanucleus.ConnectionDriverName", context.getConnectionDriver());
+            props.put(PropertyNames.PROPERTY_CONNECTION_DRIVER_NAME, context.getConnectionDriver());
             //        <prop key="datanucleus.ConnectionURL">${javax.persistence.jdbc.url}</prop>
-            props.put("datanucleus.ConnectionURL", context.getConnectionUrl());
+            props.put(PropertyNames.PROPERTY_CONNECTION_URL, context.getConnectionUrl());
             //        <prop key="datanucleus.ConnectionUserName">${javax.persistence.jdbc.user}</prop>
-            props.put("datanucleus.ConnectionUserName", context.getConnectionUser());
+            props.put(PropertyNames.PROPERTY_CONNECTION_USER_NAME, context.getConnectionUser());
             //        <prop key="datanucleus.ConnectionPassword">${javax.persistence.jdbc.password}</prop>
-            props.put("datanucleus.ConnectionPassword", context.getConnectionPassword());
+            props.put(PropertyNames.PROPERTY_CONNECTION_PASSWORD, context.getConnectionPassword());
             //        <prop key="datanucleus.cloud.storage.bucket">${datanucleus.cloud.storage.bucket}</prop>
             //TODO: extract this from connection url syntax? or introduce a new parameter for this
         }
@@ -95,28 +97,27 @@ public class DatanucleusDialectSpecificDelegate implements IDialectSpecificDeleg
         props.put(PropertyNames.PROPERTY_SCHEMA_VALIDATE_ALL, String.valueOf(datanucleusValidateSchema));
 
         //        <prop key="datanucleus.rdbms.statementBatchLimit">${de.invesdwin.context.persistence.PersistenceProperties.CONNECTION_BATCH_SIZE}</prop>
-        props.put("datanucleus.rdbms.statementBatchLimit", String.valueOf(context.getConnectionBatchSize()));
+        props.put(RDBMSPropertyNames.PROPERTY_RDBMS_STATEMENT_BATCH_LIMIT,
+                String.valueOf(context.getConnectionBatchSize()));
         //        <prop key="datanucleus.jpa.addClassTransformer">false</prop>
-        props.put("datanucleus.jpa.addClassTransformer", String.valueOf(false));
+        props.put(JPAPropertyNames.PROPERTY_JPA_ADD_CLASS_TRANSFORMER, String.valueOf(false));
         //        <prop key="datanucleus.connectionPoolingType">ConfiguredDataSource</prop>
-        props.put("datanucleus.connectionPoolingType",
+        props.put(PropertyNames.PROPERTY_CONNECTION_POOLINGTYPE,
                 PersistenceUnitContextConnectionPoolFactory.class.getSimpleName());
         //        <prop key="datanucleus.identifier.case">PreserveCase</prop>
-        props.put("datanucleus.identifier.case", "MixedCase");
+        props.put(PropertyNames.PROPERTY_IDENTIFIER_CASE, "MixedCase");
         //        <prop key="datanucleus.plugin.pluginRegistryBundleCheck">NONE</prop>
-        props.put("datanucleus.plugin.pluginRegistryBundleCheck", "NONE");
+        props.put(PropertyNames.PROPERTY_PLUGIN_REGISTRYBUNDLECHECK, "NONE");
         //        <prop key="datanucleus.plugin.allowUserBundles">true</prop>
-        props.put("datanucleus.plugin.allowUserBundles", String.valueOf(true));
-        //        <prop key="datanucleus.managedRuntime">true</prop>
-        props.put("datanucleus.managedRuntime", String.valueOf(true));
+        props.put(PropertyNames.PROPERTY_PLUGIN_ALLOW_USER_BUNDLES, String.valueOf(true));
         //        <prop key="datanucleus.cache.level2.type">Soft</prop>
         //        <!-- <prop key="datanucleus.cache.level2.type">EHCache</prop> cannot be found interestingly...-->
-        props.put("datanucleus.cache.level2.type", "javax.cache");
+        props.put(PropertyNames.PROPERTY_CACHE_L2_TYPE, "javax.cache");
         //        <prop key="datanucleus.cache.level2.cacheName">org.datanucleus.L2Cache</prop>
         initCaches();
-        props.put("datanucleus.cache.level2.cacheName", L2_CACHE_NAME);
+        props.put(PropertyNames.PROPERTY_CACHE_L2_NAME, L2_CACHE_NAME);
         //        <prop key="datanucleus.findObject.validateWhenCached">false</prop>
-        props.put("datanucleus.findObject.validateWhenCached", String.valueOf(false));
+        props.put(PropertyNames.PROPERTY_FIND_OBJECT_VALIDATE_WHEN_CACHED, String.valueOf(false));
         return props;
     }
 

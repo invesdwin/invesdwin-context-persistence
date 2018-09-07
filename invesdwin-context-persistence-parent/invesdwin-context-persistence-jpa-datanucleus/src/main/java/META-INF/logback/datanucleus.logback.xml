@@ -8,7 +8,7 @@
     	<appender-ref ref="persistence" />
     </logger>
     
-    <logger name="DataNucleus.Enhancer" additivity="false" level="ERROR">
+    <logger name="DataNucleus.Enhancer" additivity="false" level="OFF">
     	<appender-ref ref="stdout" />
 		<appender-ref ref="stderr" />
 		<appender-ref ref="common" />
