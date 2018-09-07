@@ -10,6 +10,7 @@ import javax.inject.Named;
 import javax.persistence.spi.PersistenceProvider;
 import javax.sql.DataSource;
 
+import org.datanucleus.PropertyNames;
 import org.datanucleus.api.jpa.PersistenceProviderImpl;
 import org.springframework.orm.jpa.JpaDialect;
 import org.springframework.orm.jpa.JpaVendorAdapter;
@@ -89,19 +90,9 @@ public class DatanucleusDialectSpecificDelegate implements IDialectSpecificDeleg
             throw UnknownArgumentException.newInstance(ConnectionAutoSchema.class, context.getConnectionAutoSchema());
         }
         //        <prop key="">${datanucleus.autoCreateSchema}</prop>
-        props.put("datanucleus.autoCreateSchema", String.valueOf(datanucleusAutoCreateSchema));
-        //        <prop key="datanucleus.autoCreateTables">${datanucleus.autoCreateSchema}</prop>
-        props.put("datanucleus.autoCreateTables", String.valueOf(datanucleusAutoCreateSchema));
-        //        <prop key="datanucleus.autoCreateColumns">${datanucleus.autoCreateSchema}</prop>
-        props.put("datanucleus.autoCreateColumns", String.valueOf(datanucleusAutoCreateSchema));
-        //        <prop key="datanucleus.autoCreateConstraints">${datanucleus.autoCreateSchema}</prop>
-        props.put("datanucleus.autoCreateConstraints", String.valueOf(datanucleusAutoCreateSchema));
+        props.put(PropertyNames.PROPERTY_SCHEMA_AUTOCREATE_ALL, String.valueOf(datanucleusAutoCreateSchema));
         //        <prop key="datanucleus.validateTables">${datanucleus.validateSchema}</prop>
-        props.put("datanucleus.validateTables", String.valueOf(datanucleusValidateSchema));
-        //        <prop key="datanucleus.validateColumns">${datanucleus.validateSchema}</prop>
-        props.put("datanucleus.validateColumns", String.valueOf(datanucleusValidateSchema));
-        //        <prop key="datanucleus.validateConstraints">${datanucleus.validateSchema}</prop>
-        props.put("datanucleus.validateConstraints", String.valueOf(datanucleusValidateSchema));
+        props.put(PropertyNames.PROPERTY_SCHEMA_VALIDATE_ALL, String.valueOf(datanucleusValidateSchema));
 
         //        <prop key="datanucleus.rdbms.statementBatchLimit">${de.invesdwin.context.persistence.PersistenceProperties.CONNECTION_BATCH_SIZE}</prop>
         props.put("datanucleus.rdbms.statementBatchLimit", String.valueOf(context.getConnectionBatchSize()));
