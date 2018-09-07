@@ -50,7 +50,7 @@
 		<version.leveldbjni>1.8</version.leveldbjni>
 		<version.leveldbjni-libs>1.8</version.leveldbjni-libs>
 		<version.leveldb>0.7</version.leveldb>
-		<version.mapdb>3.0.5</version.mapdb>
+		<version.mapdb>3.0.7</version.mapdb>
 		<version.eclipse-collections>7.1.0</version.eclipse-collections>
 		<version.eclipselink>2.7.1</version.eclipselink>
 	</properties>
