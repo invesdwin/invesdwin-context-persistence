@@ -10,7 +10,6 @@ import javax.inject.Named;
 import javax.persistence.spi.PersistenceProvider;
 import javax.sql.DataSource;
 
-import org.hibernate.cache.jcache.JCacheRegionFactory;
 import org.hibernate.cfg.AvailableSettings;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.dialect.H2Dialect;
@@ -91,7 +90,8 @@ public class HibernateDialectSpecificDelegate implements IDialectSpecificDelegat
         props.put(AvailableSettings.USE_QUERY_CACHE, String.valueOf(true));
         //        <prop key="hibernate.cache.region.factory_class">org.hibernate.cache.ehcache.SingletonEhCacheRegionFactory</prop>
         initCaches();
-        props.put(AvailableSettings.CACHE_REGION_FACTORY, JCacheRegionFactory.class.getName());
+        props.put(AvailableSettings.CACHE_REGION_FACTORY,
+                org.hibernate.cache.jcache.internal.JCacheRegionFactory.class.getName());
         props.put(AvailableSettings.USE_NEW_ID_GENERATOR_MAPPINGS, String.valueOf(true));
         //https://vladmihalcea.com/hibernate-hidden-gem-the-pooled-lo-optimizer/
         props.put(AvailableSettings.PREFERRED_POOLED_OPTIMIZER, "pooled-lo");
@@ -99,13 +99,11 @@ public class HibernateDialectSpecificDelegate implements IDialectSpecificDelegat
     }
 
     private void initCaches() {
-        Assertions.checkNotNull(new CacheBuilder<Object, Object>()
-                .withName(org.hibernate.cache.internal.StandardQueryCache.class.getName())
+        Assertions.checkNotNull(new CacheBuilder<Object, Object>().withName("default-query-results-region")
                 .withExpireAfterAccess(new Duration(2, FTimeUnit.MINUTES))
                 .withMaximumSize(10000)
                 .getOrCreate());
-        Assertions.checkNotNull(new CacheBuilder<Object, Object>()
-                .withName(org.hibernate.cache.spi.UpdateTimestampsCache.class.getName())
+        Assertions.checkNotNull(new CacheBuilder<Object, Object>().withName("default-update-timestamps-region")
                 .withMaximumSize(1000000)
                 .getOrCreate());
     }

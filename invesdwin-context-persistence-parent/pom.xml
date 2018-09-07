@@ -39,9 +39,9 @@
 		<version.hikaricp>3.2.0</version.hikaricp>
 		<version.c3p0>0.9.5.2</version.c3p0>
 		<version.p6spy>3.7.0</version.p6spy>
-		<version.hibernate>5.2.11.Final</version.hibernate>
-		<version.hibernate-jpa-2.1-api>1.0.0.Final</version.hibernate-jpa-2.1-api>
-		<version.jboss-logging>3.3.0.Final</version.jboss-logging>
+		<version.hibernate>5.3.6.Final</version.hibernate>
+		<version.hibernate-jpa-2.1-api>1.0.2.Final</version.hibernate-jpa-2.1-api>
+		<version.jboss-logging>3.3.2.Final</version.jboss-logging>
 		<version.datanucleus>5.1.11</version.datanucleus>
 		<version.datanucleus-cache>5.1.1</version.datanucleus-cache>
 		<version.jdo-api>3.1</version.jdo-api>
