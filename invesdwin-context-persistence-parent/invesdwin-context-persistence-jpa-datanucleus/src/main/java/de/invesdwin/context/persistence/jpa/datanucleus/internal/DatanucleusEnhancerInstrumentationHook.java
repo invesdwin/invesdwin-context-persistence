@@ -15,7 +15,6 @@ import de.invesdwin.context.PlatformInitializerProperties;
 import de.invesdwin.context.beans.hook.IInstrumentationHook;
 import de.invesdwin.context.beans.init.platform.DelegatePlatformInitializer;
 import de.invesdwin.context.beans.init.platform.util.RegisterTypesForSerializationConfigurer;
-import de.invesdwin.norva.marker.ISerializableValueObject;
 import de.invesdwin.util.classpath.ClassPathScanner;
 import de.invesdwin.util.lang.Reflections;
 
@@ -32,7 +31,7 @@ public class DatanucleusEnhancerInstrumentationHook implements IInstrumentationH
                             protected List<java.lang.Class<?>> scanSerializableClassesToRegister() {
                                 //datanucleus somehow does not work when ClassGraph is used for scanning the classes
                                 final ClassPathScanner scanner = new ClassPathScanner();
-                                scanner.addIncludeFilter(new AssignableTypeFilter(ISerializableValueObject.class));
+                                scanner.addIncludeFilter(new AssignableTypeFilter(SERIALIZABLE_INTERFACE));
                                 final List<Class<?>> classesToRegister = new ArrayList<Class<?>>();
                                 for (final String basePackage : ContextProperties.getBasePackages()) {
                                     for (final BeanDefinition bd : scanner.findCandidateComponents(basePackage)) {
