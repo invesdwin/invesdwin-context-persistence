@@ -42,8 +42,9 @@
 		<version.hibernate>5.2.11.Final</version.hibernate>
 		<version.hibernate-jpa-2.1-api>1.0.0.Final</version.hibernate-jpa-2.1-api>
 		<version.jboss-logging>3.3.0.Final</version.jboss-logging>
-		<version.datanucleus>5.0.0-release</version.datanucleus>
-		<version.jdo-api>3.0.1</version.jdo-api>
+		<version.datanucleus>5.1.11</version.datanucleus>
+		<version.datanucleus-cache>5.1.1</version.datanucleus-cache>
+		<version.jdo-api>3.1</version.jdo-api>
 
 		<version.kundera>3.13</version.kundera>
 		<version.ezdb>0.1.12-SNAPSHOT</version.ezdb>
@@ -339,7 +340,7 @@
 			<dependency>
 				<groupId>org.datanucleus</groupId>
 				<artifactId>datanucleus-cache</artifactId>
-				<version>${version.datanucleus}</version>
+				<version>${version.datanucleus-cache}</version>
 			</dependency>
 			<dependency>
 				<groupId>javax.jdo</groupId>
