@@ -433,7 +433,7 @@ public class ATimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest {
     @Test
     public void testPreviousKeyBeforeFirst() {
         FDate previousKey = cache.query().withFuture().getPreviousKey(FDate.MIN_DATE, entities.size());
-        Assertions.assertThat(previousKey).isEqualTo(entities.get(0));
+        Assertions.assertThat(previousKey).isNull();
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
 
@@ -443,7 +443,7 @@ public class ATimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest {
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
 
         previousKey = cache.query().withFuture().getPreviousKey(FDate.MIN_DATE, entities.size());
-        Assertions.assertThat(previousKey).isEqualTo(entities.get(0));
+        Assertions.assertThat(previousKey).isNull();
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(5);
     }
@@ -475,7 +475,7 @@ public class ATimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest {
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
 
         previousKey = cache.query().withFuture().getPreviousKey(FDate.MIN_DATE, entities.size());
-        Assertions.assertThat(previousKey).isEqualTo(entities.get(0));
+        Assertions.assertThat(previousKey).isNull();
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
 
@@ -1148,7 +1148,7 @@ public class ATimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest {
         Assertions.assertThat(previousValue).isEqualTo(expectedValue);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(35);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(40);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
 
         final Collection<FDate> previousValues = asList(cache.query().getPreviousValues(key, 4));
@@ -1156,7 +1156,7 @@ public class ATimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest {
         Assertions.assertThat(previousValues).isEqualTo(expectedValues);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(9);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(68);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(73);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 
