@@ -1218,7 +1218,7 @@ public class ALiveSegmentedTimeSeriesDBWithCacheTest extends ATest {
         }
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(4);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(44);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(54);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 

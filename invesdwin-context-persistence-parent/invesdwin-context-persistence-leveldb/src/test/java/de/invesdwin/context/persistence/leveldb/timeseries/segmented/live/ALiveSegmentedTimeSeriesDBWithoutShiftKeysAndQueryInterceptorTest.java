@@ -1221,7 +1221,7 @@ public class ALiveSegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest e
         }
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(55);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(65);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 
@@ -1365,7 +1365,7 @@ public class ALiveSegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest e
         Assertions.assertThat(countInnerExtractKey).isEqualTo(51);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
-    
+
     @Test
     public void testRandomizedPreviousValues() {
         final List<Pair<Integer, Integer>> reproduce = new ArrayList<Pair<Integer, Integer>>();

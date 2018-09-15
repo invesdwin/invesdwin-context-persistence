@@ -1183,7 +1183,7 @@ public class ATimeSeriesDBWithLimitedCacheTest extends ATest {
         }
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(49);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(59);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 
