@@ -1275,7 +1275,7 @@ public class ASegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
         Assertions.assertThat(previousValue).isEqualTo(expectedValue);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(38);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(32);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
 
         //last -1
@@ -1285,7 +1285,7 @@ public class ASegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
         Assertions.assertThat(previousValue).isEqualTo(expectedValue);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(49);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(33);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 

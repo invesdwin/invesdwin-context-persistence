@@ -1114,7 +1114,7 @@ public class ATimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest extends ATest 
         Assertions.assertThat(previousValues).isEqualTo(expectedValues);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(39);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(35);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
 
         //last -1
@@ -1124,7 +1124,7 @@ public class ATimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest extends ATest 
         Assertions.assertThat(previousValues).isEqualTo(expectedValues);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(48);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(36);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 
@@ -1257,7 +1257,7 @@ public class ATimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest extends ATest 
         Assertions.assertThat(previousValue).isEqualTo(expectedValue);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(39);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(37);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
 
         //first +1
@@ -1266,7 +1266,7 @@ public class ATimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest extends ATest 
         Assertions.assertThat(previousValue).isEqualTo(expectedValue);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(46);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(38);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
 
         //last -1
@@ -1276,7 +1276,7 @@ public class ATimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest extends ATest 
         Assertions.assertThat(previousValue).isEqualTo(expectedValue);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(57);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(39);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 
