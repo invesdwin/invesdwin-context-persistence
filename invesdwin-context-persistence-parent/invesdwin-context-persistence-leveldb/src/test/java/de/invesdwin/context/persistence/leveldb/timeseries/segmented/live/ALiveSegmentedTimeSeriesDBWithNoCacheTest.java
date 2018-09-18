@@ -1028,7 +1028,7 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheTest extends ATest {
         }
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(51);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(48);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 
@@ -1056,7 +1056,7 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheTest extends ATest {
         }
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(73);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(69);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 
@@ -1149,7 +1149,7 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheTest extends ATest {
         Assertions.assertThat(previousValues).isEqualTo(expectedValues);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(53);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(52);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
 
         //first +1
@@ -1158,7 +1158,7 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheTest extends ATest {
         Assertions.assertThat(previousValues).isEqualTo(expectedValues);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(4);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(71);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(69);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
 
         //last -1
@@ -1168,7 +1168,7 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheTest extends ATest {
         Assertions.assertThat(previousValues).isEqualTo(expectedValues);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(4);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(95);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(92);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 
@@ -1188,7 +1188,7 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheTest extends ATest {
         Assertions.assertThat(previousValues).isEqualTo(expectedValues);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(36);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(35);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 
@@ -1213,7 +1213,7 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheTest extends ATest {
         Assertions.assertThat(previousValuesCached).isEqualTo(expectedValuesCached);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(48);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(47);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 
