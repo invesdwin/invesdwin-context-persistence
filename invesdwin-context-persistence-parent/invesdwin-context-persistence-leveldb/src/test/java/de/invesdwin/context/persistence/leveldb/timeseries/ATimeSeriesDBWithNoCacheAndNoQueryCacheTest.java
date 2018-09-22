@@ -1220,7 +1220,7 @@ public class ATimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest {
     private class TestGapHistoricalCache extends AGapHistoricalCache<FDate> {
 
         @Override
-        protected IHistoricalCacheQueryCore<FDate> newHistoricalCacheQueryCore() {
+        protected IHistoricalCacheQueryCore<FDate> newQueryCore() {
             return new DefaultHistoricalCacheQueryCore<FDate>(internalMethods);
         }
 

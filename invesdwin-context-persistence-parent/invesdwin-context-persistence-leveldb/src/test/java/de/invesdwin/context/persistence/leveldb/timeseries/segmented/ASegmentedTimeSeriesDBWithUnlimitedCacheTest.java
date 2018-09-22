@@ -1375,6 +1375,10 @@ public class ASegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
 
     private class TestGapHistoricalCache extends AGapHistoricalCache<FDate> {
 
+        {
+            enableTrailingQueryCore();
+        }
+
         @Override
         protected FDate adjustKey(final FDate key) {
             countAdjustKey++;
