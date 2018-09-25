@@ -211,7 +211,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
         if (liveSegment != null && nextLiveKey.isAfter(liveSegment.getSegmentedKey().getSegment().getTo())) {
             if (!lastAvailableHistoricalSegmentTo.equals(liveSegment.getSegmentedKey().getSegment().getTo())) {
                 throw new IllegalStateException("lastAvailableHistoricalSegmentTo [" + lastAvailableHistoricalSegmentTo
-                        + "] should be equal to liveSegmentTo [" + segment.getFrom() + "]");
+                        + "] should be equal to liveSegmentTo [" + segment.getTo() + "]");
             }
             liveSegment.convertLiveSegmentToHistorical();
             try {
