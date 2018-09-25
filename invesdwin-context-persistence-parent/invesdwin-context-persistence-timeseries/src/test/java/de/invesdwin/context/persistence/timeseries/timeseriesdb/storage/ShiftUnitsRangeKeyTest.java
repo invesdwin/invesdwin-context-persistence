@@ -8,7 +8,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import org.junit.Test;
 
-import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ShiftUnitsRangeKey;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.time.fdate.FDateBuilder;

@@ -7,7 +7,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.persistence.timeseries.mapdb.ADelegateMapDB;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 

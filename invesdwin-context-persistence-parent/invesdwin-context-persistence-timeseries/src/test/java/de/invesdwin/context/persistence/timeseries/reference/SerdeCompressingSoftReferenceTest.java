@@ -8,7 +8,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import de.invesdwin.context.persistence.timeseries.reference.SerdeCompressingSoftReference;
 import de.invesdwin.context.persistence.timeseries.serde.RemoteFastSerializingSerde;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;

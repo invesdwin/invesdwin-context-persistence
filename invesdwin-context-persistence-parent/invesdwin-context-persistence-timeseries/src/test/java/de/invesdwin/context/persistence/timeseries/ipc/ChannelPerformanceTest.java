@@ -17,10 +17,6 @@ import org.apache.commons.io.FileUtils;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.persistence.timeseries.ipc.ASpinWait;
-import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousReader;
-import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousWriter;
-import de.invesdwin.context.persistence.timeseries.ipc.SynchronousChannels;
 import de.invesdwin.context.persistence.timeseries.ipc.mapped.MappedSynchronousReader;
 import de.invesdwin.context.persistence.timeseries.ipc.mapped.MappedSynchronousWriter;
 import de.invesdwin.context.persistence.timeseries.ipc.pipe.PipeSynchronousReader;
