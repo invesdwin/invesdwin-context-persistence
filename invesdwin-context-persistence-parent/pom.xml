@@ -27,7 +27,7 @@
 		<module>invesdwin-context-persistence-jpa-datanucleus</module>
 		<module>invesdwin-context-persistence-jpa-kundera</module>
 		<module>invesdwin-context-persistence-jpa-kundera-rdbms</module>
-		<module>invesdwin-context-persistence-leveldb</module>
+		<module>invesdwin-context-persistence-timeseries</module>
 	</modules>
 
 	<properties>
@@ -94,7 +94,7 @@
 			</dependency>
 			<dependency>
 				<groupId>de.invesdwin</groupId>
-				<artifactId>invesdwin-context-persistence-leveldb</artifactId>
+				<artifactId>invesdwin-context-persistence-timeseries</artifactId>
 				<version>${version.invesdwin-context-persistence}</version>
 			</dependency>
 

@@ -8,7 +8,7 @@
 		<artifactId>invesdwin-context-persistence-parent</artifactId>
 		<version>1.0.0-SNAPSHOT</version>
 	</parent>
-	<artifactId>invesdwin-context-persistence-leveldb</artifactId>
+	<artifactId>invesdwin-context-persistence-timeseries</artifactId>
 	<packaging>jar</packaging>
 
 	<dependencies>
