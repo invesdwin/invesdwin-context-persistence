@@ -154,14 +154,12 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
                     try (RocksIterator iterator = open.newIterator()) {
                         iterator.seekToFirst();
                         if (iterator.isValid()) {
-                            iterator.next();
                             final byte[] key = iterator.key();
                             final byte[] value = iterator.value();
                             validateRow(ImmutableEntry.of(key, value));
                         }
                         iterator.seekToLast();
                         if (iterator.isValid()) {
-                            iterator.prev();
                             final byte[] key = iterator.key();
                             final byte[] value = iterator.value();
                             validateRow(ImmutableEntry.of(key, value));
