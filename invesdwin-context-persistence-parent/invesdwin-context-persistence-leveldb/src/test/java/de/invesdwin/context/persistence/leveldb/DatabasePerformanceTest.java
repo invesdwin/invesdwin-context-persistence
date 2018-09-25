@@ -121,6 +121,11 @@ public class DatabasePerformanceTest extends ATest {
         final ATimeSeriesDB<String, FDate> table = new ATimeSeriesDB<String, FDate>("testTimeSeriesDbPerformance") {
 
             @Override
+            protected File getBaseDirectory() {
+                return new File(ContextProperties.getCacheDirectory(), ATimeSeriesDB.class.getSimpleName());
+            }
+
+            @Override
             protected Serde<FDate> newValueSerde() {
                 return FDateSerde.GET;
             }

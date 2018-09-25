@@ -18,32 +18,8 @@
 		</dependency>
 
 		<dependency>
-			<groupId>org.fusesource.leveldbjni</groupId>
-			<artifactId>leveldbjni</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.fusesource.leveldbjni</groupId>
-			<artifactId>leveldbjni-osx</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.fusesource.leveldbjni</groupId>
-			<artifactId>leveldbjni-win32</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.fusesource.leveldbjni</groupId>
-			<artifactId>leveldbjni-win64</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.fusesource.leveldbjni</groupId>
-			<artifactId>leveldbjni-linux32</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.fusesource.leveldbjni</groupId>
-			<artifactId>leveldbjni-linux64</artifactId>
-		</dependency>
-		<dependency>
 			<groupId>com.github.criccomini</groupId>
-			<artifactId>ezdb-leveldb-jni</artifactId>
+			<artifactId>ezdb-rocksdb-jni</artifactId>
 		</dependency>
 
 		<dependency>
