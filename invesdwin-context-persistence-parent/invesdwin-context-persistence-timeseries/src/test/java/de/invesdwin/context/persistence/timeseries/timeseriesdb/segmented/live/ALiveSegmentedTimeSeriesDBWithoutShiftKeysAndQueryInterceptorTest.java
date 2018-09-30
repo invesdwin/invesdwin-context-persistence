@@ -7,7 +7,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map.Entry;
 
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -21,7 +20,6 @@ import de.invesdwin.context.persistence.timeseries.serde.ExtendedTypeDelegateSer
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.PeriodicalSegmentFinder;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.SegmentedKey;
-import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.tuple.Pair;
@@ -33,6 +31,7 @@ import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.loadingcache.historical.AGapHistoricalCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
+import de.invesdwin.util.collections.loadingcache.historical.IHistoricalEntry;
 import de.invesdwin.util.collections.loadingcache.historical.interceptor.AHistoricalCacheRangeQueryInterceptor;
 import de.invesdwin.util.collections.loadingcache.historical.interceptor.IHistoricalCacheRangeQueryInterceptor;
 import de.invesdwin.util.collections.loadingcache.historical.key.APullingHistoricalCacheAdjustKeyProvider;
@@ -1473,28 +1472,12 @@ public class ALiveSegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest e
             return new AHistoricalCacheRangeQueryInterceptor<FDate>(this) {
 
                 @Override
-                public ICloseableIterable<Entry<FDate, FDate>> innerGetEntries(final FDate from, final FDate to) {
+                public ICloseableIterable<IHistoricalEntry<FDate>> innerGetEntries(final FDate from, final FDate to) {
                     final ICloseableIterable<FDate> iterable = table.rangeValues(KEY, from, to);
-                    return new ATransformingCloseableIterable<FDate, Entry<FDate, FDate>>(iterable) {
+                    return new ATransformingCloseableIterable<FDate, IHistoricalEntry<FDate>>(iterable) {
                         @Override
-                        protected Entry<FDate, FDate> transform(final FDate value) {
-                            return new Entry<FDate, FDate>() {
-
-                                @Override
-                                public FDate setValue(final FDate value) {
-                                    throw new UnsupportedOperationException();
-                                }
-
-                                @Override
-                                public FDate getValue() {
-                                    return value;
-                                }
-
-                                @Override
-                                public FDate getKey() {
-                                    return value;
-                                }
-                            };
+                        protected IHistoricalEntry<FDate> transform(final FDate value) {
+                            return value.asHistoricalEntry();
                         }
                     };
                 }
