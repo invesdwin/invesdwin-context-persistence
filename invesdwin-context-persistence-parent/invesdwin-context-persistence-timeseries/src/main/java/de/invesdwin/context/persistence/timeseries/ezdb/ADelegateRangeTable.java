@@ -11,20 +11,16 @@ import java.util.function.Function;
 import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.commons.io.FileUtils;
-import org.rocksdb.CompressionType;
-import org.rocksdb.Options;
-import org.rocksdb.RocksDB;
-import org.rocksdb.RocksIterator;
+import org.iq80.leveldb.DB;
+import org.iq80.leveldb.DBIterator;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.timeseries.serde.ExtendedTypeDelegateSerde;
-import de.invesdwin.util.bean.tuple.ImmutableEntry;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
-import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Reflections;
@@ -39,8 +35,8 @@ import ezdb.batch.Batch;
 import ezdb.batch.RangeBatch;
 import ezdb.comparator.LexicographicalComparator;
 import ezdb.comparator.SerdeComparator;
-import ezdb.rocksdb.EzRocksDb;
-import ezdb.rocksdb.EzRocksDbJniFactory;
+import ezdb.leveldb.EzLevelDb;
+import ezdb.leveldb.EzLevelDbJniFactory;
 import ezdb.serde.Serde;
 
 @ThreadSafe
@@ -142,27 +138,24 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     private Db initDB() {
         initDirectory();
-        return new EzRocksDb(directory, new EzRocksDbJniFactory() {
+        return new EzLevelDb(directory, new EzLevelDbJniFactory() {
             @Override
-            public RocksDB open(final File path, final Options options) throws IOException {
-                options.setCompressionType(CompressionType.LZ4HC_COMPRESSION);
-                options.optimizeLevelStyleCompaction();
-                options.setIncreaseParallelism(Executors.getCpuThreadPoolCount());
-                final RocksDB open = super.open(path, options);
+            public DB open(final File path, final org.iq80.leveldb.Options options) throws IOException {
+                options.verifyChecksums(false);
+                options.paranoidChecks(false);
+                final DB open = super.open(path, options);
                 try {
                     //do some sanity checks just to be safe
-                    try (RocksIterator iterator = open.newIterator()) {
+                    try (DBIterator iterator = open.iterator()) {
                         iterator.seekToFirst();
-                        if (iterator.isValid()) {
-                            final byte[] key = iterator.key();
-                            final byte[] value = iterator.value();
-                            validateRow(ImmutableEntry.of(key, value));
+                        if (iterator.hasNext()) {
+                            final Entry<byte[], byte[]> next = iterator.next();
+                            validateRow(next);
                         }
                         iterator.seekToLast();
-                        if (iterator.isValid()) {
-                            final byte[] key = iterator.key();
-                            final byte[] value = iterator.value();
-                            validateRow(ImmutableEntry.of(key, value));
+                        if (iterator.hasPrev()) {
+                            final Entry<byte[], byte[]> prev = iterator.prev();
+                            validateRow(prev);
                         }
                     }
                     return open;

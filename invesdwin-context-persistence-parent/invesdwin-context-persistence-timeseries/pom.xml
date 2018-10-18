@@ -19,7 +19,7 @@
 
 		<dependency>
 			<groupId>com.github.criccomini</groupId>
-			<artifactId>ezdb-rocksdb-jni</artifactId>
+			<artifactId>ezdb-leveldb-jni</artifactId>
 		</dependency>
 
 		<dependency>
