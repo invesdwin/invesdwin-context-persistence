@@ -34,7 +34,6 @@
 		<version.invesdwin-context-persistence>${version.invesdwin-context}</version.invesdwin-context-persistence>
 
 		<version.asm>3.3.1</version.asm>
-		<version.spring-data-jpa>2.1.1.RELEASE</version.spring-data-jpa>
 		<version.jboss-transaction-api_1.1_spec>1.0.1.Final</version.jboss-transaction-api_1.1_spec>
 		<version.hikaricp>3.2.0</version.hikaricp>
 		<version.c3p0>0.9.5.2</version.c3p0>
@@ -96,18 +95,6 @@
 				<groupId>de.invesdwin</groupId>
 				<artifactId>invesdwin-context-persistence-timeseries</artifactId>
 				<version>${version.invesdwin-context-persistence}</version>
-			</dependency>
-
-			<dependency>
-				<groupId>org.springframework.data</groupId>
-				<artifactId>spring-data-jpa</artifactId>
-				<version>${version.spring-data-jpa}</version>
-				<exclusions>
-					<exclusion>
-						<artifactId>aspectjrt</artifactId>
-						<groupId>org.aspectj</groupId>
-					</exclusion>
-				</exclusions>
 			</dependency>
 
 			<dependency>
