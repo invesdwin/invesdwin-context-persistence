@@ -21,7 +21,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.beans.init.locations.IContextLocation;
 import de.invesdwin.context.beans.init.locations.PositionedResource;
-import de.invesdwin.context.beans.init.locations.PositionedResource.ResourcePosition;
+import de.invesdwin.context.beans.init.locations.position.ResourcePosition;
 import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.jpa.PersistenceProperties;
 import de.invesdwin.context.persistence.jpa.api.dao.IDao;
