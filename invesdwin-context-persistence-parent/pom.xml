@@ -36,7 +36,7 @@
 		<version.asm>3.3.1</version.asm>
 		<version.jboss-transaction-api_1.1_spec>1.0.1.Final</version.jboss-transaction-api_1.1_spec>
 		<version.hikaricp>3.2.0</version.hikaricp>
-		<version.c3p0>0.9.5.2</version.c3p0>
+		<version.c3p0>0.9.5.3</version.c3p0>
 		<version.p6spy>3.7.0</version.p6spy>
 		<version.hibernate>5.3.6.Final</version.hibernate>
 		<version.hibernate-jpa-2.1-api>1.0.2.Final</version.hibernate-jpa-2.1-api>
