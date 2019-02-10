@@ -7,6 +7,7 @@ import java.nio.channels.FileChannel;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.instrument.DynamicInstrumentationReflections;
+import de.invesdwin.util.lang.Reflections;
 
 /**
  * Class for direct access to a memory mapped file.
@@ -16,7 +17,6 @@ import de.invesdwin.instrument.DynamicInstrumentationReflections;
  * https://github.com/caplogic/Mappedbus/blob/master/src/main/io/mappedbus/MemoryMappedFile.java
  *
  */
-@SuppressWarnings("restriction")
 @NotThreadSafe
 public class MemoryMappedFile {
 
@@ -31,8 +31,9 @@ public class MemoryMappedFile {
 
     static {
         try {
-            MMAP = getMethod(sun.nio.ch.FileChannelImpl.class, "map0", int.class, long.class, long.class);
-            UNMMAP = getMethod(sun.nio.ch.FileChannelImpl.class, "unmap0", long.class, long.class);
+            final Class<Object> fileChannelImplClass = Reflections.classForName("sun.nio.ch.FileChannelImpl");
+            MMAP = getMethod(fileChannelImplClass, "map0", int.class, long.class, long.class);
+            UNMMAP = getMethod(fileChannelImplClass, "unmap0", long.class, long.class);
             BYTE_ARRAY_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
         } catch (final Exception e) {
             throw new RuntimeException(e);
