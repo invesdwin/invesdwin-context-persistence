@@ -38,8 +38,7 @@
 		<version.hikaricp>3.2.0</version.hikaricp>
 		<version.c3p0>0.9.5.3</version.c3p0>
 		<version.p6spy>3.7.0</version.p6spy>
-		<version.hibernate>5.3.6.Final</version.hibernate>
-		<version.hibernate-jpa-2.1-api>1.0.2.Final</version.hibernate-jpa-2.1-api>
+		<version.hibernate>5.4.1.Final</version.hibernate>
 		<version.jboss-logging>3.3.2.Final</version.jboss-logging>
 		<version.datanucleus>5.1.11</version.datanucleus>
 		<version.datanucleus-cache>5.1.1</version.datanucleus-cache>
@@ -112,16 +111,22 @@
 				<groupId>org.hibernate</groupId>
 				<artifactId>hibernate-jpamodelgen</artifactId>
 				<version>${version.hibernate}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>org.glassfish.jaxb</groupId>
+						<artifactId>jaxb-runtime</artifactId>
+					</exclusion>
+					<exclusion>
+						<groupId>javax.xml.bind</groupId>
+						<artifactId>jaxb-api</artifactId>
+					</exclusion>
+				</exclusions>
 			</dependency>
 			<dependency>
 				<groupId>org.hibernate</groupId>
 				<artifactId>hibernate-entitymanager</artifactId>
 				<version>${version.hibernate}</version>
 				<exclusions>
-					<exclusion>
-						<artifactId>hibernate-jpa-2.0-api</artifactId>
-						<groupId>org.hibernate.javax.persistence</groupId>
-					</exclusion>
 					<exclusion>
 						<artifactId>xml-apis</artifactId>
 						<groupId>xml-apis</groupId>
@@ -134,10 +139,6 @@
 				<version>${version.hibernate}</version>
 				<exclusions>
 					<exclusion>
-						<artifactId>hibernate-jpa-2.0-api</artifactId>
-						<groupId>org.hibernate.javax.persistence</groupId>
-					</exclusion>
-					<exclusion>
 						<artifactId>xml-apis</artifactId>
 						<groupId>xml-apis</groupId>
 					</exclusion>
@@ -145,17 +146,24 @@
 						<groupId>javax.enterprise</groupId>
 						<artifactId>cdi-api</artifactId>
 					</exclusion>
+					<exclusion>
+						<groupId>org.glassfish.jaxb</groupId>
+						<artifactId>jaxb-runtime</artifactId>
+					</exclusion>
+					<exclusion>
+						<groupId>javax.xml.bind</groupId>
+						<artifactId>jaxb-api</artifactId>
+					</exclusion>
 				</exclusions>
+			</dependency>
+			<dependency>
+				<groupId>javax.persistence</groupId>
+				<artifactId>javax.persistence-api</artifactId>
 			</dependency>
 			<dependency>
 				<groupId>org.hibernate</groupId>
 				<artifactId>hibernate-jcache</artifactId>
 				<version>${version.hibernate}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.hibernate.javax.persistence</groupId>
-				<artifactId>hibernate-jpa-2.1-api</artifactId>
-				<version>${version.hibernate-jpa-2.1-api}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.jboss.logging</groupId>
