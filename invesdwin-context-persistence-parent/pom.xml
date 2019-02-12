@@ -113,10 +113,6 @@
 				<version>${version.hibernate}</version>
 				<exclusions>
 					<exclusion>
-						<groupId>org.glassfish.jaxb</groupId>
-						<artifactId>jaxb-runtime</artifactId>
-					</exclusion>
-					<exclusion>
 						<groupId>javax.xml.bind</groupId>
 						<artifactId>jaxb-api</artifactId>
 					</exclusion>
@@ -145,10 +141,6 @@
 					<exclusion>
 						<groupId>javax.enterprise</groupId>
 						<artifactId>cdi-api</artifactId>
-					</exclusion>
-					<exclusion>
-						<groupId>org.glassfish.jaxb</groupId>
-						<artifactId>jaxb-runtime</artifactId>
 					</exclusion>
 					<exclusion>
 						<groupId>javax.xml.bind</groupId>
