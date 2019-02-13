@@ -34,6 +34,7 @@ import de.invesdwin.context.persistence.jpa.spi.impl.ConfiguredDataSource;
 import de.invesdwin.context.persistence.jpa.spi.impl.NativeJdbcIndexCreationHandler;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.error.UnknownArgumentException;
+import de.invesdwin.util.lang.Reflections;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.fdate.FTimeUnit;
 
@@ -41,6 +42,8 @@ import de.invesdwin.util.time.fdate.FTimeUnit;
 @ThreadSafe
 public class HibernateDialectSpecificDelegate implements IDialectSpecificDelegate {
 
+    private static final String CLASS_JCACHEREGIONFACTORY_OLD = "org.hibernate.cache.jcache.JCacheRegionFactory";
+    private static final String CLASS_JCACHEREGIONFACTORY_NEW = "org.hibernate.cache.jcache.internal.JCacheRegionFactory";
     private final NativeJdbcIndexCreationHandler nativeJdbcIndexCreationHandler = new NativeJdbcIndexCreationHandler();
 
     @Override
@@ -90,8 +93,11 @@ public class HibernateDialectSpecificDelegate implements IDialectSpecificDelegat
         props.put(AvailableSettings.USE_QUERY_CACHE, String.valueOf(true));
         //        <prop key="hibernate.cache.region.factory_class">org.hibernate.cache.ehcache.SingletonEhCacheRegionFactory</prop>
         initCaches();
-        props.put(AvailableSettings.CACHE_REGION_FACTORY,
-                org.hibernate.cache.jcache.internal.JCacheRegionFactory.class.getName());
+        if (Reflections.classExists(CLASS_JCACHEREGIONFACTORY_OLD)) {
+            props.put(AvailableSettings.CACHE_REGION_FACTORY, CLASS_JCACHEREGIONFACTORY_OLD);
+        } else {
+            props.put(AvailableSettings.CACHE_REGION_FACTORY, CLASS_JCACHEREGIONFACTORY_NEW);
+        }
         props.put(AvailableSettings.USE_NEW_ID_GENERATOR_MAPPINGS, String.valueOf(true));
         //https://vladmihalcea.com/hibernate-hidden-gem-the-pooled-lo-optimizer/
         props.put(AvailableSettings.PREFERRED_POOLED_OPTIMIZER, "pooled-lo");

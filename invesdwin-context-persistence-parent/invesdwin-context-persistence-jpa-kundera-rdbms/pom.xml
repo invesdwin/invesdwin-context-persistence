@@ -1,4 +1,5 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
                              http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
@@ -10,6 +11,11 @@
 	<artifactId>invesdwin-context-persistence-jpa-kundera-rdbms</artifactId>
 	<packaging>jar</packaging>
 
+	<properties>
+		<!-- kundera needs an upgrade to 5.3 or else createQuery causes a NoSuchMethodException -->
+		<version.hibernate>5.2.18.Final</version.hibernate>
+	</properties>
+
 	<build>
 		<plugins>
 			<plugin>
@@ -19,6 +25,13 @@
 					<includes>
 						<include>de/invesdwin/context/persistence/jpa/kundera/KunderaTestSuite.java</include>
 					</includes>
+				</configuration>
+			</plugin>
+			<plugin>
+				<artifactId>maven-enforcer-plugin</artifactId>
+				<configuration>
+					<!-- make hibernate downgrade a warning -->
+					<fail>false</fail>
 				</configuration>
 			</plugin>
 		</plugins>
