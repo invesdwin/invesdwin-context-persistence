@@ -46,9 +46,8 @@
 			<artifactId>datanucleus-cache</artifactId>
 		</dependency>
 		<dependency>
-			<!-- hidden dependency of datanucleus -->
-			<groupId>javax.jdo</groupId>
-			<artifactId>jdo-api</artifactId>
+			<groupId>org.datanucleus</groupId>
+			<artifactId>javax.jdo</artifactId>
 		</dependency>
 		<dependency>
 			<!-- HikariCP is the default for performance pursposes. If you want to 

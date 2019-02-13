@@ -40,9 +40,9 @@
 		<version.p6spy>3.7.0</version.p6spy>
 		<version.hibernate>5.4.1.Final</version.hibernate>
 		<version.jboss-logging>3.3.2.Final</version.jboss-logging>
-		<version.datanucleus>5.1.11</version.datanucleus>
+		<version.datanucleus>5.2.0-m3</version.datanucleus>
 		<version.datanucleus-cache>5.1.1</version.datanucleus-cache>
-		<version.jdo-api>3.1</version.jdo-api>
+		<version.javax.jdo>3.2.0-m10</version.javax.jdo>
 
 		<version.kundera>3.13</version.kundera>
 		<version.ezdb>0.1.12</version.ezdb>
@@ -279,19 +279,19 @@
 			</dependency>
 			<dependency>
 				<groupId>org.datanucleus</groupId>
-				<artifactId>datanucleus-cache</artifactId>
-				<version>${version.datanucleus-cache}</version>
-			</dependency>
-			<dependency>
-				<groupId>javax.jdo</groupId>
-				<artifactId>jdo-api</artifactId>
-				<version>${version.jdo-api}</version>
+				<artifactId>javax.jdo</artifactId>
+				<version>${version.javax.jdo}</version>
 				<exclusions>
 					<exclusion>
 						<artifactId>jta</artifactId>
 						<groupId>javax.transaction</groupId>
 					</exclusion>
 				</exclusions>
+			</dependency>
+			<dependency>
+				<groupId>org.datanucleus</groupId>
+				<artifactId>datanucleus-cache</artifactId>
+				<version>${version.datanucleus-cache}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.eclipse.persistence</groupId>
