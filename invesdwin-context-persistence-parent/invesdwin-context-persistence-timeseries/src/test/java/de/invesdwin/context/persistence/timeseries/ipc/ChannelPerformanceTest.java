@@ -49,6 +49,7 @@ import de.invesdwin.util.time.fdate.FTimeUnit;
 
 // CHECKSTYLE:OFF
 @NotThreadSafe
+@Ignore("manual test")
 public class ChannelPerformanceTest extends ATest {
     //CHECKSTYLE:ON
 
