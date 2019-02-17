@@ -9,7 +9,7 @@ public class ConfiguredP6Formatter implements MessageFormattingStrategy {
 
     @Override
     public String formatMessage(final int connectionId, final String now, final long elapsed, final String category,
-            final String prepared, final String sql) {
+            final String prepared, final String sql, final String url) {
         return sql;
     }
 

@@ -8,12 +8,11 @@ import de.invesdwin.util.lang.Strings;
 
 @ThreadSafe
 public class ConfiguredP6Logger extends com.p6spy.engine.spy.appender.Slf4JLogger {
-
     @Override
     public void logSQL(final int connectionId, final String now, final long elapsed, final Category category,
-            final String prepared, final String sql) {
+            final String prepared, final String sql, final String url) {
         if (Strings.isNotEmpty(sql)) {
-            super.logSQL(connectionId, now, elapsed, category, prepared, sql);
+            super.logSQL(connectionId, now, elapsed, category, prepared, sql, url);
         }
     }
 
