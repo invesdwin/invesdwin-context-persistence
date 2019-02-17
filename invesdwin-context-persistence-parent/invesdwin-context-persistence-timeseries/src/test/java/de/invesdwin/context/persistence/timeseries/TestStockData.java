@@ -12,7 +12,6 @@ import java.util.List;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.commons.io.FileUtils;
 import org.junit.Test;
 import org.springframework.core.io.ClassPathResource;
 
@@ -32,8 +31,6 @@ import ezdb.TableRow;
 @NotThreadSafe
 public class TestStockData extends ATest {
 
-    protected static final File ROOT = ContextProperties.getHomeDirectory();
-
     private static final String MSFT = "MSFT";
     private static final FDate MAX_DATE = FDate.MAX_DATE;
     private static final FDate MIN_DATE = FDate.MIN_DATE;
@@ -45,7 +42,6 @@ public class TestStockData extends ATest {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        FileUtils.deleteQuietly(ROOT);
 
         table = new ADelegateRangeTable<String, FDate, Integer>("test") {
             @Override
@@ -58,6 +54,11 @@ public class TestStockData extends ATest {
                 return true;
             }
 
+            @Override
+            protected File getBaseDirectory() {
+                return ContextProperties.getCacheDirectory();
+            }
+
         };
     }
 
@@ -65,7 +66,6 @@ public class TestStockData extends ATest {
     public void tearDown() throws Exception {
         super.tearDown();
         table.close();
-        FileUtils.deleteQuietly(ROOT);
     }
 
     @Test
