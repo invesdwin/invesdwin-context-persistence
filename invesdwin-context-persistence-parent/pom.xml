@@ -49,7 +49,7 @@
 		<version.mapdb>3.0.7</version.mapdb>
 		<version.kotlin>1.3.20</version.kotlin>
 		<version.eclipse-collections>7.1.0</version.eclipse-collections>
-		<version.eclipselink>2.7.1</version.eclipselink>
+		<version.eclipselink>2.7.4</version.eclipselink>
 	</properties>
 
 	<dependencyManagement>
