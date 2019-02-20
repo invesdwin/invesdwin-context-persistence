@@ -6,7 +6,6 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.commons.io.FileUtils;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
@@ -39,7 +38,6 @@ public class TestEzLevelDbJni extends ATest {
 
     private ADelegateRangeTable<String, FDate, Integer> reverseRangeTable;
 
-    protected static final File ROOT = ContextProperties.getHomeDirectory();
     protected ADelegateRangeTable<Integer, Integer, Integer> table;
 
     @SuppressWarnings("JUnit4SetUpNotRun")
@@ -57,6 +55,11 @@ public class TestEzLevelDbJni extends ATest {
                 return true;
             }
 
+            @Override
+            protected File getBaseDirectory() {
+                return ContextProperties.getCacheDirectory();
+            }
+
         };
 
         reverseRangeTable = new ADelegateRangeTable<String, FDate, Integer>("testInverseOrder") {
@@ -68,6 +71,11 @@ public class TestEzLevelDbJni extends ATest {
             @Override
             protected boolean allowPutWithoutBatch() {
                 return true;
+            }
+
+            @Override
+            protected File getBaseDirectory() {
+                return ContextProperties.getCacheDirectory();
             }
 
         };
@@ -90,7 +98,6 @@ public class TestEzLevelDbJni extends ATest {
 
         table.close();
         table.deleteTable();
-        FileUtils.deleteQuietly(ROOT);
     }
 
     @Test
