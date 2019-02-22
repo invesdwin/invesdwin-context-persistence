@@ -232,6 +232,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
                 try {
                     table = db.getTable(name, hashKeySerde, rangeKeySerde, valueSerde, hashKeyComparator,
                             rangeKeyComparator);
+                    RangeTableCloseManager.register(this);
                 } catch (final Throwable e) {
                     if (Strings.containsIgnoreCase(e.getMessage(), "LOCK")) {
                         //ezdb.DbException: org.fusesource.leveldbjni.internal.NativeDB$DBException: IO error: lock /home/subes/Dokumente/Entwicklung/invesdwin/invesdwin-trading/invesdwin-trading-parent/invesdwin-trading-modules/invesdwin-trading-backtest/.invesdwin/de.invesdwin.context.persistence.leveldb.ADelegateRangeTable/CachingFinancialdataService_getInstrument/LOCK: Die Ressource ist zur Zeit nicht verfügbar
@@ -264,6 +265,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     private void innerDeleteTable() {
         if (table != null) {
+            RangeTableCloseManager.unregister(this);
             table.close();
             table = null;
         }
@@ -478,6 +480,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         tableLock.writeLock().lock();
         try {
             if (table != null) {
+                RangeTableCloseManager.unregister(this);
                 table.close();
                 table = null;
             }
