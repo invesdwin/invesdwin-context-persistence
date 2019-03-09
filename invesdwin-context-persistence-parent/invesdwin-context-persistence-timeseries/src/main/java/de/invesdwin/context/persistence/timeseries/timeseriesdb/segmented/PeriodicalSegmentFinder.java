@@ -270,7 +270,7 @@ public class PeriodicalSegmentFinder {
 
             @Override
             protected Integer getInitialMaximumSize() {
-                return 1000;
+                return 10;
             }
 
             @Override
