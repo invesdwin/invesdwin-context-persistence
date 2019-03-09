@@ -23,7 +23,7 @@ import de.invesdwin.util.time.fdate.FDate;
 @NotThreadSafe
 public class MemoryLiveSegment<K, V> implements ILiveSegment<K, V> {
 
-    private final NavigableMap<Long, V> values = ILockCollectionFactory.getInstance(false).newTreeMap();
+    private final NavigableMap<FDate, V> values = ILockCollectionFactory.getInstance(false).newTreeMap();
     private final SegmentedKey<K> segmentedKey;
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
     private FDate firstValueKey;
@@ -54,30 +54,30 @@ public class MemoryLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public ICloseableIterable<V> rangeValues(final FDate from, final FDate to) {
-        final SortedMap<Long, V> tailMap;
+        final SortedMap<FDate, V> tailMap;
         if (from == null) {
             tailMap = values;
         } else {
-            tailMap = values.tailMap(from.millisValue());
+            tailMap = values.tailMap(from);
         }
-        final ICloseableIterable<Entry<Long, V>> tail = WrapperCloseableIterable.maybeWrap(tailMap.entrySet());
-        final ICloseableIterable<Entry<Long, V>> skipping;
+        final ICloseableIterable<Entry<FDate, V>> tail = WrapperCloseableIterable.maybeWrap(tailMap.entrySet());
+        final ICloseableIterable<Entry<FDate, V>> skipping;
         if (to == null) {
             skipping = tail;
         } else {
-            skipping = new ASkippingIterable<Entry<Long, V>>(tail) {
+            skipping = new ASkippingIterable<Entry<FDate, V>>(tail) {
                 @Override
-                protected boolean skip(final Entry<Long, V> element) {
-                    if (element.getKey() > to.millisValue()) {
+                protected boolean skip(final Entry<FDate, V> element) {
+                    if (element.getKey().millisValue() > to.millisValue()) {
                         throw new FastNoSuchElementException("LiveSegment rangeValues end reached");
                     }
                     return false;
                 }
             };
         }
-        return new ATransformingCloseableIterable<Entry<Long, V>, V>(skipping) {
+        return new ATransformingCloseableIterable<Entry<FDate, V>, V>(skipping) {
             @Override
-            protected V transform(final Entry<Long, V> value) {
+            protected V transform(final Entry<FDate, V> value) {
                 return value.getValue();
             }
         };
@@ -85,30 +85,30 @@ public class MemoryLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to) {
-        final SortedMap<Long, V> headMap;
+        final SortedMap<FDate, V> headMap;
         if (from == null) {
             headMap = values.descendingMap();
         } else {
-            headMap = values.descendingMap().tailMap(from.millisValue());
+            headMap = values.descendingMap().tailMap(from);
         }
-        final ICloseableIterable<Entry<Long, V>> tail = WrapperCloseableIterable.maybeWrap(headMap.entrySet());
-        final ICloseableIterable<Entry<Long, V>> skipping;
+        final ICloseableIterable<Entry<FDate, V>> tail = WrapperCloseableIterable.maybeWrap(headMap.entrySet());
+        final ICloseableIterable<Entry<FDate, V>> skipping;
         if (to == null) {
             skipping = tail;
         } else {
-            skipping = new ASkippingIterable<Entry<Long, V>>(tail) {
+            skipping = new ASkippingIterable<Entry<FDate, V>>(tail) {
                 @Override
-                protected boolean skip(final Entry<Long, V> element) {
-                    if (element.getKey() > to.millisValue()) {
+                protected boolean skip(final Entry<FDate, V> element) {
+                    if (element.getKey().millisValue() > to.millisValue()) {
                         throw new FastNoSuchElementException("LiveSegment rangeReverseValues end reached");
                     }
                     return false;
                 }
             };
         }
-        return new ATransformingCloseableIterable<Entry<Long, V>, V>(skipping) {
+        return new ATransformingCloseableIterable<Entry<FDate, V>, V>(skipping) {
             @Override
-            protected V transform(final Entry<Long, V> value) {
+            protected V transform(final Entry<FDate, V> value) {
                 return value.getValue();
             }
         };
@@ -116,7 +116,7 @@ public class MemoryLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public void putNextLiveValue(final FDate nextLiveKey, final V nextLiveValue) {
-        values.put(nextLiveKey.millisValue(), nextLiveValue);
+        values.put(nextLiveKey, nextLiveValue);
         if (firstValue == null) {
             firstValue = nextLiveValue;
             firstValueKey = nextLiveKey;
@@ -144,7 +144,7 @@ public class MemoryLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public V getLatestValue(final FDate date) {
-        final Entry<Long, V> floorEntry = values.floorEntry(date.millisValue());
+        final Entry<FDate, V> floorEntry = values.floorEntry(date);
         if (floorEntry != null) {
             return floorEntry.getValue();
         } else {
