@@ -25,6 +25,7 @@ import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Reflections;
 import de.invesdwin.util.lang.Strings;
+import de.invesdwin.util.lang.cleanable.ACleanableAction;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.Db;
 import ezdb.RangeTable;
@@ -54,11 +55,11 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     private final String name;
     private final File directory;
     private final File timestampFile;
+    private final TableCleanableAction<H, R, V> tableCleanableAction;
     /**
      * used against too often accessing the timestampFile
      */
     private volatile FDate tableCreationTime;
-    private volatile RangeTable<H, R, V> table;
 
     public ADelegateRangeTable(final String name) {
         this.name = name;
@@ -73,6 +74,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         this.tableLock = Locks
                 .newReentrantReadWriteLock(ADelegateRangeTable.class.getSimpleName() + "_" + getName() + "_tableLock");
         this.db = initDB();
+        this.tableCleanableAction = new TableCleanableAction<>();
     }
 
     protected File getDirectory() {
@@ -201,8 +203,8 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
         //directly return table with read lock if not null
         tableLock.readLock().lock();
-        if (table != null) {
-            return table;
+        if (tableCleanableAction.table != null) {
+            return tableCleanableAction.table;
         }
         tableLock.readLock().unlock();
 
@@ -211,17 +213,17 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
         //and return the now not null table with read lock
         tableLock.readLock().lock();
-        if (table == null) {
+        if (tableCleanableAction.table == null) {
             tableLock.readLock().unlock();
             throw new IllegalStateException("table should not be null here");
         }
-        return table;
+        return tableCleanableAction.table;
     }
 
     private void initializeTable() {
         tableLock.writeLock().lock();
         try {
-            if (table == null) {
+            if (tableCleanableAction.table == null) {
                 if (getTableCreationTime() == null) {
                     try {
                         FileUtils.touch(timestampFile);
@@ -230,8 +232,9 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
                     }
                 }
                 try {
-                    table = db.getTable(name, hashKeySerde, rangeKeySerde, valueSerde, hashKeyComparator,
-                            rangeKeyComparator);
+                    tableCleanableAction.table = db.getTable(name, hashKeySerde, rangeKeySerde, valueSerde,
+                            hashKeyComparator, rangeKeyComparator);
+                    tableCleanableAction.register(this);
                     RangeTableCloseManager.register(this);
                 } catch (final Throwable e) {
                     if (Strings.containsIgnoreCase(e.getMessage(), "LOCK")) {
@@ -244,8 +247,9 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
                         Err.process(new RuntimeException("Table data for [" + getDirectory() + "/" + getName()
                                 + "] is inconsistent. Resetting data and trying again.", e));
                         innerDeleteTable();
-                        table = db.getTable(name, hashKeySerde, rangeKeySerde, valueSerde, hashKeyComparator,
-                                rangeKeyComparator);
+                        tableCleanableAction.table = db.getTable(name, hashKeySerde, rangeKeySerde, valueSerde,
+                                hashKeyComparator, rangeKeyComparator);
+                        tableCleanableAction.register(this);
                     }
                 }
             }
@@ -264,10 +268,10 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     }
 
     private void innerDeleteTable() {
-        if (table != null) {
+        if (tableCleanableAction.table != null) {
             RangeTableCloseManager.unregister(this);
-            table.close();
-            table = null;
+            tableCleanableAction.table.close();
+            tableCleanableAction.table = null;
         }
         db.deleteTable(name);
         FileUtils.deleteQuietly(timestampFile);
@@ -479,10 +483,10 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     public void close() {
         tableLock.writeLock().lock();
         try {
-            if (table != null) {
+            if (tableCleanableAction.table != null) {
                 RangeTableCloseManager.unregister(this);
-                table.close();
-                table = null;
+                tableCleanableAction.table.close();
+                tableCleanableAction.table = null;
             }
         } finally {
             tableLock.writeLock().unlock();
@@ -492,7 +496,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     public boolean isClosed() {
         tableLock.readLock().lock();
         try {
-            return table == null;
+            return tableCleanableAction.table == null;
         } finally {
             tableLock.writeLock().unlock();
         }
@@ -605,57 +609,70 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     public static class DelegateRangeBatch<H_, R_, V_> implements RangeBatch<H_, R_, V_> {
 
-        private final RangeBatch<H_, R_, V_> delegate;
-        private final ReadWriteLock tableLockDelegate;
-        private boolean closed = false;
+        private static final class RangeBatchCleanableAction<__H, __R, __V> extends ACleanableAction {
+            private final RangeBatch<__H, __R, __V> delegate;
+            private ReadWriteLock tableLockDelegate;
+
+            private RangeBatchCleanableAction(final RangeBatch<__H, __R, __V> delegate,
+                    final ReadWriteLock tableLockDelegate) {
+                this.delegate = delegate;
+                this.tableLockDelegate = tableLockDelegate;
+            }
+
+            @Override
+            protected void clean() {
+                try {
+                    delegate.flush();
+                    delegate.close();
+                } catch (final IOException e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    tableLockDelegate.readLock().unlock();
+                    tableLockDelegate = null;
+                }
+            }
+
+            @Override
+            public boolean isClosed() {
+                return tableLockDelegate == null;
+            }
+        }
+
+        private final RangeBatchCleanableAction<H_, R_, V_> cleanable;
 
         public DelegateRangeBatch(final RangeBatch<H_, R_, V_> delegate, final ReadWriteLock tableLockDelegate) {
-            this.delegate = delegate;
-            this.tableLockDelegate = tableLockDelegate;
+            this.cleanable = new RangeBatchCleanableAction<>(delegate, tableLockDelegate);
+            this.cleanable.register(this);
         }
 
         @Override
         public void put(final H_ hashKey, final V_ value) {
-            delegate.put(hashKey, value);
+            cleanable.delegate.put(hashKey, value);
         }
 
         @Override
         public void delete(final H_ hashKey) {
-            delegate.delete(hashKey);
+            cleanable.delegate.delete(hashKey);
         }
 
         @Override
         public void flush() {
-            delegate.flush();
+            cleanable.delegate.flush();
         }
 
         @Override
         public void close() throws IOException {
-            if (!closed) {
-                try {
-                    delegate.flush();
-                    delegate.close();
-                    closed = true;
-                } finally {
-                    tableLockDelegate.readLock().unlock();
-                }
-            }
-        }
-
-        @Override
-        protected void finalize() throws Throwable {
-            super.finalize();
-            close();
+            cleanable.close();
         }
 
         @Override
         public void put(final H_ hashKey, final R_ rangeKey, final V_ value) {
-            delegate.put(hashKey, rangeKey, value);
+            cleanable.delegate.put(hashKey, rangeKey, value);
         }
 
         @Override
         public void delete(final H_ hashKey, final R_ rangeKey) {
-            delegate.delete(hashKey, rangeKey);
+            cleanable.delegate.delete(hashKey, rangeKey);
         }
 
     }
@@ -694,22 +711,46 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     public static class DelegateTableIterator<_H, _R, _V> extends ACloseableIterator<TableRow<_H, _R, _V>>
             implements TableIterator<_H, _R, _V> {
 
-        private final TableIterator<_H, _R, _V> delegate;
-        private final ReadWriteLock tableLockDelegate;
+        private static final class TableIteratorCleanableAction<__H, __R, __V> extends ACleanableAction {
+            private final TableIterator<__H, __R, __V> delegate;
+            private ReadWriteLock tableLockDelegate;
+
+            private TableIteratorCleanableAction(final TableIterator<__H, __R, __V> delegate,
+                    final ReadWriteLock tableLockDelegate) {
+                this.delegate = delegate;
+                this.tableLockDelegate = tableLockDelegate;
+            }
+
+            @Override
+            protected void clean() {
+                try {
+                    delegate.close();
+                } finally {
+                    tableLockDelegate.readLock().unlock();
+                    tableLockDelegate = null;
+                }
+            }
+
+            @Override
+            public boolean isClosed() {
+                return tableLockDelegate == null;
+            }
+        }
+
         private final boolean allowHasNext;
-        private boolean closed = false;
+        private final TableIteratorCleanableAction<_H, _R, _V> cleanableAction;
 
         public DelegateTableIterator(final TableIterator<_H, _R, _V> delegate, final ReadWriteLock tableLockDelegate,
                 final boolean allowHasNext) {
-            this.delegate = delegate;
-            this.tableLockDelegate = tableLockDelegate;
             this.allowHasNext = allowHasNext;
+            this.cleanableAction = new TableIteratorCleanableAction<_H, _R, _V>(delegate, tableLockDelegate);
+            registerCleanable(cleanableAction);
         }
 
         @Override
         protected boolean innerHasNext() {
             if (allowHasNext) {
-                final boolean hasNext = delegate.hasNext();
+                final boolean hasNext = cleanableAction.delegate.hasNext();
                 return hasNext;
             } else {
                 throw new UnsupportedOperationException(
@@ -719,38 +760,31 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
         @Override
         protected TableRow<_H, _R, _V> innerNext() {
-            return delegate.next();
+            return cleanableAction.delegate.next();
         }
 
         @Override
         protected void innerRemove() {
-            delegate.remove();
-        }
-
-        @Override
-        protected void finalize() throws Throwable {
-            super.finalize();
-            close();
-        }
-
-        @Override
-        protected void innerClose() {
-            if (!closed) {
-                try {
-                    delegate.close();
-                    closed = true;
-                } finally {
-                    tableLockDelegate.readLock().unlock();
-                }
-            }
+            cleanableAction.delegate.remove();
         }
 
     }
 
-    @Override
-    protected void finalize() throws Throwable {
-        super.finalize();
-        close();
+    private static final class TableCleanableAction<_H, _R, _V> extends ACleanableAction {
+        private volatile RangeTable<_H, _R, _V> table;
+
+        @Override
+        protected void clean() {
+            if (table != null) {
+                table.close();
+                table = null;
+            }
+        }
+
+        @Override
+        public boolean isClosed() {
+            return table == null;
+        }
     }
 
 }
