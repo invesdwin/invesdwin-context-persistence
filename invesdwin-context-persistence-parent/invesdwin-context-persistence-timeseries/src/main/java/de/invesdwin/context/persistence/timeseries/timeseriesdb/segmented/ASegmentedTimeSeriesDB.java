@@ -20,6 +20,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.lock.Locks;
+import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.range.TimeRange;
 import ezdb.serde.Serde;
@@ -308,18 +309,23 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         public ICloseableIterator<V> iterator() {
             return new ACloseableIterator<V>() {
 
-                private final Lock readLock = getTableLock(key).readLock();
-                private ICloseableIterator<V> readRangeValues;
+                private final RangeValuesFinalizer<V> finalizer = new RangeValuesFinalizer<>(
+                        getTableLock(key).readLock());
+
+                {
+                    registerFinalizer(finalizer);
+                }
 
                 private ICloseableIterator<V> getReadRangeValues() {
-                    if (readRangeValues == null) {
-                        readLock.lock();
-                        readRangeValues = getLookupTableCache(key).readRangeValuesReverse(from, to).iterator();
-                        if (readRangeValues instanceof EmptyCloseableIterator) {
-                            readLock.unlock();
+                    if (finalizer.readRangeValues == null) {
+                        finalizer.readLock.lock();
+                        finalizer.readRangeValues = getLookupTableCache(key).readRangeValuesReverse(from, to)
+                                .iterator();
+                        if (finalizer.readRangeValues instanceof EmptyCloseableIterator) {
+                            finalizer.readLock.unlock();
                         }
                     }
-                    return readRangeValues;
+                    return finalizer.readRangeValues;
                 }
 
                 @Override
@@ -332,18 +338,6 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
                     return getReadRangeValues().next();
                 }
 
-                @Override
-                public void innerClose() {
-                    if (readRangeValues instanceof EmptyCloseableIterator) {
-                        //already closed
-                        return;
-                    }
-                    if (readRangeValues != null) {
-                        getReadRangeValues().close();
-                        readLock.unlock();
-                    }
-                    readRangeValues = EmptyCloseableIterator.getInstance();
-                }
             };
         }
     }
@@ -363,18 +357,22 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         public ICloseableIterator<V> iterator() {
             return new ACloseableIterator<V>() {
 
-                private final Lock readLock = getTableLock(key).readLock();
-                private ICloseableIterator<V> readRangeValues;
+                private final RangeValuesFinalizer<V> finalizer = new RangeValuesFinalizer<>(
+                        getTableLock(key).readLock());
+
+                {
+                    registerFinalizer(finalizer);
+                }
 
                 private ICloseableIterator<V> getReadRangeValues() {
-                    if (readRangeValues == null) {
-                        readLock.lock();
-                        readRangeValues = getLookupTableCache(key).readRangeValues(from, to).iterator();
-                        if (readRangeValues instanceof EmptyCloseableIterator) {
-                            readLock.unlock();
+                    if (finalizer.readRangeValues == null) {
+                        finalizer.readLock.lock();
+                        finalizer.readRangeValues = getLookupTableCache(key).readRangeValues(from, to).iterator();
+                        if (finalizer.readRangeValues instanceof EmptyCloseableIterator) {
+                            finalizer.readLock.unlock();
                         }
                     }
-                    return readRangeValues;
+                    return finalizer.readRangeValues;
                 }
 
                 @Override
@@ -387,20 +385,37 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
                     return getReadRangeValues().next();
                 }
 
-                @Override
-                public void innerClose() {
-                    if (readRangeValues instanceof EmptyCloseableIterator) {
-                        //already closed
-                        return;
-                    }
-                    if (readRangeValues != null) {
-                        getReadRangeValues().close();
-                        readLock.unlock();
-                    }
-                    readRangeValues = EmptyCloseableIterator.getInstance();
-                }
             };
         }
+    }
+
+    private static final class RangeValuesFinalizer<_V> extends AFinalizer {
+
+        private final Lock readLock;
+        private ICloseableIterator<_V> readRangeValues;
+
+        private RangeValuesFinalizer(final Lock readLock) {
+            this.readLock = readLock;
+        }
+
+        @Override
+        protected void clean() {
+            if (readRangeValues instanceof EmptyCloseableIterator) {
+                //already closed
+                return;
+            }
+            if (readRangeValues != null) {
+                readRangeValues.close();
+                readLock.unlock();
+            }
+            readRangeValues = EmptyCloseableIterator.getInstance();
+        }
+
+        @Override
+        public boolean isClosed() {
+            return false;
+        }
+
     }
 
     public final class SegmentedTable extends ATimeSeriesDB<SegmentedKey<K>, V> {
