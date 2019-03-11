@@ -41,6 +41,7 @@ import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.error.Throwables;
+import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
 
@@ -64,13 +65,13 @@ public class TimeSeriesStorageCache<K, V> {
 
         @Override
         protected V loadValue(final FDate key) {
-            final SingleValue value = storage.getLatestValueLookupTable().getOrLoad(hashKey, key,
-                    new Function<Pair<String, FDate>, SingleValue>() {
+            final SingleValue value = storage.getLatestValueLookupTable()
+                    .getOrLoad(hashKey, key, new Function<Pair<String, FDate>, SingleValue>() {
 
                         @Override
                         public SingleValue apply(final Pair<String, FDate> input) {
-                            final FDate fileTime = storage.getFileLookupTable().getLatestRangeKey(input.getFirst(),
-                                    input.getSecond());
+                            final FDate fileTime = storage.getFileLookupTable()
+                                    .getLatestRangeKey(input.getFirst(), input.getSecond());
                             if (fileTime == null) {
                                 return null;
                             }
@@ -119,25 +120,26 @@ public class TimeSeriesStorageCache<K, V> {
         protected V loadValue(final Pair<FDate, Integer> key) {
             final FDate date = key.getFirst();
             final int shiftBackUnits = key.getSecond();
-            final SingleValue value = storage.getPreviousValueLookupTable().getOrLoad(hashKey,
-                    new ShiftUnitsRangeKey(date, shiftBackUnits),
-                    new Function<Pair<String, ShiftUnitsRangeKey>, SingleValue>() {
+            final SingleValue value = storage.getPreviousValueLookupTable()
+                    .getOrLoad(hashKey, new ShiftUnitsRangeKey(date, shiftBackUnits),
+                            new Function<Pair<String, ShiftUnitsRangeKey>, SingleValue>() {
 
-                        @Override
-                        public SingleValue apply(final Pair<String, ShiftUnitsRangeKey> input) {
-                            final FDate date = key.getFirst();
-                            final int shiftBackUnits = key.getSecond();
-                            V previousValue = null;
-                            try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null)) {
-                                for (int i = 0; i < shiftBackUnits; i++) {
-                                    previousValue = rangeValuesReverse.next();
+                                @Override
+                                public SingleValue apply(final Pair<String, ShiftUnitsRangeKey> input) {
+                                    final FDate date = key.getFirst();
+                                    final int shiftBackUnits = key.getSecond();
+                                    V previousValue = null;
+                                    try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date,
+                                            null)) {
+                                        for (int i = 0; i < shiftBackUnits; i++) {
+                                            previousValue = rangeValuesReverse.next();
+                                        }
+                                    } catch (final NoSuchElementException e) {
+                                        //ignore
+                                    }
+                                    return new SingleValue(valueSerde, previousValue);
                                 }
-                            } catch (final NoSuchElementException e) {
-                                //ignore
-                            }
-                            return new SingleValue(valueSerde, previousValue);
-                        }
-                    });
+                            });
             return value.getValue(valueSerde);
         }
     };
@@ -157,25 +159,25 @@ public class TimeSeriesStorageCache<K, V> {
         protected V loadValue(final Pair<FDate, Integer> key) {
             final FDate date = key.getFirst();
             final int shiftForwardUnits = key.getSecond();
-            final SingleValue value = storage.getNextValueLookupTable().getOrLoad(hashKey,
-                    new ShiftUnitsRangeKey(date, shiftForwardUnits),
-                    new Function<Pair<String, ShiftUnitsRangeKey>, SingleValue>() {
+            final SingleValue value = storage.getNextValueLookupTable()
+                    .getOrLoad(hashKey, new ShiftUnitsRangeKey(date, shiftForwardUnits),
+                            new Function<Pair<String, ShiftUnitsRangeKey>, SingleValue>() {
 
-                        @Override
-                        public SingleValue apply(final Pair<String, ShiftUnitsRangeKey> input) {
-                            final FDate date = key.getFirst();
-                            final int shiftForwardUnits = key.getSecond();
-                            V nextValue = null;
-                            try (ICloseableIterator<V> rangeValues = readRangeValues(date, null)) {
-                                for (int i = 0; i < shiftForwardUnits; i++) {
-                                    nextValue = rangeValues.next();
+                                @Override
+                                public SingleValue apply(final Pair<String, ShiftUnitsRangeKey> input) {
+                                    final FDate date = key.getFirst();
+                                    final int shiftForwardUnits = key.getSecond();
+                                    V nextValue = null;
+                                    try (ICloseableIterator<V> rangeValues = readRangeValues(date, null)) {
+                                        for (int i = 0; i < shiftForwardUnits; i++) {
+                                            nextValue = rangeValues.next();
+                                        }
+                                    } catch (final NoSuchElementException e) {
+                                        //ignore
+                                    }
+                                    return new SingleValue(valueSerde, nextValue);
                                 }
-                            } catch (final NoSuchElementException e) {
-                                //ignore
-                            }
-                            return new SingleValue(valueSerde, nextValue);
-                        }
-                    });
+                            });
             return value.getValue(valueSerde);
         }
     };
@@ -272,6 +274,10 @@ public class TimeSeriesStorageCache<K, V> {
                             usedFrom.addMilliseconds(1), to);
                     private FDate delegateFirstTime = null;
 
+                    {
+                        registerFinalizer(AFinalizer.valueOfCloseable(delegate));
+                    }
+
                     @Override
                     protected boolean innerHasNext() {
                         return latestFirstTime != null || delegateFirstTime != null || delegate.hasNext();
@@ -315,10 +321,6 @@ public class TimeSeriesStorageCache<K, V> {
                         return newFile(time);
                     }
 
-                    @Override
-                    protected void innerClose() {
-                        delegate.close();
-                    }
                 };
             }
         };
@@ -347,6 +349,10 @@ public class TimeSeriesStorageCache<K, V> {
                     private final ICloseableIterator<FDate> delegate = getRangeKeysReverse(hashKey,
                             usedFrom.addMilliseconds(-1), to);
                     private FDate delegateLastTime = null;
+
+                    {
+                        registerFinalizer(AFinalizer.valueOfCloseable(delegate));
+                    }
 
                     @Override
                     protected boolean innerHasNext() {
@@ -391,10 +397,6 @@ public class TimeSeriesStorageCache<K, V> {
                         return newFile(time);
                     }
 
-                    @Override
-                    protected void innerClose() {
-                        delegate.close();
-                    }
                 };
             }
         };
@@ -403,8 +405,8 @@ public class TimeSeriesStorageCache<K, V> {
     private ICloseableIterator<FDate> getAllRangeKeys() {
         if (cachedAllRangeKeys == null) {
             final BufferingIterator<FDate> allRangeKeys = new BufferingIterator<FDate>();
-            final DelegateTableIterator<String, FDate, ChunkValue> range = storage.getFileLookupTable().range(hashKey,
-                    FDate.MIN_DATE, FDate.MAX_DATE);
+            final DelegateTableIterator<String, FDate, ChunkValue> range = storage.getFileLookupTable()
+                    .range(hashKey, FDate.MIN_DATE, FDate.MAX_DATE);
             while (range.hasNext()) {
                 allRangeKeys.add(range.next().getRangeKey());
             }

@@ -36,6 +36,7 @@ import de.invesdwin.util.collections.iterable.LimitingIterator;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.UniqueNameGenerator;
+import de.invesdwin.util.lang.finalizer.AFinalizer;
 import ezdb.serde.Serde;
 
 @NotThreadSafe
@@ -298,14 +299,13 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     @NotThreadSafe
     private class DynamicLengthDeserializingIterator extends ACloseableIterator<E> {
 
-        private DataInputStream inputStream;
-        private boolean innerClosed;
-
-        private E cachedElement;
+        private final DynamicLengthDeserializingIteratorFinalizer<E> finalizer;
 
         {
+            finalizer = new DynamicLengthDeserializingIteratorFinalizer<>();
+            registerFinalizer(finalizer);
             try {
-                inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));
+                finalizer.inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));
             } catch (final IOException e) {
                 throw Err.process(e);
             }
@@ -313,12 +313,12 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         @Override
         protected boolean innerHasNext() {
-            if (cachedElement != null) {
+            if (finalizer.cachedElement != null) {
                 return true;
             } else {
                 try {
-                    cachedElement = readNext();
-                    return cachedElement != null;
+                    finalizer.cachedElement = readNext();
+                    return finalizer.cachedElement != null;
                 } catch (final SerializationException e) {
                     return false;
                 }
@@ -328,18 +328,18 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         @SuppressWarnings({ "null" })
         private E readNext() {
             try {
-                if (innerClosed) {
+                if (finalizer.innerClosed) {
                     return (E) null;
                 }
                 final int size;
                 try {
-                    size = inputStream.readInt();
+                    size = finalizer.inputStream.readInt();
                 } catch (final EOFException e) {
-                    innerClose();
+                    finalizer.close();
                     return null;
                 }
                 final byte[] bytes = new byte[size];
-                inputStream.readFully(bytes);
+                finalizer.inputStream.readFully(bytes);
                 if (bytes.length == 0) {
                     throw new IllegalStateException("empty encoded entries should have been filtered by add()");
                 }
@@ -352,44 +352,51 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         @SuppressWarnings("null")
         @Override
         protected E innerNext() {
-            if (cachedElement != null) {
-                final E ret = cachedElement;
-                cachedElement = (E) null;
+            if (finalizer.cachedElement != null) {
+                final E ret = finalizer.cachedElement;
+                finalizer.cachedElement = (E) null;
                 return ret;
             }
             return readNext();
         }
 
+    }
+
+    private static final class DynamicLengthDeserializingIteratorFinalizer<E> extends AFinalizer {
+        private DataInputStream inputStream;
+        private boolean innerClosed;
+        private E cachedElement;
+
         @Override
-        protected void innerClose() {
-            if (!innerClosed) {
-                innerClosed = true;
-                try {
-                    inputStream.close();
-                    //free memory
-                    inputStream = null;
-                    cachedElement = null;
-                } catch (final IOException e) {
-                    throw new RuntimeException(e);
-                }
+        protected void clean() {
+            innerClosed = true;
+            try {
+                inputStream.close();
+                //free memory
+                inputStream = null;
+                cachedElement = null;
+            } catch (final IOException e) {
+                throw new RuntimeException(e);
             }
         }
 
+        @Override
+        public boolean isClosed() {
+            return innerClosed;
+        }
     }
 
     @NotThreadSafe
     private class FixedLengthDeserializingIterator extends ACloseableIterator<E> {
 
-        private DataInputStream inputStream;
-        private byte[] byteBuffer;
-        private boolean innerClosed;
-
-        private E cachedElement;
+        private final FixedLengthDeserializingIteratorFinalizer<E> finalizer;
 
         {
+            finalizer = new FixedLengthDeserializingIteratorFinalizer<>();
+            registerFinalizer(finalizer);
             try {
-                inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));
-                byteBuffer = new byte[fixedLength];
+                finalizer.inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));
+                finalizer.byteBuffer = new byte[fixedLength];
             } catch (final IOException e) {
                 throw Err.process(e);
             }
@@ -397,12 +404,12 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         @Override
         protected boolean innerHasNext() {
-            if (cachedElement != null) {
+            if (finalizer.cachedElement != null) {
                 return true;
             } else {
                 try {
-                    cachedElement = readNext();
-                    return cachedElement != null;
+                    finalizer.cachedElement = readNext();
+                    return finalizer.cachedElement != null;
                 } catch (final SerializationException e) {
                     return false;
                 }
@@ -411,45 +418,56 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         @SuppressWarnings({ "null" })
         private E readNext() {
-            if (innerClosed) {
+            if (finalizer.innerClosed) {
                 return (E) null;
             }
             try {
-                inputStream.readFully(byteBuffer);
+                finalizer.inputStream.readFully(finalizer.byteBuffer);
             } catch (final IOException e) {
-                innerClose();
+                finalizer.close();
                 return null;
             }
-            return serde.fromBytes(byteBuffer);
+            return serde.fromBytes(finalizer.byteBuffer);
         }
 
         @SuppressWarnings("null")
         @Override
         protected E innerNext() {
-            if (cachedElement != null) {
-                final E ret = cachedElement;
-                cachedElement = (E) null;
+            if (finalizer.cachedElement != null) {
+                final E ret = finalizer.cachedElement;
+                finalizer.cachedElement = (E) null;
                 return ret;
             }
             return readNext();
         }
 
+    }
+
+    private static final class FixedLengthDeserializingIteratorFinalizer<E> extends AFinalizer {
+        private DataInputStream inputStream;
+        private byte[] byteBuffer;
+        private boolean innerClosed;
+
+        private E cachedElement;
+
         @Override
-        protected void innerClose() {
-            if (!innerClosed) {
-                innerClosed = true;
-                try {
-                    inputStream.close();
-                    //free memory
-                    inputStream = null;
-                    byteBuffer = null;
-                    cachedElement = null;
-                } catch (final IOException e) {
-                    throw new RuntimeException(e);
-                }
+        protected void clean() {
+            innerClosed = true;
+            try {
+                inputStream.close();
+                //free memory
+                inputStream = null;
+                byteBuffer = null;
+                cachedElement = null;
+            } catch (final IOException e) {
+                throw new RuntimeException(e);
             }
         }
 
+        @Override
+        public boolean isClosed() {
+            return innerClosed;
+        }
     }
 
     private void writeObject(final java.io.ObjectOutputStream stream) throws IOException {
