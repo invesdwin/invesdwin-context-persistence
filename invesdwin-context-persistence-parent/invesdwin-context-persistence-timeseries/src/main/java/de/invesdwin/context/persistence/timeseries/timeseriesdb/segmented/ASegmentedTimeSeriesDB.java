@@ -400,10 +400,6 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
         @Override
         protected void clean() {
-            if (readRangeValues instanceof EmptyCloseableIterator) {
-                //already closed
-                return;
-            }
             if (readRangeValues != null) {
                 readRangeValues.close();
                 readLock.unlock();
@@ -413,7 +409,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
         @Override
         public boolean isClosed() {
-            return false;
+            return readRangeValues instanceof EmptyCloseableIterator;
         }
 
     }

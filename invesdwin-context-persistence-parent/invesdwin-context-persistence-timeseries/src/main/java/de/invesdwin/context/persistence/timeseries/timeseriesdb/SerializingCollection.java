@@ -328,7 +328,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         @SuppressWarnings({ "null" })
         private E readNext() {
             try {
-                if (finalizer.innerClosed) {
+                if (finalizer.closed) {
                     return (E) null;
                 }
                 final int size;
@@ -364,12 +364,12 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
     private static final class DynamicLengthDeserializingIteratorFinalizer<E> extends AFinalizer {
         private DataInputStream inputStream;
-        private boolean innerClosed;
+        private boolean closed;
         private E cachedElement;
 
         @Override
         protected void clean() {
-            innerClosed = true;
+            closed = true;
             try {
                 inputStream.close();
                 //free memory
@@ -382,7 +382,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         @Override
         public boolean isClosed() {
-            return innerClosed;
+            return closed;
         }
     }
 
@@ -418,7 +418,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         @SuppressWarnings({ "null" })
         private E readNext() {
-            if (finalizer.innerClosed) {
+            if (finalizer.closed) {
                 return (E) null;
             }
             try {
@@ -446,13 +446,13 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     private static final class FixedLengthDeserializingIteratorFinalizer<E> extends AFinalizer {
         private DataInputStream inputStream;
         private byte[] byteBuffer;
-        private boolean innerClosed;
+        private boolean closed;
 
         private E cachedElement;
 
         @Override
         protected void clean() {
-            innerClosed = true;
+            closed = true;
             try {
                 inputStream.close();
                 //free memory
@@ -466,7 +466,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         @Override
         public boolean isClosed() {
-            return innerClosed;
+            return closed;
         }
     }
 
