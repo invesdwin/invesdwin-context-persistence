@@ -396,7 +396,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
                         getTableLock(key).readLock());
 
                 {
-                    finalizer.register(this);
+                    this.finalizer.register(this);
                 }
 
                 private ICloseableIterator<V> getReadRangeValues() {
@@ -419,6 +419,12 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
                 @Override
                 public V innerNext() {
                     return getReadRangeValues().next();
+                }
+
+                @Override
+                public void close() {
+                    super.close();
+                    finalizer.close();
                 }
 
             };
@@ -444,7 +450,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
                         getTableLock(key).readLock());
 
                 {
-                    finalizer.register(this);
+                    this.finalizer.register(this);
                 }
 
                 private ICloseableIterator<V> getReadRangeValues() {
@@ -466,6 +472,12 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
                 @Override
                 public V innerNext() {
                     return getReadRangeValues().next();
+                }
+
+                @Override
+                public void close() {
+                    super.close();
+                    finalizer.close();
                 }
 
             };

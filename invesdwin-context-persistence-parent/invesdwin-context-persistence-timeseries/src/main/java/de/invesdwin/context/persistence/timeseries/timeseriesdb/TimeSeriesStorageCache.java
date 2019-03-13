@@ -273,9 +273,11 @@ public class TimeSeriesStorageCache<K, V> {
                     private final ICloseableIterator<FDate> delegate = getRangeKeys(hashKey,
                             usedFrom.addMilliseconds(1), to);
                     private FDate delegateFirstTime = null;
+                    private final AFinalizer finalizer;
 
                     {
-                        AFinalizer.valueOfCloseable(delegate).register(this);
+                        this.finalizer = new ReadRangeFileDatesFinalizer(delegate);
+                        this.finalizer.register(this);
                     }
 
                     @Override
@@ -321,9 +323,35 @@ public class TimeSeriesStorageCache<K, V> {
                         return newFile(time);
                     }
 
+                    @Override
+                    public void close() {
+                        super.close();
+                        finalizer.close();
+                    }
+
                 };
             }
         };
+    }
+
+    private static final class ReadRangeFileDatesFinalizer extends AFinalizer {
+
+        private final ICloseableIterator<FDate> delegate;
+
+        private ReadRangeFileDatesFinalizer(final ICloseableIterator<FDate> delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        protected void clean() {
+            delegate.close();
+        }
+
+        @Override
+        public boolean isClosed() {
+            return delegate == null;
+        }
+
     }
 
     protected ICloseableIterable<File> readRangeFilesReverse(final FDate from, final FDate to) {
@@ -349,9 +377,11 @@ public class TimeSeriesStorageCache<K, V> {
                     private final ICloseableIterator<FDate> delegate = getRangeKeysReverse(hashKey,
                             usedFrom.addMilliseconds(-1), to);
                     private FDate delegateLastTime = null;
+                    private final AFinalizer finalizer;
 
                     {
-                        AFinalizer.valueOfCloseable(delegate).register(this);
+                        this.finalizer = new ReadRangeFileDatesFinalizer(delegate);
+                        this.finalizer.register(this);
                     }
 
                     @Override
@@ -395,6 +425,12 @@ public class TimeSeriesStorageCache<K, V> {
                             time = delegate.next();
                         }
                         return newFile(time);
+                    }
+
+                    @Override
+                    public void close() {
+                        super.close();
+                        finalizer.close();
                     }
 
                 };

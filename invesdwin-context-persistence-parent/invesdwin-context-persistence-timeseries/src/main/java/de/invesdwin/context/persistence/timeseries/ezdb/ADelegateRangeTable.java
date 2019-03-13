@@ -768,6 +768,12 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
             finalizer.delegate.remove();
         }
 
+        @Override
+        public void close() {
+            super.close();
+            finalizer.close();
+        }
+
     }
 
     private static final class TableFinalizer<_H, _R, _V> extends AFinalizer {

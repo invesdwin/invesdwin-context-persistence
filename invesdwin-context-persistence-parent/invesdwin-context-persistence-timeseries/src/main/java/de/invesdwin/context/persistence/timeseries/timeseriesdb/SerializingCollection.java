@@ -360,6 +360,12 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             return readNext();
         }
 
+        @Override
+        public void close() {
+            super.close();
+            finalizer.close();
+        }
+
     }
 
     private static final class DynamicLengthDeserializingIteratorFinalizer<E> extends AFinalizer {
@@ -439,6 +445,12 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                 return ret;
             }
             return readNext();
+        }
+
+        @Override
+        public void close() {
+            super.close();
+            finalizer.close();
         }
 
     }
