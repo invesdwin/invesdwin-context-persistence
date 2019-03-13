@@ -52,24 +52,28 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
     private int size;
     private final File file;
-    private DataOutputStream fos;
-    private boolean closed;
+    private final SerializingCollectionFinalizer finalizer;
     private final Integer fixedLength = getFixedLength();
     private final Serde<E> serde = newSerde();
 
     public SerializingCollection(final String id) {
+        this.finalizer = new SerializingCollectionFinalizer();
         this.file = new File(getTempFolder(), UNIQUE_NAME_GENERATOR.get(id.replace(":", "_")) + ".data");
         if (file.exists()) {
             throw new IllegalStateException("File [" + file.getAbsolutePath() + "] already exists!");
         }
+        this.finalizer.register(this);
     }
 
     public SerializingCollection(final File file, final boolean readOnly) {
+        this.finalizer = new SerializingCollectionFinalizer();
         this.file = file;
         if (readOnly) {
             //allow deserializing only if file contains data already
             this.size = READ_ONLY_FILE_SIZE;
-            this.closed = true;
+            this.finalizer.closed = true;
+        } else {
+            this.finalizer.register(this);
         }
     }
 
@@ -88,18 +92,18 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     }
 
     private DataOutputStream getFos() {
-        if (fos == null) {
+        if (finalizer.fos == null) {
             //Lazy init to prevent too many open files Exceptions
-            if (closed) {
+            if (finalizer.closed) {
                 throw new IllegalStateException("false expected");
             }
             try {
-                fos = new DataOutputStream(newCompressor(newFileOutputStream(file)));
+                finalizer.fos = new DataOutputStream(newCompressor(newFileOutputStream(file)));
             } catch (final IOException e) {
                 throw Err.process(e);
             }
         }
-        return fos;
+        return finalizer.fos;
     }
 
     @Override
@@ -169,15 +173,11 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
      */
     @Override
     public void close() {
-        if (!closed) {
-            IOUtils.closeQuietly(fos);
-            fos = null;
-            closed = true;
-        }
+        finalizer.close();
     }
 
     public boolean isClosed() {
-        return closed;
+        return finalizer.closed;
     }
 
     @Override
@@ -190,12 +190,12 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     @Override
     public ICloseableIterator<E> iterator() {
         if (size() > 0) {
-            if (closed) {
+            if (finalizer.closed) {
                 return newIterator();
             } else {
                 try {
                     //need to flush contents so we can actually read them
-                    fos.flush();
+                    finalizer.fos.flush();
                 } catch (final IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -483,7 +483,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     }
 
     private void writeObject(final java.io.ObjectOutputStream stream) throws IOException {
-        if (!closed) {
+        if (!finalizer.closed) {
             throw new IllegalStateException("You need to close this instance before serializing it!");
         }
         stream.defaultWriteObject();
@@ -500,9 +500,28 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     }
 
     public void flush() throws IOException {
-        if (fos != null) {
-            fos.flush();
+        if (finalizer.fos != null) {
+            finalizer.fos.flush();
         }
+    }
+
+    private static final class SerializingCollectionFinalizer extends AFinalizer {
+
+        private DataOutputStream fos;
+        private boolean closed;
+
+        @Override
+        protected void clean() {
+            IOUtils.closeQuietly(fos);
+            fos = null;
+            closed = true;
+        }
+
+        @Override
+        public boolean isClosed() {
+            return closed;
+        }
+
     }
 
 }
