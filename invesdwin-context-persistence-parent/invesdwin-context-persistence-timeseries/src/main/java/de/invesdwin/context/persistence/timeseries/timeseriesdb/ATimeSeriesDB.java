@@ -306,7 +306,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
                         getTableLock(key).readLock());
 
                 {
-                    registerFinalizer(finalizer);
+                    finalizer.register(this);
                 }
 
                 private ICloseableIterator<V> getReadRangeValues() {
@@ -354,7 +354,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
                         getTableLock(key).readLock());
 
                 {
-                    registerFinalizer(finalizer);
+                    finalizer.register(this);
                 }
 
                 private ICloseableIterator<V> getReadRangeValues() {

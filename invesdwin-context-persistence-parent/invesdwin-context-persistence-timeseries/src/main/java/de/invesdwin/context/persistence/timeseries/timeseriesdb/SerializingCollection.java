@@ -303,7 +303,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         {
             finalizer = new DynamicLengthDeserializingIteratorFinalizer<>();
-            registerFinalizer(finalizer);
+            finalizer.register(this);
             try {
                 finalizer.inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));
             } catch (final IOException e) {
@@ -393,7 +393,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         {
             finalizer = new FixedLengthDeserializingIteratorFinalizer<>();
-            registerFinalizer(finalizer);
+            finalizer.register(this);
             try {
                 finalizer.inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));
                 finalizer.byteBuffer = new byte[fixedLength];

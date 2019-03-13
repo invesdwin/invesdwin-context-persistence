@@ -744,7 +744,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
                 final boolean allowHasNext) {
             this.allowHasNext = allowHasNext;
             this.finalizer = new TableIteratorFinalizer<_H, _R, _V>(delegate, tableLockDelegate);
-            registerFinalizer(finalizer);
+            this.finalizer.register(this);
         }
 
         @Override

@@ -275,7 +275,7 @@ public class TimeSeriesStorageCache<K, V> {
                     private FDate delegateFirstTime = null;
 
                     {
-                        registerFinalizer(AFinalizer.valueOfCloseable(delegate));
+                        AFinalizer.valueOfCloseable(delegate).register(this);
                     }
 
                     @Override
@@ -351,7 +351,7 @@ public class TimeSeriesStorageCache<K, V> {
                     private FDate delegateLastTime = null;
 
                     {
-                        registerFinalizer(AFinalizer.valueOfCloseable(delegate));
+                        AFinalizer.valueOfCloseable(delegate).register(this);
                     }
 
                     @Override
