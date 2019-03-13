@@ -303,12 +303,12 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         {
             finalizer = new DynamicLengthDeserializingIteratorFinalizer<>();
-            finalizer.register(this);
             try {
                 finalizer.inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));
             } catch (final IOException e) {
                 throw Err.process(e);
             }
+            finalizer.register(this);
         }
 
         @Override
@@ -398,14 +398,14 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         private final FixedLengthDeserializingIteratorFinalizer<E> finalizer;
 
         {
-            finalizer = new FixedLengthDeserializingIteratorFinalizer<>();
-            finalizer.register(this);
+            this.finalizer = new FixedLengthDeserializingIteratorFinalizer<>();
             try {
-                finalizer.inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));
-                finalizer.byteBuffer = new byte[fixedLength];
+                this.finalizer.inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));
+                this.finalizer.byteBuffer = new byte[fixedLength];
             } catch (final IOException e) {
                 throw Err.process(e);
             }
+            this.finalizer.register(this);
         }
 
         @Override

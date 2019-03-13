@@ -45,8 +45,10 @@ import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
 
+// CHECKSTYLE:OFF ClassDataAbstractionCoupling
 @NotThreadSafe
 public class TimeSeriesStorageCache<K, V> {
+    //CHECKSTYLE:ON
     public static final Integer MAXIMUM_SIZE = 1_000;
     public static final EvictionMode EVICTION_MODE = AHistoricalCache.EVICTION_MODE;
 
@@ -288,17 +290,7 @@ public class TimeSeriesStorageCache<K, V> {
                     private ICloseableIterator<FDate> getRangeKeys(final String hashKey, final FDate from,
                             final FDate to) {
                         final ICloseableIterator<FDate> range = getAllRangeKeys();
-                        return new ASkippingIterator<FDate>(range) {
-                            @Override
-                            protected boolean skip(final FDate element) {
-                                if (element.isBefore(from)) {
-                                    return true;
-                                } else if (element.isAfter(to)) {
-                                    throw new FastNoSuchElementException("getRangeKeys reached end");
-                                }
-                                return false;
-                            }
-                        };
+                        return new GetRangeKeysIterator(range, from, to);
                     }
 
                     @Override
@@ -332,6 +324,50 @@ public class TimeSeriesStorageCache<K, V> {
                 };
             }
         };
+    }
+
+    private static final class GetRangeKeysReverseIterator extends ASkippingIterator<FDate> {
+        private final FDate from;
+        private final FDate to;
+
+        private GetRangeKeysReverseIterator(final ICloseableIterator<? extends FDate> delegate, final FDate from,
+                final FDate to) {
+            super(delegate);
+            this.from = from;
+            this.to = to;
+        }
+
+        @Override
+        protected boolean skip(final FDate element) {
+            if (element.isAfter(from)) {
+                return true;
+            } else if (element.isBefore(to)) {
+                throw new FastNoSuchElementException("getRangeKeysReverse reached end");
+            }
+            return false;
+        }
+    }
+
+    private static final class GetRangeKeysIterator extends ASkippingIterator<FDate> {
+        private final FDate from;
+        private final FDate to;
+
+        private GetRangeKeysIterator(final ICloseableIterator<? extends FDate> delegate, final FDate from,
+                final FDate to) {
+            super(delegate);
+            this.from = from;
+            this.to = to;
+        }
+
+        @Override
+        protected boolean skip(final FDate element) {
+            if (element.isBefore(from)) {
+                return true;
+            } else if (element.isAfter(to)) {
+                throw new FastNoSuchElementException("getRangeKeys reached end");
+            }
+            return false;
+        }
     }
 
     private static final class ReadRangeFileDatesFinalizer extends AFinalizer {
@@ -392,17 +428,7 @@ public class TimeSeriesStorageCache<K, V> {
                     private ICloseableIterator<FDate> getRangeKeysReverse(final String hashKey, final FDate from,
                             final FDate to) {
                         final ICloseableIterator<FDate> range = getAllRangeKeysReverse();
-                        return new ASkippingIterator<FDate>(range) {
-                            @Override
-                            protected boolean skip(final FDate element) {
-                                if (element.isAfter(from)) {
-                                    return true;
-                                } else if (element.isBefore(to)) {
-                                    throw new FastNoSuchElementException("getRangeKeysReverse reached end");
-                                }
-                                return false;
-                            }
-                        };
+                        return new GetRangeKeysReverseIterator(range, from, to);
                     }
 
                     @Override
