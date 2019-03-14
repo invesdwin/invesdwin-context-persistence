@@ -375,15 +375,15 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         @Override
         protected void clean() {
-            closed = true;
             try {
                 inputStream.close();
-                //free memory
-                inputStream = null;
-                cachedElement = null;
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
+            //free memory
+            inputStream = null;
+            cachedElement = null;
+            closed = true;
         }
 
         @Override
@@ -464,16 +464,16 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         @Override
         protected void clean() {
-            closed = true;
             try {
                 inputStream.close();
-                //free memory
-                inputStream = null;
-                byteBuffer = null;
-                cachedElement = null;
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
+            //free memory
+            inputStream = null;
+            byteBuffer = null;
+            cachedElement = null;
+            closed = true;
         }
 
         @Override

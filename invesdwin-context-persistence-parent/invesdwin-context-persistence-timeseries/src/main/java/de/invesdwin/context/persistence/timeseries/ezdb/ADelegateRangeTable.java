@@ -609,35 +609,6 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     public static class DelegateRangeBatch<H_, R_, V_> implements RangeBatch<H_, R_, V_> {
 
-        private static final class RangeBatchFinalizer<__H, __R, __V> extends AFinalizer {
-            private final RangeBatch<__H, __R, __V> delegate;
-            private ReadWriteLock tableLockDelegate;
-
-            private RangeBatchFinalizer(final RangeBatch<__H, __R, __V> delegate,
-                    final ReadWriteLock tableLockDelegate) {
-                this.delegate = delegate;
-                this.tableLockDelegate = tableLockDelegate;
-            }
-
-            @Override
-            protected void clean() {
-                try {
-                    delegate.flush();
-                    delegate.close();
-                } catch (final IOException e) {
-                    throw new RuntimeException(e);
-                } finally {
-                    tableLockDelegate.readLock().unlock();
-                    tableLockDelegate = null;
-                }
-            }
-
-            @Override
-            public boolean isClosed() {
-                return tableLockDelegate == null;
-            }
-        }
-
         private final RangeBatchFinalizer<H_, R_, V_> finalizer;
 
         public DelegateRangeBatch(final RangeBatch<H_, R_, V_> delegate, final ReadWriteLock tableLockDelegate) {
@@ -677,6 +648,34 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     }
 
+    private static final class RangeBatchFinalizer<__H, __R, __V> extends AFinalizer {
+        private final RangeBatch<__H, __R, __V> delegate;
+        private ReadWriteLock tableLockDelegate;
+
+        private RangeBatchFinalizer(final RangeBatch<__H, __R, __V> delegate, final ReadWriteLock tableLockDelegate) {
+            this.delegate = delegate;
+            this.tableLockDelegate = tableLockDelegate;
+        }
+
+        @Override
+        protected void clean() {
+            try {
+                delegate.flush();
+                delegate.close();
+            } catch (final IOException e) {
+                throw new RuntimeException(e);
+            } finally {
+                tableLockDelegate.readLock().unlock();
+                tableLockDelegate = null;
+            }
+        }
+
+        @Override
+        public boolean isClosed() {
+            return tableLockDelegate == null;
+        }
+    }
+
     public static final class DelegateValueTableIterator<V_> implements ICloseableIterator<V_> {
         private final TableIterator<?, ?, V_> delegate;
 
@@ -710,32 +709,6 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
      */
     public static class DelegateTableIterator<_H, _R, _V> extends ACloseableIterator<TableRow<_H, _R, _V>>
             implements TableIterator<_H, _R, _V> {
-
-        private static final class TableIteratorFinalizer<__H, __R, __V> extends AFinalizer {
-            private final TableIterator<__H, __R, __V> delegate;
-            private ReadWriteLock tableLockDelegate;
-
-            private TableIteratorFinalizer(final TableIterator<__H, __R, __V> delegate,
-                    final ReadWriteLock tableLockDelegate) {
-                this.delegate = delegate;
-                this.tableLockDelegate = tableLockDelegate;
-            }
-
-            @Override
-            protected void clean() {
-                try {
-                    delegate.close();
-                } finally {
-                    tableLockDelegate.readLock().unlock();
-                    tableLockDelegate = null;
-                }
-            }
-
-            @Override
-            public boolean isClosed() {
-                return tableLockDelegate == null;
-            }
-        }
 
         private final boolean allowHasNext;
         private final TableIteratorFinalizer<_H, _R, _V> finalizer;
@@ -774,6 +747,32 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
             finalizer.close();
         }
 
+    }
+
+    private static final class TableIteratorFinalizer<__H, __R, __V> extends AFinalizer {
+        private final TableIterator<__H, __R, __V> delegate;
+        private ReadWriteLock tableLockDelegate;
+
+        private TableIteratorFinalizer(final TableIterator<__H, __R, __V> delegate,
+                final ReadWriteLock tableLockDelegate) {
+            this.delegate = delegate;
+            this.tableLockDelegate = tableLockDelegate;
+        }
+
+        @Override
+        protected void clean() {
+            try {
+                delegate.close();
+            } finally {
+                tableLockDelegate.readLock().unlock();
+                tableLockDelegate = null;
+            }
+        }
+
+        @Override
+        public boolean isClosed() {
+            return tableLockDelegate == null;
+        }
     }
 
     private static final class TableFinalizer<_H, _R, _V> extends AFinalizer {

@@ -271,20 +271,19 @@ public class TimeSeriesStorageCache<K, V> {
 
                     //use latest time available even if delegate iterator has no values
                     private FDate latestFirstTime = fileLookupTable_latestRangeKeyCache.get(usedFrom);
-                    // add 1 ms to not collide with firstTime
-                    private final ICloseableIterator<FDate> delegate = getRangeKeys(hashKey,
-                            usedFrom.addMilliseconds(1), to);
                     private FDate delegateFirstTime = null;
-                    private final AFinalizer finalizer;
+                    private final ReadRangeFileDatesFinalizer finalizer;
 
                     {
-                        this.finalizer = new ReadRangeFileDatesFinalizer(delegate);
+                        // add 1 ms to not collide with firstTime
+                        this.finalizer = new ReadRangeFileDatesFinalizer(
+                                getRangeKeys(hashKey, usedFrom.addMilliseconds(1), to));
                         this.finalizer.register(this);
                     }
 
                     @Override
                     protected boolean innerHasNext() {
-                        return latestFirstTime != null || delegateFirstTime != null || delegate.hasNext();
+                        return latestFirstTime != null || delegateFirstTime != null || finalizer.delegate.hasNext();
                     }
 
                     private ICloseableIterator<FDate> getRangeKeys(final String hashKey, final FDate from,
@@ -302,15 +301,15 @@ public class TimeSeriesStorageCache<K, V> {
                         } else if (latestFirstTime != null) {
                             time = latestFirstTime;
                             latestFirstTime = null;
-                            if (delegate.hasNext()) {
+                            if (finalizer.delegate.hasNext()) {
                                 //prevent duplicate first times
-                                delegateFirstTime = delegate.next();
+                                delegateFirstTime = finalizer.delegate.next();
                                 if (delegateFirstTime.isBeforeOrEqualTo(time)) {
                                     delegateFirstTime = null;
                                 }
                             }
                         } else {
-                            time = delegate.next();
+                            time = finalizer.delegate.next();
                         }
                         return newFile(time);
                     }
@@ -372,7 +371,7 @@ public class TimeSeriesStorageCache<K, V> {
 
     private static final class ReadRangeFileDatesFinalizer extends AFinalizer {
 
-        private final ICloseableIterator<FDate> delegate;
+        private ICloseableIterator<FDate> delegate;
 
         private ReadRangeFileDatesFinalizer(final ICloseableIterator<FDate> delegate) {
             this.delegate = delegate;
@@ -381,6 +380,7 @@ public class TimeSeriesStorageCache<K, V> {
         @Override
         protected void clean() {
             delegate.close();
+            delegate = null;
         }
 
         @Override
