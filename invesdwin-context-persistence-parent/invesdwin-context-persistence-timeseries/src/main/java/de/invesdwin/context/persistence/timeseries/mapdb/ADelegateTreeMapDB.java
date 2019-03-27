@@ -11,6 +11,8 @@ import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -214,6 +216,21 @@ public abstract class ADelegateTreeMapDB<K, V> implements ConcurrentNavigableMap
     @Override
     public V put(final K key, final V value) {
         return getDelegate().put(key, value);
+    }
+
+    @Override
+    public V computeIfAbsent(final K key, final Function<? super K, ? extends V> mappingFunction) {
+        return getDelegate().computeIfAbsent(key, mappingFunction);
+    }
+
+    @Override
+    public V compute(final K key, final BiFunction<? super K, ? super V, ? extends V> remappingFunction) {
+        return getDelegate().compute(key, remappingFunction);
+    }
+
+    @Override
+    public V computeIfPresent(final K key, final BiFunction<? super K, ? super V, ? extends V> remappingFunction) {
+        return getDelegate().computeIfPresent(key, remappingFunction);
     }
 
     @Override
