@@ -22,7 +22,6 @@ import java.util.NoSuchElementException;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.SerializationException;
 
 import de.invesdwin.context.ContextProperties;
@@ -34,6 +33,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
 import de.invesdwin.util.collections.iterable.LimitingIterator;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
+import de.invesdwin.util.lang.Closeables;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.UniqueNameGenerator;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
@@ -512,7 +512,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         @Override
         protected void clean() {
-            IOUtils.closeQuietly(fos);
+            Closeables.closeQuietly(fos);
             fos = null;
             closed = true;
         }

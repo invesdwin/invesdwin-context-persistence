@@ -29,6 +29,7 @@ import org.mapdb.Serializer;
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.streams.LZ4Streams;
 import de.invesdwin.context.persistence.timeseries.serde.ExtendedTypeDelegateSerde;
+import de.invesdwin.util.lang.Closeables;
 import de.invesdwin.util.lang.Reflections;
 import ezdb.serde.Serde;
 
@@ -110,7 +111,7 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
                     } catch (final IOException e) {
                         throw new RuntimeException(e);
                     } finally {
-                        IOUtils.closeQuietly(compressor);
+                        Closeables.closeQuietly(compressor);
                     }
                 }
             }
@@ -133,7 +134,7 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
                         final byte[] bytes = bos.toByteArray();
                         return serde.fromBytes(bytes);
                     } finally {
-                        IOUtils.closeQuietly(decompressor);
+                        Closeables.closeQuietly(decompressor);
                     }
                 }
             }
