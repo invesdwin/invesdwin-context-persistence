@@ -13,8 +13,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.commons.lang3.RandomUtils;
 import org.junit.Test;
 
-import com.google.common.collect.Iterables;
-
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseries.serde.ExtendedTypeDelegateSerde;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.IncompleteUpdateFoundException;
@@ -504,9 +502,7 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
     }
 
     private <T> List<T> asList(final Iterable<T> iterable) {
-        final List<T> list = new ArrayList<T>();
-        Iterables.addAll(list, iterable);
-        return list;
+        return Lists.toListWithoutHasNext(iterable);
     }
 
     @Test
