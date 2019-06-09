@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.Map.Entry;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.function.Function;
 
@@ -187,6 +186,48 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     }
 
     private RangeTable<H, R, V> getTableWithReadLock() {
+        maybePurgeTable();
+        //directly return table with read lock if not null
+        tableLock.readLock().lock();
+        if (tableFinalizer.table != null) {
+            return tableFinalizer.table;
+        }
+        tableLock.readLock().unlock();
+
+        //otherwise initialize it with write lock (though check again because of lock switch)
+        initializeTable();
+
+        //and return the now not null table with read lock
+        tableLock.readLock().lock();
+        if (tableFinalizer.table == null) {
+            tableLock.readLock().unlock();
+            throw new IllegalStateException("table should not be null here");
+        }
+        return tableFinalizer.table;
+    }
+
+    private RangeTable<H, R, V> getTableWithWriteLock() {
+        maybePurgeTable();
+        //directly return table with read lock if not null
+        tableLock.writeLock().lock();
+        if (tableFinalizer.table != null) {
+            return tableFinalizer.table;
+        }
+        tableLock.writeLock().unlock();
+
+        //otherwise initialize it with write lock (thouch check again because of lock switch)
+        initializeTable();
+
+        //and return the now not null table with read lock
+        tableLock.writeLock().lock();
+        if (tableFinalizer.table == null) {
+            tableLock.writeLock().unlock();
+            throw new IllegalStateException("table should not be null here");
+        }
+        return tableFinalizer.table;
+    }
+
+    private void maybePurgeTable() {
         if (shouldPurgeTable()) {
             //only purge if currently not used
             if (tableLock.writeLock().tryLock()) {
@@ -200,24 +241,6 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
                 }
             }
         }
-
-        //directly return table with read lock if not null
-        tableLock.readLock().lock();
-        if (tableFinalizer.table != null) {
-            return tableFinalizer.table;
-        }
-        tableLock.readLock().unlock();
-
-        //otherwise initialize it with write lock (thouch check again because of lock switch)
-        initializeTable();
-
-        //and return the now not null table with read lock
-        tableLock.readLock().lock();
-        if (tableFinalizer.table == null) {
-            tableLock.readLock().unlock();
-            throw new IllegalStateException("table should not be null here");
-        }
-        return tableFinalizer.table;
     }
 
     private void initializeTable() {
@@ -293,11 +316,11 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     @Override
     public void put(final H hashKey, final V value) {
         assertAllowedWriteWithoutBatch();
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithWriteLock();
         try {
             table.put(hashKey, value);
         } finally {
-            tableLock.readLock().unlock();
+            tableLock.writeLock().unlock();
         }
     }
 
@@ -505,11 +528,11 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     @Override
     public void put(final H hashKey, final R rangeKey, final V value) {
         assertAllowedWriteWithoutBatch();
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithWriteLock();
         try {
             table.put(hashKey, rangeKey, value);
         } finally {
-            tableLock.readLock().unlock();
+            tableLock.writeLock().unlock();
         }
     }
 
@@ -599,12 +622,12 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     @Override
     public RangeBatch<H, R, V> newRangeBatch() {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithWriteLock();
         return new DelegateRangeBatch<H, R, V>(table.newRangeBatch(), tableLock);
     }
 
-    public Lock getTableReadLock() {
-        return tableLock.readLock();
+    public ReadWriteLock getTableLock() {
+        return tableLock;
     }
 
     public static class DelegateRangeBatch<H_, R_, V_> implements RangeBatch<H_, R_, V_> {
@@ -665,7 +688,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             } finally {
-                tableLockDelegate.readLock().unlock();
+                tableLockDelegate.writeLock().unlock();
                 tableLockDelegate = null;
             }
         }
