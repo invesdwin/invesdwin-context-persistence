@@ -156,7 +156,7 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
 
             @Override
             protected boolean shouldWriteInParallel() {
-                return false;
+                return ATimeSeriesUpdater.DEFAULT_SHOULD_WRITE_IN_PARALLEL;
             }
 
             @Override
@@ -182,8 +182,8 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
                 segmentStatusTable.put(hashKey, segmentedKey.getSegment(), SegmentStatus.COMPLETE);
                 final ICloseableIterable<V> rangeValues = rangeValues(segmentedKey.getSegment().getFrom(),
                         segmentedKey.getSegment().getTo());
-                historicalSegmentTable.getLookupTableCache(segmentedKey.getKey()).onSegmentCompleted(segmentedKey,
-                        rangeValues);
+                historicalSegmentTable.getLookupTableCache(segmentedKey.getKey())
+                        .onSegmentCompleted(segmentedKey, rangeValues);
             }
         }
     }
