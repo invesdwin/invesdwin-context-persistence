@@ -225,7 +225,7 @@
 			</dependency>
 			<dependency>
 				<groupId>com.github.criccomini</groupId>
-				<artifactId>ezdb-lmdb-jnr</artifactId>
+				<artifactId>ezdb-leveldb</artifactId>
 				<version>${version.ezdb}</version>
 			</dependency>
 			<dependency>
