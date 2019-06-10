@@ -8,13 +8,10 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import org.junit.Test;
 
-import com.google.common.util.concurrent.CycleDetectingLockFactory.Policies;
-
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.fdate.FDateBuilder;
 import ezdb.RawTableRow;
@@ -46,8 +43,6 @@ public class TestEzLevelDbJni extends ATest {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        Locks.setLockTraceEnabled(true);
-        Locks.setCycleDetectingPolicy(Policies.THROW);
         table = new ADelegateRangeTable<Integer, Integer, Integer>("test") {
             @Override
             protected boolean allowHasNext() {
