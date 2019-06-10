@@ -17,8 +17,8 @@ import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.fdate.FDateBuilder;
 import ezdb.Db;
 import ezdb.Table;
-import ezdb.rocksdb.EzRocksDb;
-import ezdb.rocksdb.EzRocksDbJniFactory;
+import ezdb.leveldb.EzLevelDb;
+import ezdb.leveldb.EzLevelDbJavaFactory;
 import ezdb.serde.Serde;
 import ezdb.serde.StringSerde;
 
@@ -29,7 +29,7 @@ public class LevelDBTest extends ATest {
 
     @Test
     public void testLevelDB() {
-        final Db ezdb = new EzRocksDb(ContextProperties.getCacheDirectory(), new EzRocksDbJniFactory());
+        final Db ezdb = new EzLevelDb(ContextProperties.getCacheDirectory(), new EzLevelDbJavaFactory());
         final Table<String, String> table = ezdb.getTable(getClass().getSimpleName(), StringSerde.get, StringSerde.get);
         table.put(HASHKEY, "value");
         Assertions.assertThat(table.get(HASHKEY)).isEqualTo("value");
