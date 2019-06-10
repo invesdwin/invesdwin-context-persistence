@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.timeseries.ezdb;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.Map.Entry;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -10,8 +11,10 @@ import java.util.function.Function;
 import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.commons.io.FileUtils;
-import org.iq80.leveldb.DB;
-import org.iq80.leveldb.DBIterator;
+import org.lmdbjava.Dbi;
+import org.lmdbjava.DbiFlags;
+import org.lmdbjava.Env;
+import org.lmdbjava.Txn;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
@@ -35,8 +38,10 @@ import ezdb.batch.Batch;
 import ezdb.batch.RangeBatch;
 import ezdb.comparator.LexicographicalComparator;
 import ezdb.comparator.SerdeComparator;
-import ezdb.leveldb.EzLevelDb;
-import ezdb.leveldb.EzLevelDbJavaFactory;
+import ezdb.lmdb.EzLmDb;
+import ezdb.lmdb.EzLmDbComparator;
+import ezdb.lmdb.EzLmDbJnrFactory;
+import ezdb.lmdb.util.LmDBJnrDBIterator;
 import ezdb.serde.Serde;
 
 @ThreadSafe
@@ -139,28 +144,30 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     private Db initDB() {
         initDirectory();
-        return new EzLevelDb(directory, new EzLevelDbJavaFactory() {
+        return new EzLmDb(directory, new EzLmDbJnrFactory() {
             @Override
-            public DB open(final File path, final org.iq80.leveldb.Options options) throws IOException {
-                options.paranoidChecks(false);
-                final DB open = super.open(path, options);
+            public Dbi<ByteBuffer> open(final String tableName, final Env<ByteBuffer> env,
+                    final EzLmDbComparator comparator, final DbiFlags... dbiFlags) throws IOException {
+                final Dbi<ByteBuffer> dbi = super.open(tableName, env, comparator, dbiFlags);
                 try {
                     //do some sanity checks just to be safe
-                    try (DBIterator iterator = open.iterator()) {
-                        iterator.seekToFirst();
-                        if (iterator.hasNext()) {
-                            final Entry<byte[], byte[]> next = iterator.next();
-                            validateRow(next);
-                        }
-                        iterator.seekToLast();
-                        if (iterator.hasPrev()) {
-                            final Entry<byte[], byte[]> prev = iterator.prev();
-                            validateRow(prev);
+                    try (Txn<ByteBuffer> txnRead = env.txnRead()) {
+                        try (LmDBJnrDBIterator iterator = new LmDBJnrDBIterator(env, dbi)) {
+                            iterator.seekToFirst();
+                            if (iterator.hasNext()) {
+                                final Entry<byte[], byte[]> next = iterator.next();
+                                validateRow(next);
+                            }
+                            iterator.seekToLast();
+                            if (iterator.hasPrev()) {
+                                final Entry<byte[], byte[]> prev = iterator.prev();
+                                validateRow(prev);
+                            }
                         }
                     }
-                    return open;
+                    return dbi;
                 } catch (final Throwable t) {
-                    open.close();
+                    dbi.close();
                     throw Throwables.propagate(t);
                 }
             }

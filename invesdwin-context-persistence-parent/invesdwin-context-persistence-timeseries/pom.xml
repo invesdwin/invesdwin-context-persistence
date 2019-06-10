@@ -19,7 +19,7 @@
 
 		<dependency>
 			<groupId>com.github.criccomini</groupId>
-			<artifactId>ezdb-leveldb</artifactId>
+			<artifactId>ezdb-lmdb-jnr</artifactId>
 		</dependency>
 
 		<dependency>

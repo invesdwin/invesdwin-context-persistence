@@ -8,10 +8,13 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import org.junit.Test;
 
+import com.google.common.util.concurrent.CycleDetectingLockFactory.Policies;
+
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.fdate.FDateBuilder;
 import ezdb.RawTableRow;
@@ -40,10 +43,11 @@ public class TestEzLevelDbJni extends ATest {
 
     protected ADelegateRangeTable<Integer, Integer, Integer> table;
 
-    @SuppressWarnings("JUnit4SetUpNotRun")
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        Locks.setLockTraceEnabled(true);
+        Locks.setCycleDetectingPolicy(Policies.THROW);
         table = new ADelegateRangeTable<Integer, Integer, Integer>("test") {
             @Override
             protected boolean allowHasNext() {
@@ -98,6 +102,7 @@ public class TestEzLevelDbJni extends ATest {
 
         table.close();
         table.deleteTable();
+        System.out.println("delete");
     }
 
     @Test
@@ -998,16 +1003,22 @@ public class TestEzLevelDbJni extends ATest {
     @Test
     public void testRangeH() {
         TableIterator<Integer, Integer, Integer> it = table.range(1);
-        table.put(1, 2);
-        table.put(1, 1, 4);
-        table.put(2, 1, 4);
-        it.close();
+        try {
+            table.put(1, 2);
+            table.put(1, 1, 4);
+            table.put(2, 1, 4);
+        } finally {
+            it.close();
+        }
         it = table.range(1);
-        Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, null, 2), it.next());
-        Assertions.checkTrue(it.hasNext());
-        Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
-        Assertions.checkTrue(!it.hasNext());
-        it.close();
+        try {
+            Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, null, 2), it.next());
+            Assertions.checkTrue(it.hasNext());
+            Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
+            Assertions.checkTrue(!it.hasNext());
+        } finally {
+            it.close();
+        }
     }
 
     @Test
@@ -1051,28 +1062,37 @@ public class TestEzLevelDbJni extends ATest {
         table.put(1, 2);
         table.put(1, 1, 4);
         TableIterator<Integer, Integer, Integer> it = table.range(1, null, 2);
-        Assertions.checkTrue(it.hasNext());
-        Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, null, 2), it.next());
-        Assertions.checkTrue(it.hasNext());
-        Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
-        Assertions.checkTrue(!it.hasNext());
-        it.close();
+        try {
+            Assertions.checkTrue(it.hasNext());
+            Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, null, 2), it.next());
+            Assertions.checkTrue(it.hasNext());
+            Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
+            Assertions.checkTrue(!it.hasNext());
+        } finally {
+            it.close();
+        }
         it = table.range(1, 1, 2);
-        Assertions.checkTrue(it.hasNext());
-        Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
-        Assertions.checkTrue(!it.hasNext());
-        table.put(1, 2, 5);
-        table.put(1, 3, 5);
-        it.close();
+        try {
+            Assertions.checkTrue(it.hasNext());
+            Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
+            Assertions.checkTrue(!it.hasNext());
+            table.put(1, 2, 5);
+            table.put(1, 3, 5);
+        } finally {
+            it.close();
+        }
         it = table.range(1, 1, 3);
-        Assertions.checkTrue(it.hasNext());
-        Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
-        Assertions.checkTrue(it.hasNext());
-        Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 2, 5), it.next());
-        Assertions.checkTrue(it.hasNext());
-        Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 3, 5), it.next());
-        Assertions.checkTrue(!it.hasNext());
-        it.close();
+        try {
+            Assertions.checkTrue(it.hasNext());
+            Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
+            Assertions.checkTrue(it.hasNext());
+            Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 2, 5), it.next());
+            Assertions.checkTrue(it.hasNext());
+            Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 3, 5), it.next());
+            Assertions.checkTrue(!it.hasNext());
+        } finally {
+            it.close();
+        }
     }
 
     @Test

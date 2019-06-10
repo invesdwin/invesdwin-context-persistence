@@ -20,10 +20,8 @@ import org.springframework.transaction.TransactionSystemException;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.querydsl.collections.CollQuery;
 import com.querydsl.core.alias.Alias;
 import com.querydsl.core.types.EntityPath;
-import com.querydsl.core.types.dsl.ComparablePath;
 import com.querydsl.jpa.impl.JPAQuery;
 
 import de.invesdwin.context.log.error.Err;
@@ -212,11 +210,6 @@ public class SimpleTestDaoTest extends APersistenceTest {
     @Test
     public void testUnicode() {
         new TransactionalAspectMethods().testUnicode();
-    }
-
-    @Test
-    public void testQueryDslCollectionsWithEntity() {
-        new TransactionalAspectMethods().testQueryDslCollectionsWithEntity();
     }
 
     @Test
@@ -648,27 +641,6 @@ public class SimpleTestDaoTest extends APersistenceTest {
             log.info("%s=%s", unicode, entGelesen.getName());
             Assertions.assertThat(entGelesen.getName()).isEqualTo(unicode);
             Assertions.assertThat(entGelesen.getName()).isEqualTo(ent.getName());
-        }
-
-        public void testQueryDslCollectionsWithEntity() {
-            final List<SimpleTestEntity> vos = new ArrayList<SimpleTestEntity>();
-            for (int i = 0; i < 5; i++) {
-                final SimpleTestEntity vo = new SimpleTestEntity();
-                vo.setName("" + i);
-                vos.add(vo);
-            }
-            final SimpleTestEntity vo = Alias.alias(SimpleTestEntity.class);
-            Assertions.assertThat(vo).isNotNull();
-            final CollQuery query = new CollQuery();
-            final ComparablePath<SimpleTestEntity> fromVo = Alias.$(vo);
-            Assertions.assertThat(fromVo).as("https://bugs.launchpad.net/querydsl/+bug/785935").isNotNull();
-            query.from(fromVo, vos);
-            query.where(Alias.$(vo.getName()).eq("1"));
-            final List<SimpleTestEntity> result = query.select(Alias.$(vo)).fetch();
-
-            Assertions.assertThat(result).isNotNull();
-            Assertions.assertThat(result.size()).isEqualTo(1);
-            Assertions.assertThat(result.get(0).getName()).isEqualTo("1");
         }
 
         @SuppressWarnings("unchecked")
