@@ -341,6 +341,11 @@
 		<connection>scm:git:https://github.com/subes/invesdwin-context-persistence.git</connection>
 		<tag>HEAD</tag>
 	</scm>
+	
+	<ciManagement>
+		<system>jenkins</system>
+		<url>https://invesdwin.de/jenkins/job/dgr-deploy-invesdwin-context-persistence/</url>
+	</ciManagement>
 
 </project>
 
