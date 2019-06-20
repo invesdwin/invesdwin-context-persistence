@@ -672,7 +672,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         }
 
         @Override
-        public boolean isClosed() {
+        protected boolean isCleaned() {
             return tableLockDelegate == null;
         }
     }
@@ -771,7 +771,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         }
 
         @Override
-        public boolean isClosed() {
+        protected boolean isCleaned() {
             return tableLockDelegate == null;
         }
     }
@@ -786,7 +786,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         }
 
         @Override
-        public boolean isClosed() {
+        protected boolean isCleaned() {
             return table == null;
         }
     }

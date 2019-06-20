@@ -503,7 +503,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         }
 
         @Override
-        public boolean isClosed() {
+        protected boolean isCleaned() {
             return readRangeValues instanceof EmptyCloseableIterator;
         }
 

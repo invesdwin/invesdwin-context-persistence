@@ -412,7 +412,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         }
 
         @Override
-        public boolean isClosed() {
+        protected boolean isCleaned() {
             return readRangeValues instanceof EmptyCloseableIterator;
         }
 

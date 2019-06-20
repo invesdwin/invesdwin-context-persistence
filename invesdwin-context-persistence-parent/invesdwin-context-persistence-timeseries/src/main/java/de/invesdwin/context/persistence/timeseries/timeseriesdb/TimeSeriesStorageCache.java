@@ -384,7 +384,7 @@ public class TimeSeriesStorageCache<K, V> {
         }
 
         @Override
-        public boolean isClosed() {
+        protected boolean isCleaned() {
             return delegate == null;
         }
 

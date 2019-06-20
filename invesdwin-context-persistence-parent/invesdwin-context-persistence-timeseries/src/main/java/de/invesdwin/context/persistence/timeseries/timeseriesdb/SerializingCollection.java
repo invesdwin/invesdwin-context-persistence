@@ -387,7 +387,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         }
 
         @Override
-        public boolean isClosed() {
+        protected boolean isCleaned() {
             return closed;
         }
     }
@@ -424,7 +424,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         @SuppressWarnings({ "null" })
         private E readNext() {
-            if (finalizer.closed) {
+            if (finalizer.cleaned) {
                 return (E) null;
             }
             try {
@@ -458,7 +458,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     private static final class FixedLengthDeserializingIteratorFinalizer<E> extends AFinalizer {
         private DataInputStream inputStream;
         private byte[] byteBuffer;
-        private boolean closed;
+        private boolean cleaned;
 
         private E cachedElement;
 
@@ -473,12 +473,12 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             inputStream = null;
             byteBuffer = null;
             cachedElement = null;
-            closed = true;
+            cleaned = true;
         }
 
         @Override
-        public boolean isClosed() {
-            return closed;
+        protected boolean isCleaned() {
+            return cleaned;
         }
     }
 
@@ -518,7 +518,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         }
 
         @Override
-        public boolean isClosed() {
+        protected boolean isCleaned() {
             return closed;
         }
 
