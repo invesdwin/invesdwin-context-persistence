@@ -63,8 +63,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
 
         @Override
         protected V loadValue(final FDate date) {
-            final SingleValue value = storage.getLatestValueLookupTable().getOrLoad(hashKey, date,
-                    new Function<Pair<String, FDate>, SingleValue>() {
+            final SingleValue value = storage.getLatestValueLookupTable()
+                    .getOrLoad(hashKey, date, new Function<Pair<String, FDate>, SingleValue>() {
 
                         @Override
                         public SingleValue apply(final Pair<String, FDate> input) {
@@ -125,26 +125,26 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
         protected V loadValue(final Pair<FDate, Integer> loadKey) {
             final FDate date = loadKey.getFirst();
             final int shiftBackUnits = loadKey.getSecond();
-            final SingleValue value = storage.getPreviousValueLookupTable().getOrLoad(hashKey,
-                    new ShiftUnitsRangeKey(date, shiftBackUnits),
-                    new Function<Pair<String, ShiftUnitsRangeKey>, SingleValue>() {
+            final SingleValue value = storage.getPreviousValueLookupTable()
+                    .getOrLoad(hashKey, new ShiftUnitsRangeKey(date, shiftBackUnits),
+                            new Function<Pair<String, ShiftUnitsRangeKey>, SingleValue>() {
 
-                        @Override
-                        public SingleValue apply(final Pair<String, ShiftUnitsRangeKey> input) {
-                            final FDate date = loadKey.getFirst();
-                            final int shiftBackUnits = loadKey.getSecond();
-                            V previousValue = null;
-                            try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null)
-                                    .iterator()) {
-                                for (int i = 0; i < shiftBackUnits; i++) {
-                                    previousValue = rangeValuesReverse.next();
+                                @Override
+                                public SingleValue apply(final Pair<String, ShiftUnitsRangeKey> input) {
+                                    final FDate date = loadKey.getFirst();
+                                    final int shiftBackUnits = loadKey.getSecond();
+                                    V previousValue = null;
+                                    try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null)
+                                            .iterator()) {
+                                        for (int i = 0; i < shiftBackUnits; i++) {
+                                            previousValue = rangeValuesReverse.next();
+                                        }
+                                    } catch (final NoSuchElementException e) {
+                                        //ignore
+                                    }
+                                    return new SingleValue(valueSerde, previousValue);
                                 }
-                            } catch (final NoSuchElementException e) {
-                                //ignore
-                            }
-                            return new SingleValue(valueSerde, previousValue);
-                        }
-                    });
+                            });
             return value.getValue(valueSerde);
         }
     };
@@ -164,25 +164,25 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
         protected V loadValue(final Pair<FDate, Integer> loadKey) {
             final FDate date = loadKey.getFirst();
             final int shiftForwardUnits = loadKey.getSecond();
-            final SingleValue value = storage.getNextValueLookupTable().getOrLoad(hashKey,
-                    new ShiftUnitsRangeKey(date, shiftForwardUnits),
-                    new Function<Pair<String, ShiftUnitsRangeKey>, SingleValue>() {
+            final SingleValue value = storage.getNextValueLookupTable()
+                    .getOrLoad(hashKey, new ShiftUnitsRangeKey(date, shiftForwardUnits),
+                            new Function<Pair<String, ShiftUnitsRangeKey>, SingleValue>() {
 
-                        @Override
-                        public SingleValue apply(final Pair<String, ShiftUnitsRangeKey> input) {
-                            final FDate date = loadKey.getFirst();
-                            final int shiftForwardUnits = loadKey.getSecond();
-                            V nextValue = null;
-                            try (ICloseableIterator<V> rangeValues = readRangeValues(date, null).iterator()) {
-                                for (int i = 0; i < shiftForwardUnits; i++) {
-                                    nextValue = rangeValues.next();
+                                @Override
+                                public SingleValue apply(final Pair<String, ShiftUnitsRangeKey> input) {
+                                    final FDate date = loadKey.getFirst();
+                                    final int shiftForwardUnits = loadKey.getSecond();
+                                    V nextValue = null;
+                                    try (ICloseableIterator<V> rangeValues = readRangeValues(date, null).iterator()) {
+                                        for (int i = 0; i < shiftForwardUnits; i++) {
+                                            nextValue = rangeValues.next();
+                                        }
+                                    } catch (final NoSuchElementException e) {
+                                        //ignore
+                                    }
+                                    return new SingleValue(valueSerde, nextValue);
                                 }
-                            } catch (final NoSuchElementException e) {
-                                //ignore
-                            }
-                            return new SingleValue(valueSerde, nextValue);
-                        }
-                    });
+                            });
             return value.getValue(valueSerde);
         }
     };
@@ -617,8 +617,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
             if (prevLastAvailableSegmentTo != null) {
                 storage.getLatestValueLookupTable().deleteRange(hashKey, prevLastAvailableSegmentTo);
                 storage.getNextValueLookupTable().deleteRange(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
-                storage.getPreviousValueLookupTable().deleteRange(hashKey,
-                        new ShiftUnitsRangeKey(prevLastAvailableSegmentTo, 0));
+                storage.getPreviousValueLookupTable()
+                        .deleteRange(hashKey, new ShiftUnitsRangeKey(prevLastAvailableSegmentTo, 0));
             }
             clearCaches();
         }
@@ -667,8 +667,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                 final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
                 maybeInitSegment(segmentedKey);
                 final String segmentedHashKey = segmentedTable.hashKeyToString(segmentedKey);
-                final ChunkValue latestValue = storage.getFileLookupTable().getLatestValue(segmentedHashKey,
-                        FDate.MIN_DATE);
+                final ChunkValue latestValue = storage.getFileLookupTable()
+                        .getLatestValue(segmentedHashKey, FDate.MIN_DATE);
                 final V firstValue;
                 if (latestValue == null) {
                     firstValue = null;
@@ -690,19 +690,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
             if (lastAvailableSegmentTo == null) {
                 cachedLastValue = Optional.empty();
             } else {
-                final TimeRange segment = getSegmentFinder(key).query().getValue(lastAvailableSegmentTo);
-                Assertions.assertThat(segment.getTo()).isEqualTo(lastAvailableSegmentTo);
-                final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
-                maybeInitSegment(segmentedKey);
-                final String segmentedHashKey = segmentedTable.hashKeyToString(segmentedKey);
-                final ChunkValue latestValue = storage.getFileLookupTable().getLatestValue(segmentedHashKey,
-                        FDate.MAX_DATE);
-                final V lastValue;
-                if (latestValue == null) {
-                    lastValue = null;
-                } else {
-                    lastValue = latestValue.getLastValue(valueSerde);
-                }
+                final V lastValue = getLatestValue(FDate.MAX_DATE);
                 cachedLastValue = Optional.ofNullable(lastValue);
             }
         }
