@@ -40,7 +40,7 @@ public class DatabasePerformanceTest extends ATest {
     }
 
     private static final int READS = 10;
-    private static final int VALUES = 10_000_000;
+    private static final int VALUES = 1_000_000;
     private static final String HASH_KEY = "HASH_KEY";
     private static final int FLUSH_INTERVAL = ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL;
 
