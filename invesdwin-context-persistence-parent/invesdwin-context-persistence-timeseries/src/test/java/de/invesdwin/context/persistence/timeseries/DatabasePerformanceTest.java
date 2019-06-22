@@ -6,10 +6,10 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.integration.streams.LZ4Streams;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseries.serde.FDateSerde;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesDB;
@@ -31,12 +31,12 @@ import ezdb.batch.RangeBatch;
 import ezdb.serde.Serde;
 
 @NotThreadSafe
-//@Ignore("manual test")
+@Ignore("manual test")
 public class DatabasePerformanceTest extends ATest {
 
     static {
         //makes it sloooooow
-        LZ4Streams.setAllowJniCompressor(true);
+        //        LZ4Streams.setAllowJniCompressor(true);
     }
 
     private static final int READS = 10;
