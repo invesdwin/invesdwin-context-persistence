@@ -34,10 +34,10 @@ import ezdb.serde.Serde;
 @Ignore("manual test")
 public class DatabasePerformanceTest extends ATest {
 
-    static {
-        //makes it sloooooow
-        //        LZ4Streams.setAllowJniCompressor(true);
-    }
+    //    static {
+    //makes it sloooooow
+    //        LZ4Streams.setAllowJniCompressor(true);
+    //    }
 
     private static final int READS = 10;
     private static final int VALUES = 1_000_000;
