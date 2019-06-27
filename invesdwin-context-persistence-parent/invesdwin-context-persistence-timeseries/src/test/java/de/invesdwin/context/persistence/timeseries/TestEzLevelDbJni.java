@@ -120,7 +120,6 @@ public class TestEzLevelDbJni extends ATest {
         final TableIterator<String, FDate, Integer> range = reverseRangeTable.rangeReverse(HASHKEY_ONE, twoFDatePlus,
                 oneFDatePlus);
         Assertions.checkEquals(2, (int) range.next().getValue());
-        Assertions.checkEquals(1, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
         try {
             range.next();
@@ -164,7 +163,6 @@ public class TestEzLevelDbJni extends ATest {
         final TableIterator<String, FDate, Integer> range = reverseRangeTable.rangeReverse(HASHKEY_ONE, threeFDatePlus,
                 twoFDatePlus);
         Assertions.checkEquals(3, (int) range.next().getValue());
-        Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
         try {
             range.next();
