@@ -31,8 +31,8 @@
 	</modules>
 
 	<properties>
-		<version.invesdwin-context>1.0.0-SNAPSHOT</version.invesdwin-context>
-		<version.invesdwin-context-persistence>${project.version}</version.invesdwin-context-persistence>
+		<project.version.invesdwin-context>1.0.0-SNAPSHOT</project.version.invesdwin-context>
+		<project.version.invesdwin-context-persistence>${project.version}</project.version.invesdwin-context-persistence>
 
 		<version.asm>3.3.1</version.asm>
 		<version.jboss-transaction-api_1.1_spec>1.0.1.Final</version.jboss-transaction-api_1.1_spec>
@@ -58,44 +58,44 @@
 			<dependency>
 				<groupId>de.invesdwin</groupId>
 				<artifactId>invesdwin-context-persistence-jpa</artifactId>
-				<version>${version.invesdwin-context-persistence}</version>
+				<version>${project.version.invesdwin-context-persistence}</version>
 			</dependency>
 			<dependency>
 				<groupId>de.invesdwin</groupId>
 				<artifactId>invesdwin-context-persistence-jpa</artifactId>
-				<version>${version.invesdwin-context-persistence}</version>
+				<version>${project.version.invesdwin-context-persistence}</version>
 				<type>test-jar</type>
 			</dependency>
 			<dependency>
 				<groupId>de.invesdwin</groupId>
 				<artifactId>invesdwin-context-persistence-jpa-hibernate</artifactId>
-				<version>${version.invesdwin-context-persistence}</version>
+				<version>${project.version.invesdwin-context-persistence}</version>
 			</dependency>
 			<dependency>
 				<groupId>de.invesdwin</groupId>
 				<artifactId>invesdwin-context-persistence-jpa-eclipselink</artifactId>
-				<version>${version.invesdwin-context-persistence}</version>
+				<version>${project.version.invesdwin-context-persistence}</version>
 			</dependency>
 			<dependency>
 				<groupId>de.invesdwin</groupId>
 				<artifactId>invesdwin-context-persistence-jpa-hibernate</artifactId>
-				<version>${version.invesdwin-context-persistence}</version>
+				<version>${project.version.invesdwin-context-persistence}</version>
 				<type>test-jar</type>
 			</dependency>
 			<dependency>
 				<groupId>de.invesdwin</groupId>
 				<artifactId>invesdwin-context-persistence-jpa-kundera</artifactId>
-				<version>${version.invesdwin-context-persistence}</version>
+				<version>${project.version.invesdwin-context-persistence}</version>
 			</dependency>
 			<dependency>
 				<groupId>de.invesdwin</groupId>
 				<artifactId>invesdwin-context-persistence-jpa-kundera-rdbms</artifactId>
-				<version>${version.invesdwin-context-persistence}</version>
+				<version>${project.version.invesdwin-context-persistence}</version>
 			</dependency>
 			<dependency>
 				<groupId>de.invesdwin</groupId>
 				<artifactId>invesdwin-context-persistence-timeseries</artifactId>
-				<version>${version.invesdwin-context-persistence}</version>
+				<version>${project.version.invesdwin-context-persistence}</version>
 			</dependency>
 
 			<dependency>
