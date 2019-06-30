@@ -1,12 +1,9 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-                             http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0                              http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
 		<groupId>de.invesdwin</groupId>
 		<artifactId>invesdwin-context-persistence-parent</artifactId>
-		<version>1.0.0-SNAPSHOT</version>
+		<version>1.0.0</version>
 	</parent>
 	<artifactId>invesdwin-context-persistence-jpa</artifactId>
 	<packaging>jar</packaging>
@@ -108,21 +105,13 @@
 						</executions>
 						<configuration>
 							<target>
-								<input
-									message="Please specify the schema that should be reset:"
-									addproperty="schema.name" defaultvalue="invesdwin" />
-								<property
-									file="src/main/java/META-INF/env/${user.name}.properties" />
-								<property
-									file="src/main/java/META-INF/de.invesdwin.context.persistence.jpa.properties" />
+								<input message="Please specify the schema that should be reset:" addproperty="schema.name" defaultvalue="invesdwin" />
+								<property file="src/main/java/META-INF/env/${user.name}.properties" />
+								<property file="src/main/java/META-INF/de.invesdwin.context.persistence.jpa.properties" />
 								<ac:if xmlns:ac="antlib:net.sf.antcontrib">
 									<isset property="schema.name" />
 									<then>
-										<sql
-											driver="${de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_DRIVER@default_pu}"
-											url="${de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_URL@default_pu}"
-											userid="${de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_USER@default_pu}"
-											password="${de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_PASSWORD@default_pu}">
+										<sql driver="${de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_DRIVER@default_pu}" url="${de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_URL@default_pu}" userid="${de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_USER@default_pu}" password="${de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_PASSWORD@default_pu}">
 											<classpath refid="maven.test.classpath" />
 											<transaction>
 												drop database ${schema.name};
