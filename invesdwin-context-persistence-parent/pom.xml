@@ -31,7 +31,7 @@
 	</modules>
 
 	<properties>
-		<project.version.invesdwin-context>1.0.0-SNAPSHOT</project.version.invesdwin-context>
+		<project.version.invesdwin-context>1.0.0</project.version.invesdwin-context>
 		<project.version.invesdwin-context-persistence>${project.version}</project.version.invesdwin-context-persistence>
 
 		<version.asm>3.3.1</version.asm>
@@ -55,6 +55,12 @@
 
 	<dependencyManagement>
 		<dependencies>
+			<dependency>
+				<groupId>de.invesdwin</groupId>
+				<artifactId>invesdwin-context-parent</artifactId>
+				<version>${project.version.invesdwin-context}</version>
+				<type>pom</type>
+			</dependency>
 			<dependency>
 				<groupId>de.invesdwin</groupId>
 				<artifactId>invesdwin-context-persistence-jpa</artifactId>
