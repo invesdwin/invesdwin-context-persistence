@@ -235,7 +235,7 @@ public class PeriodicalSegmentFinder {
      */
     private static PeriodicalSegmentFinder getSlowFlexibleInstance(final Duration period) {
         if (period.isLessThanOrEqualTo(Duration.ONE_MILLISECOND)) {
-            throw new IllegalArgumentException("Please use TickBars instead: " + period);
+            throw new IllegalArgumentException("Period must be positive: " + period);
         } else if (period.isLessThan(TEN_MILLISECONDS)) {
             //2ms -> 10ms-1ms => max 500 values in second
             return new PeriodicalSegmentFinder(period, FTimeUnit.SECONDS);
