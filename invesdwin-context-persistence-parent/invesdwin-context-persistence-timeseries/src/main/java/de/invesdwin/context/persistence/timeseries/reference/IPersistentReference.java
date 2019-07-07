@@ -2,11 +2,14 @@ package de.invesdwin.context.persistence.timeseries.reference;
 
 import java.io.Closeable;
 
-public interface IPersistentReference<T> extends Closeable {
+import de.invesdwin.util.concurrent.reference.IReference;
+
+public interface IPersistentReference<T> extends IReference<T>, Closeable {
 
     /**
      * gets the reference, retrieving from a persistent store if it was cleared before
      */
+    @Override
     T get();
 
     /**
