@@ -32,4 +32,7 @@ public interface ILiveSegment<K, V> extends Closeable {
 
     FDate getLastValueKey();
 
+    @Override
+    void close();
+
 }

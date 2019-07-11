@@ -18,7 +18,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     private final SegmentedKey<K> segmentedKey;
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
-    private final FileLiveSegment<K, V> inProgress;
+    private final ILiveSegment<K, V> inProgress;
     private final PersistentLiveSegment<K, V> persistent;
     private final List<ILiveSegment<K, V>> latestValueProviders;
 
@@ -207,7 +207,8 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     private void flushLiveSegment() {
-        persistent.putNextLiveValues(inProgress.rangeValues(inProgress.getFirstValueKey(), inProgress.getLastValueKey()));
+        persistent
+                .putNextLiveValues(inProgress.rangeValues(inProgress.getFirstValueKey(), inProgress.getLastValueKey()));
         memorySize = 0;
         inProgress.close();
     }

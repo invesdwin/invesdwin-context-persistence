@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -57,11 +56,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
 
     public void deleteAll() {
         if (liveSegment != null) {
-            try {
-                liveSegment.close();
-            } catch (final IOException e) {
-                throw new RuntimeException(e);
-            }
+            liveSegment.close();
         }
         liveSegment = null;
         historicalSegmentTable.deleteRange(key);
@@ -220,11 +215,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
                         + "] should be before or equal to liveSegmentTo [" + segment.getTo() + "]");
             }
             liveSegment.convertLiveSegmentToHistorical();
-            try {
-                liveSegment.close();
-            } catch (final IOException e) {
-                throw new RuntimeException(e);
-            }
+            liveSegment.close();
             liveSegment = null;
         }
         if (liveSegment == null) {
@@ -237,11 +228,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
     @Override
     public void close() {
         if (liveSegment != null) {
-            try {
-                liveSegment.close();
-            } catch (final IOException e) {
-                throw new RuntimeException(e);
-            }
+            liveSegment.close();
         }
     }
 
