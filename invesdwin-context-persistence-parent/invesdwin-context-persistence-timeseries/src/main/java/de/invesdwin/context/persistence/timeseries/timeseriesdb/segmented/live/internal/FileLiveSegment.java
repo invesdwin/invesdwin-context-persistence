@@ -1,7 +1,5 @@
 package de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.internal;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -12,8 +10,8 @@ import java.util.function.Function;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
 
+import de.invesdwin.context.persistence.timeseries.timeseriesdb.HeapSerializingCollection;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.SegmentedKey;
@@ -32,6 +30,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     private final SegmentedKey<K> segmentedKey;
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
     private SerializingCollection<V> values;
+    private boolean needsFlush;
     private FDate firstValueKey;
     private V firstValue;
     private FDate lastValueKey;
@@ -66,14 +65,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
             @Override
             protected InputStream newFileInputStream(final File file) throws FileNotFoundException {
-                //keep file input stream open as shortly as possible to prevent too many open files error
-                try (InputStream fis = super.newFileInputStream(file)) {
-                    final ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                    IOUtils.copy(fis, bos);
-                    return new ByteArrayInputStream(bos.toByteArray());
-                } catch (final IOException e) {
-                    throw new RuntimeException(e);
-                }
+                throw new UnsupportedOperationException("use getFlushedValues() instead");
             }
         };
     }
@@ -99,9 +91,9 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             return EmptyCloseableIterable.getInstance();
         }
         if (from == null && to == null) {
-            return values;
+            return getFlushedValues();
         } else if (from != null && to != null) {
-            return new ASkippingIterable<V>(values) {
+            return new ASkippingIterable<V>(getFlushedValues()) {
                 @Override
                 protected boolean skip(final V element) {
                     final FDate time = historicalSegmentTable.extractTime(element);
@@ -115,7 +107,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
                 }
             };
         } else if (from != null) {
-            return new ASkippingIterable<V>(values) {
+            return new ASkippingIterable<V>(getFlushedValues()) {
                 @Override
                 protected boolean skip(final V element) {
                     final FDate time = historicalSegmentTable.extractTime(element);
@@ -126,7 +118,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
                 }
             };
         } else if (to != null) {
-            return new ASkippingIterable<V>(values) {
+            return new ASkippingIterable<V>(getFlushedValues()) {
                 @Override
                 protected boolean skip(final V element) {
                     final FDate time = historicalSegmentTable.extractTime(element);
@@ -147,9 +139,9 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             return EmptyCloseableIterable.getInstance();
         }
         if (from == null && to == null) {
-            return values.reverseIterable();
+            return getFlushedValues().reverseIterable();
         } else if (from != null && to != null) {
-            return new ASkippingIterable<V>(values.reverseIterable()) {
+            return new ASkippingIterable<V>(getFlushedValues().reverseIterable()) {
                 @Override
                 protected boolean skip(final V element) {
                     final FDate time = historicalSegmentTable.extractTime(element);
@@ -163,7 +155,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
                 }
             };
         } else if (from != null) {
-            return new ASkippingIterable<V>(values.reverseIterable()) {
+            return new ASkippingIterable<V>(getFlushedValues().reverseIterable()) {
                 @Override
                 protected boolean skip(final V element) {
                     final FDate time = historicalSegmentTable.extractTime(element);
@@ -174,7 +166,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
                 }
             };
         } else if (to != null) {
-            return new ASkippingIterable<V>(values.reverseIterable()) {
+            return new ASkippingIterable<V>(getFlushedValues().reverseIterable()) {
                 @Override
                 protected boolean skip(final V element) {
                     final FDate time = historicalSegmentTable.extractTime(element);
@@ -195,7 +187,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             values = newSerializingCollection();
         }
         values.add(nextLiveValue);
-        values.flush();
+        needsFlush = true;
         if (firstValue == null) {
             firstValue = nextLiveValue;
             firstValueKey = nextLiveKey;
@@ -256,6 +248,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     @Override
     public void close() {
         if (values != null) {
+            values.close();
             values.clear();
             values = null;
         }
@@ -263,11 +256,13 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         firstValueKey = null;
         lastValue = null;
         lastValueKey = null;
+        needsFlush = false;
     }
 
     @Override
     public void convertLiveSegmentToHistorical() {
         values.close();
+        needsFlush = false;
         final ASegmentedTimeSeriesStorageCache<K, V> lookupTableCache = historicalSegmentTable
                 .getLookupTableCache(getSegmentedKey().getKey());
         final boolean initialized = lookupTableCache.maybeInitSegment(getSegmentedKey(),
@@ -279,6 +274,29 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
                 });
         if (!initialized) {
             throw new IllegalStateException("true expected");
+        }
+    }
+
+    private HeapSerializingCollection<V> getFlushedValues() {
+        if (needsFlush) {
+            values.flush();
+            needsFlush = false;
+        }
+        try {
+            final byte[] bytes = FileUtils.readFileToByteArray(values.getFile());
+            return new HeapSerializingCollection<V>(bytes) {
+                @Override
+                protected Serde<V> newSerde() {
+                    return historicalSegmentTable.newValueSerde();
+                }
+
+                @Override
+                protected Integer getFixedLength() {
+                    return historicalSegmentTable.newFixedLength();
+                }
+            };
+        } catch (final IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
