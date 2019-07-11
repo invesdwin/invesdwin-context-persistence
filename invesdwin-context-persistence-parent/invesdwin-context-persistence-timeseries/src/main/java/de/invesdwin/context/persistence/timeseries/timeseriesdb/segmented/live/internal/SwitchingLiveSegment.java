@@ -18,7 +18,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     private final SegmentedKey<K> segmentedKey;
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
-    private final MemoryLiveSegment<K, V> memory;
+    private final FileLiveSegment<K, V> inProgress;
     private final PersistentLiveSegment<K, V> persistent;
     private final List<ILiveSegment<K, V>> latestValueProviders;
 
@@ -34,9 +34,9 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
             final int batchFlushInterval) {
         this.segmentedKey = segmentedKey;
         this.historicalSegmentTable = historicalSegmentTable;
-        this.memory = new MemoryLiveSegment<>(segmentedKey, historicalSegmentTable);
+        this.inProgress = new FileLiveSegment<>(segmentedKey, historicalSegmentTable);
         this.persistent = new PersistentLiveSegment<>(segmentedKey, historicalSegmentTable);
-        this.latestValueProviders = Arrays.asList(memory, persistent);
+        this.latestValueProviders = Arrays.asList(inProgress, persistent);
         this.batchFlushInterval = batchFlushInterval;
     }
 
@@ -67,24 +67,24 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public ICloseableIterable<V> rangeValues(final FDate from, final FDate to) {
-        if (memory.isEmpty()) {
+        if (inProgress.isEmpty()) {
             //no live segment, go with historical
             return persistent.rangeValues(from, to);
         } else if (persistent.isEmpty()) {
-            return memory.rangeValues(from, to);
+            return inProgress.rangeValues(from, to);
         } else {
-            final FDate memoryFrom = memory.getFirstValueKey();
+            final FDate memoryFrom = inProgress.getFirstValueKey();
             if (memoryFrom.isAfter(to)) {
                 //live segment is after requested range, go with historical
                 return persistent.rangeValues(from, to);
             } else if (memoryFrom.isBeforeOrEqualTo(from)) {
                 //historical segment is before requested range, go with live
-                return memory.rangeValues(from, to);
+                return inProgress.rangeValues(from, to);
             } else {
                 //use both segments
                 final ICloseableIterable<V> historicalRangeValues = persistent.rangeValues(from,
                         memoryFrom.addMilliseconds(-1));
-                final ICloseableIterable<V> liveRangeValues = memory.rangeValues(memoryFrom, to);
+                final ICloseableIterable<V> liveRangeValues = inProgress.rangeValues(memoryFrom, to);
                 return new FlatteningIterable<V>(historicalRangeValues, liveRangeValues);
             }
         }
@@ -92,22 +92,22 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to) {
-        if (memory.isEmpty()) {
+        if (inProgress.isEmpty()) {
             //no live segment, go with historical
             return persistent.rangeReverseValues(from, to);
         } else if (persistent.isEmpty()) {
-            return memory.rangeReverseValues(from, to);
+            return inProgress.rangeReverseValues(from, to);
         } else {
-            final FDate memoryFrom = memory.getFirstValueKey();
+            final FDate memoryFrom = inProgress.getFirstValueKey();
             if (memoryFrom.isAfter(from)) {
                 //live segment is after requested range, go with historical
                 return persistent.rangeReverseValues(from, to);
             } else if (memoryFrom.isBeforeOrEqualTo(to)) {
                 //historical segment is before requested range, go with live
-                return memory.rangeReverseValues(from, to);
+                return inProgress.rangeReverseValues(from, to);
             } else {
                 //use both segments
-                final ICloseableIterable<V> liveRangeValues = memory.rangeReverseValues(from, memoryFrom);
+                final ICloseableIterable<V> liveRangeValues = inProgress.rangeReverseValues(from, memoryFrom);
                 final ICloseableIterable<V> historicalRangeValues = persistent
                         .rangeReverseValues(memoryFrom.addMilliseconds(-1), to);
                 return new FlatteningIterable<V>(liveRangeValues, historicalRangeValues);
@@ -121,7 +121,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
             throw new IllegalStateException(segmentedKey + ": nextLiveKey [" + nextLiveKey
                     + "] should be after lastLiveKey [" + lastValueKey + "]");
         }
-        memory.putNextLiveValue(nextLiveKey, nextLiveValue);
+        inProgress.putNextLiveValue(nextLiveKey, nextLiveValue);
         if (firstValue == null) {
             firstValue = nextLiveValue;
             firstValueKey = nextLiveKey;
@@ -136,12 +136,12 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
-        if (memory.isEmpty()) {
+        if (inProgress.isEmpty()) {
             //no live segment, go with historical
             return persistent.getNextValue(date, shiftForwardUnits);
-        } else if (persistent.isEmpty() || memory.getFirstValueKey().isBefore(date)) {
+        } else if (persistent.isEmpty() || inProgress.getFirstValueKey().isBefore(date)) {
             //live segment is after requested range, go with live
-            final V nextValue = memory.getNextValue(date, shiftForwardUnits);
+            final V nextValue = inProgress.getNextValue(date, shiftForwardUnits);
             return nextValue;
         } else {
             //use both segments
@@ -159,10 +159,10 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public V getLatestValue(final FDate date) {
-        if (memory.isEmpty()) {
+        if (inProgress.isEmpty()) {
             return persistent.getLatestValue(date);
         } else if (persistent.isEmpty()) {
-            return memory.getLatestValue(date);
+            return inProgress.getLatestValue(date);
         }
         V latestValue = null;
         for (int i = 0; i < latestValueProviders.size(); i++) {
@@ -194,22 +194,22 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
         firstValue = null;
         lastValue = null;
         lastValueKey = null;
-        memory.close();
+        inProgress.close();
         persistent.close();
     }
 
     @Override
     public void convertLiveSegmentToHistorical() {
-        if (!memory.isEmpty()) {
+        if (!inProgress.isEmpty()) {
             flushLiveSegment();
         }
         persistent.finish();
     }
 
     private void flushLiveSegment() {
-        persistent.putNextLiveValues(memory.rangeValues(memory.getFirstValueKey(), memory.getLastValueKey()));
+        persistent.putNextLiveValues(inProgress.rangeValues(inProgress.getFirstValueKey(), inProgress.getLastValueKey()));
         memorySize = 0;
-        memory.close();
+        inProgress.close();
     }
 
 }

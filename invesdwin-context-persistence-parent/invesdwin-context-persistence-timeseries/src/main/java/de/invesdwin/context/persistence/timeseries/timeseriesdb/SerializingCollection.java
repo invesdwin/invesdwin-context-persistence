@@ -29,6 +29,7 @@ import de.invesdwin.context.integration.streams.LZ4Streams;
 import de.invesdwin.context.log.error.Err;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
+import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
 import de.invesdwin.util.collections.iterable.LimitingIterator;
@@ -499,9 +500,13 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         throw new UnsupportedOperationException();
     }
 
-    public void flush() throws IOException {
+    public void flush() {
         if (finalizer.fos != null) {
-            finalizer.fos.flush();
+            try {
+                finalizer.fos.flush();
+            } catch (final IOException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 
@@ -522,6 +527,16 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             return closed;
         }
 
+    }
+
+    public ICloseableIterable<E> reverseIterable() {
+        return new ICloseableIterable<E>() {
+
+            @Override
+            public ICloseableIterator<E> iterator() {
+                return reverseIterator();
+            }
+        };
     }
 
 }

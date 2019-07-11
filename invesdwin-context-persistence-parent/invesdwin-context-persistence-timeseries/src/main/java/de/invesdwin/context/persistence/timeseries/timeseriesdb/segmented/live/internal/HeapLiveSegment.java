@@ -21,7 +21,7 @@ import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.time.fdate.FDate;
 
 @NotThreadSafe
-public class MemoryLiveSegment<K, V> implements ILiveSegment<K, V> {
+public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     private final NavigableMap<Long, V> values = ILockCollectionFactory.getInstance(false).newTreeMap();
     private final SegmentedKey<K> segmentedKey;
@@ -31,7 +31,7 @@ public class MemoryLiveSegment<K, V> implements ILiveSegment<K, V> {
     private FDate lastValueKey;
     private V lastValue;
 
-    public MemoryLiveSegment(final SegmentedKey<K> segmentedKey,
+    public HeapLiveSegment(final SegmentedKey<K> segmentedKey,
             final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable) {
         this.segmentedKey = segmentedKey;
         this.historicalSegmentTable = historicalSegmentTable;
@@ -99,7 +99,7 @@ public class MemoryLiveSegment<K, V> implements ILiveSegment<K, V> {
             skipping = new ASkippingIterable<Entry<Long, V>>(tail) {
                 @Override
                 protected boolean skip(final Entry<Long, V> element) {
-                    if (element.getKey() > to.millisValue()) {
+                    if (element.getKey() < to.millisValue()) {
                         throw new FastNoSuchElementException("LiveSegment rangeReverseValues end reached");
                     }
                     return false;
