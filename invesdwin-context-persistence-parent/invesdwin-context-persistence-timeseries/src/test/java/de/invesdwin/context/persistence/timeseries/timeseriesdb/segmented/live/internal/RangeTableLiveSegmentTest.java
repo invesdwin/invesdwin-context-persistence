@@ -28,7 +28,7 @@ import ezdb.serde.IntegerSerde;
 import ezdb.serde.Serde;
 
 @NotThreadSafe
-public class FileLiveSegmentTest extends ATest {
+public class RangeTableLiveSegmentTest extends ATest {
 
     @Test
     public void testInverseOrder() {

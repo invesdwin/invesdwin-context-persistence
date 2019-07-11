@@ -44,7 +44,9 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     private SerializingCollection<V> newSerializingCollection() {
-        final File file = new File(historicalSegmentTable.getDirectory(), "inProgress.data");
+        final File file = new File(
+                new File(historicalSegmentTable.getDirectory(), historicalSegmentTable.hashKeyToString(segmentedKey)),
+                "inProgress.data");
         try {
             FileUtils.forceMkdirParent(file);
         } catch (final IOException e) {
@@ -265,6 +267,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public void convertLiveSegmentToHistorical() {
+        values.close();
         final ASegmentedTimeSeriesStorageCache<K, V> lookupTableCache = historicalSegmentTable
                 .getLookupTableCache(getSegmentedKey().getKey());
         final boolean initialized = lookupTableCache.maybeInitSegment(getSegmentedKey(),
