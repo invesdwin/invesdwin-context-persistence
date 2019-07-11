@@ -204,6 +204,12 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
+        if (lastValue != null && (date == null || date.isAfterOrEqualToNotNullSafe(lastValueKey))) {
+            return lastValue;
+        }
+        if (firstValue != null && (date != null && date.isBeforeNotNullSafe(firstValueKey))) {
+            return firstValue;
+        }
         V nextValue = null;
         try (ICloseableIterator<V> rangeValues = rangeValues(date, null).iterator()) {
             for (int i = 0; i < shiftForwardUnits; i++) {
@@ -215,17 +221,28 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         if (nextValue != null) {
             return nextValue;
         } else {
-            return getLastValue();
+            return lastValue;
         }
     }
 
     @Override
     public V getLatestValue(final FDate date) {
-        final ICloseableIterator<V> reverse = rangeReverseValues(date, null).iterator();
-        try {
-            return reverse.next();
+        if (lastValue != null && (date == null || date.isAfterOrEqualToNotNullSafe(lastValueKey))) {
+            return lastValue;
+        }
+        if (firstValue != null && (date != null && date.isBeforeOrEqualToNotNullSafe(firstValueKey))) {
+            return firstValue;
+        }
+        V nextValue = null;
+        try (ICloseableIterator<V> reverse = rangeReverseValues(date, null).iterator()) {
+            nextValue = reverse.next();
         } catch (final NoSuchElementException e) {
-            return getFirstValue();
+            //ignore
+        }
+        if (nextValue != null) {
+            return nextValue;
+        } else {
+            return firstValue;
         }
     }
 
