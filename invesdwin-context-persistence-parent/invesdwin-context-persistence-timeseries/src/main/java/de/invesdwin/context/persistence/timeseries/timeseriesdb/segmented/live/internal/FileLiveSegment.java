@@ -20,6 +20,7 @@ import de.invesdwin.util.collections.iterable.ASkippingIterable;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.collections.iterable.SingleValueIterable;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
@@ -85,10 +86,26 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         return segmentedKey;
     }
 
+    //CHECKSTYLE:OFF
     @Override
     public ICloseableIterable<V> rangeValues(final FDate from, final FDate to) {
+        //CHECKSTYLE:ON
         if (values == null) {
             return EmptyCloseableIterable.getInstance();
+        }
+        if (from != null && lastValue != null && from.isAfterOrEqualToNotNullSafe(lastValueKey)) {
+            if (from.isAfterNotNullSafe(lastValueKey)) {
+                return EmptyCloseableIterable.getInstance();
+            } else {
+                return new SingleValueIterable<V>(lastValue);
+            }
+        }
+        if (to != null && firstValue != null && to.isBeforeOrEqualToNotNullSafe(firstValueKey)) {
+            if (to.isBeforeNotNullSafe(firstValueKey)) {
+                return EmptyCloseableIterable.getInstance();
+            } else {
+                return new SingleValueIterable<V>(firstValue);
+            }
         }
         if (from == null && to == null) {
             return getFlushedValues();
@@ -133,10 +150,26 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
     }
 
+    //CHECKSTYLE:OFF
     @Override
     public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to) {
+        //CHECKSTYLE:ON
         if (values == null) {
             return EmptyCloseableIterable.getInstance();
+        }
+        if (from != null && firstValue != null && from.isBeforeOrEqualToNotNullSafe(firstValueKey)) {
+            if (from.isBeforeNotNullSafe(firstValueKey)) {
+                return EmptyCloseableIterable.getInstance();
+            } else {
+                return new SingleValueIterable<V>(firstValue);
+            }
+        }
+        if (to != null && lastValue != null && to.isAfterOrEqualToNotNullSafe(lastValueKey)) {
+            if (to.isAfterNotNullSafe(lastValueKey)) {
+                return EmptyCloseableIterable.getInstance();
+            } else {
+                return new SingleValueIterable<V>(lastValue);
+            }
         }
         if (from == null && to == null) {
             return getFlushedValues().reverseIterable();
