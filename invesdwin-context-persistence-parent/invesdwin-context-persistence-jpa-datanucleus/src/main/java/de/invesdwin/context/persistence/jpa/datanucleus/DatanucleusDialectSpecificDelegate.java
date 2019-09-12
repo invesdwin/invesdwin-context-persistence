@@ -72,7 +72,6 @@ public class DatanucleusDialectSpecificDelegate implements IDialectSpecificDeleg
             //        <prop key="datanucleus.ConnectionPassword">${javax.persistence.jdbc.password}</prop>
             props.put(PropertyNames.PROPERTY_CONNECTION_PASSWORD, context.getConnectionPassword());
             //        <prop key="datanucleus.cloud.storage.bucket">${datanucleus.cloud.storage.bucket}</prop>
-            //TODO: extract this from connection url syntax? or introduce a new parameter for this
         }
 
         final boolean datanucleusAutoCreateSchema;
