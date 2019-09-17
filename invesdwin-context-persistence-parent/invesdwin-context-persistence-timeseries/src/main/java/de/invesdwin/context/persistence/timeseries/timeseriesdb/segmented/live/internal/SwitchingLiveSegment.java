@@ -26,7 +26,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
     private V firstValue;
     private FDate lastValueKey;
     private V lastValue;
-    private int memorySize = 0;
+    private int inProgressSize = 0;
     private final int batchFlushInterval;
 
     public SwitchingLiveSegment(final SegmentedKey<K> segmentedKey,
@@ -128,8 +128,8 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
         lastValue = nextLiveValue;
         lastValueKey = nextLiveKey;
-        memorySize++;
-        if (memorySize >= batchFlushInterval) {
+        inProgressSize++;
+        if (inProgressSize >= batchFlushInterval) {
             flushLiveSegment();
         }
     }
@@ -209,7 +209,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
     private void flushLiveSegment() {
         persistent
                 .putNextLiveValues(inProgress.rangeValues(inProgress.getFirstValueKey(), inProgress.getLastValueKey()));
-        memorySize = 0;
+        inProgressSize = 0;
         inProgress.close();
     }
 
