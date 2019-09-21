@@ -9,8 +9,8 @@ import java.io.IOException;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousReader;
+import de.invesdwin.context.persistence.timeseries.ipc.SynchronousResponse;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.bean.tuple.Pair;
 
 @NotThreadSafe
 public class PipeSynchronousReader extends APipeSynchronousChannel implements ISynchronousReader {
@@ -18,6 +18,7 @@ public class PipeSynchronousReader extends APipeSynchronousChannel implements IS
     private static final int CLOSED_READ_COUNT = -1;
     private static final int TIMEOUT_READ_COUNT = 0;
     private final byte[] typeBuffer = new byte[TYPE_OFFSET];
+    private final byte[] sequenceBuffer = new byte[SEQUENCE_OFFSET];
     private final byte[] sizeBuffer = new byte[SIZE_OFFSET];
     private BufferedInputStream in;
 
@@ -45,19 +46,21 @@ public class PipeSynchronousReader extends APipeSynchronousChannel implements IS
     }
 
     @Override
-    public Pair<Integer, byte[]> readMessage() throws IOException {
+    public SynchronousResponse readMessage() throws IOException {
         Assertions.checkTrue(read(typeBuffer));
         final int type = TYPE_SERDE.fromBytes(typeBuffer);
         if (type == TYPE_CLOSED_VALUE) {
             throw new EOFException("Channel was closed by the other endpoint");
         }
+        Assertions.checkTrue(read(sequenceBuffer));
+        final int sequence = SEQUENCE_SERDE.fromBytes(sequenceBuffer);
         Assertions.checkTrue(read(sizeBuffer));
         final int size = SIZE_SERDE.fromBytes(sizeBuffer);
         final byte[] message = new byte[size];
         if (size > 0) {
             Assertions.checkTrue(read(message));
         }
-        return Pair.of(type, message);
+        return new SynchronousResponse(type, sequence, message);
     }
 
     private boolean read(final byte[] buffer) throws IOException {

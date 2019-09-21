@@ -23,9 +23,14 @@ public abstract class ASocketSynchronousChannel implements ISynchronousChannel {
     public static final int TYPE_OFFSET = TYPE_SERDE.toBytes(Integer.MAX_VALUE).length;
     public static final byte TYPE_CLOSED_VALUE = -1;
 
-    public static final int SIZE_POS = TYPE_POS + TYPE_OFFSET;
-    public static final Serde<Integer> SIZE_SERDE = TYPE_SERDE;
-    public static final int SIZE_OFFSET = TYPE_OFFSET;
+    public static final int SEQUENCE_POS = TYPE_POS + TYPE_OFFSET;
+    public static final Serde<Integer> SEQUENCE_SERDE = TYPE_SERDE;
+    public static final int SEQUENCE_OFFSET = TYPE_OFFSET;
+    public static final byte SEQUENCE_CLOSED_VALUE = -1;
+
+    public static final int SIZE_POS = SEQUENCE_POS + SEQUENCE_OFFSET;
+    public static final Serde<Integer> SIZE_SERDE = SEQUENCE_SERDE;
+    public static final int SIZE_OFFSET = SEQUENCE_OFFSET;
 
     public static final int MESSAGE_POS = SIZE_POS + SIZE_OFFSET;
 

@@ -7,7 +7,7 @@ import java.net.SocketAddress;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousReader;
-import de.invesdwin.util.bean.tuple.Pair;
+import de.invesdwin.context.persistence.timeseries.ipc.SynchronousResponse;
 
 @NotThreadSafe
 public class DatagramSocketSynchronousReader extends ADatagramSocketSynchronousChannel implements ISynchronousReader {
@@ -23,13 +23,14 @@ public class DatagramSocketSynchronousReader extends ADatagramSocketSynchronousC
     }
 
     @Override
-    public Pair<Integer, byte[]> readMessage() throws IOException {
+    public SynchronousResponse readMessage() throws IOException {
         final int type = getType();
         if (type == TYPE_CLOSED_VALUE) {
             throw new EOFException("Channel was closed by the other endpoint");
         }
+        final int sequence = getSequence();
         final byte[] message = getMessage();
-        return Pair.of(type, message);
+        return new SynchronousResponse(type, sequence, message);
     }
 
 }

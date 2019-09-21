@@ -7,7 +7,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousChannel;
 import ezdb.serde.IntegerSerde;
-import ezdb.serde.LongSerde;
 
 @NotThreadSafe
 public abstract class AMappedSynchronousChannel implements ISynchronousChannel {
@@ -21,8 +20,11 @@ public abstract class AMappedSynchronousChannel implements ISynchronousChannel {
     public static final long TYPE_POS = TRANSACTION_POS + TRANSACTION_OFFSET;
     public static final int TYPE_OFFSET = IntegerSerde.get.toBytes(Integer.MAX_VALUE).length;
 
-    public static final long SIZE_POS = TYPE_POS + TYPE_OFFSET;
-    public static final int SIZE_OFFSET = LongSerde.get.toBytes(Long.MAX_VALUE).length;
+    public static final long SEQUENCE_POS = TYPE_POS + TYPE_OFFSET;
+    public static final int SEQUENCE_OFFSET = TYPE_OFFSET;
+
+    public static final long SIZE_POS = SEQUENCE_POS + SEQUENCE_OFFSET;
+    public static final int SIZE_OFFSET = SEQUENCE_OFFSET;
 
     public static final long MESSAGE_POS = SIZE_POS + SIZE_OFFSET;
     public static final int MIN_PHYSICAL_MESSAGE_SIZE = 4096 - (int) MESSAGE_POS;
@@ -76,6 +78,14 @@ public abstract class AMappedSynchronousChannel implements ISynchronousChannel {
 
     protected int getType() {
         return mem.getInt(TYPE_POS);
+    }
+
+    protected void setSequence(final int val) {
+        mem.putInt(SEQUENCE_POS, val);
+    }
+
+    protected int getSequence() {
+        return mem.getInt(SEQUENCE_POS);
     }
 
     private void setSize(final int val) {

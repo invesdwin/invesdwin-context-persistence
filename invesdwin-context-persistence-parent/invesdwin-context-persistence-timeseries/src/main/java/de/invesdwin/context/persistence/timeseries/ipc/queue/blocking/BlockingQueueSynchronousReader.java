@@ -7,15 +7,15 @@ import java.util.concurrent.BlockingQueue;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousReader;
+import de.invesdwin.context.persistence.timeseries.ipc.SynchronousResponse;
 import de.invesdwin.context.persistence.timeseries.ipc.queue.QueueSynchronousWriter;
-import de.invesdwin.util.bean.tuple.Pair;
 
 @NotThreadSafe
 public class BlockingQueueSynchronousReader extends ABlockingQueueSynchronousChannel implements ISynchronousReader {
 
-    private Pair<Integer, byte[]> next;
+    private SynchronousResponse next;
 
-    public BlockingQueueSynchronousReader(final BlockingQueue<Pair<Integer, byte[]>> queue) {
+    public BlockingQueueSynchronousReader(final BlockingQueue<SynchronousResponse> queue) {
         super(queue);
     }
 
@@ -29,8 +29,8 @@ public class BlockingQueueSynchronousReader extends ABlockingQueueSynchronousCha
     }
 
     @Override
-    public Pair<Integer, byte[]> readMessage() throws IOException {
-        final Pair<Integer, byte[]> message;
+    public SynchronousResponse readMessage() throws IOException {
+        final SynchronousResponse message;
         message = next;
         next = null;
         if (message == QueueSynchronousWriter.CLOSED_MESSAGE) {

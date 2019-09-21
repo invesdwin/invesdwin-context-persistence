@@ -9,8 +9,8 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.math3.random.RandomGenerator;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousChannel;
+import de.invesdwin.context.persistence.timeseries.ipc.SynchronousResponse;
 import de.invesdwin.context.persistence.timeseries.ipc.queue.QueueSynchronousWriter;
-import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
 import de.invesdwin.util.math.random.RandomGenerators;
@@ -21,9 +21,9 @@ public abstract class ABlockingQueueSynchronousChannel implements ISynchronousCh
     public static final WrappedExecutorService CLOSED_SYNCHRONIZER = Executors
             .newCachedThreadPool(ABlockingQueueSynchronousChannel.class.getSimpleName() + "_closedSynchronizer");
 
-    protected BlockingQueue<Pair<Integer, byte[]>> queue;
+    protected BlockingQueue<SynchronousResponse> queue;
 
-    public ABlockingQueueSynchronousChannel(final BlockingQueue<Pair<Integer, byte[]>> queue) {
+    public ABlockingQueueSynchronousChannel(final BlockingQueue<SynchronousResponse> queue) {
         this.queue = queue;
     }
 
@@ -39,7 +39,7 @@ public abstract class ABlockingQueueSynchronousChannel implements ISynchronousCh
     }
 
     protected void sendClosedMessage() {
-        final BlockingQueue<Pair<Integer, byte[]>> queueCopy = queue;
+        final BlockingQueue<SynchronousResponse> queueCopy = queue;
         CLOSED_SYNCHRONIZER.execute(new Runnable() {
             @Override
             public void run() {

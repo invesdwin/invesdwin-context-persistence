@@ -33,7 +33,6 @@ import de.invesdwin.context.persistence.timeseries.ipc.socket.udp.DatagramSocket
 import de.invesdwin.context.persistence.timeseries.serde.FDateSerde;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
@@ -57,6 +56,7 @@ public class ChannelPerformanceTest extends ATest {
     private static final boolean DEBUG = false;
     private static final int MESSAGE_SIZE = FDateSerde.FIXED_LENGTH;
     private static final int MESSAGE_TYPE = 1;
+    private static final int MESSAGE_SEQUENCE = 1;
     private static final int VALUES = DEBUG ? 10 : 1_000_000;
     private static final int FLUSH_INTERVAL = Math.max(10, VALUES / 10);
     private static final Duration MAX_WAIT_DURATION = new Duration(10, DEBUG ? FTimeUnit.DAYS : FTimeUnit.SECONDS);
@@ -130,42 +130,41 @@ public class ChannelPerformanceTest extends ATest {
     @Test
     public void testArrayDequePerformance() throws InterruptedException {
         //ArrayDeque is not threadsafe, thus requires manual synchronization
-        final Queue<Pair<Integer, byte[]>> responseQueue = new ArrayDeque<Pair<Integer, byte[]>>();
-        final Queue<Pair<Integer, byte[]>> requestQueue = new ArrayDeque<Pair<Integer, byte[]>>();
+        final Queue<SynchronousResponse> responseQueue = new ArrayDeque<SynchronousResponse>();
+        final Queue<SynchronousResponse> requestQueue = new ArrayDeque<SynchronousResponse>();
         runQueuePerformanceTest(responseQueue, requestQueue, requestQueue, responseQueue);
     }
 
     @Test
     public void testLinkedBlockingQueuePerformance() throws InterruptedException {
-        final Queue<Pair<Integer, byte[]>> responseQueue = new LinkedBlockingQueue<Pair<Integer, byte[]>>();
-        final Queue<Pair<Integer, byte[]>> requestQueue = new LinkedBlockingQueue<Pair<Integer, byte[]>>();
+        final Queue<SynchronousResponse> responseQueue = new LinkedBlockingQueue<SynchronousResponse>();
+        final Queue<SynchronousResponse> requestQueue = new LinkedBlockingQueue<SynchronousResponse>();
         runQueuePerformanceTest(responseQueue, requestQueue, null, null);
     }
 
     @Test
     public void testLinkedBlockingQueuePerformanceWithBlocking() throws InterruptedException {
-        final BlockingQueue<Pair<Integer, byte[]>> responseQueue = new LinkedBlockingQueue<Pair<Integer, byte[]>>();
-        final BlockingQueue<Pair<Integer, byte[]>> requestQueue = new LinkedBlockingQueue<Pair<Integer, byte[]>>();
+        final BlockingQueue<SynchronousResponse> responseQueue = new LinkedBlockingQueue<SynchronousResponse>();
+        final BlockingQueue<SynchronousResponse> requestQueue = new LinkedBlockingQueue<SynchronousResponse>();
         runBlockingQueuePerformanceTest(responseQueue, requestQueue, null, null);
     }
 
     @Test
     public void testSynchronousQueuePerformance() throws InterruptedException {
-        final SynchronousQueue<Pair<Integer, byte[]>> responseQueue = new SynchronousQueue<Pair<Integer, byte[]>>(
-                false);
-        final SynchronousQueue<Pair<Integer, byte[]>> requestQueue = new SynchronousQueue<Pair<Integer, byte[]>>(false);
+        final SynchronousQueue<SynchronousResponse> responseQueue = new SynchronousQueue<SynchronousResponse>(false);
+        final SynchronousQueue<SynchronousResponse> requestQueue = new SynchronousQueue<SynchronousResponse>(false);
         runBlockingQueuePerformanceTest(responseQueue, requestQueue, null, null);
     }
 
     @Test
     public void testSynchronousQueuePerformanceWithFair() throws InterruptedException {
-        final SynchronousQueue<Pair<Integer, byte[]>> responseQueue = new SynchronousQueue<Pair<Integer, byte[]>>(true);
-        final SynchronousQueue<Pair<Integer, byte[]>> requestQueue = new SynchronousQueue<Pair<Integer, byte[]>>(true);
+        final SynchronousQueue<SynchronousResponse> responseQueue = new SynchronousQueue<SynchronousResponse>(true);
+        final SynchronousQueue<SynchronousResponse> requestQueue = new SynchronousQueue<SynchronousResponse>(true);
         runBlockingQueuePerformanceTest(responseQueue, requestQueue, null, null);
     }
 
-    private void runQueuePerformanceTest(final Queue<Pair<Integer, byte[]>> responseQueue,
-            final Queue<Pair<Integer, byte[]>> requestQueue, final Object synchronizeRequest,
+    private void runQueuePerformanceTest(final Queue<SynchronousResponse> responseQueue,
+            final Queue<SynchronousResponse> requestQueue, final Object synchronizeRequest,
             final Object synchronizeResponse) throws InterruptedException {
         final ISynchronousWriter responseWriter = maybeSynchronize(new QueueSynchronousWriter(responseQueue),
                 synchronizeResponse);
@@ -182,8 +181,8 @@ public class ChannelPerformanceTest extends ATest {
         executor.awaitTermination();
     }
 
-    private void runBlockingQueuePerformanceTest(final BlockingQueue<Pair<Integer, byte[]>> responseQueue,
-            final BlockingQueue<Pair<Integer, byte[]>> requestQueue, final Object synchronizeRequest,
+    private void runBlockingQueuePerformanceTest(final BlockingQueue<SynchronousResponse> responseQueue,
+            final BlockingQueue<SynchronousResponse> requestQueue, final Object synchronizeRequest,
             final Object synchronizeResponse) throws InterruptedException {
         final ISynchronousWriter responseWriter = maybeSynchronize(new BlockingQueueSynchronousWriter(responseQueue),
                 synchronizeResponse);
@@ -319,18 +318,20 @@ public class ChannelPerformanceTest extends ATest {
             };
             Instant waitingSince = new Instant();
             while (true) {
-                requestWriter.write(MESSAGE_TYPE, Bytes.EMPTY_ARRAY);
+                requestWriter.write(MESSAGE_TYPE, MESSAGE_SEQUENCE, Bytes.EMPTY_ARRAY);
                 if (DEBUG) {
                     log.info("client request out");
                 }
                 Assertions.checkTrue(spinWait.awaitFulfill(waitingSince, MAX_WAIT_DURATION));
-                final Pair<Integer, byte[]> readMessage = responseReader.readMessage();
+                final SynchronousResponse readMessage = responseReader.readMessage();
                 if (DEBUG) {
                     log.info("client response in");
                 }
-                final int messageType = readMessage.getFirst();
-                final byte[] responseBytes = readMessage.getSecond();
+                final int messageType = readMessage.getType();
+                final int messageSequence = readMessage.getSequence();
+                final byte[] responseBytes = readMessage.getMessage();
                 Assertions.checkEquals(messageType, MESSAGE_TYPE);
+                Assertions.checkEquals(messageSequence, MESSAGE_SEQUENCE);
                 Assertions.checkEquals(responseBytes.length, MESSAGE_SIZE);
                 final FDate value = FDateSerde.GET.fromBytes(responseBytes);
                 if (prevValue != null) {
@@ -408,12 +409,13 @@ public class ChannelPerformanceTest extends ATest {
                     if (DEBUG) {
                         log.info("server request in");
                     }
-                    final Pair<Integer, byte[]> readMessage = requestReader.readMessage();
-                    Assertions.checkEquals(readMessage.getFirst(), MESSAGE_TYPE);
-                    Assertions.checkEquals(readMessage.getSecond().length, 0);
+                    final SynchronousResponse readMessage = requestReader.readMessage();
+                    Assertions.checkEquals(readMessage.getType(), MESSAGE_TYPE);
+                    Assertions.checkEquals(readMessage.getSequence(), MESSAGE_SEQUENCE);
+                    Assertions.checkEquals(readMessage.getMessage().length, 0);
                     final byte[] responseBytes = FDateSerde.GET.toBytes(date);
                     Assertions.checkEquals(responseBytes.length, MESSAGE_SIZE);
-                    responseWriter.write(MESSAGE_TYPE, responseBytes);
+                    responseWriter.write(MESSAGE_TYPE, MESSAGE_SEQUENCE, responseBytes);
                     if (DEBUG) {
                         log.info("server response out");
                     }

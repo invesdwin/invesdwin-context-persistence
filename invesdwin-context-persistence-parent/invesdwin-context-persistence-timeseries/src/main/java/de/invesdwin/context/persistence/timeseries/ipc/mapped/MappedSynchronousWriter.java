@@ -35,12 +35,14 @@ public class MappedSynchronousWriter extends AMappedSynchronousChannel implement
      *             in case the end of the file was reached
      */
     @Override
-    public void write(final int type, final byte[] message) {
+    public void write(final int type, final int sequence, final byte[] message) {
         final byte nextTransaction = getNextTransaction();
         //open transaction
         setTransaction(TRANSACTION_WRITING_VALUE);
 
         setType(type);
+
+        setSequence(sequence);
 
         setMessage(message);
 

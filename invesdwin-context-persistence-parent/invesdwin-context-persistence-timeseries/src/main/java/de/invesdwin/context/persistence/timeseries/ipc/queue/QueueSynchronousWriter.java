@@ -7,16 +7,16 @@ import java.util.concurrent.SynchronousQueue;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousWriter;
+import de.invesdwin.context.persistence.timeseries.ipc.SynchronousResponse;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.bean.tuple.Pair;
 
 @NotThreadSafe
 public class QueueSynchronousWriter implements ISynchronousWriter {
 
-    public static final Pair<Integer, byte[]> CLOSED_MESSAGE = Pair.of(null, null);
-    private Queue<Pair<Integer, byte[]>> queue;
+    public static final SynchronousResponse CLOSED_MESSAGE = new SynchronousResponse(-1, -1, null);
+    private Queue<SynchronousResponse> queue;
 
-    public QueueSynchronousWriter(final Queue<Pair<Integer, byte[]>> queue) {
+    public QueueSynchronousWriter(final Queue<SynchronousResponse> queue) {
         Assertions.assertThat(queue)
                 .as("this implementation does not support non-blocking calls")
                 .isNotInstanceOf(SynchronousQueue.class);
@@ -33,8 +33,8 @@ public class QueueSynchronousWriter implements ISynchronousWriter {
     }
 
     @Override
-    public void write(final int type, final byte[] message) throws IOException {
-        queue.add(Pair.of(type, message));
+    public void write(final int type, final int sequence, final byte[] message) throws IOException {
+        queue.add(new SynchronousResponse(type, sequence, message));
     }
 
 }

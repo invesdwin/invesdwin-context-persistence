@@ -27,7 +27,7 @@ public class PipeSynchronousWriter extends APipeSynchronousChannel implements IS
     @Override
     public void close() throws IOException {
         try {
-            writeWithoutTypeCheck(TYPE_CLOSED_VALUE, Bytes.EMPTY_ARRAY);
+            writeWithoutTypeCheck(TYPE_CLOSED_VALUE, SEQUENCE_CLOSED_VALUE, Bytes.EMPTY_ARRAY);
         } catch (final Throwable t) {
             //ignore
         }
@@ -53,15 +53,17 @@ public class PipeSynchronousWriter extends APipeSynchronousChannel implements IS
     }
 
     @Override
-    public void write(final int type, final byte[] message) throws IOException {
+    public void write(final int type, final int sequence, final byte[] message) throws IOException {
         checkType(type);
-        writeWithoutTypeCheck(type, message);
+        writeWithoutTypeCheck(type, sequence, message);
     }
 
-    private void writeWithoutTypeCheck(final int type, final byte[] message) throws IOException {
+    private void writeWithoutTypeCheck(final int type, final int sequence, final byte[] message) throws IOException {
         checkSize(message.length);
         final byte[] typeBuffer = TYPE_SERDE.toBytes(type);
         out.write(typeBuffer);
+        final byte[] sequenceBuffer = SEQUENCE_SERDE.toBytes(sequence);
+        out.write(sequenceBuffer);
         final byte[] sizeBuffer = SIZE_SERDE.toBytes(message.length);
         out.write(sizeBuffer);
         if (message.length > 0) {

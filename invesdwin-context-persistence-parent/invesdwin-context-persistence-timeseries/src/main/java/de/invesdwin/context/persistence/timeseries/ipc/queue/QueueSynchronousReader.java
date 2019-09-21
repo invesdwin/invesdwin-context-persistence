@@ -8,15 +8,15 @@ import java.util.concurrent.SynchronousQueue;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousReader;
+import de.invesdwin.context.persistence.timeseries.ipc.SynchronousResponse;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.bean.tuple.Pair;
 
 @NotThreadSafe
 public class QueueSynchronousReader implements ISynchronousReader {
 
-    private Queue<Pair<Integer, byte[]>> queue;
+    private Queue<SynchronousResponse> queue;
 
-    public QueueSynchronousReader(final Queue<Pair<Integer, byte[]>> queue) {
+    public QueueSynchronousReader(final Queue<SynchronousResponse> queue) {
         Assertions.assertThat(queue)
                 .as("this implementation does not support non-blocking calls")
                 .isNotInstanceOf(SynchronousQueue.class);
@@ -37,8 +37,8 @@ public class QueueSynchronousReader implements ISynchronousReader {
     }
 
     @Override
-    public Pair<Integer, byte[]> readMessage() throws IOException {
-        final Pair<Integer, byte[]> message = queue.remove();
+    public SynchronousResponse readMessage() throws IOException {
+        final SynchronousResponse message = queue.remove();
         if (message == QueueSynchronousWriter.CLOSED_MESSAGE) {
             close();
             throw new EOFException("closed by other side");

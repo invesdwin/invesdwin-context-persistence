@@ -16,7 +16,6 @@ import org.zeroturnaround.exec.stream.slf4j.Slf4jStream;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.instrument.DynamicInstrumentationProperties;
-import de.invesdwin.util.bean.tuple.Pair;
 
 @Immutable
 public final class SynchronousChannels {
@@ -30,7 +29,7 @@ public final class SynchronousChannels {
         public void open() throws IOException {}
 
         @Override
-        public Pair<Integer, byte[]> readMessage() {
+        public SynchronousResponse readMessage() {
             return null;
         }
 
@@ -47,7 +46,7 @@ public final class SynchronousChannels {
         public void open() throws IOException {}
 
         @Override
-        public void write(final int type, final byte[] message) {}
+        public void write(final int type, final int sequence, final byte[] message) {}
     };
     private static final File TMPFS_FOLDER = new File("/dev/shm");
     @GuardedBy("SynchronousChannels.class")
@@ -71,7 +70,7 @@ public final class SynchronousChannels {
             }
 
             @Override
-            public synchronized Pair<Integer, byte[]> readMessage() throws IOException {
+            public synchronized SynchronousResponse readMessage() throws IOException {
                 return delegate.readMessage();
             }
 
@@ -96,8 +95,9 @@ public final class SynchronousChannels {
             }
 
             @Override
-            public synchronized void write(final int type, final byte[] message) throws IOException {
-                delegate.write(type, message);
+            public synchronized void write(final int type, final int sequence, final byte[] message)
+                    throws IOException {
+                delegate.write(type, sequence, message);
             }
 
         };
@@ -121,7 +121,7 @@ public final class SynchronousChannels {
             }
 
             @Override
-            public Pair<Integer, byte[]> readMessage() throws IOException {
+            public SynchronousResponse readMessage() throws IOException {
                 synchronized (lock) {
                     return delegate.readMessage();
                 }
@@ -154,9 +154,9 @@ public final class SynchronousChannels {
             }
 
             @Override
-            public void write(final int type, final byte[] message) throws IOException {
+            public void write(final int type, final int sequence, final byte[] message) throws IOException {
                 synchronized (lock) {
-                    delegate.write(type, message);
+                    delegate.write(type, sequence, message);
                 }
             }
 

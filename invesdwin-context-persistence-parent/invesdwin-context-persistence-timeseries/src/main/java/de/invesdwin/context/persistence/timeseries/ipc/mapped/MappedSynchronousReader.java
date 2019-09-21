@@ -7,7 +7,7 @@ import java.io.IOException;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousReader;
-import de.invesdwin.util.bean.tuple.Pair;
+import de.invesdwin.context.persistence.timeseries.ipc.SynchronousResponse;
 
 /**
  * There can be multiple readers per file, but it is better to only have one.
@@ -55,9 +55,9 @@ public class MappedSynchronousReader extends AMappedSynchronousChannel implement
     }
 
     @Override
-    public Pair<Integer, byte[]> readMessage() {
+    public SynchronousResponse readMessage() {
         lastTransaction = getTransaction();
-        return Pair.of(getType(), getMessage());
+        return new SynchronousResponse(getType(), getSequence(), getMessage());
     }
 
 }
