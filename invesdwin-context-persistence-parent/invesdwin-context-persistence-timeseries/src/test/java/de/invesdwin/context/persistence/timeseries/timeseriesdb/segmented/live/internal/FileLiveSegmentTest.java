@@ -77,7 +77,7 @@ public class FileLiveSegmentTest extends ATest {
 
             @Override
             protected String hashKeyToString(final FDate key) {
-                return key.toString(FDate.FORMAT_TIMESTAMP_UNDERSCORE);
+                return key.toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_MS);
             }
 
             @Override

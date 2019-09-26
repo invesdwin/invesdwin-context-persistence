@@ -244,7 +244,7 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     public File newFile(final FDate time) {
-        return new File(getDataDirectory(), time.toString(FDate.FORMAT_TIMESTAMP_UNDERSCORE) + ".data");
+        return new File(getDataDirectory(), time.toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_MS) + ".data");
     }
 
     public void finishFile(final FDate time, final V firstValue, final V lastValue) {
