@@ -38,6 +38,7 @@ import de.invesdwin.util.lang.Closeables;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.UniqueNameGenerator;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
+import de.invesdwin.util.math.Bytes;
 import ezdb.serde.Serde;
 
 @NotThreadSafe
@@ -175,6 +176,21 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     @Override
     public void close() {
         finalizer.close();
+    }
+
+    /**
+     * Ensures that even if nothing has been added to this collection, the file written at least contains an empty
+     * array. Thus at least creating an empty file.
+     */
+    public void closeWithEmptyWrite() {
+        if (isEmpty()) {
+            try {
+                getFos().write(Bytes.EMPTY_ARRAY);
+            } catch (final IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        close();
     }
 
     public boolean isClosed() {
