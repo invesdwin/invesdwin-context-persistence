@@ -122,7 +122,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         directory.delete();
     }
 
-    protected abstract AHistoricalCache<TimeRange> getSegmentFinder(K key);
+    public abstract AHistoricalCache<TimeRange> getSegmentFinder(K key);
 
     protected SegmentedTimeSeriesStorage getStorage() {
         return (SegmentedTimeSeriesStorage) segmentedTable.getStorage();
@@ -144,9 +144,9 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
                 + key.getSegment().getTo().toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_MS);
     }
 
-    protected abstract FDate getFirstAvailableHistoricalSegmentFrom(K key);
+    public abstract FDate getFirstAvailableHistoricalSegmentFrom(K key);
 
-    protected abstract FDate getLastAvailableHistoricalSegmentTo(K key);
+    public abstract FDate getLastAvailableHistoricalSegmentTo(K key);
 
     @Override
     public synchronized void close() {

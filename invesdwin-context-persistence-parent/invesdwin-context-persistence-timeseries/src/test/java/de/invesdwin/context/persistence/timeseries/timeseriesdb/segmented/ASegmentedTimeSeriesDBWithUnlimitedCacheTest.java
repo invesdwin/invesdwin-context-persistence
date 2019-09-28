@@ -75,7 +75,7 @@ public class ASegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
         table = new ASegmentedTimeSeriesDB<String, FDate>(getClass().getSimpleName()) {
 
             @Override
-            protected AHistoricalCache<TimeRange> getSegmentFinder(final String key) {
+            public AHistoricalCache<TimeRange> getSegmentFinder(final String key) {
                 return segmentFinder;
             }
 
@@ -124,7 +124,7 @@ public class ASegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
             }
 
             @Override
-            protected FDate getFirstAvailableHistoricalSegmentFrom(final String key) {
+            public FDate getFirstAvailableHistoricalSegmentFrom(final String key) {
                 if (entities.isEmpty()) {
                     return null;
                 }
@@ -132,7 +132,7 @@ public class ASegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
             }
 
             @Override
-            protected FDate getLastAvailableHistoricalSegmentTo(final String key) {
+            public FDate getLastAvailableHistoricalSegmentTo(final String key) {
                 if (entities.isEmpty()) {
                     return null;
                 }

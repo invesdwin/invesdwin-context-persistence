@@ -79,7 +79,7 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheTest extends ATest {
             private FDate curTime = null;
 
             @Override
-            protected AHistoricalCache<TimeRange> getSegmentFinder(final String key) {
+            public AHistoricalCache<TimeRange> getSegmentFinder(final String key) {
                 return segmentFinder;
             }
 
@@ -128,7 +128,7 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheTest extends ATest {
             }
 
             @Override
-            protected FDate getFirstAvailableHistoricalSegmentFrom(final String key) {
+            public FDate getFirstAvailableHistoricalSegmentFrom(final String key) {
                 if (entities.isEmpty() || curTime == null) {
                     return null;
                 }
@@ -142,7 +142,7 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheTest extends ATest {
             }
 
             @Override
-            protected FDate getLastAvailableHistoricalSegmentTo(final String key) {
+            public FDate getLastAvailableHistoricalSegmentTo(final String key) {
                 if (entities.isEmpty() || curTime == null) {
                     return null;
                 }

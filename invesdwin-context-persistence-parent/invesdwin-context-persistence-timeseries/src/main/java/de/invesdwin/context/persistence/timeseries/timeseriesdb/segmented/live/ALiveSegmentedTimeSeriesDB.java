@@ -83,7 +83,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         directory.delete();
     }
 
-    protected abstract AHistoricalCache<TimeRange> getSegmentFinder(K key);
+    public abstract AHistoricalCache<TimeRange> getSegmentFinder(K key);
 
     protected SegmentedTimeSeriesStorage getStorage() {
         return historicalSegmentTable.getStorage();
@@ -103,9 +103,9 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         return historicalSegmentTable.hashKeyToString(segmentedKey);
     }
 
-    protected abstract FDate getFirstAvailableHistoricalSegmentFrom(K key);
+    public abstract FDate getFirstAvailableHistoricalSegmentFrom(K key);
 
-    protected abstract FDate getLastAvailableHistoricalSegmentTo(K key);
+    public abstract FDate getLastAvailableHistoricalSegmentTo(K key);
 
     public final class HistoricalSegmentTable extends ASegmentedTimeSeriesDB<K, V> {
         private HistoricalSegmentTable(final String name) {
@@ -270,6 +270,10 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
     @Override
     public String getName() {
         return historicalSegmentTable.getName();
+    }
+
+    public void maybeInitSegment(final SegmentedKey<K> segmentedKey) {
+        historicalSegmentTable.getLookupTableCache(segmentedKey.getKey()).maybeInitSegment(segmentedKey);
     }
 
     private LiveSegmentedTimeSeriesStorageCache<K, V> getLookupTableCache(final K key) {

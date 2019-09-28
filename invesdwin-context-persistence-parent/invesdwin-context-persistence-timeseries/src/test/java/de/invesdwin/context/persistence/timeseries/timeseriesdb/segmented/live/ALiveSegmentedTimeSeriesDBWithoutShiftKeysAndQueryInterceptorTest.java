@@ -83,7 +83,7 @@ public class ALiveSegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest e
             private FDate curTime = null;
 
             @Override
-            protected AHistoricalCache<TimeRange> getSegmentFinder(final String key) {
+            public AHistoricalCache<TimeRange> getSegmentFinder(final String key) {
                 return segmentFinder;
             }
 
@@ -132,7 +132,7 @@ public class ALiveSegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest e
             }
 
             @Override
-            protected FDate getFirstAvailableHistoricalSegmentFrom(final String key) {
+            public FDate getFirstAvailableHistoricalSegmentFrom(final String key) {
                 if (entities.isEmpty() || curTime == null) {
                     return null;
                 }
@@ -146,7 +146,7 @@ public class ALiveSegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest e
             }
 
             @Override
-            protected FDate getLastAvailableHistoricalSegmentTo(final String key) {
+            public FDate getLastAvailableHistoricalSegmentTo(final String key) {
                 if (entities.isEmpty() || curTime == null) {
                     return null;
                 }

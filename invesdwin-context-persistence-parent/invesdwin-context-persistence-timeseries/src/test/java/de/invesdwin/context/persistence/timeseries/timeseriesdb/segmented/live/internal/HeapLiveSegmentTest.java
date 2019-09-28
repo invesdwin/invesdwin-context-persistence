@@ -51,7 +51,7 @@ public class HeapLiveSegmentTest extends ATest {
             }
 
             @Override
-            protected AHistoricalCache<TimeRange> getSegmentFinder(final FDate key) {
+            public AHistoricalCache<TimeRange> getSegmentFinder(final FDate key) {
                 throw new UnsupportedOperationException();
             }
 
@@ -81,12 +81,12 @@ public class HeapLiveSegmentTest extends ATest {
             }
 
             @Override
-            protected FDate getFirstAvailableHistoricalSegmentFrom(final FDate key) {
+            public FDate getFirstAvailableHistoricalSegmentFrom(final FDate key) {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            protected FDate getLastAvailableHistoricalSegmentTo(final FDate key) {
+            public FDate getLastAvailableHistoricalSegmentTo(final FDate key) {
                 throw new UnsupportedOperationException();
             }
 

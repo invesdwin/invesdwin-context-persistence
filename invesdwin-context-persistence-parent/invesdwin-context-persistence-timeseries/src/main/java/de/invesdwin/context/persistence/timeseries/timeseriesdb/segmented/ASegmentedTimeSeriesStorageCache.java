@@ -297,7 +297,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
 
     protected abstract AHistoricalCache<TimeRange> getSegmentFinder(K key);
 
-    private void maybeInitSegment(final SegmentedKey<K> segmentedKey) {
+    public void maybeInitSegment(final SegmentedKey<K> segmentedKey) {
         maybeInitSegment(segmentedKey, source);
     }
 
