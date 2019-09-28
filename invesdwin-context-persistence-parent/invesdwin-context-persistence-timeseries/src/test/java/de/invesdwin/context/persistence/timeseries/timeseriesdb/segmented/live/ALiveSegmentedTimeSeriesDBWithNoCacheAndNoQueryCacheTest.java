@@ -7,6 +7,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -108,6 +109,11 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends AT
             @Override
             protected FDate innerCalculatePreviousKey(final FDate key) {
                 return query().getValue(key).getFrom().addMilliseconds(-1);
+            }
+
+            @Override
+            public void preloadData(final ExecutorService executor) {
+                //noop
             }
 
         };

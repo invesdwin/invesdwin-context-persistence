@@ -1,5 +1,6 @@
 package de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented;
 
+import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -53,6 +54,11 @@ public class PeriodicalSegmentFinder {
         @Override
         protected FDate innerCalculatePreviousKey(final FDate key) {
             return key;
+        }
+
+        @Override
+        public void preloadData(final ExecutorService executor) {
+            //noop
         }
     };
 
@@ -291,6 +297,11 @@ public class PeriodicalSegmentFinder {
             @Override
             protected FDate innerCalculatePreviousKey(final FDate key) {
                 return query().getValue(key).getFrom().addMilliseconds(-1);
+            }
+
+            @Override
+            public void preloadData(final ExecutorService executor) {
+                //noop
             }
 
         };
