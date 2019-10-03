@@ -24,6 +24,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.concurrent.AParallelChunkConsumerIterator;
 import de.invesdwin.util.collections.iterable.concurrent.AProducerQueueIterator;
 import de.invesdwin.util.concurrent.Executors;
+import de.invesdwin.util.concurrent.lock.FileChannelLock;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
@@ -83,8 +84,9 @@ public abstract class ATimeSeriesUpdater<K, V> {
         } catch (final InterruptedException e1) {
             throw new RuntimeException(e1);
         }
-        try {
-            if (updateLockFile.exists()) {
+        final File updateLockSyncFile = new File(updateLockFile.getAbsolutePath() + ".sync");
+        try (FileChannelLock updateLockSyncFileLock = new FileChannelLock(updateLockSyncFile)) {
+            if (updateLockFile.exists() || updateLockSyncFileLock.tryLock()) {
                 throw new IncompleteUpdateFoundException("Incomplete update found for table [" + table.getName()
                         + "] and key [" + key + "], need to clean everything up to restore all from scratch.");
             }
