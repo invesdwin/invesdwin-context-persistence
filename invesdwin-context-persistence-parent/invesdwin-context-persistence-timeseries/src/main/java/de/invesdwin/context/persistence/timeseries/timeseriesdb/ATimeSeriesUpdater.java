@@ -86,7 +86,7 @@ public abstract class ATimeSeriesUpdater<K, V> {
         }
         final File updateLockSyncFile = new File(updateLockFile.getAbsolutePath() + ".sync");
         try (FileChannelLock updateLockSyncFileLock = new FileChannelLock(updateLockSyncFile)) {
-            if (!updateLockSyncFileLock.tryLock() || updateLockFile.exists()) {
+            if (updateLockSyncFile.exists() || !updateLockSyncFileLock.tryLock() || updateLockFile.exists()) {
                 throw new IncompleteUpdateFoundException("Incomplete update found for table [" + table.getName()
                         + "] and key [" + key + "], need to clean everything up to restore all from scratch.");
             }
