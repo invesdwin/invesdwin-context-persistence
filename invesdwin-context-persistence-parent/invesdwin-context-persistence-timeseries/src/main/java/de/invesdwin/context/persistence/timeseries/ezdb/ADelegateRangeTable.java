@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.Map.Entry;
+import java.util.concurrent.Callable;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.function.Function;
 
@@ -415,6 +416,64 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         if (cachedValue == null) {
             //don't hold read lock while loading value
             final V loadedValue = loadable.apply(Pair.of(hashKey, rangeKey));
+            //write lock is only for the actual table variable, not the table values, thus read lock is fine here
+            table = getTableWithReadLock();
+            try {
+                table.put(hashKey, rangeKey, loadedValue);
+            } finally {
+                tableLock.readLock().unlock();
+            }
+            return loadedValue;
+        } else {
+            return cachedValue;
+        }
+    }
+
+    public V getOrLoad(final H hashKey, final Callable<V> loadable) {
+        RangeTable<H, R, V> table = getTableWithReadLock();
+        final V cachedValue;
+        try {
+            cachedValue = table.get(hashKey);
+        } finally {
+            tableLock.readLock().unlock();
+        }
+        if (cachedValue == null) {
+            //don't hold read lock while loading value
+            final V loadedValue;
+            try {
+                loadedValue = loadable.call();
+            } catch (final Exception e) {
+                throw new RuntimeException(e);
+            }
+            //write lock is only for the actual table variable, not the table values, thus read lock is fine here
+            table = getTableWithReadLock();
+            try {
+                table.put(hashKey, loadedValue);
+            } finally {
+                tableLock.readLock().unlock();
+            }
+            return loadedValue;
+        } else {
+            return cachedValue;
+        }
+    }
+
+    public V getOrLoad(final H hashKey, final R rangeKey, final Callable<V> loadable) {
+        RangeTable<H, R, V> table = getTableWithReadLock();
+        final V cachedValue;
+        try {
+            cachedValue = table.get(hashKey, rangeKey);
+        } finally {
+            tableLock.readLock().unlock();
+        }
+        if (cachedValue == null) {
+            //don't hold read lock while loading value
+            final V loadedValue;
+            try {
+                loadedValue = loadable.call();
+            } catch (final Exception e) {
+                throw new RuntimeException(e);
+            }
             //write lock is only for the actual table variable, not the table values, thus read lock is fine here
             table = getTableWithReadLock();
             try {
