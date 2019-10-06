@@ -9,6 +9,8 @@ import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesUpdat
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.lang.ProcessedEventsRateString;
 import de.invesdwin.util.math.Integers;
+import de.invesdwin.util.math.decimal.scaled.Percent;
+import de.invesdwin.util.math.decimal.scaled.PercentScale;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.fdate.FDate;
@@ -58,9 +60,17 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
         //if we are too fast, only print status once a second
         if (lastFlushTime == null || lastFlushTime.toDuration().isGreaterThan(Duration.ONE_SECOND)) {
             final Duration flushDuration = updateStart.toDuration();
-            log.info("Persisted %s. %s batch for [%s]. Reached time [%s]. Processed [%s] during %s", lastFlushIndex,
-                    getElementsName(), keyToString(getKey()), lastFlushMaxTime,
-                    new ProcessedEventsRateString(flushElementCount, flushDuration), flushDuration);
+            final Percent progress = getProgress();
+            if (progress != null) {
+                log.info("Persisted %s. %s batch for [%s]. Reached [%s] at time [%s]. Processed [%s] during %s",
+                        lastFlushIndex, getElementsName(), keyToString(getKey()),
+                        progress.asScale(PercentScale.PERCENT), lastFlushMaxTime,
+                        new ProcessedEventsRateString(flushElementCount, flushDuration), flushDuration);
+            } else {
+                log.info("Persisted %s. %s batch for [%s]. Reached time [%s]. Processed [%s] during %s", lastFlushIndex,
+                        getElementsName(), keyToString(getKey()), lastFlushMaxTime,
+                        new ProcessedEventsRateString(flushElementCount, flushDuration), flushDuration);
+            }
             lastFlushTime = new Instant();
         }
 
@@ -80,4 +90,6 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
     protected abstract String keyToString(K key);
 
     protected abstract String getElementsName();
+
+    public abstract Percent getProgress();
 }

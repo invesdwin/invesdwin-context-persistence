@@ -21,6 +21,8 @@ import de.invesdwin.util.concurrent.nested.ANestedExecutor;
 import de.invesdwin.util.concurrent.taskinfo.TaskInfoManager;
 import de.invesdwin.util.concurrent.taskinfo.provider.TaskInfoCallable;
 import de.invesdwin.util.error.Throwables;
+import de.invesdwin.util.math.decimal.scaled.Percent;
+import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.fdate.FDates;
 import io.netty.util.concurrent.FastThreadLocal;
@@ -125,8 +127,8 @@ public abstract class ADataUpdater<K, V> {
         return !FDates.isSameJulianDay(lastUpdateCheck, curTime);
     }
 
-    protected final FDate doUpdate() throws IncompleteUpdateFoundException {
-        final ATimeSeriesUpdater<K, V> updater = new ALoggingTimeSeriesUpdater<K, V>(key, getTable(), log) {
+    protected final FDate doUpdate(final FDate estimatedTo) throws IncompleteUpdateFoundException {
+        final ALoggingTimeSeriesUpdater<K, V> updater = new ALoggingTimeSeriesUpdater<K, V>(key, getTable(), log) {
 
             @Override
             protected FDate extractTime(final V element) {
@@ -159,6 +161,23 @@ public abstract class ADataUpdater<K, V> {
                 return ADataUpdater.this.shouldWriteInParallel();
             }
 
+            @Override
+            public Percent getProgress() {
+                if (estimatedTo == null) {
+                    return null;
+                }
+                final FDate from = getMinTime();
+                if (from == null) {
+                    return null;
+                }
+                final FDate curTime = getMaxTime();
+                if (curTime == null) {
+                    return null;
+                }
+                return new Percent(new Duration(from, curTime), new Duration(from, estimatedTo))
+                        .orLower(Percent.ONE_HUNDRED_PERCENT);
+            }
+
         };
         String taskName = TaskInfoManager.getCurrentThreadTaskInfoName();
         if (taskName == null) {
@@ -171,13 +190,27 @@ public abstract class ADataUpdater<K, V> {
                 return updater.getMaxTime();
             }
         };
+        final Callable<Percent> progress = newProgressCallable(estimatedTo, updater);
         try {
-            return TaskInfoCallable.of(taskName, task).call();
+            return TaskInfoCallable.of(taskName, task, progress).call();
         } catch (final IncompleteUpdateFoundException e) {
             throw e;
         } catch (final Throwable e) {
             throw Throwables.propagate(e);
         }
+    }
+
+    protected Callable<Percent> newProgressCallable(final FDate estimatedTo,
+            final ALoggingTimeSeriesUpdater<K, V> updater) {
+        if (estimatedTo == null) {
+            return null;
+        }
+        return new Callable<Percent>() {
+            @Override
+            public Percent call() throws Exception {
+                return updater.getProgress();
+            }
+        };
     }
 
     protected boolean shouldWriteInParallel() {

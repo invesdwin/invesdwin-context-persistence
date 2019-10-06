@@ -3,6 +3,7 @@ package de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented;
 import java.io.OutputStream;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -36,9 +37,11 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.taskinfo.TaskInfoManager;
-import de.invesdwin.util.concurrent.taskinfo.provider.TaskInfoRunnable;
+import de.invesdwin.util.concurrent.taskinfo.provider.TaskInfoCallable;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.error.Throwables;
+import de.invesdwin.util.math.decimal.scaled.Percent;
+import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.fdate.FDates;
 import de.invesdwin.util.time.range.TimeRange;
@@ -412,11 +415,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                 initSegment(segmentedKey, source);
             }
         };
-        String taskName = TaskInfoManager.getCurrentThreadTaskInfoName();
-        if (taskName == null) {
-            taskName = "Loading " + getElementsName() + " for " + hashKey;
-        }
-        TaskInfoRunnable.of(taskName, retryTask).run();
+        retryTask.run();
     }
 
     private void initSegment(final SegmentedKey<K> segmentedKey,
@@ -456,9 +455,40 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                     return ASegmentedTimeSeriesStorageCache.this.newCompressor(out);
                 }
 
+                @Override
+                public Percent getProgress() {
+                    final FDate estimatedTo = segmentedKey.getSegment().getTo();
+                    final FDate from = getMinTime();
+                    if (from == null) {
+                        return null;
+                    }
+                    final FDate curTime = getMaxTime();
+                    if (curTime == null) {
+                        return null;
+                    }
+                    return new Percent(new Duration(from, curTime), new Duration(from, estimatedTo))
+                            .orLower(Percent.ONE_HUNDRED_PERCENT);
+                }
             };
-            //write lock is reentrant
-            updater.update();
+            String taskName = TaskInfoManager.getCurrentThreadTaskInfoName();
+            if (taskName == null) {
+                taskName = "Loading " + getElementsName() + " for " + hashKey;
+            }
+            final Callable<Void> task = new Callable<Void>() {
+                @Override
+                public Void call() throws Exception {
+                    //write lock is reentrant
+                    updater.update();
+                    return null;
+                }
+            };
+            final Callable<Percent> progress = new Callable<Percent>() {
+                @Override
+                public Percent call() throws Exception {
+                    return updater.getProgress();
+                }
+            };
+            TaskInfoCallable.of(taskName, task, progress).call();
             final FDate minTime = updater.getMinTime();
             if (minTime != null) {
                 final FDate segmentFrom = segmentedKey.getSegment().getFrom();
@@ -476,6 +506,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
         } catch (final IncompleteUpdateFoundException e) {
             segmentedTable.deleteRange(new SegmentedKey<K>(segmentedKey.getKey(), segmentedKey.getSegment()));
             throw new RetryLaterRuntimeException(e);
+        } catch (final Throwable e) {
+            throw Throwables.propagate(e);
         }
     }
 

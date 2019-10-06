@@ -44,8 +44,8 @@ public abstract class ATimeSeriesUpdater<K, V> {
     private final File updateLockFile;
 
     private final K key;
-    private FDate minTime = null;
-    private FDate maxTime = null;
+    private volatile FDate minTime = null;
+    private volatile FDate maxTime = null;
     private int count = 0;
 
     public ATimeSeriesUpdater(final K key, final ATimeSeriesDB<K, V> table) {
