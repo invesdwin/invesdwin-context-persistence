@@ -1,5 +1,6 @@
 package de.invesdwin.context.persistence.timeseries.timeseriesdb.updater;
 
+import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
@@ -17,6 +18,9 @@ import de.invesdwin.util.concurrent.future.Futures;
 import de.invesdwin.util.concurrent.lock.IReentrantLock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.nested.ANestedExecutor;
+import de.invesdwin.util.concurrent.taskinfo.TaskInfoManager;
+import de.invesdwin.util.concurrent.taskinfo.provider.TaskInfoCallable;
+import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.fdate.FDates;
 import io.netty.util.concurrent.FastThreadLocal;
@@ -156,8 +160,24 @@ public abstract class ADataUpdater<K, V> {
             }
 
         };
-        updater.update();
-        return updater.getMaxTime();
+        String taskName = TaskInfoManager.getCurrentThreadTaskInfoName();
+        if (taskName == null) {
+            taskName = "Loading " + getElementsName() + " for " + keyToString(getKey());
+        }
+        final Callable<FDate> task = new Callable<FDate>() {
+            @Override
+            public FDate call() throws Exception {
+                updater.update();
+                return updater.getMaxTime();
+            }
+        };
+        try {
+            return TaskInfoCallable.of(taskName, task).call();
+        } catch (final IncompleteUpdateFoundException e) {
+            throw e;
+        } catch (final Throwable e) {
+            throw Throwables.propagate(e);
+        }
     }
 
     protected boolean shouldWriteInParallel() {
