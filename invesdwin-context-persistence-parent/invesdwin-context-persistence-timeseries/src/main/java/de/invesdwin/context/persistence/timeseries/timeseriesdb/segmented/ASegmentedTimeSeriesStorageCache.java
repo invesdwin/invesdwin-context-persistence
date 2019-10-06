@@ -35,6 +35,8 @@ import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
+import de.invesdwin.util.concurrent.taskinfo.TaskInfoManager;
+import de.invesdwin.util.concurrent.taskinfo.provider.TaskInfoRunnable;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.time.fdate.FDate;
@@ -403,12 +405,18 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
 
     private void initSegmentRetry(final SegmentedKey<K> segmentedKey,
             final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
-        new ARetryingRunnable(new RetryOriginator(ASegmentedTimeSeriesDB.class, "initSegment", segmentedKey)) {
+        final ARetryingRunnable retryTask = new ARetryingRunnable(
+                new RetryOriginator(ASegmentedTimeSeriesDB.class, "initSegment", segmentedKey)) {
             @Override
             protected void runRetryable() throws Exception {
                 initSegment(segmentedKey, source);
             }
-        }.run();
+        };
+        String taskName = TaskInfoManager.getCurrentThreadTaskInfoName();
+        if (taskName == null) {
+            taskName = "Loading " + getElementsName() + " for " + hashKey;
+        }
+        TaskInfoRunnable.of(taskName, retryTask).run();
     }
 
     private void initSegment(final SegmentedKey<K> segmentedKey,
