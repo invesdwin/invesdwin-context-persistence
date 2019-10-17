@@ -16,12 +16,11 @@ import de.invesdwin.context.persistence.timeseries.timeseriesdb.SerializingColle
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
-import de.invesdwin.util.collections.iterable.ASkippingIterable;
+import de.invesdwin.util.collections.iterable.ATimeRangeSkippingIterable;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.SingleValueIterable;
-import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
 
@@ -107,47 +106,23 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
                 return new SingleValueIterable<V>(firstValue);
             }
         }
-        if (from == null && to == null) {
-            return getFlushedValues();
-        } else if (from != null && to != null) {
-            return new ASkippingIterable<V>(getFlushedValues()) {
-                @Override
-                protected boolean skip(final V element) {
-                    final FDate time = historicalSegmentTable.extractTime(element);
-                    if (time.isBeforeNotNullSafe(from)) {
-                        return true;
-                    }
-                    if (time.isAfterNotNullSafe(to)) {
-                        throw new FastNoSuchElementException("LiveSegment rangeValues end reached");
-                    }
-                    return false;
-                }
-            };
-        } else if (from != null) {
-            return new ASkippingIterable<V>(getFlushedValues()) {
-                @Override
-                protected boolean skip(final V element) {
-                    final FDate time = historicalSegmentTable.extractTime(element);
-                    if (time.isBeforeNotNullSafe(from)) {
-                        return true;
-                    }
-                    return false;
-                }
-            };
-        } else if (to != null) {
-            return new ASkippingIterable<V>(getFlushedValues()) {
-                @Override
-                protected boolean skip(final V element) {
-                    final FDate time = historicalSegmentTable.extractTime(element);
-                    if (time.isAfterNotNullSafe(to)) {
-                        throw new FastNoSuchElementException("LiveSegment rangeValues end reached");
-                    }
-                    return false;
-                }
-            };
-        } else {
-            throw new IllegalStateException("missing another condition?");
-        }
+        return new ATimeRangeSkippingIterable<V>(from, to, getFlushedValues()) {
+
+            @Override
+            protected FDate extractTime(final V element) {
+                return historicalSegmentTable.extractTime(element);
+            }
+
+            @Override
+            protected boolean isReverse() {
+                return false;
+            }
+
+            @Override
+            protected String getName() {
+                return "FileLiveSegment rangeValues";
+            }
+        };
     }
 
     //CHECKSTYLE:OFF
@@ -171,47 +146,23 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
                 return new SingleValueIterable<V>(lastValue);
             }
         }
-        if (from == null && to == null) {
-            return getFlushedValues().reverseIterable();
-        } else if (from != null && to != null) {
-            return new ASkippingIterable<V>(getFlushedValues().reverseIterable()) {
-                @Override
-                protected boolean skip(final V element) {
-                    final FDate time = historicalSegmentTable.extractTime(element);
-                    if (time.isAfterNotNullSafe(from)) {
-                        return true;
-                    }
-                    if (time.isBeforeNotNullSafe(to)) {
-                        throw new FastNoSuchElementException("LiveSegment rangeValues end reached");
-                    }
-                    return false;
-                }
-            };
-        } else if (from != null) {
-            return new ASkippingIterable<V>(getFlushedValues().reverseIterable()) {
-                @Override
-                protected boolean skip(final V element) {
-                    final FDate time = historicalSegmentTable.extractTime(element);
-                    if (time.isAfterNotNullSafe(from)) {
-                        return true;
-                    }
-                    return false;
-                }
-            };
-        } else if (to != null) {
-            return new ASkippingIterable<V>(getFlushedValues().reverseIterable()) {
-                @Override
-                protected boolean skip(final V element) {
-                    final FDate time = historicalSegmentTable.extractTime(element);
-                    if (time.isBeforeNotNullSafe(to)) {
-                        throw new FastNoSuchElementException("LiveSegment rangeValues end reached");
-                    }
-                    return false;
-                }
-            };
-        } else {
-            throw new IllegalStateException("missing another condition?");
-        }
+        return new ATimeRangeSkippingIterable<V>(from, to, getFlushedValues().reverseIterable()) {
+
+            @Override
+            protected FDate extractTime(final V element) {
+                return historicalSegmentTable.extractTime(element);
+            }
+
+            @Override
+            protected boolean isReverse() {
+                return true;
+            }
+
+            @Override
+            protected String getName() {
+                return "FileLiveSegment rangeReverseValues";
+            }
+        };
     }
 
     @Override
