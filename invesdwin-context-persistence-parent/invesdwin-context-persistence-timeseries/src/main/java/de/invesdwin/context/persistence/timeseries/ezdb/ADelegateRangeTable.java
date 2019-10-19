@@ -140,7 +140,6 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         return new EzLevelDb(directory, new EzLevelDbJavaFactory() {
             @Override
             public DB open(final File path, final org.iq80.leveldb.Options options) throws IOException {
-                FileUtils.forceMkdir(path);
                 options.paranoidChecks(false);
                 final DB open = super.open(path, options);
                 try {
