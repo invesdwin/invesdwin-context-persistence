@@ -50,11 +50,6 @@ public class TestStockData extends ATest {
             }
 
             @Override
-            protected boolean allowPutWithoutBatch() {
-                return true;
-            }
-
-            @Override
             protected File getBaseDirectory() {
                 return ContextProperties.getCacheDirectory();
             }

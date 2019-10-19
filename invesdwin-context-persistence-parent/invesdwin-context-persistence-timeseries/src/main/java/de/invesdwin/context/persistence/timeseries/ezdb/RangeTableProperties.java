@@ -24,11 +24,6 @@ public class RangeTableProperties extends AProperties {
     protected ADelegateRangeTable<Void, String, Object> newRangeTable(final String name) {
         return new ADelegateRangeTable<Void, String, Object>(name) {
             @Override
-            protected boolean allowPutWithoutBatch() {
-                return true;
-            }
-
-            @Override
             protected boolean allowHasNext() {
                 return true;
             }

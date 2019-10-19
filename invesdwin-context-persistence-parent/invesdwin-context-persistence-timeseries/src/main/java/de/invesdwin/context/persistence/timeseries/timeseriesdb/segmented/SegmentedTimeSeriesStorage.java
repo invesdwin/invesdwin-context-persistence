@@ -18,11 +18,6 @@ public class SegmentedTimeSeriesStorage extends TimeSeriesStorage {
         super(directory);
         segmentStatusTable = new ADelegateRangeTable<String, TimeRange, SegmentStatus>("segmentStatusTable") {
             @Override
-            protected boolean allowPutWithoutBatch() {
-                return true;
-            }
-
-            @Override
             protected boolean allowHasNext() {
                 return true;
             }

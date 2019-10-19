@@ -49,11 +49,6 @@ public class LevelDBTest extends ATest {
                 return true;
             }
 
-            @Override
-            protected boolean allowPutWithoutBatch() {
-                return true;
-            }
-
         };
         final FDate now = FDateBuilder.newDate(2000);
         final FDate oneDate = now.addDays(1);

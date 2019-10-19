@@ -41,11 +41,6 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
 
             @Override
-            protected boolean allowPutWithoutBatch() {
-                return true;
-            }
-
-            @Override
             protected boolean allowHasNext() {
                 return true;
             }

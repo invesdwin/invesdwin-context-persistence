@@ -50,11 +50,6 @@ public class TestEzLevelDbJni extends ATest {
             }
 
             @Override
-            protected boolean allowPutWithoutBatch() {
-                return true;
-            }
-
-            @Override
             protected File getBaseDirectory() {
                 return ContextProperties.getCacheDirectory();
             }
@@ -64,11 +59,6 @@ public class TestEzLevelDbJni extends ATest {
         reverseRangeTable = new ADelegateRangeTable<String, FDate, Integer>("testInverseOrder") {
             @Override
             protected boolean allowHasNext() {
-                return true;
-            }
-
-            @Override
-            protected boolean allowPutWithoutBatch() {
                 return true;
             }
 
@@ -971,10 +961,6 @@ public class TestEzLevelDbJni extends ATest {
                 return true;
             }
 
-            @Override
-            protected boolean allowPutWithoutBatch() {
-                return true;
-            }
         };
         table.put(1, 1);
         Assertions.checkEquals(new Integer(1), table.get(1));

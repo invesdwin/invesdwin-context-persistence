@@ -20,10 +20,6 @@ public class TimeSeriesStorage {
     public TimeSeriesStorage(final File directory) {
         this.directory = directory;
         this.fileLookupTable = new ADelegateRangeTable<String, FDate, ChunkValue>("fileLookupTable") {
-            @Override
-            protected boolean allowPutWithoutBatch() {
-                return true;
-            }
 
             @Override
             protected boolean allowHasNext() {

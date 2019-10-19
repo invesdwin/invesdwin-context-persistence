@@ -93,10 +93,6 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         return false;
     }
 
-    protected boolean allowPutWithoutBatch() {
-        return false;
-    }
-
     protected Comparator<byte[]> newHashKeyComparator() {
         //order is not so important on the hashkey, so use bytes only
         return new LexicographicalComparator();
@@ -295,7 +291,6 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     @Override
     public void put(final H hashKey, final V value) {
-        assertAllowedWriteWithoutBatch();
         final RangeTable<H, R, V> table = getTableWithReadLock();
         try {
             table.put(hashKey, value);
@@ -436,7 +431,6 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     @Override
     public void delete(final H hashKey) {
-        assertAllowedWriteWithoutBatch();
         final RangeTable<H, R, V> table = getTableWithReadLock();
         try {
             table.delete(hashKey);
@@ -447,7 +441,6 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     @Override
     public void delete(final H hashKey, final R rangeKey) {
-        assertAllowedWriteWithoutBatch();
         final RangeTable<H, R, V> table = getTableWithReadLock();
         try {
             table.delete(hashKey, rangeKey);
@@ -511,19 +504,11 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     @Override
     public void put(final H hashKey, final R rangeKey, final V value) {
-        assertAllowedWriteWithoutBatch();
         final RangeTable<H, R, V> table = getTableWithReadLock();
         try {
             table.put(hashKey, rangeKey, value);
         } finally {
             tableLock.readLock().unlock();
-        }
-    }
-
-    private void assertAllowedWriteWithoutBatch() {
-        if (!allowPutWithoutBatch()) {
-            throw new UnsupportedOperationException(
-                    "Use newRangeBatch() for improved performance or override allowWriteWithoutBatch() if needed.");
         }
     }
 
