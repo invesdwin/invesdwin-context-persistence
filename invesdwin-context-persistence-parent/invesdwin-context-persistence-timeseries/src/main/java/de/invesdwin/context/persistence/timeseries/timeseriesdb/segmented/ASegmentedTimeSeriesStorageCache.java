@@ -683,6 +683,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
             return true;
         }
         final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key);
+        if (lastAvailableSegmentTo == null) {
+            return false;
+        }
         return !lastAvailableSegmentTo.equals(prevLastAvailableSegmentTo) && (segmentToBeInitialized == null
                 || segmentToBeInitialized.getFrom().isAfter(prevLastAvailableSegmentTo));
     }
