@@ -15,6 +15,7 @@ import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseries.serde.ExtendedTypeDelegateSerde;
+import de.invesdwin.context.persistence.timeseries.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.tuple.Pair;
@@ -28,6 +29,7 @@ import de.invesdwin.util.collections.loadingcache.historical.key.APullingHistori
 import de.invesdwin.util.collections.loadingcache.historical.key.APushingHistoricalCacheAdjustKeyProvider;
 import de.invesdwin.util.collections.loadingcache.historical.key.IHistoricalCacheAdjustKeyProvider;
 import de.invesdwin.util.collections.loadingcache.historical.refresh.HistoricalCacheRefreshManager;
+import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.fdate.FDateBuilder;
@@ -79,7 +81,7 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
             }
 
             @Override
-            protected String hashKeyToString(final String key) {
+            public String hashKeyToString(final String key) {
                 return key;
             }
 
@@ -123,8 +125,11 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
 
             @Override
             protected void onFlush(final int flushIndex, final Instant flushStart,
-                    final ATimeSeriesUpdater<String, FDate>.UpdateProgress updateProgress) {
+                    final ATimeSeriesUpdater<String, FDate>.UpdateProgress updateProgress) {}
 
+            @Override
+            public Percent getProgress() {
+                return null;
             }
         };
         updater.update();

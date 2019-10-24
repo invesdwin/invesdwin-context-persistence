@@ -25,6 +25,7 @@ import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ChunkVal
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ShiftUnitsRangeKey;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.updater.ALoggingTimeSeriesUpdater;
+import de.invesdwin.context.persistence.timeseries.timeseriesdb.updater.ITimeSeriesUpdater;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.eviction.EvictionMode;
@@ -421,8 +422,54 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
     private void initSegment(final SegmentedKey<K> segmentedKey,
             final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
         try {
-            final ALoggingTimeSeriesUpdater<SegmentedKey<K>, V> updater = new ALoggingTimeSeriesUpdater<SegmentedKey<K>, V>(
-                    segmentedKey, segmentedTable, log) {
+            final ITimeSeriesUpdater<SegmentedKey<K>, V> updater = newSegmentUpdater(segmentedKey, source);
+            String taskName = TaskInfoManager.getCurrentThreadTaskInfoName();
+            if (taskName == null) {
+                taskName = "Loading " + getElementsName() + " for " + hashKey;
+            }
+            final Callable<Void> task = new Callable<Void>() {
+                @Override
+                public Void call() throws Exception {
+                    //write lock is reentrant
+                    updater.update();
+                    return null;
+                }
+            };
+            final Callable<Percent> progress = new Callable<Percent>() {
+                @Override
+                public Percent call() throws Exception {
+                    return updater.getProgress();
+                }
+            };
+            TaskInfoCallable.of(taskName, task, progress).call();
+            final FDate minTime = updater.getMinTime();
+            if (minTime != null) {
+                final FDate segmentFrom = segmentedKey.getSegment().getFrom();
+                if (minTime.isBefore(segmentFrom)) {
+                    throw new IllegalStateException(segmentedKey + ": minTime [" + minTime
+                            + "] should not be before segmentFrom [" + segmentFrom + "]");
+                }
+                final FDate maxTime = updater.getMaxTime();
+                final FDate segmentTo = segmentedKey.getSegment().getTo();
+                if (maxTime.isAfter(segmentTo)) {
+                    throw new IllegalStateException(segmentedKey + ": maxTime [" + maxTime
+                            + "] should not be after segmentTo [" + segmentTo + "]");
+                }
+            }
+        } catch (final IncompleteUpdateFoundException e) {
+            segmentedTable.deleteRange(new SegmentedKey<K>(segmentedKey.getKey(), segmentedKey.getSegment()));
+            throw new RetryLaterRuntimeException(e);
+        } catch (final Throwable e) {
+            throw Throwables.propagate(e);
+        }
+    }
+
+    private ITimeSeriesUpdater<SegmentedKey<K>, V> newSegmentUpdater(final SegmentedKey<K> segmentedKey,
+            final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
+        ITimeSeriesUpdater<SegmentedKey<K>, V> updater = newSegmentUpdaterOverride(segmentedKey, segmentedTable,
+                source);
+        if (updater == null) {
+            updater = new ALoggingTimeSeriesUpdater<SegmentedKey<K>, V>(segmentedKey, segmentedTable, log) {
 
                 @Override
                 protected ICloseableIterable<? extends V> getSource(final FDate updateFrom) {
@@ -470,48 +517,15 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                             .orLower(Percent.ONE_HUNDRED_PERCENT);
                 }
             };
-            String taskName = TaskInfoManager.getCurrentThreadTaskInfoName();
-            if (taskName == null) {
-                taskName = "Loading " + getElementsName() + " for " + hashKey;
-            }
-            final Callable<Void> task = new Callable<Void>() {
-                @Override
-                public Void call() throws Exception {
-                    //write lock is reentrant
-                    updater.update();
-                    return null;
-                }
-            };
-            final Callable<Percent> progress = new Callable<Percent>() {
-                @Override
-                public Percent call() throws Exception {
-                    return updater.getProgress();
-                }
-            };
-            TaskInfoCallable.of(taskName, task, progress).call();
-            final FDate minTime = updater.getMinTime();
-            if (minTime != null) {
-                final FDate segmentFrom = segmentedKey.getSegment().getFrom();
-                if (minTime.isBefore(segmentFrom)) {
-                    throw new IllegalStateException(segmentedKey + ": minTime [" + minTime
-                            + "] should not be before segmentFrom [" + segmentFrom + "]");
-                }
-                final FDate maxTime = updater.getMaxTime();
-                final FDate segmentTo = segmentedKey.getSegment().getTo();
-                if (maxTime.isAfter(segmentTo)) {
-                    throw new IllegalStateException(segmentedKey + ": maxTime [" + maxTime
-                            + "] should not be after segmentTo [" + segmentTo + "]");
-                }
-            }
-        } catch (final IncompleteUpdateFoundException e) {
-            segmentedTable.deleteRange(new SegmentedKey<K>(segmentedKey.getKey(), segmentedKey.getSegment()));
-            throw new RetryLaterRuntimeException(e);
-        } catch (final Throwable e) {
-            throw Throwables.propagate(e);
         }
+        return updater;
     }
 
     public abstract void onSegmentCompleted(SegmentedKey<K> segmentedKey, ICloseableIterable<V> segmentValues);
+
+    protected abstract ITimeSeriesUpdater<SegmentedKey<K>, V> newSegmentUpdaterOverride(SegmentedKey<K> segmentedKey,
+            ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable,
+            Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source);
 
     protected abstract String getElementsName();
 

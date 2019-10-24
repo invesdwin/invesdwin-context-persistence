@@ -5,7 +5,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesDB;
-import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesUpdater;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.lang.ProcessedEventsRateString;
 import de.invesdwin.util.math.Integers;
@@ -91,5 +90,4 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
 
     protected abstract String getElementsName();
 
-    public abstract Percent getProgress();
 }

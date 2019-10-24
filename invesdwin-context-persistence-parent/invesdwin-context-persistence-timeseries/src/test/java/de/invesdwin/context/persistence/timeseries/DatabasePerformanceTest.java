@@ -13,8 +13,8 @@ import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseries.serde.FDateSerde;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesDB;
-import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.IncompleteUpdateFoundException;
+import de.invesdwin.context.persistence.timeseries.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -143,7 +143,7 @@ public class DatabasePerformanceTest extends ATest {
             }
 
             @Override
-            protected String hashKeyToString(final String key) {
+            public String hashKeyToString(final String key) {
                 return "testTimeSeriesDbPerformance_" + key;
             }
 
@@ -183,6 +183,11 @@ public class DatabasePerformanceTest extends ATest {
             protected void onFlush(final int flushIndex, final Instant flushStart,
                     final ATimeSeriesUpdater<String, FDate>.UpdateProgress updateProgress) {
                 printProgress("Writes", writesStart, updateProgress.getCount() * flushIndex, VALUES);
+            }
+
+            @Override
+            public Percent getProgress() {
+                return null;
             }
         };
         Assertions.checkTrue(updater.update());

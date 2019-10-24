@@ -5,15 +5,16 @@ import java.io.OutputStream;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
-import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.SegmentStatus;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
+import de.invesdwin.context.persistence.timeseries.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.error.UnknownArgumentException;
+import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.range.TimeRange;
@@ -162,6 +163,11 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
             @Override
             protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
                 return historicalSegmentTable.newCompressor(out);
+            }
+
+            @Override
+            public Percent getProgress() {
+                return null;
             }
         };
         try {

@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseries.timeseriesdb;
+package de.invesdwin.context.persistence.timeseries.timeseriesdb.updater;
 
 import java.io.File;
 import java.io.IOException;
@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -14,6 +15,10 @@ import org.apache.commons.io.FileUtils;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.integration.streams.LZ4Streams;
+import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesDB;
+import de.invesdwin.context.persistence.timeseries.timeseriesdb.IncompleteUpdateFoundException;
+import de.invesdwin.context.persistence.timeseries.timeseriesdb.SerializingCollection;
+import de.invesdwin.context.persistence.timeseries.timeseriesdb.TimeSeriesStorageCache;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
@@ -31,7 +36,7 @@ import ezdb.serde.Serde;
 import net.jpountz.lz4.LZ4BlockOutputStream;
 
 @NotThreadSafe
-public abstract class ATimeSeriesUpdater<K, V> {
+public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, V> {
 
     public static final boolean DEFAULT_SHOULD_WRITE_IN_PARALLEL = false;
     public static final int BATCH_FLUSH_INTERVAL = 10_000;
@@ -59,14 +64,17 @@ public abstract class ATimeSeriesUpdater<K, V> {
         this.updateLockFile = lookupTable.getUpdateLockFile();
     }
 
+    @Override
     public K getKey() {
         return key;
     }
 
+    @Override
     public FDate getMinTime() {
         return minTime;
     }
 
+    @Override
     public FDate getMaxTime() {
         return maxTime;
     }
@@ -75,9 +83,11 @@ public abstract class ATimeSeriesUpdater<K, V> {
         return count;
     }
 
+    @Override
     public final boolean update() throws IncompleteUpdateFoundException {
+        final Lock writeLock = table.getTableLock(key).writeLock();
         try {
-            if (!table.getTableLock(key).writeLock().tryLock(1, TimeUnit.MINUTES)) {
+            if (!writeLock.tryLock(1, TimeUnit.MINUTES)) {
                 throw new RetryLaterRuntimeException("Write lock could not be acquired for table [" + table.getName()
                         + "] and key [" + key + "]. Please ensure all iterators are closed!");
             }
@@ -102,7 +112,7 @@ public abstract class ATimeSeriesUpdater<K, V> {
             Assertions.assertThat(updateLockFile.delete()).isTrue();
             return true;
         } finally {
-            table.getTableLock(key).writeLock().unlock();
+            writeLock.unlock();
         }
     }
 

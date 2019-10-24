@@ -130,7 +130,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
     protected abstract Integer newFixedLength();
 
-    protected Integer getFixedLength() {
+    public Integer getFixedLength() {
         return fixedLength;
     }
 
@@ -265,15 +265,15 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         return name;
     }
 
-    TimeSeriesStorageCache<K, V> getLookupTableCache(final K key) {
+    public TimeSeriesStorageCache<K, V> getLookupTableCache(final K key) {
         return key_lookupTableCache.get(key);
     }
 
-    protected Serde<V> getValueSerde() {
+    public Serde<V> getValueSerde() {
         return valueSerde;
     }
 
-    protected abstract String hashKeyToString(K key);
+    public abstract String hashKeyToString(K key);
 
     @Override
     public void close() {

@@ -11,7 +11,6 @@ import org.apache.commons.lang3.BooleanUtils;
 
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesDB;
-import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.concurrent.future.Futures;

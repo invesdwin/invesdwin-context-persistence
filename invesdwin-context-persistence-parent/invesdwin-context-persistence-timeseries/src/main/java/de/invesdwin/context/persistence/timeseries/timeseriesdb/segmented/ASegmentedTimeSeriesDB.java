@@ -5,14 +5,16 @@ import java.io.OutputStream;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
+import java.util.function.Function;
 
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesDB;
-import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.TimeSeriesStorage;
+import de.invesdwin.context.persistence.timeseries.timeseriesdb.updater.ATimeSeriesUpdater;
+import de.invesdwin.context.persistence.timeseries.timeseriesdb.updater.ITimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -89,6 +91,15 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
                         ASegmentedTimeSeriesDB.this.onSegmentCompleted(segmentedKey, segmentValues);
                     }
 
+                    @Override
+                    protected ITimeSeriesUpdater<SegmentedKey<K>, V> newSegmentUpdaterOverride(
+                            final SegmentedKey<K> segmentedKey,
+                            final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable,
+                            final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
+                        return ASegmentedTimeSeriesDB.this.newSegmentUpdaterOverride(segmentedKey, segmentedTable,
+                                source);
+                    }
+
                 };
             }
 
@@ -98,6 +109,12 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
             }
 
         };
+    }
+
+    protected ITimeSeriesUpdater<SegmentedKey<K>, V> newSegmentUpdaterOverride(final SegmentedKey<K> segmentedKey,
+            final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable,
+            final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
+        return null;
     }
 
     protected void onSegmentCompleted(final SegmentedKey<K> segmentedKey, final ICloseableIterable<V> segmentValues) {}
@@ -483,6 +500,10 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         @Override
         protected File getBaseDirectory() {
             return ASegmentedTimeSeriesDB.this.getBaseDirectory();
+        }
+
+        public LZ4BlockOutputStream newCompressor(final OutputStream out) {
+            return ASegmentedTimeSeriesDB.this.newCompressor(out);
         }
 
     }
