@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
 
+import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.io.FileUtils;
@@ -30,6 +31,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     private final SegmentedKey<K> segmentedKey;
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
     private SerializingCollection<V> values;
+    @GuardedBy("this")
     private boolean needsFlush;
     private FDate firstValueKey;
     private V firstValue;
@@ -170,8 +172,10 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         if (values == null) {
             values = newSerializingCollection();
         }
-        values.add(nextLiveValue);
-        needsFlush = true;
+        synchronized (this) {
+            values.add(nextLiveValue);
+            needsFlush = true;
+        }
         if (firstValue == null) {
             firstValue = nextLiveValue;
             firstValueKey = nextLiveKey;
@@ -231,22 +235,26 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public void close() {
-        if (values != null) {
-            values.close();
-            values.clear();
-            values = null;
+        synchronized (this) {
+            if (values != null) {
+                values.close();
+                values.clear();
+                values = null;
+            }
+            needsFlush = false;
         }
         firstValue = null;
         firstValueKey = null;
         lastValue = null;
         lastValueKey = null;
-        needsFlush = false;
     }
 
     @Override
     public void convertLiveSegmentToHistorical() {
-        values.close();
-        needsFlush = false;
+        synchronized (this) {
+            values.close();
+            needsFlush = false;
+        }
         final ASegmentedTimeSeriesStorageCache<K, V> lookupTableCache = historicalSegmentTable
                 .getLookupTableCache(getSegmentedKey().getKey());
         final boolean initialized = lookupTableCache.maybeInitSegment(getSegmentedKey(),
@@ -262,9 +270,11 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     private HeapSerializingCollection<V> getFlushedValues() {
-        if (needsFlush) {
-            values.flush();
-            needsFlush = false;
+        synchronized (this) {
+            if (needsFlush) {
+                values.flush();
+                needsFlush = false;
+            }
         }
         try {
             final byte[] bytes = FileUtils.readFileToByteArray(values.getFile());
