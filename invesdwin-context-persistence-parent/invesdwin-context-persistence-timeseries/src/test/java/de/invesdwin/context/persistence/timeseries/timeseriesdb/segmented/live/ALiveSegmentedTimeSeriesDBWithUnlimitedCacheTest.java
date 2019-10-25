@@ -383,7 +383,6 @@ public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
 
     @Test
     public void testPreviousValueWithDistance() {
-        Throwables.setDebugStackTraceEnabled(true);
         FDate previousValue = cache.query().getPreviousValue(new FDate(), entities.size());
         Assertions.assertThat(previousValue).isEqualTo(entities.get(0));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(4);

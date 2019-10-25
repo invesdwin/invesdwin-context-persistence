@@ -19,7 +19,6 @@ import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
-import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Reflections;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.fdate.FDateBuilder;
@@ -32,7 +31,6 @@ public class FileLiveSegmentTest extends ATest {
 
     @Test
     public void testInverseOrder() {
-        Throwables.setDebugStackTraceEnabled(true);
         final Map<Integer, FDate> extractTime = new HashMap<>();
         final SegmentedKey<FDate> segmentedKey = new SegmentedKey<FDate>(FDate.MIN_DATE,
                 new TimeRange(FDate.MIN_DATE, FDate.MAX_DATE));
