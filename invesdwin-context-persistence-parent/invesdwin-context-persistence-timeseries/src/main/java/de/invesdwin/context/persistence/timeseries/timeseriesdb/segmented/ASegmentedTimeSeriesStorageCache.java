@@ -263,14 +263,19 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
 
                     @Override
                     public boolean hasNext() {
-                        return curSegment.getFrom().isBefore(adjTo);
+                        return curSegment.getFrom().isBeforeOrEqualTo(adjTo);
                     }
 
                     @Override
                     public TimeRange next() {
                         final TimeRange next = curSegment;
                         //get one segment later
-                        curSegment = getSegmentFinder(key).query().getValue(curSegment.getTo().addMilliseconds(1));
+                        final FDate nextSegmentStart = curSegment.getTo().addMilliseconds(1);
+                        curSegment = getSegmentFinder(key).query().getValue(nextSegmentStart);
+                        if (!nextSegmentStart.equals(curSegment.getFrom())) {
+                            throw new IllegalStateException("Segment start expected [" + nextSegmentStart
+                                    + "] != found [" + curSegment.getFrom() + "]");
+                        }
                         return next;
                     }
 
