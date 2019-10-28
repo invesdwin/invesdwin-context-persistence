@@ -416,6 +416,11 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
             return readRangeValues instanceof EmptyCloseableIterator;
         }
 
+        @Override
+        public boolean isThreadLocal() {
+            return true;
+        }
+
     }
 
 }

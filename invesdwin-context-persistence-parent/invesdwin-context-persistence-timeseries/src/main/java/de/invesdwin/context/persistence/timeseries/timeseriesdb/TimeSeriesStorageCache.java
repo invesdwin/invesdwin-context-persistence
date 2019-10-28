@@ -388,6 +388,11 @@ public class TimeSeriesStorageCache<K, V> {
             return delegate == null;
         }
 
+        @Override
+        public boolean isThreadLocal() {
+            return true;
+        }
+
     }
 
     protected ICloseableIterable<File> readRangeFilesReverse(final FDate from, final FDate to) {

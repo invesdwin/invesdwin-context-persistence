@@ -407,6 +407,11 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         protected boolean isCleaned() {
             return closed;
         }
+
+        @Override
+        public boolean isThreadLocal() {
+            return true;
+        }
     }
 
     @NotThreadSafe
@@ -497,6 +502,11 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         protected boolean isCleaned() {
             return cleaned;
         }
+
+        @Override
+        public boolean isThreadLocal() {
+            return true;
+        }
     }
 
     private void writeObject(final java.io.ObjectOutputStream stream) throws IOException {
@@ -541,6 +551,11 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         @Override
         protected boolean isCleaned() {
             return closed;
+        }
+
+        @Override
+        public boolean isThreadLocal() {
+            return false;
         }
 
     }

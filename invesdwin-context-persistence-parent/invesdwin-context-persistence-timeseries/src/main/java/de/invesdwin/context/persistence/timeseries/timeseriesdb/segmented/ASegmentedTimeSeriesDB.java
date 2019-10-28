@@ -441,6 +441,11 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
             return readRangeValues instanceof EmptyCloseableIterator;
         }
 
+        @Override
+        public boolean isThreadLocal() {
+            return true;
+        }
+
     }
 
     public final class SegmentedTable extends ATimeSeriesDB<SegmentedKey<K>, V> {

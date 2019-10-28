@@ -666,6 +666,11 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         protected boolean isCleaned() {
             return tableLockDelegate == null;
         }
+
+        @Override
+        public boolean isThreadLocal() {
+            return true;
+        }
     }
 
     public static final class DelegateValueTableIterator<V_> implements ICloseableIterator<V_> {
@@ -765,6 +770,11 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         protected boolean isCleaned() {
             return tableLockDelegate == null;
         }
+
+        @Override
+        public boolean isThreadLocal() {
+            return true;
+        }
     }
 
     private static final class TableFinalizer<_H, _R, _V> extends AFinalizer {
@@ -779,6 +789,11 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         @Override
         protected boolean isCleaned() {
             return table == null;
+        }
+
+        @Override
+        public boolean isThreadLocal() {
+            return false;
         }
     }
 
