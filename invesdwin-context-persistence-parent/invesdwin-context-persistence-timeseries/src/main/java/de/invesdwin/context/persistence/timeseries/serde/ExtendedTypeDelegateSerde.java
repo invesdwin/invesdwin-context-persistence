@@ -17,8 +17,10 @@ public class ExtendedTypeDelegateSerde<O> extends TypeDelegateSerde<O> {
         super(type);
     }
 
+    //CHECKSTYLE:OFF
     @Override
     protected Serde<?> newDelegate(final Class<O> type) {
+        //CHECKSTYLE:ON
         if (Reflections.isVoid(type)) {
             return VoidSerde.GET;
         }
@@ -30,6 +32,9 @@ public class ExtendedTypeDelegateSerde<O> extends TypeDelegateSerde<O> {
         }
         if (FDate.class.isAssignableFrom(type)) {
             return FDateSerde.GET;
+        }
+        if (Boolean.class.isAssignableFrom(type) || boolean.class.isAssignableFrom(type)) {
+            return BooleanSerde.GET;
         }
         if (TimedDecimal.class.isAssignableFrom(type)) {
             return TimedDecimalSerde.GET;
