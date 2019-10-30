@@ -91,7 +91,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     @Override
     public ICloseableIterable<V> rangeValues(final FDate from, final FDate to) {
         //CHECKSTYLE:ON
-        if (values == null) {
+        if (values == null || from != null && to != null && from.isAfterNotNullSafe(to)) {
             return EmptyCloseableIterable.getInstance();
         }
         if (from != null && lastValue != null && from.isAfterOrEqualToNotNullSafe(lastValueKey)) {
@@ -131,7 +131,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     @Override
     public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to) {
         //CHECKSTYLE:ON
-        if (values == null) {
+        if (values == null || from != null && to != null && from.isBeforeNotNullSafe(to)) {
             return EmptyCloseableIterable.getInstance();
         }
         if (from != null && firstValue != null && from.isBeforeOrEqualToNotNullSafe(firstValueKey)) {
