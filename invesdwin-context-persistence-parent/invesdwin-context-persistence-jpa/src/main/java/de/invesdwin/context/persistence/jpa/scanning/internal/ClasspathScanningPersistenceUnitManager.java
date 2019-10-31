@@ -12,7 +12,6 @@ import java.util.Set;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.inject.Inject;
 
-import org.apache.commons.io.FileUtils;
 import org.springframework.data.jpa.support.MergingPersistenceUnitManager;
 import org.springframework.orm.jpa.persistenceunit.MutablePersistenceUnitInfo;
 
@@ -26,6 +25,7 @@ import de.invesdwin.context.persistence.jpa.scanning.transaction.ContextDelegati
 import de.invesdwin.context.persistence.jpa.spi.delegate.IDialectSpecificDelegate;
 import de.invesdwin.context.persistence.jpa.spi.impl.PersistenceUnitAnnotationUtil;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.lang.Files;
 
 /**
  * Collects all Entities from CLasspath and creates a complete PersistenceUnit out of them.
@@ -93,11 +93,11 @@ public final class ClasspathScanningPersistenceUnitManager extends MergingPersis
     private void writePersistenceXml() {
         try {
             final File metaInfDir = new File(ContextProperties.TEMP_CLASSPATH_DIRECTORY, "META-INF");
-            FileUtils.forceMkdir(metaInfDir);
+            Files.forceMkdir(metaInfDir);
             final File file = new File(metaInfDir, "persistence.xml");
-            FileUtils.deleteQuietly(file);
+            Files.deleteQuietly(file);
             final String content = generatePersistenceXml();
-            FileUtils.write(file, content, Charset.defaultCharset());
+            Files.write(file, content, Charset.defaultCharset());
         } catch (final IOException e) {
             throw Err.process(e);
         }

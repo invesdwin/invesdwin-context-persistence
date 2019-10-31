@@ -8,7 +8,6 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.Immutable;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.BooleanUtils;
 import org.zeroturnaround.exec.ProcessExecutor;
 import org.zeroturnaround.exec.stop.ProcessStopper;
@@ -16,6 +15,7 @@ import org.zeroturnaround.exec.stream.slf4j.Slf4jStream;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.instrument.DynamicInstrumentationProperties;
+import de.invesdwin.util.lang.Files;
 
 @Immutable
 public final class SynchronousChannels {
@@ -179,7 +179,7 @@ public final class SynchronousChannels {
             final File namedPipeTestFile = new File(ContextProperties.TEMP_DIRECTORY,
                     SynchronousChannels.class.getSimpleName() + "_NamedPipeTest.pipe");
             namedPipeSupportedCached = namedPipeTestFile.exists() || createNamedPipe(namedPipeTestFile);
-            FileUtils.deleteQuietly(namedPipeTestFile);
+            Files.deleteQuietly(namedPipeTestFile);
         }
         return namedPipeSupportedCached;
     }

@@ -21,7 +21,6 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.SerializationException;
 
 import de.invesdwin.context.ContextProperties;
@@ -35,6 +34,7 @@ import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
 import de.invesdwin.util.collections.iterable.LimitingIterator;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.lang.Closeables;
+import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.UniqueNameGenerator;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
@@ -86,7 +86,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     private File getTempFolder() {
         final File tempFolder = new File(ContextProperties.TEMP_DIRECTORY, SerializingCollection.class.getSimpleName());
         try {
-            FileUtils.forceMkdir(tempFolder);
+            Files.forceMkdir(tempFolder);
         } catch (final IOException e) {
             throw Err.process(e);
         }

@@ -17,7 +17,6 @@ import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.mapdb.BTreeMap;
@@ -34,6 +33,7 @@ import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.streams.LZ4Streams;
 import de.invesdwin.context.persistence.timeseries.serde.ExtendedTypeDelegateSerde;
 import de.invesdwin.util.lang.Closeables;
+import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Reflections;
 import ezdb.serde.Serde;
 
@@ -74,7 +74,7 @@ public abstract class ADelegateTreeMapDB<K, V> implements ConcurrentNavigableMap
     protected Maker createDB() {
         final File file = getFile();
         try {
-            FileUtils.forceMkdirParent(file);
+            Files.forceMkdirParent(file);
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
@@ -299,7 +299,7 @@ public abstract class ADelegateTreeMapDB<K, V> implements ConcurrentNavigableMap
 
     public synchronized void deleteTable() {
         close();
-        FileUtils.deleteQuietly(getFile());
+        Files.deleteQuietly(getFile());
     }
 
     @Override

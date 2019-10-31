@@ -14,7 +14,6 @@ import java.util.Optional;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.SerializationException;
 
@@ -41,6 +40,7 @@ import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.error.Throwables;
+import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
@@ -227,7 +227,7 @@ public class TimeSeriesStorageCache<K, V> {
         if (dataDirectory == null) {
             dataDirectory = newDataDirectory();
             try {
-                FileUtils.forceMkdir(dataDirectory);
+                Files.forceMkdir(dataDirectory);
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
@@ -702,7 +702,7 @@ public class TimeSeriesStorageCache<K, V> {
         storage.getNextValueLookupTable().deleteRange(hashKey);
         storage.getPreviousValueLookupTable().deleteRange(hashKey);
         clearCaches();
-        FileUtils.deleteQuietly(newDataDirectory());
+        Files.deleteQuietly(newDataDirectory());
         dataDirectory = null;
     }
 

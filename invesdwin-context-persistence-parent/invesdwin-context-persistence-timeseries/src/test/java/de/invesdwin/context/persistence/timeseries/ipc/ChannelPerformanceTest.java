@@ -13,7 +13,6 @@ import java.util.concurrent.SynchronousQueue;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.commons.io.FileUtils;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -37,6 +36,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
 import de.invesdwin.util.error.UnknownArgumentException;
+import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.ProcessedEventsRateString;
 import de.invesdwin.util.math.Bytes;
 import de.invesdwin.util.math.decimal.scaled.Percent;
@@ -74,13 +74,13 @@ public class ChannelPerformanceTest extends ATest {
             baseFolder = ContextProperties.TEMP_DIRECTORY;
         }
         final File file = new File(baseFolder, name);
-        FileUtils.deleteQuietly(file);
+        Files.deleteQuietly(file);
         Assertions.checkFalse(file.exists(), "%s", file);
         if (pipes == FileChannelType.PIPE) {
             Assertions.checkTrue(SynchronousChannels.createNamedPipe(file));
         } else if (pipes == FileChannelType.MAPPED) {
             try {
-                FileUtils.touch(file);
+                Files.touch(file);
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
@@ -272,8 +272,8 @@ public class ChannelPerformanceTest extends ATest {
             executor.shutdown();
             executor.awaitTermination();
         } finally {
-            FileUtils.deleteQuietly(requestFile);
-            FileUtils.deleteQuietly(responseFile);
+            Files.deleteQuietly(requestFile);
+            Files.deleteQuietly(responseFile);
         }
     }
 

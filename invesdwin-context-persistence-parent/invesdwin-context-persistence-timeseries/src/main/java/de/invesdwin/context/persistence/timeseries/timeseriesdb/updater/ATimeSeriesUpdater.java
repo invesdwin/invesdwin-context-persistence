@@ -11,8 +11,6 @@ import java.util.concurrent.locks.Lock;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.commons.io.FileUtils;
-
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.integration.streams.LZ4Streams;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesDB;
@@ -30,6 +28,7 @@ import de.invesdwin.util.collections.iterable.concurrent.AParallelChunkConsumerI
 import de.invesdwin.util.collections.iterable.concurrent.AProducerQueueIterator;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.lock.FileChannelLock;
+import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
@@ -101,7 +100,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                         + "] and key [" + key + "], need to clean everything up to restore all from scratch.");
             }
             try {
-                FileUtils.touch(updateLockFile);
+                Files.touch(updateLockFile);
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }

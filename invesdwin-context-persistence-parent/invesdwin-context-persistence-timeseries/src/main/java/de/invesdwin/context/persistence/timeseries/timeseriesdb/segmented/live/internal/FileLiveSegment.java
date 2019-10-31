@@ -10,8 +10,6 @@ import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.commons.io.FileUtils;
-
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.HeapSerializingCollection;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
@@ -22,6 +20,7 @@ import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.SingleValueIterable;
+import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
 
@@ -49,11 +48,11 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
                 new File(historicalSegmentTable.getDirectory(), historicalSegmentTable.hashKeyToString(segmentedKey)),
                 "inProgress.data");
         try {
-            FileUtils.forceMkdirParent(file);
+            Files.forceMkdirParent(file);
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
-        FileUtils.deleteQuietly(file);
+        Files.deleteQuietly(file);
         return new SerializingCollection<V>(file, false) {
             @Override
             protected Serde<V> newSerde() {
@@ -277,7 +276,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
         }
         try {
-            final byte[] bytes = FileUtils.readFileToByteArray(values.getFile());
+            final byte[] bytes = Files.readFileToByteArray(values.getFile());
             return new HeapSerializingCollection<V>(bytes) {
                 @Override
                 protected Serde<V> newSerde() {

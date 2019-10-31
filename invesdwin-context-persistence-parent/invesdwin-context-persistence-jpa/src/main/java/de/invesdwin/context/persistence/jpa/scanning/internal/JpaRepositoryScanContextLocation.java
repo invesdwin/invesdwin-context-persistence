@@ -14,7 +14,6 @@ import java.util.Set;
 import javax.annotation.concurrent.ThreadSafe;
 import javax.inject.Named;
 
-import org.apache.commons.io.FileUtils;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -28,6 +27,7 @@ import de.invesdwin.context.persistence.jpa.api.dao.IDao;
 import de.invesdwin.context.persistence.jpa.spi.impl.PersistenceUnitAnnotationUtil;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.classpath.FastClassPathScanner;
+import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Reflections;
 import de.invesdwin.util.lang.Strings;
 import io.github.classgraph.ClassInfo;
@@ -42,7 +42,7 @@ public class JpaRepositoryScanContextLocation implements IContextLocation {
         try {
             final String content = generateContextXml();
             final File xmlFile = new File(ContextProperties.TEMP_DIRECTORY, "ctx.jpa.repository.scan.xml");
-            FileUtils.writeStringToFile(xmlFile, content, Charset.defaultCharset());
+            Files.writeStringToFile(xmlFile, content, Charset.defaultCharset());
             final FileSystemResource fsResource = new FileSystemResource(xmlFile);
             xmlFile.deleteOnExit();
             return Arrays.asList(PositionedResource.of(fsResource, ResourcePosition.END));

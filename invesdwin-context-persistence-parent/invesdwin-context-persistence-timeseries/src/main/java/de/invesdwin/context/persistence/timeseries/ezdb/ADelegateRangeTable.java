@@ -10,7 +10,6 @@ import java.util.function.Function;
 
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.commons.io.FileUtils;
 import org.iq80.leveldb.DB;
 import org.iq80.leveldb.DBIterator;
 
@@ -24,6 +23,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.concurrent.future.Callables;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.error.Throwables;
+import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Reflections;
 import de.invesdwin.util.lang.Strings;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
@@ -176,7 +176,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     private void initDirectory() {
         try {
-            FileUtils.forceMkdir(directory);
+            Files.forceMkdir(directory);
         } catch (final IOException e) {
             throw Err.process(e);
         }
@@ -225,7 +225,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
             if (tableFinalizer.table == null) {
                 if (getTableCreationTime() == null) {
                     try {
-                        FileUtils.touch(timestampFile);
+                        Files.touch(timestampFile);
                     } catch (final IOException e) {
                         throw Err.process(e);
                     }
@@ -273,11 +273,11 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
             tableFinalizer.table = null;
         }
         db.deleteTable(name);
-        FileUtils.deleteQuietly(timestampFile);
+        Files.deleteQuietly(timestampFile);
         final File tableDirectory = new File(directory, getName());
         final String[] list = tableDirectory.list();
         if (list == null || list.length == 0) {
-            FileUtils.deleteQuietly(tableDirectory);
+            Files.deleteQuietly(tableDirectory);
         }
         tableCreationTime = null;
         onDeleteTableFinished();

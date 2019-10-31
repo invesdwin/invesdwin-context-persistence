@@ -8,8 +8,6 @@ import java.util.concurrent.locks.ReadWriteLock;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.commons.io.FileUtils;
-
 import com.google.common.base.Function;
 
 import de.invesdwin.context.ContextProperties;
@@ -25,6 +23,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.error.Throwables;
+import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
@@ -104,7 +103,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
     }
 
     protected void deleteCorruptedStorage(final File directory) {
-        FileUtils.deleteQuietly(directory);
+        Files.deleteQuietly(directory);
     }
 
     @Override
