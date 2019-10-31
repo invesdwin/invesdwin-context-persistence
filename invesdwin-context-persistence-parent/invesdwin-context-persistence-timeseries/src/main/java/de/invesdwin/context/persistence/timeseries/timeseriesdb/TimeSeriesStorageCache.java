@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 
@@ -25,8 +26,10 @@ import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ChunkVal
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ShiftUnitsRangeKey;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.TimeSeriesStorage;
+import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.eviction.EvictionMode;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ASkippingIterator;
 import de.invesdwin.util.collections.iterable.ATransformingCloseableIterator;
@@ -213,6 +216,7 @@ public class TimeSeriesStorageCache<K, V> {
     private volatile ICloseableIterable<FDate> cachedAllRangeKeys;
     private volatile ICloseableIterable<FDate> cachedAllRangeKeysReverse;
     private final Log log = new Log(this);
+    private Map<FDate, File> redirectedFiles;
 
     public TimeSeriesStorageCache(final TimeSeriesStorage storage, final String hashKey, final Serde<V> valueSerde,
             final Integer fixedLength, final Function<V, FDate> extractTime) {
@@ -244,7 +248,20 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     public File newFile(final FDate time) {
+        if (redirectedFiles != null) {
+            final File redirectedFile = redirectedFiles.get(time);
+            if (redirectedFile != null) {
+                return redirectedFile;
+            }
+        }
         return new File(getDataDirectory(), time.toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_MS) + ".data");
+    }
+
+    public synchronized void redirectFile(final FDate time, final File redirect) {
+        if (redirectedFiles == null) {
+            redirectedFiles = ILockCollectionFactory.getInstance(true).newConcurrentMap();
+        }
+        Assertions.checkNull(redirectedFiles.put(time, redirect));
     }
 
     public void finishFile(final FDate time, final V firstValue, final V lastValue) {
