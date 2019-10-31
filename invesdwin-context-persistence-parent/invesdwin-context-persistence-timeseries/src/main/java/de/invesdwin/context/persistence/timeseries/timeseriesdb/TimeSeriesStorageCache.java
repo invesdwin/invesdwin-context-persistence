@@ -257,7 +257,7 @@ public class TimeSeriesStorageCache<K, V> {
         return new File(getDataDirectory(), time.toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_MS) + ".data");
     }
 
-    public synchronized void redirectFile(final FDate time, final File redirect) {
+    public synchronized void redirectFileInMemory(final FDate time, final File redirect) {
         if (redirectedFiles == null) {
             redirectedFiles = ILockCollectionFactory.getInstance(true).newConcurrentMap();
         }
