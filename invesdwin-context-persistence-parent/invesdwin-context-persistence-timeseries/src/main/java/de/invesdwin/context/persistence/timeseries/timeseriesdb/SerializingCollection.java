@@ -346,16 +346,14 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         private E readNext() {
             try {
                 if (finalizer.closed) {
-                    throw new FastNoSuchElementException(
-                            "SerializingCollection.DynamicLengthDeserializingIterator: readnext() already closed");
+                    return null;
                 }
                 final int size;
                 try {
                     size = finalizer.inputStream.readInt();
                 } catch (final EOFException e) {
                     finalizer.close();
-                    throw new FastNoSuchElementException(
-                            "SerializingCollection.DynamicLengthDeserializingIterator: readnext() encountered IOException");
+                    return null;
                 }
                 final byte[] bytes = new byte[size];
                 finalizer.inputStream.readFully(bytes);
@@ -376,7 +374,12 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                 finalizer.cachedElement = (E) null;
                 return ret;
             }
-            return readNext();
+            final E readNext = readNext();
+            if (readNext == null) {
+                throw new FastNoSuchElementException(
+                        "SerializingCollection.DynamicLengthDeserializingIterator: readnext() returned null");
+            }
+            return readNext;
         }
 
         @Override
@@ -448,15 +451,13 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         private E readNext() {
             if (finalizer.cleaned) {
-                throw new FastNoSuchElementException(
-                        "SerializingCollection.FixedLengthDeserializingIterator: readnext() already closed");
+                return null;
             }
             try {
                 finalizer.inputStream.readFully(finalizer.byteBuffer);
             } catch (final IOException e) {
                 finalizer.close();
-                throw new FastNoSuchElementException(
-                        "SerializingCollection.FixedLengthDeserializingIterator: readnext() encountered IOException");
+                return null;
             }
             return serde.fromBytes(finalizer.byteBuffer);
         }
@@ -469,7 +470,12 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                 finalizer.cachedElement = (E) null;
                 return ret;
             }
-            return readNext();
+            final E readNext = readNext();
+            if (readNext == null) {
+                throw new FastNoSuchElementException(
+                        "SerializingCollection.DynamicLengthDeserializingIterator: readnext() returned null");
+            }
+            return readNext;
         }
 
         @Override

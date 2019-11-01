@@ -82,9 +82,9 @@ public class TimeSeriesStorageCache<K, V> {
                             }
                             final File file = newFile(fileTime);
                             final SerializingCollection<V> serializingCollection = newSerializingCollection(file);
+                            V latestValue = null;
                             try (ICloseableIterator<V> it = serializingCollection.iterator()) {
-                                V latestValue = null;
-                                while (it.hasNext()) {
+                                while (true) {
                                     final V newValue = it.next();
                                     final FDate newValueTime = extractTime.apply(newValue);
                                     if (newValueTime.isAfter(key)) {
@@ -93,14 +93,16 @@ public class TimeSeriesStorageCache<K, V> {
                                         latestValue = newValue;
                                     }
                                 }
-                                if (latestValue == null) {
-                                    latestValue = getFirstValue();
-                                }
-                                if (latestValue == null) {
-                                    return null;
-                                }
-                                return new SingleValue(valueSerde, latestValue);
+                            } catch (final NoSuchElementException e) {
+                                //end reached
                             }
+                            if (latestValue == null) {
+                                latestValue = getFirstValue();
+                            }
+                            if (latestValue == null) {
+                                return null;
+                            }
+                            return new SingleValue(valueSerde, latestValue);
                         }
                     });
             if (value == null) {

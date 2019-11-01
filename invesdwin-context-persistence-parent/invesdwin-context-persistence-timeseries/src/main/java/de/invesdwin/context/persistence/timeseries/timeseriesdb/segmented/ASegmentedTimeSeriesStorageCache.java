@@ -254,6 +254,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
     }
 
     private ICloseableIterable<TimeRange> getSegments(final FDate adjFrom, final FDate adjTo) {
+        if (adjFrom == null || adjTo == null) {
+            return EmptyCloseableIterable.getInstance();
+        }
         final ICloseableIterable<TimeRange> segments = new ICloseableIterable<TimeRange>() {
             @Override
             public ICloseableIterator<TimeRange> iterator() {
@@ -571,6 +574,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
     }
 
     private ICloseableIterable<TimeRange> getSegmentsReverse(final FDate adjFrom, final FDate adjTo) {
+        if (adjFrom == null || adjTo == null) {
+            return EmptyCloseableIterable.getInstance();
+        }
         final ICloseableIterable<TimeRange> segments = new ICloseableIterable<TimeRange>() {
             @Override
             public ICloseableIterator<TimeRange> iterator() {
