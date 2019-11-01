@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
@@ -143,11 +144,15 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             @Override
             public UpdateProgress next() {
                 final UpdateProgress progress = new UpdateProgress();
-                while (elements.hasNext()) {
-                    final V element = elements.next();
-                    if (progress.onElement(element)) {
-                        return progress;
+                try {
+                    while (true) {
+                        final V element = elements.next();
+                        if (progress.onElement(element)) {
+                            return progress;
+                        }
                     }
+                } catch (NoSuchElementException e) {
+                    //end reached
                 }
                 return progress;
             }

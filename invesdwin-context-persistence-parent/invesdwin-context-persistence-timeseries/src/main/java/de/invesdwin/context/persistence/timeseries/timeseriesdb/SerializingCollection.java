@@ -473,7 +473,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             final E readNext = readNext();
             if (readNext == null) {
                 throw new FastNoSuchElementException(
-                        "SerializingCollection.DynamicLengthDeserializingIterator: readnext() returned null");
+                        "SerializingCollection.FixedLengthDeserializingIterator: readnext() returned null");
             }
             return readNext;
         }
