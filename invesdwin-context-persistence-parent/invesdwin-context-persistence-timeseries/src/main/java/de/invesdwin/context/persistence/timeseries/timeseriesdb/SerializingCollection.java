@@ -33,6 +33,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
 import de.invesdwin.util.collections.iterable.LimitingIterator;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
+import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.lang.Closeables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
@@ -342,18 +343,19 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             }
         }
 
-        @SuppressWarnings({ "null" })
         private E readNext() {
             try {
                 if (finalizer.closed) {
-                    return (E) null;
+                    throw new FastNoSuchElementException(
+                            "SerializingCollection.DynamicLengthDeserializingIterator: readnext() already closed");
                 }
                 final int size;
                 try {
                     size = finalizer.inputStream.readInt();
                 } catch (final EOFException e) {
                     finalizer.close();
-                    return null;
+                    throw new FastNoSuchElementException(
+                            "SerializingCollection.DynamicLengthDeserializingIterator: readnext() encountered IOException");
                 }
                 final byte[] bytes = new byte[size];
                 finalizer.inputStream.readFully(bytes);
@@ -444,16 +446,17 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             }
         }
 
-        @SuppressWarnings({ "null" })
         private E readNext() {
             if (finalizer.cleaned) {
-                return (E) null;
+                throw new FastNoSuchElementException(
+                        "SerializingCollection.FixedLengthDeserializingIterator: readnext() already closed");
             }
             try {
                 finalizer.inputStream.readFully(finalizer.byteBuffer);
             } catch (final IOException e) {
                 finalizer.close();
-                return null;
+                throw new FastNoSuchElementException(
+                        "SerializingCollection.FixedLengthDeserializingIterator: readnext() encountered IOException");
             }
             return serde.fromBytes(finalizer.byteBuffer);
         }
