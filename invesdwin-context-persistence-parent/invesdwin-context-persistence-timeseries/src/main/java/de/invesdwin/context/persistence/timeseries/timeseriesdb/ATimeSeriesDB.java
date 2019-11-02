@@ -144,12 +144,12 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
     @Override
     public ICloseableIterable<V> rangeValues(final K key, final FDate from, final FDate to) {
-        return new RangeValues(key, to, from);
+        return new RangeValues(key, from, to);
     }
 
     @Override
     public ICloseableIterable<V> rangeReverseValues(final K key, final FDate from, final FDate to) {
-        return new RangeReverseValues(key, to, from);
+        return new RangeReverseValues(key, from, to);
     }
 
     @Override
@@ -288,13 +288,13 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
     private final class RangeReverseValues implements ICloseableIterable<V> {
         private final K key;
-        private final FDate to;
         private final FDate from;
+        private final FDate to;
 
-        private RangeReverseValues(final K key, final FDate to, final FDate from) {
+        private RangeReverseValues(final K key, final FDate from, final FDate to) {
             this.key = key;
-            this.to = to;
             this.from = from;
+            this.to = to;
         }
 
         @Override
@@ -341,13 +341,13 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
     private final class RangeValues implements ICloseableIterable<V> {
         private final K key;
-        private final FDate to;
         private final FDate from;
+        private final FDate to;
 
-        private RangeValues(final K key, final FDate to, final FDate from) {
+        private RangeValues(final K key, final FDate from, final FDate to) {
             this.key = key;
-            this.to = to;
             this.from = from;
+            this.to = to;
         }
 
         @Override
