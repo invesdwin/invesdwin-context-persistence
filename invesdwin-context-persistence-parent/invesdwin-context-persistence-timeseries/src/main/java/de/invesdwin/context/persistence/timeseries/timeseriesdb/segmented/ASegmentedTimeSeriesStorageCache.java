@@ -460,11 +460,13 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                             + "] should not be after segmentTo [" + segmentTo + "]");
                 }
             }
-        } catch (final IncompleteUpdateFoundException e) {
-            segmentedTable.deleteRange(new SegmentedKey<K>(segmentedKey.getKey(), segmentedKey.getSegment()));
-            throw new RetryLaterRuntimeException(e);
-        } catch (final Throwable e) {
-            throw Throwables.propagate(e);
+        } catch (final Throwable t) {
+            if (Throwables.isCausedByType(t, IncompleteUpdateFoundException.class)) {
+                segmentedTable.deleteRange(new SegmentedKey<K>(segmentedKey.getKey(), segmentedKey.getSegment()));
+                throw new RetryLaterRuntimeException(t);
+            } else {
+                throw Throwables.propagate(t);
+            }
         }
     }
 
