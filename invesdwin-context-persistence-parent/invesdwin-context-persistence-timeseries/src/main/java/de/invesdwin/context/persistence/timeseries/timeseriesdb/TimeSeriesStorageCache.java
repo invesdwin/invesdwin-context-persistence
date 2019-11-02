@@ -786,6 +786,11 @@ public class TimeSeriesStorageCache<K, V> {
                             file);
                     return true;
                 }
+                if (file.length() == 0) {
+                    log.warn("Table data for [%s] is inconsistent and needs to be reset. Empty file: [%s]", hashKey,
+                            file);
+                    return true;
+                }
                 noFileFound = false;
 
             }
