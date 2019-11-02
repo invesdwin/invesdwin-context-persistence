@@ -803,6 +803,9 @@ public class TimeSeriesStorageCache<K, V> {
         final List<V> lastValues = new ArrayList<V>();
         if (latestRangeKey != null) {
             if (shouldRedoLastFile) {
+                if (redirectedFiles != null) {
+                    throw new IllegalStateException("redirectedFiles should be null when shouldRedoLastFile=true");
+                }
                 final File lastFile = newFile(latestRangeKey);
                 try (SerializingCollection<V> lastColl = newSerializingCollection(lastFile)) {
                     lastValues.addAll(lastColl);
