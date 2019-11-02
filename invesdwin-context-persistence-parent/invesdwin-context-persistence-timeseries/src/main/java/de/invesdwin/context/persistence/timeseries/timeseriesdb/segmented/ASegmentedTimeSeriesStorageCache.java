@@ -37,7 +37,6 @@ import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
-import de.invesdwin.util.concurrent.taskinfo.TaskInfoManager;
 import de.invesdwin.util.concurrent.taskinfo.provider.TaskInfoCallable;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.error.Throwables;
@@ -431,10 +430,6 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
             final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
         try {
             final ITimeSeriesUpdater<SegmentedKey<K>, V> updater = newSegmentUpdater(segmentedKey, source);
-            String taskName = TaskInfoManager.getCurrentThreadTaskInfoName();
-            if (taskName == null) {
-                taskName = "Loading " + getElementsName() + " for " + hashKey;
-            }
             final Callable<Void> task = new Callable<Void>() {
                 @Override
                 public Void call() throws Exception {
@@ -443,6 +438,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
                     return null;
                 }
             };
+            final String taskName = "Loading " + getElementsName() + " for " + hashKey;
             final Callable<Percent> progress = new Callable<Percent>() {
                 @Override
                 public Percent call() throws Exception {

@@ -17,7 +17,6 @@ import de.invesdwin.util.concurrent.future.Futures;
 import de.invesdwin.util.concurrent.lock.IReentrantLock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.nested.ANestedExecutor;
-import de.invesdwin.util.concurrent.taskinfo.TaskInfoManager;
 import de.invesdwin.util.concurrent.taskinfo.provider.TaskInfoCallable;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.math.decimal.scaled.Percent;
@@ -127,70 +126,67 @@ public abstract class ADataUpdater<K, V> {
     }
 
     protected final FDate doUpdate(final FDate estimatedTo) throws IncompleteUpdateFoundException {
-        final ALoggingTimeSeriesUpdater<K, V> updater = new ALoggingTimeSeriesUpdater<K, V>(key, getTable(), log) {
-
-            @Override
-            protected FDate extractTime(final V element) {
-                return ADataUpdater.this.extractTime(element);
-            }
-
-            @Override
-            protected FDate extractEndTime(final V element) {
-                return ADataUpdater.this.extractEndTime(element);
-            }
-
-            @Override
-            protected ICloseableIterable<? extends V> getSource(final FDate updateFrom) {
-                final ICloseableIterable<? extends V> downloadElements = downloadElements(getKey(), updateFrom);
-                return downloadElements;
-            }
-
-            @Override
-            protected String keyToString(final K key) {
-                return ADataUpdater.this.keyToString(key);
-            }
-
-            @Override
-            protected String getElementsName() {
-                return ADataUpdater.this.getElementsName();
-            }
-
-            @Override
-            protected boolean shouldWriteInParallel() {
-                return ADataUpdater.this.shouldWriteInParallel();
-            }
-
-            @Override
-            public Percent getProgress() {
-                if (estimatedTo == null) {
-                    return null;
-                }
-                final FDate from = getMinTime();
-                if (from == null) {
-                    return null;
-                }
-                final FDate curTime = getMaxTime();
-                if (curTime == null) {
-                    return null;
-                }
-                return new Percent(new Duration(from, curTime), new Duration(from, estimatedTo))
-                        .orLower(Percent.ONE_HUNDRED_PERCENT);
-            }
-
-        };
-        String taskName = TaskInfoManager.getCurrentThreadTaskInfoName();
-        if (taskName == null) {
-            taskName = "Loading " + getElementsName() + " for " + keyToString(getKey());
-        }
-        final Callable<FDate> task = new Callable<FDate>() {
-            @Override
-            public FDate call() throws Exception {
-                updater.update();
-                return updater.getMaxTime();
-            }
-        };
-        final Callable<Percent> progress = newProgressCallable(estimatedTo, updater);
         try {
+            final ALoggingTimeSeriesUpdater<K, V> updater = new ALoggingTimeSeriesUpdater<K, V>(key, getTable(), log) {
+
+                @Override
+                protected FDate extractTime(final V element) {
+                    return ADataUpdater.this.extractTime(element);
+                }
+
+                @Override
+                protected FDate extractEndTime(final V element) {
+                    return ADataUpdater.this.extractEndTime(element);
+                }
+
+                @Override
+                protected ICloseableIterable<? extends V> getSource(final FDate updateFrom) {
+                    final ICloseableIterable<? extends V> downloadElements = downloadElements(getKey(), updateFrom);
+                    return downloadElements;
+                }
+
+                @Override
+                protected String keyToString(final K key) {
+                    return ADataUpdater.this.keyToString(key);
+                }
+
+                @Override
+                protected String getElementsName() {
+                    return ADataUpdater.this.getElementsName();
+                }
+
+                @Override
+                protected boolean shouldWriteInParallel() {
+                    return ADataUpdater.this.shouldWriteInParallel();
+                }
+
+                @Override
+                public Percent getProgress() {
+                    if (estimatedTo == null) {
+                        return null;
+                    }
+                    final FDate from = getMinTime();
+                    if (from == null) {
+                        return null;
+                    }
+                    final FDate curTime = getMaxTime();
+                    if (curTime == null) {
+                        return null;
+                    }
+                    return new Percent(new Duration(from, curTime), new Duration(from, estimatedTo))
+                            .orLower(Percent.ONE_HUNDRED_PERCENT);
+                }
+
+            };
+            final Callable<FDate> task = new Callable<FDate>() {
+                @Override
+                public FDate call() throws Exception {
+                    updater.update();
+                    return updater.getMaxTime();
+                }
+            };
+            final String taskName = "Loading " + getElementsName() + " for " + keyToString(getKey());
+            final Callable<Percent> progress = newProgressCallable(estimatedTo, updater);
             return TaskInfoCallable.of(taskName, task, progress).call();
         } catch (final IncompleteUpdateFoundException e) {
             throw e;
