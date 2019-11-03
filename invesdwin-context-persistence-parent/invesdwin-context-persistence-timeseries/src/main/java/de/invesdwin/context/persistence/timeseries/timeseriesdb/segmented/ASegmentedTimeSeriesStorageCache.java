@@ -423,7 +423,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             @Override
             protected Throwable callRetryable() throws Exception {
                 try {
-                    initSegment(segmentedKey, source);
+                    if (!closed) {
+                        initSegment(segmentedKey, source);
+                    }
                     return null;
                 } catch (final Throwable t) {
                     if (closed) {
