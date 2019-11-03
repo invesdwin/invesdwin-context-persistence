@@ -54,13 +54,15 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         }
     };
 
+    private final TextDescription name;
     private int size;
     private final File file;
     private final SerializingCollectionFinalizer finalizer;
     private final Integer fixedLength = getFixedLength();
     private final Serde<E> serde = newSerde();
 
-    public SerializingCollection(final String tempFileId) {
+    public SerializingCollection(final TextDescription name, final String tempFileId) {
+        this.name = name;
         this.finalizer = new SerializingCollectionFinalizer();
         this.file = new File(getTempFolder(), UNIQUE_NAME_GENERATOR.get(Files.normalizeFilename(tempFileId) + ".data"));
         if (file.exists()) {
@@ -69,7 +71,8 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         this.finalizer.register(this);
     }
 
-    public SerializingCollection(final File file, final boolean readOnly) {
+    public SerializingCollection(final TextDescription name, final File file, final boolean readOnly) {
+        this.name = name;
         this.finalizer = new SerializingCollectionFinalizer();
         this.file = file;
         if (readOnly) {
@@ -320,7 +323,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         private final DynamicLengthDeserializingIteratorFinalizer<E> finalizer;
 
         private DynamicLengthDeserializingIterator() {
-            super(new TextDescription("%s.%s: %s", SerializingCollection.class.getSimpleName(),
+            super(new TextDescription("%s: %s.%s: %s", name, SerializingCollection.class.getSimpleName(),
                     DynamicLengthDeserializingIteratorFinalizer.class.getSimpleName(), file));
             finalizer = new DynamicLengthDeserializingIteratorFinalizer<>();
             try {
@@ -427,7 +430,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         private final FixedLengthDeserializingIteratorFinalizer<E> finalizer;
 
         private FixedLengthDeserializingIterator() {
-            super(new TextDescription("%s.%s: %s", SerializingCollection.class.getSimpleName(),
+            super(new TextDescription("%s: %s.%s: %s", name, SerializingCollection.class.getSimpleName(),
                     FixedLengthDeserializingIterator.class.getSimpleName(), file));
             this.finalizer = new FixedLengthDeserializingIteratorFinalizer<>();
             try {

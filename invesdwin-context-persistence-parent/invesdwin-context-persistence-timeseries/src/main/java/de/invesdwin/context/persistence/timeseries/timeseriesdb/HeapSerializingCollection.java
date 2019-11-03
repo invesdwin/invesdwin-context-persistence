@@ -10,20 +10,22 @@ import java.io.OutputStream;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import de.invesdwin.util.lang.description.TextDescription;
+
 @NotThreadSafe
 public class HeapSerializingCollection<E> extends SerializingCollection<E> {
 
     private final ByteArrayOutputStream bos;
     private final byte[] bytes;
 
-    public HeapSerializingCollection() {
-        super(null, false);
+    public HeapSerializingCollection(final TextDescription name) {
+        super(name, null, false);
         this.bos = new ByteArrayOutputStream();
         this.bytes = null;
     }
 
-    public HeapSerializingCollection(final byte[] bytes) {
-        super(null, true);
+    public HeapSerializingCollection(final TextDescription name, final byte[] bytes) {
+        super(name, null, true);
         this.bos = null;
         this.bytes = bytes;
     }

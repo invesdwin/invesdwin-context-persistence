@@ -169,6 +169,9 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
     @Override
     public synchronized void close() {
         segmentedTable.close();
+        for (final ASegmentedTimeSeriesStorageCache<?, ?> cache : key_lookupTableCache.values()) {
+            cache.close();
+        }
         key_lookupTableCache.clear();
         key_tableLock.clear();
     }

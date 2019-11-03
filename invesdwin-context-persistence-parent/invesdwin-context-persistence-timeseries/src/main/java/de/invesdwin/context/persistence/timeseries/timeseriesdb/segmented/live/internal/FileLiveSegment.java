@@ -21,6 +21,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.SingleValueIterable;
 import de.invesdwin.util.lang.Files;
+import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
 
@@ -53,7 +54,9 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             throw new RuntimeException(e);
         }
         Files.deleteQuietly(file);
-        return new SerializingCollection<V>(file, false) {
+        final TextDescription name = new TextDescription("%s[%s]: newSerializingCollection()",
+                FileLiveSegment.class.getSimpleName(), segmentedKey);
+        return new SerializingCollection<V>(name, file, false) {
             @Override
             protected Serde<V> newSerde() {
                 return historicalSegmentTable.newValueSerde();
@@ -276,8 +279,10 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
         }
         try {
+            final TextDescription name = new TextDescription("%s[%s]: getFlushedValues()",
+                    FileLiveSegment.class.getSimpleName(), segmentedKey);
             final byte[] bytes = Files.readFileToByteArray(values.getFile());
-            return new HeapSerializingCollection<V>(bytes) {
+            return new HeapSerializingCollection<V>(name, bytes) {
                 @Override
                 protected Serde<V> newSerde() {
                     return historicalSegmentTable.newValueSerde();

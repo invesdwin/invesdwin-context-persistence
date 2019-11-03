@@ -1,5 +1,6 @@
 package de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented;
 
+import java.io.Closeable;
 import java.io.OutputStream;
 import java.util.NoSuchElementException;
 import java.util.Optional;
@@ -13,7 +14,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.lang3.SerializationException;
 
-import de.invesdwin.context.integration.retry.ARetryingRunnable;
+import de.invesdwin.context.integration.retry.ARetryingCallable;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.RetryOriginator;
 import de.invesdwin.context.log.Log;
@@ -50,7 +51,7 @@ import ezdb.serde.Serde;
 import net.jpountz.lz4.LZ4BlockOutputStream;
 
 @NotThreadSafe
-public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
+public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeable {
     public static final Integer MAXIMUM_SIZE = TimeSeriesStorageCache.MAXIMUM_SIZE;
     public static final EvictionMode EVICTION_MODE = TimeSeriesStorageCache.EVICTION_MODE;
 
@@ -192,6 +193,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
         }
     };
 
+    private volatile boolean closed;
     private volatile Optional<V> cachedFirstValue;
     private volatile Optional<V> cachedLastValue;
     private volatile Optional<FDate> cachedPrevLastAvailableSegmentTo;
@@ -416,14 +418,26 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
 
     private void initSegmentRetry(final SegmentedKey<K> segmentedKey,
             final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
-        final ARetryingRunnable retryTask = new ARetryingRunnable(
+        final ARetryingCallable<Throwable> retryTask = new ARetryingCallable<Throwable>(
                 new RetryOriginator(ASegmentedTimeSeriesDB.class, "initSegment", segmentedKey)) {
             @Override
-            protected void runRetryable() throws Exception {
-                initSegment(segmentedKey, source);
+            protected Throwable callRetryable() throws Exception {
+                try {
+                    initSegment(segmentedKey, source);
+                    return null;
+                } catch (final Throwable t) {
+                    if (closed) {
+                        return t;
+                    } else {
+                        throw t;
+                    }
+                }
             }
         };
-        retryTask.run();
+        final Throwable t = retryTask.call();
+        if (t != null) {
+            throw Throwables.propagate(t);
+        }
     }
 
     private void initSegment(final SegmentedKey<K> segmentedKey,
@@ -795,6 +809,12 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> {
             //end reached
         }
         return empty;
+    }
+
+    @Override
+    public void close() {
+        clearCaches();
+        closed = true;
     }
 
 }

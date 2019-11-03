@@ -30,6 +30,7 @@ import de.invesdwin.util.collections.iterable.concurrent.AProducerQueueIterator;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.lock.FileChannelLock;
 import de.invesdwin.util.lang.Files;
+import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
@@ -290,7 +291,9 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             final Instant flushStart = new Instant();
 
             final File newFile = lookupTable.newFile(minTime);
-            final SerializingCollection<V> collection = new SerializingCollection<V>(newFile, false) {
+            final TextDescription name = new TextDescription("%s[%s]: write(%s)",
+                    ATimeSeriesUpdater.class.getSimpleName(), key, flushIndex);
+            final SerializingCollection<V> collection = new SerializingCollection<V>(name, newFile, false) {
                 @Override
                 protected Serde<V> newSerde() {
                     return new Serde<V>() {

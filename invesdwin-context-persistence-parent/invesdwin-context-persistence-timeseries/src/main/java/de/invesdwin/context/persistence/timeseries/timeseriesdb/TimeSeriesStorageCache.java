@@ -26,6 +26,7 @@ import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ChunkVal
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ShiftUnitsRangeKey;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.TimeSeriesStorage;
+import de.invesdwin.context.persistence.timeseries.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.eviction.EvictionMode;
@@ -82,7 +83,8 @@ public class TimeSeriesStorageCache<K, V> {
                                 return null;
                             }
                             final File file = newFile(fileTime);
-                            final SerializingCollection<V> serializingCollection = newSerializingCollection(file);
+                            final SerializingCollection<V> serializingCollection = newSerializingCollection(
+                                    "latestValueLookupCache.loadValue", file);
                             V latestValue = null;
                             try (ICloseableIterator<V> it = serializingCollection.iterator()) {
                                 while (true) {
@@ -527,7 +529,7 @@ public class TimeSeriesStorageCache<K, V> {
 
             @Override
             protected ICloseableIterator<V> transform(final File value) {
-                final ICloseableIterable<V> serializingCollection = newSerializingCollection(value);
+                final ICloseableIterable<V> serializingCollection = newSerializingCollection("readRangeValues", value);
                 if (first) {
                     first = false;
                     if (hasNext()) {
@@ -594,7 +596,8 @@ public class TimeSeriesStorageCache<K, V> {
 
             @Override
             protected ICloseableIterator<V> transform(final File value) {
-                final IReverseCloseableIterable<V> serializingCollection = newSerializingCollection(value);
+                final IReverseCloseableIterable<V> serializingCollection = newSerializingCollection(
+                        "readRangeValuesReverse", value);
                 if (first) {
                     first = false;
                     if (hasNext()) {
@@ -653,8 +656,10 @@ public class TimeSeriesStorageCache<K, V> {
         return flatteningIterator;
     }
 
-    private SerializingCollection<V> newSerializingCollection(final File file) {
-        return new SerializingCollection<V>(file, true) {
+    private SerializingCollection<V> newSerializingCollection(final String method, final File file) {
+        final TextDescription name = new TextDescription("%s[%s]: %s(%s)", ATimeSeriesUpdater.class.getSimpleName(),
+                hashKey, method, file);
+        return new SerializingCollection<V>(name, file, true) {
 
             @Override
             protected Serde<V> newSerde() {
@@ -815,7 +820,7 @@ public class TimeSeriesStorageCache<K, V> {
                     throw new IllegalStateException("redirectedFiles should be null when shouldRedoLastFile=true");
                 }
                 final File lastFile = newFile(latestRangeKey);
-                try (SerializingCollection<V> lastColl = newSerializingCollection(lastFile)) {
+                try (SerializingCollection<V> lastColl = newSerializingCollection("prepareForUpdate", lastFile)) {
                     lastValues.addAll(lastColl);
                 }
                 //remove last value because it might be an incomplete bar
