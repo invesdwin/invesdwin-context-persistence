@@ -101,16 +101,20 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                         + "] and key [" + key + "], need to clean everything up to restore all from scratch.");
             }
             try {
-                Files.touch(updateLockFile);
-            } catch (final IOException e) {
-                throw new RuntimeException(e);
+                try {
+                    Files.touch(updateLockFile);
+                } catch (final IOException e) {
+                    throw new RuntimeException(e);
+                }
+                final Instant updateStart = new Instant();
+                onUpdateStart();
+                doUpdate();
+                onUpdateFinished(updateStart);
+                Assertions.assertThat(updateLockFile.delete()).isTrue();
+                return true;
+            } catch (final Throwable t) {
+                throw new IncompleteUpdateFoundException("Something unexpected went wrong", t);
             }
-            final Instant updateStart = new Instant();
-            onUpdateStart();
-            doUpdate();
-            onUpdateFinished(updateStart);
-            Assertions.assertThat(updateLockFile.delete()).isTrue();
-            return true;
         } finally {
             writeLock.unlock();
         }

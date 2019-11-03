@@ -24,6 +24,7 @@ import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
+import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
@@ -299,7 +300,8 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
         @Override
         public ICloseableIterator<V> iterator() {
-            return new ACloseableIterator<V>() {
+            return new ACloseableIterator<V>(new TextDescription("%s: %s(%s, %s, %s)",
+                    ATimeSeriesDB.class.getSimpleName(), RangeReverseValues.class.getSimpleName(), key, from, to)) {
 
                 private final RangeValuesFinalizer<V> finalizer = new RangeValuesFinalizer<>(
                         getTableLock(key).readLock());
@@ -352,7 +354,8 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
         @Override
         public ICloseableIterator<V> iterator() {
-            return new ACloseableIterator<V>() {
+            return new ACloseableIterator<V>(new TextDescription("%s: %s(%s, %s, %s)",
+                    ATimeSeriesDB.class.getSimpleName(), RangeValues.class.getSimpleName(), key, from, to)) {
 
                 private final RangeValuesFinalizer<V> finalizer = new RangeValuesFinalizer<>(
                         getTableLock(key).readLock());

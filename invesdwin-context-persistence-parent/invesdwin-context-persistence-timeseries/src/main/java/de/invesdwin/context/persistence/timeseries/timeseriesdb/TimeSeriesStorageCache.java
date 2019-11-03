@@ -44,6 +44,7 @@ import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
+import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
@@ -286,7 +287,8 @@ public class TimeSeriesStorageCache<K, V> {
 
             @Override
             public ACloseableIterator<File> iterator() {
-                return new ACloseableIterator<File>() {
+                return new ACloseableIterator<File>(new TextDescription("%s[%s]: readRangeFiles(%s, %s)",
+                        TimeSeriesStorageCache.class.getSimpleName(), hashKey, from, to)) {
 
                     //use latest time available even if delegate iterator has no values
                     private FDate latestFirstTime = fileLookupTable_latestRangeKeyCache.get(usedFrom);
@@ -429,7 +431,8 @@ public class TimeSeriesStorageCache<K, V> {
 
             @Override
             public ACloseableIterator<File> iterator() {
-                return new ACloseableIterator<File>() {
+                return new ACloseableIterator<File>(new TextDescription("%s[%s]: readRangeFilesReverse(%s, %s)",
+                        TimeSeriesStorageCache.class.getSimpleName(), hashKey, from, to)) {
 
                     //use latest time available even if delegate iterator has no values
                     private FDate latestLastTime = fileLookupTable_latestRangeKeyCache.get(usedFrom);

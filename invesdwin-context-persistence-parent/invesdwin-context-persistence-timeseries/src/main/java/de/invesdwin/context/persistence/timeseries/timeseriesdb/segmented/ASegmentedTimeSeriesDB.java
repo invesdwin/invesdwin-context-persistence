@@ -22,6 +22,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.lock.Locks;
+import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.range.TimeRange;
@@ -324,7 +325,9 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
         @Override
         public ICloseableIterator<V> iterator() {
-            return new ACloseableIterator<V>() {
+            return new ACloseableIterator<V>(
+                    new TextDescription("%s: %s(%s, %s, %s)", ASegmentedTimeSeriesDB.class.getSimpleName(),
+                            RangeReverseValues.class.getSimpleName(), key, from, to)) {
 
                 private final RangeValuesFinalizer<V> finalizer = new RangeValuesFinalizer<>(
                         getTableLock(key).readLock());
@@ -378,7 +381,8 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
         @Override
         public ICloseableIterator<V> iterator() {
-            return new ACloseableIterator<V>() {
+            return new ACloseableIterator<V>(new TextDescription("%s: %s(%s, %s, %s)",
+                    ASegmentedTimeSeriesDB.class.getSimpleName(), RangeValues.class.getSimpleName(), key, from, to)) {
 
                 private final RangeValuesFinalizer<V> finalizer = new RangeValuesFinalizer<>(
                         getTableLock(key).readLock());

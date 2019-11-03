@@ -38,6 +38,7 @@ import de.invesdwin.util.lang.Closeables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.UniqueNameGenerator;
+import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.math.Bytes;
 import ezdb.serde.Serde;
@@ -59,9 +60,9 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     private final Integer fixedLength = getFixedLength();
     private final Serde<E> serde = newSerde();
 
-    public SerializingCollection(final String id) {
+    public SerializingCollection(final String tempFileId) {
         this.finalizer = new SerializingCollectionFinalizer();
-        this.file = new File(getTempFolder(), UNIQUE_NAME_GENERATOR.get(id.replace(":", "_")) + ".data");
+        this.file = new File(getTempFolder(), UNIQUE_NAME_GENERATOR.get(Files.normalizeFilename(tempFileId) + ".data"));
         if (file.exists()) {
             throw new IllegalStateException("File [" + file.getAbsolutePath() + "] already exists!");
         }
@@ -315,11 +316,12 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     }
 
     @NotThreadSafe
-    private class DynamicLengthDeserializingIterator extends ACloseableIterator<E> {
-
+    private final class DynamicLengthDeserializingIterator extends ACloseableIterator<E> {
         private final DynamicLengthDeserializingIteratorFinalizer<E> finalizer;
 
-        {
+        private DynamicLengthDeserializingIterator() {
+            super(new TextDescription("%s.%s: %s", SerializingCollection.class.getSimpleName(),
+                    DynamicLengthDeserializingIteratorFinalizer.class.getSimpleName(), file));
             finalizer = new DynamicLengthDeserializingIteratorFinalizer<>();
             try {
                 finalizer.inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));
@@ -420,11 +422,13 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     }
 
     @NotThreadSafe
-    private class FixedLengthDeserializingIterator extends ACloseableIterator<E> {
+    private final class FixedLengthDeserializingIterator extends ACloseableIterator<E> {
 
         private final FixedLengthDeserializingIteratorFinalizer<E> finalizer;
 
-        {
+        private FixedLengthDeserializingIterator() {
+            super(new TextDescription("%s.%s: %s", SerializingCollection.class.getSimpleName(),
+                    FixedLengthDeserializingIterator.class.getSimpleName(), file));
             this.finalizer = new FixedLengthDeserializingIteratorFinalizer<>();
             try {
                 this.finalizer.inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));

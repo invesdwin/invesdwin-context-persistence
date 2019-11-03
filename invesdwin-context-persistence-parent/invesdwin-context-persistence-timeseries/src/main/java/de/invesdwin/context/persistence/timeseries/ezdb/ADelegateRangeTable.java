@@ -26,6 +26,7 @@ import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Reflections;
 import de.invesdwin.util.lang.Strings;
+import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.Db;
@@ -525,7 +526,8 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     @Override
     public DelegateTableIterator<H, R, V> range(final H hashKey) {
         final RangeTable<H, R, V> table = getTableWithReadLock();
-        return new DelegateTableIterator<H, R, V>(table.range(hashKey), tableLock, allowHasNext());
+        return new DelegateTableIterator<H, R, V>(name, hashKey, "range(final H hashKey)", table.range(hashKey),
+                tableLock, allowHasNext());
     }
 
     public ICloseableIterator<V> rangeValues(final H hashKey) {
@@ -535,7 +537,8 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     @Override
     public DelegateTableIterator<H, R, V> range(final H hashKey, final R fromRangeKey) {
         final RangeTable<H, R, V> table = getTableWithReadLock();
-        return new DelegateTableIterator<H, R, V>(table.range(hashKey, fromRangeKey), tableLock, allowHasNext());
+        return new DelegateTableIterator<H, R, V>(name, hashKey, "range(final H hashKey, final R fromRangeKey)",
+                table.range(hashKey, fromRangeKey), tableLock, allowHasNext());
     }
 
     public ICloseableIterator<V> rangeValues(final H hashKey, final R fromRangeKey) {
@@ -545,8 +548,9 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     @Override
     public DelegateTableIterator<H, R, V> range(final H hashKey, final R fromRangeKey, final R toRangeKey) {
         final RangeTable<H, R, V> table = getTableWithReadLock();
-        return new DelegateTableIterator<H, R, V>(table.range(hashKey, fromRangeKey, toRangeKey), tableLock,
-                allowHasNext());
+        return new DelegateTableIterator<H, R, V>(name, hashKey,
+                "range(final H hashKey, final R fromRangeKey, final R toRangeKey)",
+                table.range(hashKey, fromRangeKey, toRangeKey), tableLock, allowHasNext());
     }
 
     public ICloseableIterator<V> rangeValues(final H hashKey, final R fromRangeKey, final R toRangeKey) {
@@ -556,7 +560,8 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     @Override
     public DelegateTableIterator<H, R, V> rangeReverse(final H hashKey) {
         final RangeTable<H, R, V> table = getTableWithReadLock();
-        return new DelegateTableIterator<H, R, V>(table.rangeReverse(hashKey), tableLock, allowHasNext());
+        return new DelegateTableIterator<H, R, V>(name, hashKey, "rangeReverse(final H hashKey)",
+                table.rangeReverse(hashKey), tableLock, allowHasNext());
     }
 
     public ICloseableIterator<V> rangeReverseValues(final H hashKey) {
@@ -566,7 +571,8 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     @Override
     public DelegateTableIterator<H, R, V> rangeReverse(final H hashKey, final R fromRangeKey) {
         final RangeTable<H, R, V> table = getTableWithReadLock();
-        return new DelegateTableIterator<H, R, V>(table.rangeReverse(hashKey, fromRangeKey), tableLock, allowHasNext());
+        return new DelegateTableIterator<H, R, V>(name, hashKey, "rangeReverse(final H hashKey, final R fromRangeKey)",
+                table.rangeReverse(hashKey, fromRangeKey), tableLock, allowHasNext());
     }
 
     public ICloseableIterator<V> rangeReverseValues(final H hashKey, final R fromRangeKey) {
@@ -576,8 +582,9 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     @Override
     public DelegateTableIterator<H, R, V> rangeReverse(final H hashKey, final R fromRangeKey, final R toRangeKey) {
         final RangeTable<H, R, V> table = getTableWithReadLock();
-        return new DelegateTableIterator<H, R, V>(table.rangeReverse(hashKey, fromRangeKey, toRangeKey), tableLock,
-                allowHasNext());
+        return new DelegateTableIterator<H, R, V>(name, hashKey,
+                "rangeReverse(final H hashKey, final R fromRangeKey, final R toRangeKey)",
+                table.rangeReverse(hashKey, fromRangeKey, toRangeKey), tableLock, allowHasNext());
     }
 
     public ICloseableIterator<V> rangeReverseValues(final H hashKey, final R fromRangeKey, final R toRangeKey) {
@@ -710,8 +717,11 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         private final boolean allowHasNext;
         private final TableIteratorFinalizer<_H, _R, _V> finalizer;
 
-        public DelegateTableIterator(final TableIterator<_H, _R, _V> delegate, final ReadWriteLock tableLockDelegate,
+        public DelegateTableIterator(final String name, final _H hashKey, final String method,
+                final TableIterator<_H, _R, _V> delegate, final ReadWriteLock tableLockDelegate,
                 final boolean allowHasNext) {
+            super(new TextDescription("%s[%s].%s[%s]: %s", ADelegateRangeTable.class.getSimpleName(), name,
+                    DelegateTableIterator.class.getSimpleName(), hashKey, method));
             this.allowHasNext = allowHasNext;
             this.finalizer = new TableIteratorFinalizer<_H, _R, _V>(delegate, tableLockDelegate);
             this.finalizer.register(this);
