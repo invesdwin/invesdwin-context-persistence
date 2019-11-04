@@ -14,9 +14,9 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.lang3.SerializationException;
 
-import de.invesdwin.context.integration.retry.ARetryingCallable;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
-import de.invesdwin.context.integration.retry.RetryOriginator;
+import de.invesdwin.context.integration.retry.task.ARetryingCallable;
+import de.invesdwin.context.integration.retry.task.RetryOriginator;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable.DelegateTableIterator;
