@@ -20,7 +20,6 @@ import de.invesdwin.context.integration.retry.task.ARetryCallable;
 import de.invesdwin.context.integration.retry.task.RetryOriginator;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
-import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable.DelegateTableIterator;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.TimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ChunkValue;
@@ -807,10 +806,13 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             }
         }
         boolean empty = true;
-        final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentsTable = storage.getSegmentStatusTable();
-        try (DelegateTableIterator<String, TimeRange, SegmentStatus> range = segmentsTable.range(hashKey)) {
-            while (true) {
-                final TableRow<String, TimeRange, SegmentStatus> row = range.next();
+        final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable = storage
+                .getSegmentStatusTable();
+        try (ICloseableIterator<TableRow<String, TimeRange, SegmentStatus>> rangeKeysIterator = segmentStatusTable
+                .range(hashKey)) {
+            final List<TableRow<String, TimeRange, SegmentStatus>> rows = Lists.toListWithoutHasNext(rangeKeysIterator);
+            for (int i = 0; i < rows.size(); i++) {
+                final TableRow<String, TimeRange, SegmentStatus> row = rows.get(i);
                 final SegmentStatus status = row.getValue();
                 if (status == SegmentStatus.COMPLETE) {
                     if (segmentedTable.isEmptyOrInconsistent(new SegmentedKey<K>(key, row.getRangeKey()))) {
