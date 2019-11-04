@@ -643,6 +643,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     public synchronized void deleteAll() {
         final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable = storage
                 .getSegmentStatusTable();
+        final List<TimeRange> rangeKeys;
         try (ICloseableIterator<TimeRange> rangeKeysIterator = new ATransformingCloseableIterator<TableRow<String, TimeRange, SegmentStatus>, TimeRange>(
                 segmentStatusTable.range(hashKey)) {
 
@@ -651,11 +652,11 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 return value.getRangeKey();
             }
         }) {
-            final List<TimeRange> rangeKeys = Lists.toListWithoutHasNext(rangeKeysIterator);
-            for (int i = 0; i < rangeKeys.size(); i++) {
-                final TimeRange rangeKey = rangeKeys.get(i);
-                segmentedTable.deleteRange(new SegmentedKey<K>(key, rangeKey));
-            }
+            rangeKeys = Lists.toListWithoutHasNext(rangeKeysIterator);
+        }
+        for (int i = 0; i < rangeKeys.size(); i++) {
+            final TimeRange rangeKey = rangeKeys.get(i);
+            segmentedTable.deleteRange(new SegmentedKey<K>(key, rangeKey));
         }
         segmentStatusTable.deleteRange(hashKey);
         storage.getLatestValueLookupTable().deleteRange(hashKey);
@@ -808,21 +809,20 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         boolean empty = true;
         final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable = storage
                 .getSegmentStatusTable();
+        final List<TableRow<String, TimeRange, SegmentStatus>> rows;
         try (ICloseableIterator<TableRow<String, TimeRange, SegmentStatus>> rangeKeysIterator = segmentStatusTable
                 .range(hashKey)) {
-            final List<TableRow<String, TimeRange, SegmentStatus>> rows = Lists.toListWithoutHasNext(rangeKeysIterator);
-            for (int i = 0; i < rows.size(); i++) {
-                final TableRow<String, TimeRange, SegmentStatus> row = rows.get(i);
-                final SegmentStatus status = row.getValue();
-                if (status == SegmentStatus.COMPLETE) {
-                    if (segmentedTable.isEmptyOrInconsistent(new SegmentedKey<K>(key, row.getRangeKey()))) {
-                        return true;
-                    }
+            rows = Lists.toListWithoutHasNext(rangeKeysIterator);
+        }
+        for (int i = 0; i < rows.size(); i++) {
+            final TableRow<String, TimeRange, SegmentStatus> row = rows.get(i);
+            final SegmentStatus status = row.getValue();
+            if (status == SegmentStatus.COMPLETE) {
+                if (segmentedTable.isEmptyOrInconsistent(new SegmentedKey<K>(key, row.getRangeKey()))) {
+                    return true;
                 }
-                empty = false;
             }
-        } catch (final NoSuchElementException e) {
-            //end reached
+            empty = false;
         }
         return empty;
     }
