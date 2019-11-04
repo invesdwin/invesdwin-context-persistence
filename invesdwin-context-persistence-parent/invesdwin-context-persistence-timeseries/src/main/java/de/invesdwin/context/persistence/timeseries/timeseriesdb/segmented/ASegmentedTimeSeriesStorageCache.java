@@ -423,7 +423,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             @Override
             protected Throwable callRetry() throws Exception {
                 try {
-                    if (!closed) {
+                    if (closed) {
                         return new RetryLaterRuntimeException(ASegmentedTimeSeriesStorageCache.class.getSimpleName()
                                 + "for [" + hashKey + "] is already closed.");
                     } else {
