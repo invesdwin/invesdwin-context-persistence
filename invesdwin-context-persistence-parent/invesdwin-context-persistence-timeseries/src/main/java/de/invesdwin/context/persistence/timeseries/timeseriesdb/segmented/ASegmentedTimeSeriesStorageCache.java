@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented;
 
 import java.io.Closeable;
 import java.io.OutputStream;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -29,9 +30,11 @@ import de.invesdwin.context.persistence.timeseries.timeseriesdb.updater.ALogging
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.updater.ITimeSeriesUpdater;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.tuple.Pair;
+import de.invesdwin.util.collections.Lists;
 import de.invesdwin.util.collections.eviction.EvictionMode;
 import de.invesdwin.util.collections.iterable.ASkippingIterable;
 import de.invesdwin.util.collections.iterable.ATransformingCloseableIterable;
+import de.invesdwin.util.collections.iterable.ATransformingCloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -641,13 +644,19 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     public synchronized void deleteAll() {
         final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable = storage
                 .getSegmentStatusTable();
-        try (DelegateTableIterator<String, TimeRange, SegmentStatus> range = segmentStatusTable.range(hashKey)) {
-            while (true) {
-                final TableRow<String, TimeRange, SegmentStatus> row = range.next();
-                segmentedTable.deleteRange(new SegmentedKey<K>(key, row.getRangeKey()));
+        try (ICloseableIterator<TimeRange> rangeKeysIterator = new ATransformingCloseableIterator<TableRow<String, TimeRange, SegmentStatus>, TimeRange>(
+                segmentStatusTable.range(hashKey)) {
+
+            @Override
+            protected TimeRange transform(final TableRow<String, TimeRange, SegmentStatus> value) {
+                return value.getRangeKey();
             }
-        } catch (final NoSuchElementException e) {
-            //end reached
+        }) {
+            final List<TimeRange> rangeKeys = Lists.toListWithoutHasNext(rangeKeysIterator);
+            for (int i = 0; i < rangeKeys.size(); i++) {
+                final TimeRange rangeKey = rangeKeys.get(i);
+                segmentedTable.deleteRange(new SegmentedKey<K>(key, rangeKey));
+            }
         }
         segmentStatusTable.deleteRange(hashKey);
         storage.getLatestValueLookupTable().deleteRange(hashKey);
