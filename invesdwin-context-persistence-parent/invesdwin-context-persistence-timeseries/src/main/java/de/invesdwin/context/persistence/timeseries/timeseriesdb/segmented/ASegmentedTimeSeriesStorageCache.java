@@ -15,7 +15,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.lang3.SerializationException;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
-import de.invesdwin.context.integration.retry.task.ARetryingCallable;
+import de.invesdwin.context.integration.retry.task.ARetryCallable;
 import de.invesdwin.context.integration.retry.task.RetryOriginator;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
@@ -418,10 +418,10 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
     private void initSegmentRetry(final SegmentedKey<K> segmentedKey,
             final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
-        final ARetryingCallable<Throwable> retryTask = new ARetryingCallable<Throwable>(
+        final ARetryCallable<Throwable> retryTask = new ARetryCallable<Throwable>(
                 new RetryOriginator(ASegmentedTimeSeriesDB.class, "initSegment", segmentedKey)) {
             @Override
-            protected Throwable callRetryable() throws Exception {
+            protected Throwable callRetry() throws Exception {
                 try {
                     if (!closed) {
                         return new RetryLaterRuntimeException(ASegmentedTimeSeriesStorageCache.class.getSimpleName()
