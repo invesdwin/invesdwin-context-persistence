@@ -424,6 +424,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             protected Throwable callRetryable() throws Exception {
                 try {
                     if (!closed) {
+                        return new RetryLaterRuntimeException(ASegmentedTimeSeriesStorageCache.class.getSimpleName()
+                                + "for [" + hashKey + "] is already closed.");
+                    } else {
                         initSegment(segmentedKey, source);
                     }
                     return null;
