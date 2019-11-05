@@ -92,8 +92,9 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                 throw new RetryLaterRuntimeException("Write lock could not be acquired for table [" + table.getName()
                         + "] and key [" + key + "]. Please ensure all iterators are closed!");
             }
-        } catch (final InterruptedException e1) {
-            throw new RuntimeException(e1);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
         }
         final File updateLockSyncFile = new File(updateLockFile.getAbsolutePath() + ".sync");
         try (FileChannelLock updateLockSyncFileLock = new FileChannelLock(updateLockSyncFile)) {
