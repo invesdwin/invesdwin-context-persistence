@@ -14,9 +14,11 @@ import java.util.function.Function;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.lang3.SerializationException;
+import org.springframework.retry.backoff.BackOffPolicy;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.task.ARetryCallable;
+import de.invesdwin.context.integration.retry.task.BackOffPolicies;
 import de.invesdwin.context.integration.retry.task.RetryOriginator;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
@@ -439,6 +441,12 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                         throw t;
                     }
                 }
+            }
+
+            @Override
+            protected BackOffPolicy getBackOffPolicyOverride() {
+                //randomize backoff to prevent race conditions between multiple processes
+                return BackOffPolicies.randomFixedBackOff(Duration.ONE_SECOND);
             }
         };
         final Throwable t = retryTask.call();
