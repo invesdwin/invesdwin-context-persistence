@@ -242,7 +242,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
     }
 
     @Override
-    @Retry
+    @Retry(fixedBackOffMillis = 1000)
     public void deleteRange(final K key) {
         final Lock writeLock = getTableLock(key).writeLock();
         try {
