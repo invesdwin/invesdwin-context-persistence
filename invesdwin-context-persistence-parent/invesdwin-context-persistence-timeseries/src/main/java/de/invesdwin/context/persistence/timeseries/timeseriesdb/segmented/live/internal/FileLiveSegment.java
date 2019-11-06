@@ -171,10 +171,10 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public void putNextLiveValue(final FDate nextLiveKey, final V nextLiveValue) {
-        if (values == null) {
-            values = newSerializingCollection();
-        }
         synchronized (this) {
+            if (values == null) {
+                values = newSerializingCollection();
+            }
             values.add(nextLiveValue);
             needsFlush = true;
         }
