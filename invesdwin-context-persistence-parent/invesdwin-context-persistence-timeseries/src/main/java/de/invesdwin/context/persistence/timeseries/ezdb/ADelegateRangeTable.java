@@ -749,8 +749,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         }
 
         @Override
-        public void close() {
-            super.close();
+        protected void innerClose() {
             finalizer.close();
         }
 

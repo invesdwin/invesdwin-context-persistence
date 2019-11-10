@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.internal;
 
 import java.io.OutputStream;
+import java.util.concurrent.locks.Lock;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -13,6 +14,9 @@ import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.A
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
+import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.concurrent.lock.Locks;
+import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.time.Instant;
@@ -74,13 +78,27 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
-    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to) {
-        return table.rangeValues(segmentedKey, from, to);
+    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final Lock readLock) {
+        return new ICloseableIterable<V>() {
+            @Override
+            public ICloseableIterator<V> iterator() {
+                final Lock compositeReadLock = Locks.newCompositeLock(readLock,
+                        table.getTableLock(segmentedKey).readLock());
+                return table.getLookupTableCache(segmentedKey).readRangeValues(from, to, compositeReadLock);
+            }
+        };
     }
 
     @Override
-    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to) {
-        return table.rangeReverseValues(segmentedKey, from, to);
+    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final Lock readLock) {
+        return new ICloseableIterable<V>() {
+            @Override
+            public ICloseableIterator<V> iterator() {
+                final Lock compositeReadLock = Locks.newCompositeLock(readLock,
+                        table.getTableLock(segmentedKey).readLock());
+                return table.getLookupTableCache(segmentedKey).readRangeValuesReverse(from, to, compositeReadLock);
+            }
+        };
     }
 
     @Override
@@ -187,7 +205,7 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
             if (existingStatus == SegmentStatus.INITIALIZING) {
                 segmentStatusTable.put(hashKey, segmentedKey.getSegment(), SegmentStatus.COMPLETE);
                 final ICloseableIterable<V> rangeValues = rangeValues(segmentedKey.getSegment().getFrom(),
-                        segmentedKey.getSegment().getTo());
+                        segmentedKey.getSegment().getTo(), DisabledLock.INSTANCE);
                 historicalSegmentTable.getLookupTableCache(segmentedKey.getKey())
                         .onSegmentCompleted(segmentedKey, rangeValues);
             }

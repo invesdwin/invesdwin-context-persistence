@@ -4,6 +4,7 @@ import java.util.Map.Entry;
 import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.SortedMap;
+import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -17,6 +18,8 @@ import de.invesdwin.util.collections.iterable.ATransformingCloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
+import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
+import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.time.fdate.FDate;
 
@@ -53,65 +56,88 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
-    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to) {
-        final SortedMap<Long, V> tailMap;
-        if (from == null) {
-            tailMap = values;
-        } else {
-            tailMap = values.tailMap(from.millisValue());
-        }
-        final ICloseableIterable<Entry<Long, V>> tail = WrapperCloseableIterable.maybeWrap(tailMap.entrySet());
-        final ICloseableIterable<Entry<Long, V>> skipping;
-        if (to == null) {
-            skipping = tail;
-        } else {
-            skipping = new ASkippingIterable<Entry<Long, V>>(tail) {
-                @Override
-                protected boolean skip(final Entry<Long, V> element) {
-                    if (element.getKey() > to.millisValue()) {
-                        throw new FastNoSuchElementException("LiveSegment rangeValues end reached");
+    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final Lock readLock) {
+        readLock.lock();
+        try {
+            final SortedMap<Long, V> tailMap;
+            if (from == null) {
+                tailMap = values;
+            } else {
+                tailMap = values.tailMap(from.millisValue());
+            }
+            final ICloseableIterable<Entry<Long, V>> tail = WrapperCloseableIterable.maybeWrap(tailMap.entrySet());
+            final ICloseableIterable<Entry<Long, V>> skipping;
+            if (to == null) {
+                skipping = tail;
+            } else {
+                skipping = new ASkippingIterable<Entry<Long, V>>(tail) {
+                    @Override
+                    protected boolean skip(final Entry<Long, V> element) {
+                        if (element.getKey() > to.millisValue()) {
+                            throw new FastNoSuchElementException("LiveSegment rangeValues end reached");
+                        }
+                        return false;
                     }
-                    return false;
+                };
+            }
+            final ATransformingCloseableIterable<Entry<Long, V>, V> transforming = new ATransformingCloseableIterable<Entry<Long, V>, V>(
+                    skipping) {
+                @Override
+                protected V transform(final Entry<Long, V> value) {
+                    return value.getValue();
                 }
             };
-        }
-        return new ATransformingCloseableIterable<Entry<Long, V>, V>(skipping) {
-            @Override
-            protected V transform(final Entry<Long, V> value) {
-                return value.getValue();
+            if (readLock == DisabledLock.INSTANCE) {
+                return transforming;
+            } else {
+                return new BufferingIterator<>(transforming);
             }
-        };
+        } finally {
+            readLock.unlock();
+        }
     }
 
     @Override
-    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to) {
-        final SortedMap<Long, V> headMap;
-        if (from == null) {
-            headMap = values.descendingMap();
-        } else {
-            headMap = values.descendingMap().tailMap(from.millisValue());
-        }
-        final ICloseableIterable<Entry<Long, V>> tail = WrapperCloseableIterable.maybeWrap(headMap.entrySet());
-        final ICloseableIterable<Entry<Long, V>> skipping;
-        if (to == null) {
-            skipping = tail;
-        } else {
-            skipping = new ASkippingIterable<Entry<Long, V>>(tail) {
-                @Override
-                protected boolean skip(final Entry<Long, V> element) {
-                    if (element.getKey() < to.millisValue()) {
-                        throw new FastNoSuchElementException("LiveSegment rangeReverseValues end reached");
+    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final Lock readLock) {
+        readLock.lock();
+        try {
+            final SortedMap<Long, V> headMap;
+            if (from == null) {
+                headMap = values.descendingMap();
+            } else {
+                headMap = values.descendingMap().tailMap(from.millisValue());
+            }
+            final ICloseableIterable<Entry<Long, V>> tail = WrapperCloseableIterable.maybeWrap(headMap.entrySet());
+            final ICloseableIterable<Entry<Long, V>> skipping;
+            if (to == null) {
+                skipping = tail;
+            } else {
+                skipping = new ASkippingIterable<Entry<Long, V>>(tail) {
+                    @Override
+                    protected boolean skip(final Entry<Long, V> element) {
+                        if (element.getKey() < to.millisValue()) {
+                            throw new FastNoSuchElementException("LiveSegment rangeReverseValues end reached");
+                        }
+                        return false;
                     }
-                    return false;
+                };
+            }
+
+            final ATransformingCloseableIterable<Entry<Long, V>, V> transforming = new ATransformingCloseableIterable<Entry<Long, V>, V>(
+                    skipping) {
+                @Override
+                protected V transform(final Entry<Long, V> value) {
+                    return value.getValue();
                 }
             };
-        }
-        return new ATransformingCloseableIterable<Entry<Long, V>, V>(skipping) {
-            @Override
-            protected V transform(final Entry<Long, V> value) {
-                return value.getValue();
+            if (readLock == DisabledLock.INSTANCE) {
+                return transforming;
+            } else {
+                return new BufferingIterator<>(transforming);
             }
-        };
+        } finally {
+            readLock.unlock();
+        }
     }
 
     @Override
@@ -128,7 +154,7 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
     @Override
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
         V nextValue = null;
-        try (ICloseableIterator<V> rangeValues = rangeValues(date, null).iterator()) {
+        try (ICloseableIterator<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE).iterator()) {
             for (int i = 0; i < shiftForwardUnits; i++) {
                 nextValue = rangeValues.next();
             }
@@ -174,7 +200,7 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
                 new Function<SegmentedKey<K>, ICloseableIterable<? extends V>>() {
                     @Override
                     public ICloseableIterable<? extends V> apply(final SegmentedKey<K> t) {
-                        return rangeValues(t.getSegment().getFrom(), t.getSegment().getTo());
+                        return rangeValues(t.getSegment().getFrom(), t.getSegment().getTo(), DisabledLock.INSTANCE);
                     }
                 });
         if (!initialized) {

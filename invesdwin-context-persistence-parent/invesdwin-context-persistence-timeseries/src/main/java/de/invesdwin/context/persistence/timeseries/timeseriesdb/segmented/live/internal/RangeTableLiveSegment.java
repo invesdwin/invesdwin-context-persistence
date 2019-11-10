@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.
 
 import java.io.File;
 import java.util.NoSuchElementException;
+import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -14,6 +15,8 @@ import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.Segmen
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
+import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
 
@@ -79,23 +82,43 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
-    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to) {
-        return new ICloseableIterable<V>() {
+    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final Lock readLock) {
+        final ICloseableIterable<V> iterable = new ICloseableIterable<V>() {
             @Override
             public ICloseableIterator<V> iterator() {
                 return values.rangeValues(null, from, to);
             }
         };
+        if (readLock == DisabledLock.INSTANCE) {
+            return iterable;
+        } else {
+            readLock.lock();
+            try {
+                return new BufferingIterator<>(iterable);
+            } finally {
+                readLock.unlock();
+            }
+        }
     }
 
     @Override
-    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to) {
-        return new ICloseableIterable<V>() {
+    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final Lock readLock) {
+        final ICloseableIterable<V> iterable = new ICloseableIterable<V>() {
             @Override
             public ICloseableIterator<V> iterator() {
                 return values.rangeReverseValues(null, from, to);
             }
         };
+        if (readLock == DisabledLock.INSTANCE) {
+            return iterable;
+        } else {
+            readLock.lock();
+            try {
+                return new BufferingIterator<>(iterable);
+            } finally {
+                readLock.unlock();
+            }
+        }
     }
 
     @Override
@@ -118,7 +141,7 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
             return firstValue;
         }
         V nextValue = null;
-        try (ICloseableIterator<V> rangeValues = rangeValues(date, null).iterator()) {
+        try (ICloseableIterator<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE).iterator()) {
             for (int i = 0; i < shiftForwardUnits; i++) {
                 nextValue = rangeValues.next();
             }
@@ -165,7 +188,7 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
                 new Function<SegmentedKey<K>, ICloseableIterable<? extends V>>() {
                     @Override
                     public ICloseableIterable<? extends V> apply(final SegmentedKey<K> t) {
-                        return rangeValues(t.getSegment().getFrom(), t.getSegment().getTo());
+                        return rangeValues(t.getSegment().getFrom(), t.getSegment().getTo(), DisabledLock.INSTANCE);
                     }
                 });
         if (!initialized) {

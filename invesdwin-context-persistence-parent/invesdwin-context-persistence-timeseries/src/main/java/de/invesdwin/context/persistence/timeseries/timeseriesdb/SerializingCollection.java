@@ -8,7 +8,6 @@ import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -25,7 +24,6 @@ import org.apache.commons.lang3.SerializationException;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.streams.LZ4Streams;
-import de.invesdwin.context.log.error.Err;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -93,7 +91,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         try {
             Files.forceMkdir(tempFolder);
         } catch (final IOException e) {
-            throw Err.process(e);
+            throw new RuntimeException(e);
         }
         return tempFolder;
     }
@@ -107,7 +105,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             try {
                 finalizer.fos = new DataOutputStream(newCompressor(newFileOutputStream(file)));
             } catch (final IOException e) {
-                throw Err.process(e);
+                throw new RuntimeException(e);
             }
         }
         return finalizer.fos;
@@ -138,7 +136,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             }
 
         } catch (final IOException e) {
-            throw Err.process(e);
+            throw new RuntimeException(e);
         }
         size++;
         return true;
@@ -310,7 +308,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         throw new UnsupportedOperationException();
     }
 
-    protected InputStream newFileInputStream(final File file) throws FileNotFoundException {
+    protected InputStream newFileInputStream(final File file) throws IOException {
         return new BufferedInputStream(new FileInputStream(file));
     }
 
@@ -329,7 +327,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             try {
                 finalizer.inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));
             } catch (final IOException e) {
-                throw Err.process(e);
+                throw new RuntimeException(e);
             }
             finalizer.register(this);
         }
@@ -367,7 +365,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                 }
                 return serde.fromBytes(bytes);
             } catch (final IOException e) {
-                throw Err.process(e);
+                throw new RuntimeException(e);
             }
         }
 
@@ -388,8 +386,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         }
 
         @Override
-        public void close() {
-            super.close();
+        protected void innerClose() {
             finalizer.close();
         }
 
@@ -437,7 +434,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                 this.finalizer.inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));
                 this.finalizer.byteBuffer = new byte[fixedLength];
             } catch (final IOException e) {
-                throw Err.process(e);
+                throw new RuntimeException(e);
             }
             this.finalizer.register(this);
         }
@@ -486,8 +483,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         }
 
         @Override
-        public void close() {
-            super.close();
+        protected void innerClose() {
             finalizer.close();
         }
 

@@ -3,7 +3,6 @@ package de.invesdwin.context.persistence.timeseries.timeseriesdb;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -31,7 +30,7 @@ public class HeapSerializingCollection<E> extends SerializingCollection<E> {
     }
 
     @Override
-    protected InputStream newFileInputStream(final File file) throws FileNotFoundException {
+    protected InputStream newFileInputStream(final File file) throws IOException {
         if (bytes != null) {
             return new ByteArrayInputStream(bytes);
         } else {

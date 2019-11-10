@@ -303,8 +303,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
             return new ACloseableIterator<V>(new TextDescription("%s: %s(%s, %s, %s)",
                     ATimeSeriesDB.class.getSimpleName(), RangeReverseValues.class.getSimpleName(), key, from, to)) {
 
-                private final RangeValuesFinalizer<V> finalizer = new RangeValuesFinalizer<>(
-                        getTableLock(key).readLock());
+                private final RangeValuesFinalizer<V> finalizer = new RangeValuesFinalizer<>();
 
                 {
                     this.finalizer.register(this);
@@ -312,11 +311,8 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
                 private ICloseableIterator<V> getReadRangeValues() {
                     if (finalizer.readRangeValues == null) {
-                        finalizer.readLock.lock();
-                        finalizer.readRangeValues = getLookupTableCache(key).readRangeValuesReverse(from, to);
-                        if (finalizer.readRangeValues instanceof EmptyCloseableIterator) {
-                            finalizer.readLock.unlock();
-                        }
+                        finalizer.readRangeValues = getLookupTableCache(key).readRangeValuesReverse(from, to,
+                                getTableLock(key).readLock());
                     }
                     return finalizer.readRangeValues;
                 }
@@ -332,8 +328,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
                 }
 
                 @Override
-                public void close() {
-                    super.close();
+                protected void innerClose() {
                     finalizer.close();
                 }
             };
@@ -357,8 +352,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
             return new ACloseableIterator<V>(new TextDescription("%s: %s(%s, %s, %s)",
                     ATimeSeriesDB.class.getSimpleName(), RangeValues.class.getSimpleName(), key, from, to)) {
 
-                private final RangeValuesFinalizer<V> finalizer = new RangeValuesFinalizer<>(
-                        getTableLock(key).readLock());
+                private final RangeValuesFinalizer<V> finalizer = new RangeValuesFinalizer<>();
 
                 {
                     this.finalizer.register(this);
@@ -366,11 +360,8 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
                 private ICloseableIterator<V> getReadRangeValues() {
                     if (finalizer.readRangeValues == null) {
-                        finalizer.readLock.lock();
-                        finalizer.readRangeValues = getLookupTableCache(key).readRangeValues(from, to);
-                        if (finalizer.readRangeValues instanceof EmptyCloseableIterator) {
-                            finalizer.readLock.unlock();
-                        }
+                        finalizer.readRangeValues = getLookupTableCache(key).readRangeValues(from, to,
+                                getTableLock(key).readLock());
                     }
                     return finalizer.readRangeValues;
                 }
@@ -386,8 +377,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
                 }
 
                 @Override
-                public void close() {
-                    super.close();
+                protected void innerClose() {
                     finalizer.close();
                 }
 
@@ -397,18 +387,12 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
     private static final class RangeValuesFinalizer<_V> extends AFinalizer {
 
-        private final Lock readLock;
         private ICloseableIterator<_V> readRangeValues;
-
-        private RangeValuesFinalizer(final Lock readLock) {
-            this.readLock = readLock;
-        }
 
         @Override
         protected void clean() {
             if (readRangeValues != null) {
                 readRangeValues.close();
-                readLock.unlock();
             }
             readRangeValues = EmptyCloseableIterator.getInstance();
         }

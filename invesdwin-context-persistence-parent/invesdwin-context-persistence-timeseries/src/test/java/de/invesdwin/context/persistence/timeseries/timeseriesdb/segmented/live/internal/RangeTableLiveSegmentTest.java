@@ -19,6 +19,7 @@ import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
+import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.lang.Reflections;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.fdate.FDateBuilder;
@@ -112,7 +113,7 @@ public class RangeTableLiveSegmentTest extends ATest {
         extractTime.put(2, twoDate);
         rangeTable.putNextLiveValue(threeDate, 3);
         extractTime.put(3, threeDate);
-        final ICloseableIterator<Integer> range3 = rangeTable.rangeValues(now, null).iterator();
+        final ICloseableIterator<Integer> range3 = rangeTable.rangeValues(now, null, DisabledLock.INSTANCE).iterator();
         Assertions.assertThat(range3.next()).isEqualTo(1);
         Assertions.assertThat(range3.next()).isEqualTo(2);
         Assertions.assertThat(range3.next()).isEqualTo(3);
@@ -125,7 +126,8 @@ public class RangeTableLiveSegmentTest extends ATest {
         }
         range3.close(); //should already be closed but should not cause an error when calling again
 
-        final ICloseableIterator<Integer> rangeNone = rangeTable.rangeValues(null, null).iterator();
+        final ICloseableIterator<Integer> rangeNone = rangeTable.rangeValues(null, null, DisabledLock.INSTANCE)
+                .iterator();
         Assertions.assertThat(rangeNone.next()).isEqualTo(1);
         Assertions.assertThat(rangeNone.next()).isEqualTo(2);
         Assertions.assertThat(rangeNone.next()).isEqualTo(3);
@@ -137,7 +139,8 @@ public class RangeTableLiveSegmentTest extends ATest {
             Assertions.assertThat(e).isNotNull();
         }
 
-        final ICloseableIterator<Integer> rangeMin = rangeTable.rangeValues(FDate.MIN_DATE, null).iterator();
+        final ICloseableIterator<Integer> rangeMin = rangeTable.rangeValues(FDate.MIN_DATE, null, DisabledLock.INSTANCE)
+                .iterator();
         Assertions.assertThat(rangeMin.next()).isEqualTo(1);
         Assertions.assertThat(rangeMin.next()).isEqualTo(2);
         Assertions.assertThat(rangeMin.next()).isEqualTo(3);
@@ -149,7 +152,8 @@ public class RangeTableLiveSegmentTest extends ATest {
             Assertions.assertThat(e).isNotNull();
         }
 
-        final ICloseableIterator<Integer> rangeMax = rangeTable.rangeValues(FDate.MAX_DATE, null).iterator();
+        final ICloseableIterator<Integer> rangeMax = rangeTable.rangeValues(FDate.MAX_DATE, null, DisabledLock.INSTANCE)
+                .iterator();
         Assertions.assertThat(rangeMax.hasNext()).isFalse();
         try {
             rangeMax.next();
@@ -158,7 +162,8 @@ public class RangeTableLiveSegmentTest extends ATest {
             Assertions.assertThat(e).isNotNull();
         }
 
-        final ICloseableIterator<Integer> range2 = rangeTable.rangeValues(twoDate, null).iterator();
+        final ICloseableIterator<Integer> range2 = rangeTable.rangeValues(twoDate, null, DisabledLock.INSTANCE)
+                .iterator();
         Assertions.assertThat(range2.next()).isEqualTo(2);
         Assertions.assertThat(range2.next()).isEqualTo(3);
         Assertions.assertThat(range2.hasNext()).isFalse();
@@ -194,7 +199,9 @@ public class RangeTableLiveSegmentTest extends ATest {
 
     private void testReverse(final ILiveSegment<FDate, Integer> rangeTable, final FDate oneFDate, final FDate twoFDate,
             final FDate threeFDate) {
-        final ICloseableIterator<Integer> range3Reverse = rangeTable.rangeReverseValues(threeFDate, null).iterator();
+        final ICloseableIterator<Integer> range3Reverse = rangeTable
+                .rangeReverseValues(threeFDate, null, DisabledLock.INSTANCE)
+                .iterator();
         Assertions.assertThat(range3Reverse.next()).isEqualTo(3);
         Assertions.assertThat(range3Reverse.next()).isEqualTo(2);
         Assertions.assertThat(range3Reverse.next()).isEqualTo(1);
@@ -206,7 +213,9 @@ public class RangeTableLiveSegmentTest extends ATest {
             Assertions.assertThat(e).isNotNull();
         }
 
-        final ICloseableIterator<Integer> rangeNoneReverse = rangeTable.rangeReverseValues(null, null).iterator();
+        final ICloseableIterator<Integer> rangeNoneReverse = rangeTable
+                .rangeReverseValues(null, null, DisabledLock.INSTANCE)
+                .iterator();
         Assertions.assertThat(rangeNoneReverse.next()).isEqualTo(3);
         Assertions.assertThat(rangeNoneReverse.next()).isEqualTo(2);
         Assertions.assertThat(rangeNoneReverse.next()).isEqualTo(1);
@@ -218,7 +227,9 @@ public class RangeTableLiveSegmentTest extends ATest {
             Assertions.assertThat(e).isNotNull();
         }
 
-        final ICloseableIterator<Integer> range2Reverse = rangeTable.rangeReverseValues(twoFDate, null).iterator();
+        final ICloseableIterator<Integer> range2Reverse = rangeTable
+                .rangeReverseValues(twoFDate, null, DisabledLock.INSTANCE)
+                .iterator();
         Assertions.assertThat(range2Reverse.next()).isEqualTo(2);
         Assertions.assertThat(range2Reverse.next()).isEqualTo(1);
         Assertions.assertThat(range2Reverse.hasNext()).isFalse();
@@ -229,7 +240,8 @@ public class RangeTableLiveSegmentTest extends ATest {
             Assertions.assertThat(e).isNotNull();
         }
 
-        final ICloseableIterator<Integer> range32Reverse = rangeTable.rangeReverseValues(threeFDate, twoFDate)
+        final ICloseableIterator<Integer> range32Reverse = rangeTable
+                .rangeReverseValues(threeFDate, twoFDate, DisabledLock.INSTANCE)
                 .iterator();
         Assertions.assertThat(range32Reverse.next()).isEqualTo(3);
         Assertions.assertThat(range32Reverse.next()).isEqualTo(2);
@@ -241,7 +253,9 @@ public class RangeTableLiveSegmentTest extends ATest {
             Assertions.assertThat(e).isNotNull();
         }
 
-        final ICloseableIterator<Integer> range21Reverse = rangeTable.rangeReverseValues(twoFDate, oneFDate).iterator();
+        final ICloseableIterator<Integer> range21Reverse = rangeTable
+                .rangeReverseValues(twoFDate, oneFDate, DisabledLock.INSTANCE)
+                .iterator();
         Assertions.assertThat(range21Reverse.next()).isEqualTo(2);
         Assertions.assertThat(range21Reverse.next()).isEqualTo(1);
         Assertions.assertThat(range21Reverse.hasNext()).isFalse();

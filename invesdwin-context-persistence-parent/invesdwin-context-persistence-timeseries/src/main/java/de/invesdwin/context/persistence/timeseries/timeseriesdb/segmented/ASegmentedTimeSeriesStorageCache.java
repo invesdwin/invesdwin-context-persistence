@@ -42,6 +42,8 @@ import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
+import de.invesdwin.util.concurrent.lock.Locks;
+import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.concurrent.taskinfo.provider.TaskInfoCallable;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.error.Throwables;
@@ -144,8 +146,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                                     final FDate date = loadKey.getFirst();
                                     final int shiftBackUnits = loadKey.getSecond();
                                     V previousValue = null;
-                                    try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null)
-                                            .iterator()) {
+                                    try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null,
+                                            DisabledLock.INSTANCE).iterator()) {
                                         for (int i = 0; i < shiftBackUnits; i++) {
                                             previousValue = rangeValuesReverse.next();
                                         }
@@ -183,7 +185,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                                     final FDate date = loadKey.getFirst();
                                     final int shiftForwardUnits = loadKey.getSecond();
                                     V nextValue = null;
-                                    try (ICloseableIterator<V> rangeValues = readRangeValues(date, null).iterator()) {
+                                    try (ICloseableIterator<V> rangeValues = readRangeValues(date, null,
+                                            DisabledLock.INSTANCE).iterator()) {
                                         for (int i = 0; i < shiftForwardUnits; i++) {
                                             nextValue = rangeValues.next();
                                         }
@@ -225,7 +228,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         };
     }
 
-    public ICloseableIterable<V> readRangeValues(final FDate from, final FDate to) {
+    public ICloseableIterable<V> readRangeValues(final FDate from, final FDate to, final Lock readLock) {
         final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
         if (firstAvailableSegmentFrom == null) {
             return EmptyCloseableIterable.getInstance();
@@ -249,7 +252,10 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                         maybeInitSegment(segmentedKey);
                         final FDate segmentAdjFrom = FDates.max(adjFrom, value.getFrom());
                         final FDate segmentAdjTo = FDates.min(adjTo, value.getTo());
-                        return segmentedTable.rangeValues(segmentedKey, segmentAdjFrom, segmentAdjTo).iterator();
+                        final Lock compositeReadLock = Locks.newCompositeLock(readLock,
+                                segmentedTable.getTableLock(segmentedKey).readLock());
+                        return segmentedTable.getLookupTableCache(segmentedKey)
+                                .readRangeValues(segmentAdjFrom, segmentAdjTo, compositeReadLock);
                     }
                 };
             }
@@ -358,8 +364,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                         storage.getSegmentStatusTable().delete(hashKey, segmentedKey.getSegment());
                     }
                     initSegmentWithStatusHandling(segmentedKey, source);
-                    onSegmentCompleted(segmentedKey,
-                            readRangeValues(segmentedKey.getSegment().getFrom(), segmentedKey.getSegment().getTo()));
+                    onSegmentCompleted(segmentedKey, readRangeValues(segmentedKey.getSegment().getFrom(),
+                            segmentedKey.getSegment().getTo(), DisabledLock.INSTANCE));
                     return true;
                 } finally {
                     segmentWriteLock.unlock();
@@ -572,7 +578,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
     protected abstract FDate getFirstAvailableSegmentFrom(K key);
 
-    protected ICloseableIterable<V> readRangeValuesReverse(final FDate from, final FDate to) {
+    public ICloseableIterable<V> readRangeValuesReverse(final FDate from, final FDate to, final Lock readLock) {
         final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
         final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key);
         //adjust dates directly to prevent unnecessary segment calculations
@@ -590,13 +596,15 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                         maybeInitSegment(segmentedKey);
                         final FDate segmentAdjFrom = FDates.min(adjFrom, value.getTo());
                         final FDate segmentAdjTo = FDates.max(adjTo, value.getFrom());
-                        return segmentedTable.rangeReverseValues(segmentedKey, segmentAdjFrom, segmentAdjTo).iterator();
+                        final Lock compositeReadLock = Locks.newCompositeLock(readLock,
+                                segmentedTable.getTableLock(segmentedKey).readLock());
+                        return segmentedTable.getLookupTableCache(segmentedKey)
+                                .readRangeValuesReverse(segmentAdjFrom, segmentAdjTo, compositeReadLock);
                     }
                 };
             }
         };
         final ICloseableIterable<V> rangeValues = new FlatteningIterable<V>(segmentQueries);
-
         return rangeValues;
     }
 

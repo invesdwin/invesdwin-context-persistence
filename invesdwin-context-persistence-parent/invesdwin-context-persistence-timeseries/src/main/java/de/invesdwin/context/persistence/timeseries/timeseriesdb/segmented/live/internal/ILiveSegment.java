@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.internal;
 
 import java.io.Closeable;
+import java.util.concurrent.locks.Lock;
 
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -14,9 +15,9 @@ public interface ILiveSegment<K, V> extends Closeable {
 
     SegmentedKey<K> getSegmentedKey();
 
-    ICloseableIterable<V> rangeValues(FDate from, FDate to);
+    ICloseableIterable<V> rangeValues(FDate from, FDate to, Lock readLock);
 
-    ICloseableIterable<V> rangeReverseValues(FDate from, FDate to);
+    ICloseableIterable<V> rangeReverseValues(FDate from, FDate to, Lock readLock);
 
     void putNextLiveValue(FDate nextLiveKey, V nextLiveValue);
 
