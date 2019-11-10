@@ -32,7 +32,6 @@ import de.invesdwin.util.collections.loadingcache.historical.key.APullingHistori
 import de.invesdwin.util.collections.loadingcache.historical.key.APushingHistoricalCacheAdjustKeyProvider;
 import de.invesdwin.util.collections.loadingcache.historical.key.IHistoricalCacheAdjustKeyProvider;
 import de.invesdwin.util.collections.loadingcache.historical.refresh.HistoricalCacheRefreshManager;
-import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.fdate.FDateBuilder;
@@ -872,6 +871,11 @@ public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
             protected FDate innerGetHighestAllowedKey() {
                 return entities.get(entities.size() - 1);
             }
+
+            @Override
+            protected boolean isPullingRecursive() {
+                return false;
+            }
         });
         final List<FDate> newEntities = new ArrayList<FDate>(entities);
         final FDate newEntity = FDateBuilder.newDate(1996, 1, 1);
@@ -898,6 +902,11 @@ public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
             @Override
             protected FDate getInitialHighestAllowedKey() {
                 return null;
+            }
+
+            @Override
+            protected boolean isPullingRecursive() {
+                return false;
             }
         };
         cache.setAdjustKeyProvider(adjustKeyProvider);
@@ -930,6 +939,11 @@ public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
             protected FDate getInitialHighestAllowedKey() {
                 return null;
             }
+
+            @Override
+            protected boolean isPullingRecursive() {
+                return false;
+            }
         };
         cache.setAdjustKeyProvider(adjustKeyProvider);
         final List<FDate> newEntities = new ArrayList<FDate>(entities);
@@ -958,6 +972,11 @@ public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
             @Override
             protected FDate getInitialHighestAllowedKey() {
                 return entities.get(entities.size() - 1);
+            }
+
+            @Override
+            protected boolean isPullingRecursive() {
+                return false;
             }
         };
         cache.setAdjustKeyProvider(adjustKeyProvider);

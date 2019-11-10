@@ -852,6 +852,11 @@ public class ASegmentedTimeSeriesDBWithNoCacheTest extends ATest {
             protected FDate innerGetHighestAllowedKey() {
                 return entities.get(entities.size() - 1);
             }
+
+            @Override
+            protected boolean isPullingRecursive() {
+                return false;
+            }
         });
         final List<FDate> newEntities = new ArrayList<FDate>(entities);
         final FDate newEntity = FDateBuilder.newDate(1996, 1, 1);
@@ -877,6 +882,11 @@ public class ASegmentedTimeSeriesDBWithNoCacheTest extends ATest {
             @Override
             protected FDate getInitialHighestAllowedKey() {
                 return null;
+            }
+
+            @Override
+            protected boolean isPullingRecursive() {
+                return false;
             }
         };
         cache.setAdjustKeyProvider(adjustKeyProvider);
@@ -908,6 +918,11 @@ public class ASegmentedTimeSeriesDBWithNoCacheTest extends ATest {
             protected FDate getInitialHighestAllowedKey() {
                 return null;
             }
+
+            @Override
+            protected boolean isPullingRecursive() {
+                return false;
+            }
         };
         cache.setAdjustKeyProvider(adjustKeyProvider);
         final List<FDate> newEntities = new ArrayList<FDate>(entities);
@@ -935,6 +950,11 @@ public class ASegmentedTimeSeriesDBWithNoCacheTest extends ATest {
             @Override
             protected FDate getInitialHighestAllowedKey() {
                 return entities.get(entities.size() - 1);
+            }
+
+            @Override
+            protected boolean isPullingRecursive() {
+                return false;
             }
         };
         cache.setAdjustKeyProvider(adjustKeyProvider);
