@@ -7,10 +7,13 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -533,7 +536,20 @@ public class TimeSeriesStorageCache<K, V> {
         }
     }
 
+    private static final AtomicInteger counter = new AtomicInteger(0);
+    private static final AtomicInteger downCounter = new AtomicInteger(0);
+    private static final Map<Object, FDate> maxFroms = Collections.synchronizedMap(new HashMap<>());
+
     public ICloseableIterator<V> readRangeValues(final FDate from, final FDate to, final Lock readLock) {
+        System.out.println(counter.incrementAndGet() + ": rangeValues " + hashKey + " " + from + " " + to);
+        final FDate maxFrom = maxFroms.get(hashKey);
+        if (maxFrom == null || from.isAfter(maxFrom)) {
+            maxFroms.put(hashKey, from);
+        } else {
+            if (from.isBefore(maxFrom)) {
+                System.out.println(downCounter.incrementAndGet() + " down " + maxFrom + " -> " + from);
+            }
+        }
         final ICloseableIterator<File> fileIterator = readRangeFiles(from, to, readLock).iterator();
         final ICloseableIterator<ICloseableIterator<V>> chunkIterator = new ATransformingCloseableIterator<File, ICloseableIterator<V>>(
                 fileIterator) {
