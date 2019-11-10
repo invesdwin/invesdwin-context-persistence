@@ -2,11 +2,15 @@ package de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented;
 
 import java.io.Closeable;
 import java.io.OutputStream;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.function.Function;
@@ -228,7 +232,21 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         };
     }
 
+    private static final AtomicInteger counter = new AtomicInteger(0);
+    private static final AtomicInteger downCounter = new AtomicInteger(0);
+    private static final Map<Object, FDate> maxFroms = Collections.synchronizedMap(new HashMap<>());
+
     public ICloseableIterable<V> readRangeValues(final FDate from, final FDate to, final Lock readLock) {
+        System.out.println(counter.incrementAndGet() + ": rangeValues " + key + " " + from + " " + to);
+        final SegmentedKey<Object> segKey = (SegmentedKey<Object>) key;
+        final FDate maxFrom = maxFroms.get(segKey.getKey());
+        if (maxFrom == null || from.isAfter(maxFrom)) {
+            maxFroms.put(segKey.getKey(), from);
+        } else {
+            if (from.isBefore(maxFrom)) {
+                System.out.println(downCounter.incrementAndGet() + " down " + maxFrom + " -> " + from);
+            }
+        }
         final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
         if (firstAvailableSegmentFrom == null) {
             return EmptyCloseableIterable.getInstance();
