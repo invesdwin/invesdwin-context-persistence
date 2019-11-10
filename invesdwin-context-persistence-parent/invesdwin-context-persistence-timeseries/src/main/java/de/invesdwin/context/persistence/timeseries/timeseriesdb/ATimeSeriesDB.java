@@ -1,11 +1,7 @@
 package de.invesdwin.context.persistence.timeseries.timeseriesdb;
 
 import java.io.File;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 
@@ -18,7 +14,6 @@ import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.retry.Retry;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.error.Err;
-import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.CorruptedTimeSeriesStorageException;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
@@ -346,29 +341,15 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
     }
 
-    private static final AtomicInteger counter = new AtomicInteger(0);
-    private static final AtomicInteger downCounter = new AtomicInteger(0);
-    private static final Map<Object, FDate> maxFroms = Collections.synchronizedMap(new HashMap<>());
-
     private final class RangeValues implements ICloseableIterable<V> {
         private final K key;
         private final FDate from;
         private final FDate to;
 
         private RangeValues(final K key, final FDate from, final FDate to) {
-            System.out.println(counter.incrementAndGet() + ": rangeValues " + key + " " + from + " " + to);
             this.key = key;
             this.from = from;
             this.to = to;
-            final SegmentedKey<Object> segKey = (SegmentedKey<Object>) key;
-            final FDate maxFrom = maxFroms.get(segKey.getKey());
-            if (maxFrom == null || from.isAfter(maxFrom)) {
-                maxFroms.put(segKey.getKey(), from);
-            } else {
-                if (from.isBefore(maxFrom)) {
-                    System.out.println(downCounter.incrementAndGet() + " down " + maxFrom + " -> " + from);
-                }
-            }
         }
 
         @Override
