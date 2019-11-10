@@ -92,12 +92,8 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
         if (readLock == DisabledLock.INSTANCE) {
             return iterable;
         } else {
-            readLock.lock();
-            try {
-                return new BufferingIterator<>(iterable);
-            } finally {
-                readLock.unlock();
-            }
+            //we expect the read lock to be already locked from the outside
+            return new BufferingIterator<>(iterable);
         }
     }
 
@@ -112,12 +108,8 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
         if (readLock == DisabledLock.INSTANCE) {
             return iterable;
         } else {
-            readLock.lock();
-            try {
-                return new BufferingIterator<>(iterable);
-            } finally {
-                readLock.unlock();
-            }
+            //we expect the read lock to be already locked from the outside
+            return new BufferingIterator<>(iterable);
         }
     }
 

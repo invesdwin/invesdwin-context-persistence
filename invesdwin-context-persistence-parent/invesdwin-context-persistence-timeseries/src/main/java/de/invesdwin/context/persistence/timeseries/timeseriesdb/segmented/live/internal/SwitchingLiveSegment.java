@@ -69,6 +69,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final Lock readLock) {
+        //we expect the read lock to be already locked from the outside
         if (inProgress.isEmpty()) {
             //no live segment, go with historical
             return persistent.rangeValues(from, to, readLock);
@@ -94,6 +95,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final Lock readLock) {
+        //we expect the read lock to be already locked from the outside
         if (inProgress.isEmpty()) {
             //no live segment, go with historical
             return persistent.rangeReverseValues(from, to, readLock);

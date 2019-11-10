@@ -94,90 +94,82 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     @Override
     public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final Lock readLock) {
         //CHECKSTYLE:ON
-        readLock.lock();
-        try {
-            if (values == null || from != null && to != null && from.isAfterNotNullSafe(to)) {
-                return EmptyCloseableIterable.getInstance();
-            }
-            if (from != null && lastValue != null && from.isAfterOrEqualToNotNullSafe(lastValueKey)) {
-                if (from.isAfterNotNullSafe(lastValueKey)) {
-                    return EmptyCloseableIterable.getInstance();
-                } else {
-                    return new SingleValueIterable<V>(lastValue);
-                }
-            }
-            if (to != null && firstValue != null && to.isBeforeOrEqualToNotNullSafe(firstValueKey)) {
-                if (to.isBeforeNotNullSafe(firstValueKey)) {
-                    return EmptyCloseableIterable.getInstance();
-                } else {
-                    return new SingleValueIterable<V>(firstValue);
-                }
-            }
-            return new ATimeRangeSkippingIterable<V>(from, to, getFlushedValues()) {
-
-                @Override
-                protected FDate extractTime(final V element) {
-                    return historicalSegmentTable.extractTime(element);
-                }
-
-                @Override
-                protected boolean isReverse() {
-                    return false;
-                }
-
-                @Override
-                protected String getName() {
-                    return "FileLiveSegment rangeValues";
-                }
-            };
-        } finally {
-            readLock.unlock();
+        //we expect the read lock to be already locked from the outside
+        if (values == null || from != null && to != null && from.isAfterNotNullSafe(to)) {
+            return EmptyCloseableIterable.getInstance();
         }
+        if (from != null && lastValue != null && from.isAfterOrEqualToNotNullSafe(lastValueKey)) {
+            if (from.isAfterNotNullSafe(lastValueKey)) {
+                return EmptyCloseableIterable.getInstance();
+            } else {
+                return new SingleValueIterable<V>(lastValue);
+            }
+        }
+        if (to != null && firstValue != null && to.isBeforeOrEqualToNotNullSafe(firstValueKey)) {
+            if (to.isBeforeNotNullSafe(firstValueKey)) {
+                return EmptyCloseableIterable.getInstance();
+            } else {
+                return new SingleValueIterable<V>(firstValue);
+            }
+        }
+        return new ATimeRangeSkippingIterable<V>(from, to, getFlushedValues()) {
+
+            @Override
+            protected FDate extractTime(final V element) {
+                return historicalSegmentTable.extractTime(element);
+            }
+
+            @Override
+            protected boolean isReverse() {
+                return false;
+            }
+
+            @Override
+            protected String getName() {
+                return "FileLiveSegment rangeValues";
+            }
+        };
     }
 
     //CHECKSTYLE:OFF
     @Override
     public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final Lock readLock) {
         //CHECKSTYLE:ON
-        readLock.lock();
-        try {
-            if (values == null || from != null && to != null && from.isBeforeNotNullSafe(to)) {
-                return EmptyCloseableIterable.getInstance();
-            }
-            if (from != null && firstValue != null && from.isBeforeOrEqualToNotNullSafe(firstValueKey)) {
-                if (from.isBeforeNotNullSafe(firstValueKey)) {
-                    return EmptyCloseableIterable.getInstance();
-                } else {
-                    return new SingleValueIterable<V>(firstValue);
-                }
-            }
-            if (to != null && lastValue != null && to.isAfterOrEqualToNotNullSafe(lastValueKey)) {
-                if (to.isAfterNotNullSafe(lastValueKey)) {
-                    return EmptyCloseableIterable.getInstance();
-                } else {
-                    return new SingleValueIterable<V>(lastValue);
-                }
-            }
-            return new ATimeRangeSkippingIterable<V>(from, to, getFlushedValues().reverseIterable()) {
-
-                @Override
-                protected FDate extractTime(final V element) {
-                    return historicalSegmentTable.extractTime(element);
-                }
-
-                @Override
-                protected boolean isReverse() {
-                    return true;
-                }
-
-                @Override
-                protected String getName() {
-                    return "FileLiveSegment rangeReverseValues";
-                }
-            };
-        } finally {
-            readLock.unlock();
+        //we expect the read lock to be already locked from the outside
+        if (values == null || from != null && to != null && from.isBeforeNotNullSafe(to)) {
+            return EmptyCloseableIterable.getInstance();
         }
+        if (from != null && firstValue != null && from.isBeforeOrEqualToNotNullSafe(firstValueKey)) {
+            if (from.isBeforeNotNullSafe(firstValueKey)) {
+                return EmptyCloseableIterable.getInstance();
+            } else {
+                return new SingleValueIterable<V>(firstValue);
+            }
+        }
+        if (to != null && lastValue != null && to.isAfterOrEqualToNotNullSafe(lastValueKey)) {
+            if (to.isAfterNotNullSafe(lastValueKey)) {
+                return EmptyCloseableIterable.getInstance();
+            } else {
+                return new SingleValueIterable<V>(lastValue);
+            }
+        }
+        return new ATimeRangeSkippingIterable<V>(from, to, getFlushedValues().reverseIterable()) {
+
+            @Override
+            protected FDate extractTime(final V element) {
+                return historicalSegmentTable.extractTime(element);
+            }
+
+            @Override
+            protected boolean isReverse() {
+                return true;
+            }
+
+            @Override
+            protected String getName() {
+                return "FileLiveSegment rangeReverseValues";
+            }
+        };
     }
 
     @Override

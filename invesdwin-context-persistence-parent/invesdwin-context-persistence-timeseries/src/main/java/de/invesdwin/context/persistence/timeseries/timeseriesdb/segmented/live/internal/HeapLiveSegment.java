@@ -57,86 +57,78 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final Lock readLock) {
-        readLock.lock();
-        try {
-            final SortedMap<Long, V> tailMap;
-            if (from == null) {
-                tailMap = values;
-            } else {
-                tailMap = values.tailMap(from.millisValue());
-            }
-            final ICloseableIterable<Entry<Long, V>> tail = WrapperCloseableIterable.maybeWrap(tailMap.entrySet());
-            final ICloseableIterable<Entry<Long, V>> skipping;
-            if (to == null) {
-                skipping = tail;
-            } else {
-                skipping = new ASkippingIterable<Entry<Long, V>>(tail) {
-                    @Override
-                    protected boolean skip(final Entry<Long, V> element) {
-                        if (element.getKey() > to.millisValue()) {
-                            throw new FastNoSuchElementException("LiveSegment rangeValues end reached");
-                        }
-                        return false;
-                    }
-                };
-            }
-            final ATransformingCloseableIterable<Entry<Long, V>, V> transforming = new ATransformingCloseableIterable<Entry<Long, V>, V>(
-                    skipping) {
+        //we expect the read lock to be already locked from the outside
+        final SortedMap<Long, V> tailMap;
+        if (from == null) {
+            tailMap = values;
+        } else {
+            tailMap = values.tailMap(from.millisValue());
+        }
+        final ICloseableIterable<Entry<Long, V>> tail = WrapperCloseableIterable.maybeWrap(tailMap.entrySet());
+        final ICloseableIterable<Entry<Long, V>> skipping;
+        if (to == null) {
+            skipping = tail;
+        } else {
+            skipping = new ASkippingIterable<Entry<Long, V>>(tail) {
                 @Override
-                protected V transform(final Entry<Long, V> value) {
-                    return value.getValue();
+                protected boolean skip(final Entry<Long, V> element) {
+                    if (element.getKey() > to.millisValue()) {
+                        throw new FastNoSuchElementException("LiveSegment rangeValues end reached");
+                    }
+                    return false;
                 }
             };
-            if (readLock == DisabledLock.INSTANCE) {
-                return transforming;
-            } else {
-                return new BufferingIterator<>(transforming);
+        }
+        final ATransformingCloseableIterable<Entry<Long, V>, V> transforming = new ATransformingCloseableIterable<Entry<Long, V>, V>(
+                skipping) {
+            @Override
+            protected V transform(final Entry<Long, V> value) {
+                return value.getValue();
             }
-        } finally {
-            readLock.unlock();
+        };
+        if (readLock == DisabledLock.INSTANCE) {
+            return transforming;
+        } else {
+            return new BufferingIterator<>(transforming);
         }
     }
 
     @Override
     public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final Lock readLock) {
-        readLock.lock();
-        try {
-            final SortedMap<Long, V> headMap;
-            if (from == null) {
-                headMap = values.descendingMap();
-            } else {
-                headMap = values.descendingMap().tailMap(from.millisValue());
-            }
-            final ICloseableIterable<Entry<Long, V>> tail = WrapperCloseableIterable.maybeWrap(headMap.entrySet());
-            final ICloseableIterable<Entry<Long, V>> skipping;
-            if (to == null) {
-                skipping = tail;
-            } else {
-                skipping = new ASkippingIterable<Entry<Long, V>>(tail) {
-                    @Override
-                    protected boolean skip(final Entry<Long, V> element) {
-                        if (element.getKey() < to.millisValue()) {
-                            throw new FastNoSuchElementException("LiveSegment rangeReverseValues end reached");
-                        }
-                        return false;
-                    }
-                };
-            }
-
-            final ATransformingCloseableIterable<Entry<Long, V>, V> transforming = new ATransformingCloseableIterable<Entry<Long, V>, V>(
-                    skipping) {
+        //we expect the read lock to be already locked from the outside
+        final SortedMap<Long, V> headMap;
+        if (from == null) {
+            headMap = values.descendingMap();
+        } else {
+            headMap = values.descendingMap().tailMap(from.millisValue());
+        }
+        final ICloseableIterable<Entry<Long, V>> tail = WrapperCloseableIterable.maybeWrap(headMap.entrySet());
+        final ICloseableIterable<Entry<Long, V>> skipping;
+        if (to == null) {
+            skipping = tail;
+        } else {
+            skipping = new ASkippingIterable<Entry<Long, V>>(tail) {
                 @Override
-                protected V transform(final Entry<Long, V> value) {
-                    return value.getValue();
+                protected boolean skip(final Entry<Long, V> element) {
+                    if (element.getKey() < to.millisValue()) {
+                        throw new FastNoSuchElementException("LiveSegment rangeReverseValues end reached");
+                    }
+                    return false;
                 }
             };
-            if (readLock == DisabledLock.INSTANCE) {
-                return transforming;
-            } else {
-                return new BufferingIterator<>(transforming);
+        }
+
+        final ATransformingCloseableIterable<Entry<Long, V>, V> transforming = new ATransformingCloseableIterable<Entry<Long, V>, V>(
+                skipping) {
+            @Override
+            protected V transform(final Entry<Long, V> value) {
+                return value.getValue();
             }
-        } finally {
-            readLock.unlock();
+        };
+        if (readLock == DisabledLock.INSTANCE) {
+            return transforming;
+        } else {
+            return new BufferingIterator<>(transforming);
         }
     }
 
