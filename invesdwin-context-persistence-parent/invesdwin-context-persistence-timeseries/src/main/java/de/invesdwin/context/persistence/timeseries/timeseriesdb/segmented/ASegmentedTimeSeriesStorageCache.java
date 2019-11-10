@@ -238,10 +238,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
     public ICloseableIterable<V> readRangeValues(final FDate from, final FDate to, final Lock readLock) {
         System.out.println(counter.incrementAndGet() + ": rangeValues " + key + " " + from + " " + to);
-        final SegmentedKey<Object> segKey = (SegmentedKey<Object>) key;
-        final FDate maxFrom = maxFroms.get(segKey.getKey());
+        final FDate maxFrom = maxFroms.get(key);
         if (maxFrom == null || from.isAfter(maxFrom)) {
-            maxFroms.put(segKey.getKey(), from);
+            maxFroms.put(key, from);
         } else {
             if (from.isBefore(maxFrom)) {
                 System.out.println(downCounter.incrementAndGet() + " down " + maxFrom + " -> " + from);
