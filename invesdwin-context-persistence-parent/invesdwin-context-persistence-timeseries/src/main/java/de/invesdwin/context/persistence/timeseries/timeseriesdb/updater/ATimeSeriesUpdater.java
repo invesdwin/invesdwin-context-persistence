@@ -159,6 +159,9 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                     }
                 } catch (NoSuchElementException e) {
                     //end reached
+                    if (progress.minTime == null) {
+                        throw e;
+                    }
                 }
                 return progress;
             }
