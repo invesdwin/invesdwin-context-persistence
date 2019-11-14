@@ -199,7 +199,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                     return request;
                 }
             }) {
-                while (parallelConsumer.hasNext()) {
+                while (true) {
                     final UpdateProgress progress = parallelConsumer.next();
                     count += progress.getCount();
                     if (minTime == null) {
@@ -207,20 +207,26 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                     }
                     maxTime = progress.getMaxTime();
                 }
+            } catch (final NoSuchElementException e) {
+                //end reached
             }
         }
     }
 
     private void writeSerial(final ICloseableIterator<UpdateProgress> batchWriterProducer,
             final AtomicInteger flushIndex) {
-        while (batchWriterProducer.hasNext()) {
-            final UpdateProgress progress = batchWriterProducer.next();
-            progress.write(flushIndex.incrementAndGet());
-            count += progress.getCount();
-            if (minTime == null) {
-                minTime = progress.getMinTime();
+        try {
+            while (true) {
+                final UpdateProgress progress = batchWriterProducer.next();
+                progress.write(flushIndex.incrementAndGet());
+                count += progress.getCount();
+                if (minTime == null) {
+                    minTime = progress.getMinTime();
+                }
+                maxTime = progress.getMaxTime();
             }
-            maxTime = progress.getMaxTime();
+        } catch (final NoSuchElementException e) {
+            //end reached
         }
     }
 
