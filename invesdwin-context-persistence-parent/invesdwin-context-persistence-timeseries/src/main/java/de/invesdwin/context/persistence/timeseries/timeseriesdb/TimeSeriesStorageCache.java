@@ -257,6 +257,9 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     public File newFile(final FDate time) {
+        if (time == null) {
+            throw new NullPointerException("time should not be null");
+        }
         if (redirectedFiles != null) {
             final File redirectedFile = redirectedFiles.get(time);
             if (redirectedFile != null) {
