@@ -8,6 +8,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.streams.LZ4Streams;
 import de.invesdwin.context.persistence.timeseries.serde.CompressingDelegateSerde;
+import de.invesdwin.util.concurrent.reference.persistent.ACompressingWeakReference;
 import ezdb.serde.Serde;
 
 /**
