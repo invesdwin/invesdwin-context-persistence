@@ -102,7 +102,7 @@ public abstract class ASpinWait {
     protected abstract boolean isConditionFulfilled() throws IOException;
 
     protected boolean isSpinAllowed(final Instant waitingSince) {
-        return waitingSince.toDuration().longValue(FTimeUnit.NANOSECONDS) < skipSpinAfterWaitingSince;
+        return waitingSince.nanosValue() < skipSpinAfterWaitingSince;
     }
 
     public boolean awaitFulfill(final Instant waitingSince) throws IOException {

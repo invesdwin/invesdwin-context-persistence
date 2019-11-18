@@ -57,7 +57,7 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
         Assertions.assertThat(lastFlushIndex).isNotNull();
 
         //if we are too fast, only print status once a second
-        if (lastFlushTime == null || lastFlushTime.toDuration().isGreaterThan(Duration.ONE_SECOND)) {
+        if (lastFlushTime == null || lastFlushTime.isGreaterThan(Duration.ONE_SECOND)) {
             final Duration flushDuration = updateStart.toDuration();
             final Percent progress = getProgress();
             if (progress != null) {
