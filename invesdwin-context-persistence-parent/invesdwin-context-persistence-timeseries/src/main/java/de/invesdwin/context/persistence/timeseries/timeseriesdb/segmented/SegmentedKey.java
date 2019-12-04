@@ -4,6 +4,7 @@ import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.AValueObject;
+import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.time.range.TimeRange;
 
 @Immutable
@@ -11,6 +12,7 @@ public class SegmentedKey<K> extends AValueObject {
 
     private final K key;
     private final TimeRange segment;
+    private transient Integer cachedHashCode;
 
     public SegmentedKey(final K key, final TimeRange segment) {
         Assertions.checkNotNull(key);
@@ -27,6 +29,25 @@ public class SegmentedKey<K> extends AValueObject {
 
     public TimeRange getSegment() {
         return segment;
+    }
+
+    @Override
+    public int hashCode() {
+        if (cachedHashCode == null) {
+            cachedHashCode = Objects.hashCode(SegmentedKey.class, key, segment);
+        }
+        return cachedHashCode;
+    }
+
+    @Override
+    public boolean equals(final Object obj) {
+        if (obj instanceof SegmentedKey) {
+            @SuppressWarnings("unchecked")
+            final SegmentedKey<K> cObj = (SegmentedKey<K>) obj;
+            return Objects.equals(key, cObj.key) && Objects.equals(segment, cObj.segment);
+        } else {
+            return false;
+        }
     }
 
 }

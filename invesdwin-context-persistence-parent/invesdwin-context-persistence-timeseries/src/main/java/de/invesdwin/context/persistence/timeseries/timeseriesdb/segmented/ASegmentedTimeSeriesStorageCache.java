@@ -277,7 +277,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
                     @Override
                     public boolean hasNext() {
-                        return curSegment.getFrom().isBeforeOrEqualTo(adjTo);
+                        return curSegment != null && curSegment.getFrom().isBeforeOrEqualTo(adjTo);
                     }
 
                     @Override
@@ -295,7 +295,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
                     @Override
                     public void close() {
-                        curSegment = new TimeRange(FDate.MIN_DATE, FDate.MIN_DATE);
+                        curSegment = null;
                     }
                 };
             }
@@ -621,20 +621,26 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
                     @Override
                     public boolean hasNext() {
-                        return curSegment.getTo().isAfter(adjTo);
+                        return curSegment != null && curSegment.getTo().isAfter(adjTo);
                     }
 
                     @Override
                     public TimeRange next() {
                         final TimeRange next = curSegment;
+                        if (next == null) {
+                            throw new FastNoSuchElementException(
+                                    "ASegmentedTimeSeriesStorageCache getSegments end reached null");
+                        }
                         //get one segment earlier
-                        curSegment = getSegmentFinder(key).query().getValue(curSegment.getFrom().addMilliseconds(-1));
+                        curSegment = getSegmentFinder(key).query()
+                                .withFutureNull()
+                                .getValue(curSegment.getFrom().addMilliseconds(-1));
                         return next;
                     }
 
                     @Override
                     public void close() {
-                        curSegment = new TimeRange(FDate.MIN_DATE, FDate.MIN_DATE);
+                        curSegment = null;
                     }
                 };
             }
@@ -646,7 +652,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 final FDate segmentTo = element.getTo();
                 if (segmentTo.isBefore(adjTo)) {
                     //no need to continue going lower
-                    throw new FastNoSuchElementException("ASegmentedTimeSeriesStorageCache getSegments end reached");
+                    throw new FastNoSuchElementException(
+                            "ASegmentedTimeSeriesStorageCache getSegments end reached adjTo");
                 }
                 //skip last value and continue with earlier ones
                 final FDate segmentFrom = element.getFrom();
