@@ -1,6 +1,9 @@
 package de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented;
 
 import javax.annotation.concurrent.Immutable;
+import javax.persistence.Transient;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.AValueObject;
@@ -12,6 +15,8 @@ public class SegmentedKey<K> extends AValueObject {
 
     private final K key;
     private final TimeRange segment;
+    @Transient
+    @JsonIgnore
     private transient Integer cachedHashCode;
 
     public SegmentedKey(final K key, final TimeRange segment) {
