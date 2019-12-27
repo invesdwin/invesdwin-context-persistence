@@ -93,7 +93,7 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
             }
 
             @Override
-            protected String hashKeyToString(final String key) {
+            protected String innerHashKeyToString(final String key) {
                 return key;
             }
 

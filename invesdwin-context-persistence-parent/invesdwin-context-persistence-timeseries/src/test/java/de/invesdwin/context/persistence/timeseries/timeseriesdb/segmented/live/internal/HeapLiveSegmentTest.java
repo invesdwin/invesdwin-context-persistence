@@ -75,7 +75,7 @@ public class HeapLiveSegmentTest extends ATest {
             }
 
             @Override
-            protected String hashKeyToString(final FDate key) {
+            protected String innerHashKeyToString(final FDate key) {
                 throw new UnsupportedOperationException();
             }
 

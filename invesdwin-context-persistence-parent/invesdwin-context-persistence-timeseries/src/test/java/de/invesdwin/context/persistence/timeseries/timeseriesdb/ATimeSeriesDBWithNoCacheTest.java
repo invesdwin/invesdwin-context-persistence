@@ -81,7 +81,7 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
             }
 
             @Override
-            public String hashKeyToString(final String key) {
+            protected String innerHashKeyToString(final String key) {
                 return key;
             }
 

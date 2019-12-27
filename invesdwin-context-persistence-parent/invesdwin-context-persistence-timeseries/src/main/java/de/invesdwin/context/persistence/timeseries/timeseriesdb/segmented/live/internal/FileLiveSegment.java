@@ -38,6 +38,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     private V firstValue;
     private FDate lastValueKey;
     private V lastValue;
+    private File file;
 
     public FileLiveSegment(final SegmentedKey<K> segmentedKey,
             final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable) {
@@ -46,14 +47,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     private SerializingCollection<V> newSerializingCollection() {
-        final File file = new File(
-                new File(historicalSegmentTable.getDirectory(), historicalSegmentTable.hashKeyToString(segmentedKey)),
-                "inProgress.data");
-        try {
-            Files.forceMkdirParent(file);
-        } catch (final IOException e) {
-            throw new RuntimeException(e);
-        }
+        final File file = getFile();
         Files.deleteQuietly(file);
         final TextDescription name = new TextDescription("%s[%s]: newSerializingCollection()",
                 FileLiveSegment.class.getSimpleName(), segmentedKey);
@@ -73,6 +67,16 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
                 throw new UnsupportedOperationException("use getFlushedValues() instead");
             }
         };
+    }
+
+    private File getFile() {
+        if (file == null) {
+            file = new File(historicalSegmentTable.getDirectory(),
+                    historicalSegmentTable.hashKeyToString(segmentedKey)
+                            .replace("/", "_")
+                            .replace("\\", "_") + "_" + "inProgress.data");
+        }
+        return file;
     }
 
     @Override

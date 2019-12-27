@@ -26,6 +26,7 @@ import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
+import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.time.fdate.FDate;
@@ -100,9 +101,13 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
 
     protected abstract FDate extractEndTime(V value);
 
-    protected abstract String hashKeyToString(K key);
+    public final String hashKeyToString(final K key) {
+        return Files.normalizeFilename(innerHashKeyToString(key));
+    }
 
-    protected String hashKeyToString(final SegmentedKey<K> segmentedKey) {
+    protected abstract String innerHashKeyToString(K key);
+
+    public final String hashKeyToString(final SegmentedKey<K> segmentedKey) {
         return historicalSegmentTable.hashKeyToString(segmentedKey);
     }
 
@@ -136,7 +141,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         }
 
         @Override
-        public String hashKeyToString(final K key) {
+        protected String innerHashKeyToString(final K key) {
             return ALiveSegmentedTimeSeriesDB.this.hashKeyToString(key);
         }
 
@@ -211,11 +216,6 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
                 final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable,
                 final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
             return ALiveSegmentedTimeSeriesDB.this.newSegmentUpdaterOverride(segmentedKey, segmentedTable, source);
-        }
-
-        @Override
-        public String hashKeyToString(final SegmentedKey<K> key) {
-            return super.hashKeyToString(key);
         }
 
     }

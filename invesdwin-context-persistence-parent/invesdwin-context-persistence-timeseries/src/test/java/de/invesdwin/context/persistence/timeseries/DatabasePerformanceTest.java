@@ -143,7 +143,7 @@ public class DatabasePerformanceTest extends ATest {
             }
 
             @Override
-            public String hashKeyToString(final String key) {
+            protected String innerHashKeyToString(final String key) {
                 return "testTimeSeriesDbPerformance_" + key;
             }
 

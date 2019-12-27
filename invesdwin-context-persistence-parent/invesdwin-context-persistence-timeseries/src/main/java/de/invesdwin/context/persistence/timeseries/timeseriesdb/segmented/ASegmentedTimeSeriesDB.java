@@ -22,6 +22,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.lock.Locks;
+import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.time.fdate.FDate;
@@ -154,10 +155,14 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
     protected abstract FDate extractEndTime(V value);
 
-    protected abstract String hashKeyToString(K key);
+    public final String hashKeyToString(final K key) {
+        return Files.normalizeFilename(innerHashKeyToString(key));
+    }
 
-    protected String hashKeyToString(final SegmentedKey<K> key) {
-        return ASegmentedTimeSeriesDB.this.hashKeyToString(key.getKey()) + "/"
+    protected abstract String innerHashKeyToString(K key);
+
+    public final String hashKeyToString(final SegmentedKey<K> key) {
+        return ASegmentedTimeSeriesDB.this.hashKeyToString(key.getKey()) + "-"
                 + key.getSegment().getFrom().toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_MS) + "-"
                 + key.getSegment().getTo().toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_MS);
     }
@@ -475,7 +480,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         }
 
         @Override
-        public String hashKeyToString(final SegmentedKey<K> key) {
+        protected String innerHashKeyToString(final SegmentedKey<K> key) {
             return ASegmentedTimeSeriesDB.this.hashKeyToString(key);
         }
 

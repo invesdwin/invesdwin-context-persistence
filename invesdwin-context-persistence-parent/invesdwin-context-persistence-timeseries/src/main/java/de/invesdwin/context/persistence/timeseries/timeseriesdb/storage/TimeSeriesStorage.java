@@ -132,7 +132,7 @@ public class TimeSeriesStorage {
     }
 
     public File newDataDirectory(final String hashKey) {
-        return new File(getDirectory(), "storage/" + hashKey.replace(":", "_"));
+        return new File(getDirectory(), "storage/" + hashKey);
     }
 
 }

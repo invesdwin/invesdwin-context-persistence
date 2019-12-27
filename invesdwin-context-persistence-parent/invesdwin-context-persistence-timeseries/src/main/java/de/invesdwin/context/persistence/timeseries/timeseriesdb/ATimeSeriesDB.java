@@ -273,7 +273,11 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         return valueSerde;
     }
 
-    public abstract String hashKeyToString(K key);
+    public final String hashKeyToString(final K key) {
+        return Files.normalizeFilename(innerHashKeyToString(key));
+    }
+
+    protected abstract String innerHashKeyToString(K key);
 
     @Override
     public void close() {

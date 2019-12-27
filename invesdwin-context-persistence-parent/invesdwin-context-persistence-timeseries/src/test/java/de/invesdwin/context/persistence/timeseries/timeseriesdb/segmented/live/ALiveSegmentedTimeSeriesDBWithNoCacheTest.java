@@ -94,7 +94,7 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheTest extends ATest {
             }
 
             @Override
-            protected String hashKeyToString(final String key) {
+            protected String innerHashKeyToString(final String key) {
                 return key;
             }
 
