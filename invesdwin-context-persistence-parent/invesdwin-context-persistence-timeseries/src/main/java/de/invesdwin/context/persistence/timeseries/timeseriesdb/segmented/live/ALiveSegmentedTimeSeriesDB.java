@@ -298,7 +298,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
 
     @Override
     public ICloseableIterable<V> rangeValues(final K key, final FDate from, final FDate to) {
-        return new RangeValues(to, key, from);
+        return new RangeValues(key, from, to);
     }
 
     @Override
@@ -449,14 +449,14 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
     }
 
     private final class RangeValues implements ICloseableIterable<V> {
-        private final FDate to;
         private final K key;
         private final FDate from;
+        private final FDate to;
 
-        private RangeValues(final FDate to, final K key, final FDate from) {
-            this.to = to;
+        private RangeValues(final K key, final FDate from, final FDate to) {
             this.key = key;
             this.from = from;
+            this.to = to;
         }
 
         @Override
