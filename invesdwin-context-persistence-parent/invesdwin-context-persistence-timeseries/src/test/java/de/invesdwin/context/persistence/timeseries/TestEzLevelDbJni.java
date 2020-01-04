@@ -87,7 +87,6 @@ public class TestEzLevelDbJni extends ATest {
 
         table.close();
         table.deleteTable();
-        System.out.println("delete");
     }
 
     @Test
