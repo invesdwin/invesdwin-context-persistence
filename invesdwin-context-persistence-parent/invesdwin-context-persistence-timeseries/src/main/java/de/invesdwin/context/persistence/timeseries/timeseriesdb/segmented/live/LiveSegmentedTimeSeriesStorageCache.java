@@ -227,7 +227,8 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
 
     public void putNextLiveValue(final V nextLiveValue) {
         final FDate nextLiveKey = historicalSegmentTable.extractTime(nextLiveValue);
-        final FDate lastAvailableHistoricalSegmentTo = historicalSegmentTable.getLastAvailableHistoricalSegmentTo(key);
+        final FDate lastAvailableHistoricalSegmentTo = historicalSegmentTable.getLastAvailableHistoricalSegmentTo(key,
+                nextLiveKey);
         final TimeRange segment = historicalSegmentTable.getSegmentFinder(key).query().getValue(nextLiveKey);
         if (lastAvailableHistoricalSegmentTo.isAfterOrEqualTo(segment.getFrom())
                 /*

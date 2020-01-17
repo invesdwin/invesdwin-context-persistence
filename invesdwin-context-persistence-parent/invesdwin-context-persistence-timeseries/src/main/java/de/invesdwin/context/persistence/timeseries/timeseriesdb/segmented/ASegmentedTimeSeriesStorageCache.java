@@ -233,7 +233,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         if (firstAvailableSegmentFrom == null) {
             return EmptyCloseableIterable.getInstance();
         }
-        final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key);
+        final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key, to);
         if (lastAvailableSegmentTo == null) {
             return EmptyCloseableIterable.getInstance();
         }
@@ -381,7 +381,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         if (firstAvailableSegmentFrom == null) {
             return false;
         }
-        final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(segmentedKey.getKey());
+        final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(segmentedKey.getKey(),
+                segmentedKey.getSegment().getTo());
         if (lastAvailableSegmentTo == null) {
             return false;
         }
@@ -574,13 +575,13 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
     protected abstract ICloseableIterable<? extends V> downloadSegmentElements(SegmentedKey<K> segmentedKey);
 
-    protected abstract FDate getLastAvailableSegmentTo(K key);
+    protected abstract FDate getLastAvailableSegmentTo(K key, FDate updateTo);
 
     protected abstract FDate getFirstAvailableSegmentFrom(K key);
 
     public ICloseableIterable<V> readRangeValuesReverse(final FDate from, final FDate to, final Lock readLock) {
         final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
-        final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key);
+        final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key, to);
         //adjust dates directly to prevent unnecessary segment calculations
         final FDate adjFrom = FDates.min(from, lastAvailableSegmentTo);
         final FDate adjTo = FDates.max(to, firstAvailableSegmentFrom);
@@ -698,7 +699,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     }
 
     public V getLatestValue(final FDate date) {
-        final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key);
+        final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key, date);
         final FDate adjDate = FDates.min(date, lastAvailableSegmentTo);
         return latestValueLookupCache.get(adjDate);
     }
@@ -756,7 +757,12 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         if (prevLastAvailableSegmentTo == null) {
             return true;
         }
-        final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key);
+        final FDate lastAvailableSegmentTo;
+        if (segmentToBeInitialized == null) {
+            lastAvailableSegmentTo = getLastAvailableSegmentTo(key, null);
+        } else {
+            lastAvailableSegmentTo = getLastAvailableSegmentTo(key, segmentToBeInitialized.getTo());
+        }
         if (lastAvailableSegmentTo == null) {
             return false;
         }
@@ -803,7 +809,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             maybePrepareForUpdate(null);
         }
         if (cachedLastValue == null) {
-            final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key);
+            final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key, null);
             if (lastAvailableSegmentTo == null) {
                 cachedLastValue = Optional.empty();
             } else {

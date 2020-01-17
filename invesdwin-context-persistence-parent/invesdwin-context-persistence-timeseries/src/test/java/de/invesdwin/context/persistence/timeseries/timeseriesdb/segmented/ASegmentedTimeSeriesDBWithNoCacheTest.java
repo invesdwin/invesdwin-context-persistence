@@ -131,7 +131,7 @@ public class ASegmentedTimeSeriesDBWithNoCacheTest extends ATest {
             }
 
             @Override
-            public FDate getLastAvailableHistoricalSegmentTo(final String key) {
+            public FDate getLastAvailableHistoricalSegmentTo(final String key, final FDate updateTo) {
                 if (entities.isEmpty()) {
                     return null;
                 }

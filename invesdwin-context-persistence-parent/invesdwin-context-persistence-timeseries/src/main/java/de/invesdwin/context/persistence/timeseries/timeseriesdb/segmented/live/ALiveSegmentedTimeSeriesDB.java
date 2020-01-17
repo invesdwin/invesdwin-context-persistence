@@ -113,7 +113,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
 
     public abstract FDate getFirstAvailableHistoricalSegmentFrom(K key);
 
-    public abstract FDate getLastAvailableHistoricalSegmentTo(K key);
+    public abstract FDate getLastAvailableHistoricalSegmentTo(K key, FDate updateTo);
 
     public final class HistoricalSegmentTable extends ASegmentedTimeSeriesDB<K, V> {
         private HistoricalSegmentTable(final String name) {
@@ -181,8 +181,8 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         }
 
         @Override
-        public FDate getLastAvailableHistoricalSegmentTo(final K key) {
-            return ALiveSegmentedTimeSeriesDB.this.getLastAvailableHistoricalSegmentTo(key);
+        public FDate getLastAvailableHistoricalSegmentTo(final K key, final FDate updateTo) {
+            return ALiveSegmentedTimeSeriesDB.this.getLastAvailableHistoricalSegmentTo(key, updateTo);
         }
 
         @Override

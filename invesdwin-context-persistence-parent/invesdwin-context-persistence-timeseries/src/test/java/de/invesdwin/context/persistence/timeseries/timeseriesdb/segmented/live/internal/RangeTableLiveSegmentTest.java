@@ -85,7 +85,7 @@ public class RangeTableLiveSegmentTest extends ATest {
             }
 
             @Override
-            public FDate getLastAvailableHistoricalSegmentTo(final FDate key) {
+            public FDate getLastAvailableHistoricalSegmentTo(final FDate key, final FDate updateTo) {
                 throw new UnsupportedOperationException();
             }
 

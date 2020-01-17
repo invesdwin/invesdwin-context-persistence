@@ -146,7 +146,7 @@ public class ALiveSegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest e
             }
 
             @Override
-            public FDate getLastAvailableHistoricalSegmentTo(final String key) {
+            public FDate getLastAvailableHistoricalSegmentTo(final String key, final FDate updateTo) {
                 if (entities.isEmpty() || curTime == null) {
                     return null;
                 }

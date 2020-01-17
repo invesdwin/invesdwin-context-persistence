@@ -5,6 +5,7 @@ import java.io.File;
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
+import de.invesdwin.context.persistence.timeseries.ezdb.RangeTablePersistenceMode;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.serde.Serde;
 
@@ -34,6 +35,11 @@ public class TimeSeriesStorage {
             @Override
             protected void onDeleteTableFinished() {
                 throw new CorruptedTimeSeriesStorageException(getName());
+            }
+
+            @Override
+            protected RangeTablePersistenceMode getPersistenceMode() {
+                return RangeTablePersistenceMode.MEMORY_WRITE_THROUGH_DISK;
             }
 
         };

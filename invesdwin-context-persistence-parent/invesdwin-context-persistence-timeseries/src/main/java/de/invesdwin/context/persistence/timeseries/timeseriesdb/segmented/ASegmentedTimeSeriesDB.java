@@ -57,8 +57,8 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
                 return new ASegmentedTimeSeriesStorageCache<K, V>(segmentedTable, getStorage(), key, hashKey) {
 
                     @Override
-                    protected FDate getLastAvailableSegmentTo(final K key) {
-                        return ASegmentedTimeSeriesDB.this.getLastAvailableHistoricalSegmentTo(key);
+                    protected FDate getLastAvailableSegmentTo(final K key, final FDate updateTo) {
+                        return ASegmentedTimeSeriesDB.this.getLastAvailableHistoricalSegmentTo(key, updateTo);
                     }
 
                     @Override
@@ -169,7 +169,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
     public abstract FDate getFirstAvailableHistoricalSegmentFrom(K key);
 
-    public abstract FDate getLastAvailableHistoricalSegmentTo(K key);
+    public abstract FDate getLastAvailableHistoricalSegmentTo(K key, FDate updateTo);
 
     @Override
     public synchronized void close() {
