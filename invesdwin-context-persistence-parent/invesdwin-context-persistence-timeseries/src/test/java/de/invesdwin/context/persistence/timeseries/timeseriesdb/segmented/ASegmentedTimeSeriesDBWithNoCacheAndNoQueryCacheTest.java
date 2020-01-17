@@ -1294,7 +1294,7 @@ public class ASegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest 
             if (returnMaxResults != null && !result.isEmpty()) {
                 result = result.subList(0, Math.min(result.size(), returnMaxResults));
             }
-            return new BufferingIterator<FDate>(result.iterator());
+            return new BufferingIterator<FDate>(result);
         }
 
         @Override
