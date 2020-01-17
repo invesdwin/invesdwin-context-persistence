@@ -18,6 +18,10 @@
 			<groupId>com.github.criccomini</groupId>
 			<artifactId>ezdb-leveldb</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>com.github.criccomini</groupId>
+			<artifactId>ezdb-treemap</artifactId>
+		</dependency>
 
 		<dependency>
 			<groupId>org.mapdb</groupId>

@@ -46,7 +46,7 @@
 		<version.javax.jdo>3.2.0-m10</version.javax.jdo>
 
 		<version.kundera>3.13</version.kundera>
-		<version.ezdb>0.1.13</version.ezdb>
+		<version.ezdb>0.1.14</version.ezdb>
 		<version.leveldb>1.1</version.leveldb>
 		<version.mapdb>3.0.7</version.mapdb>
 		<version.kotlin>1.3.20</version.kotlin>
@@ -230,6 +230,11 @@
 			<dependency>
 				<groupId>com.github.criccomini</groupId>
 				<artifactId>ezdb-leveldb</artifactId>
+				<version>${version.ezdb}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.github.criccomini</groupId>
+				<artifactId>ezdb-treemap</artifactId>
 				<version>${version.ezdb}</version>
 			</dependency>
 			<dependency>
