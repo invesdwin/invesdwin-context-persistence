@@ -6,6 +6,7 @@ import java.util.List;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
@@ -29,7 +30,7 @@ public class ATimeSeriesDBTest extends ATest {
     @Test
     public void testGetPrevious() throws IncompleteUpdateFoundException {
         final String key = "asdf";
-        final ATimeSeriesDB<String, FDate> table = new ATimeSeriesDB<String, FDate>("table") {
+        final ATimeSeriesDB<String, FDate> table = new ATimeSeriesDB<String, FDate>("testGetPrevious") {
 
             @Override
             protected Serde<FDate> newValueSerde() {
@@ -102,6 +103,113 @@ public class ATimeSeriesDBTest extends ATest {
             final FDate value = table.getPreviousValue(key, FDate.MAX_DATE, i);
             final FDate expectedValue = dates.get(dates.size() - i);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+
+    }
+
+    @Test
+    public void testGetPreviousSkipFile() throws IncompleteUpdateFoundException {
+        final String key = "asdf";
+        final ATimeSeriesDB<String, FDate> table = new ATimeSeriesDB<String, FDate>("testGetPreviousSkipFile") {
+
+            @Override
+            protected Serde<FDate> newValueSerde() {
+                return new ExtendedTypeDelegateSerde<FDate>(FDate.class);
+            }
+
+            @Override
+            protected Integer newFixedLength() {
+                return null;
+            }
+
+            @Override
+            protected String innerHashKeyToString(final String key) {
+                return key;
+            }
+
+            @Override
+            protected FDate extractTime(final FDate value) {
+                return value;
+            }
+
+            @Override
+            protected File getBaseDirectory() {
+                return ContextProperties.TEMP_DIRECTORY;
+            }
+        };
+        final List<FDate> dates = new ArrayList<>();
+        for (int i = 0; i < 100_000; i++) {
+            dates.add(new FDate(i));
+        }
+        final MutableInt segments = new MutableInt();
+        new ATimeSeriesUpdater<String, FDate>(key, table) {
+
+            @Override
+            protected ICloseableIterable<? extends FDate> getSource(final FDate updateFrom) {
+                return WrapperCloseableIterable.maybeWrap(dates);
+            }
+
+            @Override
+            protected void onUpdateFinished(final Instant updateStart) {}
+
+            @Override
+            protected void onUpdateStart() {}
+
+            @Override
+            protected FDate extractTime(final FDate element) {
+                return element;
+            }
+
+            @Override
+            protected FDate extractEndTime(final FDate element) {
+                return element;
+            }
+
+            @Override
+            protected void onFlush(final int flushIndex, final Instant flushStart,
+                    final ATimeSeriesUpdater<String, FDate>.UpdateProgress updateProgress) {
+                segments.increment();
+            }
+
+            @Override
+            public Percent getProgress() {
+                return null;
+            }
+        }.update();
+        Assertions.assertThat(segments.intValue()).isEqualByComparingTo(10);
+
+        for (int i = 1; i < dates.size(); i += ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
+            final FDate expectedValue = dates.get(dates.size() - i);
+            final long expectedIndex = expectedValue.millisValue();
+            final FDate value = table.getPreviousValue(key, dates.get(dates.size() - 1), i);
+            final long valueIndex = value.millisValue();
+            Assertions.checkEquals(valueIndex, expectedIndex,
+                    i + ": expected [" + expectedIndex + "] got [" + valueIndex + "]");
+        }
+        for (int i = 1; i < dates.size(); i += ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
+            final FDate expectedValue = dates.get(dates.size() - i);
+            final long expectedIndex = expectedValue.millisValue();
+            final FDate value = table.getPreviousValue(key, FDate.MAX_DATE, i);
+            final long valueIndex = value.millisValue();
+            Assertions.checkEquals(valueIndex, expectedIndex,
+                    i + ": expected [" + expectedIndex + "] got [" + valueIndex + "]");
+        }
+
+        for (int i = 1; i < dates.size(); i += ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
+            final FDate expectedValue = dates.get(i);
+            final long expectedIndex = expectedValue.millisValue();
+            final FDate value = table.getNextValue(key, dates.get(0), i);
+            final long valueIndex = value.millisValue();
+            Assertions.checkEquals(valueIndex, expectedIndex,
+                    i + ": expected [" + expectedIndex + "] got [" + valueIndex + "]");
+        }
+        for (int i = 1; i < dates.size(); i += ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
+            final FDate expectedValue = dates.get(i - 1);
+            final long expectedIndex = expectedValue.millisValue();
+            final FDate value = table.getNextValue(key, FDate.MIN_DATE, i);
+            final long valueIndex = value.millisValue();
+            Assertions.checkEquals(valueIndex, expectedIndex,
+                    i + ": expected [" + expectedIndex + "] got [" + valueIndex + "]");
         }
 
     }
