@@ -42,6 +42,11 @@ public class TimeSeriesStorage {
                 return RangeTablePersistenceMode.MEMORY_WRITE_THROUGH_DISK;
             }
 
+            @Override
+            protected Serde<ChunkValue> newValueSerde() {
+                return ChunkValueSerde.GET;
+            }
+
         };
         this.latestValueLookupTable = new ADelegateRangeTable<String, FDate, SingleValue>("latestValueLookupTable") {
 

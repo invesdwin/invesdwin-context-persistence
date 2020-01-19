@@ -28,7 +28,7 @@ public class ATimeSeriesDBTest extends ATest {
     //CHECKSTYLE:ON
 
     @Test
-    public void testGetPrevious() throws IncompleteUpdateFoundException {
+    public void testGetPreviousAndNext() throws IncompleteUpdateFoundException {
         final String key = "asdf";
         final ATimeSeriesDB<String, FDate> table = new ATimeSeriesDB<String, FDate>("testGetPrevious") {
 
@@ -96,7 +96,7 @@ public class ATimeSeriesDBTest extends ATest {
 
         for (int i = 1; i < dates.size(); i++) {
             final FDate value = table.getPreviousValue(key, dates.get(dates.size() - 1), i);
-            final FDate expectedValue = dates.get(dates.size() - i);
+            final FDate expectedValue = dates.get(dates.size() - i - 1);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < dates.size(); i++) {
@@ -104,11 +104,31 @@ public class ATimeSeriesDBTest extends ATest {
             final FDate expectedValue = dates.get(dates.size() - i);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
+        for (int i = 1; i < dates.size(); i++) {
+            final FDate value = table.getPreviousValue(key, FDate.MIN_DATE, i);
+            final FDate expectedValue = dates.get(0);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
 
+        for (int i = 1; i < dates.size(); i++) {
+            final FDate value = table.getNextValue(key, dates.get(0), i);
+            final FDate expectedValue = dates.get(i);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 1; i < dates.size(); i++) {
+            final FDate value = table.getNextValue(key, FDate.MIN_DATE, i);
+            final FDate expectedValue = dates.get(i - 1);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 1; i < dates.size(); i++) {
+            final FDate value = table.getNextValue(key, FDate.MAX_DATE, i);
+            final FDate expectedValue = dates.get(dates.size() - 1);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
     }
 
     @Test
-    public void testGetPreviousSkipFile() throws IncompleteUpdateFoundException {
+    public void testGetPreviousAndNextSkipFile() throws IncompleteUpdateFoundException {
         final String key = "asdf";
         final ATimeSeriesDB<String, FDate> table = new ATimeSeriesDB<String, FDate>("testGetPreviousSkipFile") {
 
@@ -179,7 +199,7 @@ public class ATimeSeriesDBTest extends ATest {
         Assertions.assertThat(segments.intValue()).isEqualByComparingTo(10);
 
         for (int i = 1; i < dates.size(); i += ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
-            final FDate expectedValue = dates.get(dates.size() - i);
+            final FDate expectedValue = dates.get(dates.size() - i - 1);
             final long expectedIndex = expectedValue.millisValue();
             final FDate value = table.getPreviousValue(key, dates.get(dates.size() - 1), i);
             final long valueIndex = value.millisValue();
@@ -190,6 +210,14 @@ public class ATimeSeriesDBTest extends ATest {
             final FDate expectedValue = dates.get(dates.size() - i);
             final long expectedIndex = expectedValue.millisValue();
             final FDate value = table.getPreviousValue(key, FDate.MAX_DATE, i);
+            final long valueIndex = value.millisValue();
+            Assertions.checkEquals(valueIndex, expectedIndex,
+                    i + ": expected [" + expectedIndex + "] got [" + valueIndex + "]");
+        }
+        for (int i = 1; i < dates.size(); i += ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
+            final FDate expectedValue = dates.get(0);
+            final long expectedIndex = expectedValue.millisValue();
+            final FDate value = table.getPreviousValue(key, FDate.MIN_DATE, i);
             final long valueIndex = value.millisValue();
             Assertions.checkEquals(valueIndex, expectedIndex,
                     i + ": expected [" + expectedIndex + "] got [" + valueIndex + "]");
@@ -207,6 +235,14 @@ public class ATimeSeriesDBTest extends ATest {
             final FDate expectedValue = dates.get(i - 1);
             final long expectedIndex = expectedValue.millisValue();
             final FDate value = table.getNextValue(key, FDate.MIN_DATE, i);
+            final long valueIndex = value.millisValue();
+            Assertions.checkEquals(valueIndex, expectedIndex,
+                    i + ": expected [" + expectedIndex + "] got [" + valueIndex + "]");
+        }
+        for (int i = 1; i < dates.size(); i += ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
+            final FDate expectedValue = dates.get(dates.size() - 1);
+            final long expectedIndex = expectedValue.millisValue();
+            final FDate value = table.getNextValue(key, FDate.MAX_DATE, i);
             final long valueIndex = value.millisValue();
             Assertions.checkEquals(valueIndex, expectedIndex,
                     i + ": expected [" + expectedIndex + "] got [" + valueIndex + "]");

@@ -84,7 +84,7 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
             public ICloseableIterator<V> iterator() {
                 final Lock compositeReadLock = Locks.newCompositeLock(readLock,
                         table.getTableLock(segmentedKey).readLock());
-                return table.getLookupTableCache(segmentedKey).readRangeValues(from, to, compositeReadLock);
+                return table.getLookupTableCache(segmentedKey).readRangeValues(from, to, compositeReadLock, null);
             }
         };
     }
@@ -96,7 +96,8 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
             public ICloseableIterator<V> iterator() {
                 final Lock compositeReadLock = Locks.newCompositeLock(readLock,
                         table.getTableLock(segmentedKey).readLock());
-                return table.getLookupTableCache(segmentedKey).readRangeValuesReverse(from, to, compositeReadLock);
+                return table.getLookupTableCache(segmentedKey)
+                        .readRangeValuesReverse(from, to, compositeReadLock, null);
             }
         };
     }

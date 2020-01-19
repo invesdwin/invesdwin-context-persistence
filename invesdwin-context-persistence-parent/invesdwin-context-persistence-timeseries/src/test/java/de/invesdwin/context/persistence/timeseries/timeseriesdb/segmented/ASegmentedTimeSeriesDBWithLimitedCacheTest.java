@@ -1130,7 +1130,7 @@ public class ASegmentedTimeSeriesDBWithLimitedCacheTest extends ATest {
         Assertions.assertThat(previousValues).isEqualTo(expectedValues);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(4);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(2);
+        Assertions.assertThat(countInnerExtractKey).isLessThanOrEqualTo(4);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 

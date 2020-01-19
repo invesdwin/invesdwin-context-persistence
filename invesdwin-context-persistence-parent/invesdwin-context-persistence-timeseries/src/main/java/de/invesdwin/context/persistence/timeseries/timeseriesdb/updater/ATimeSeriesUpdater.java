@@ -333,6 +333,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             };
             V firstElement = null;
             V lastElement = null;
+            int count = 0;
             try {
                 for (final V element : batch) {
                     collection.add(element);
@@ -340,11 +341,12 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                         firstElement = element;
                     }
                     lastElement = element;
+                    count++;
                 }
             } finally {
                 collection.close();
             }
-            lookupTable.finishFile(minTime, firstElement, lastElement);
+            lookupTable.finishFile(minTime, firstElement, lastElement, count);
 
             onFlush(flushIndex, flushStart, this);
         }

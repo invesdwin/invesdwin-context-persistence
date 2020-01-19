@@ -1249,14 +1249,14 @@ public class ATimeSeriesDBWithLimitedCacheTest extends ATest {
         Assertions.assertThat(previousValue).isEqualTo(expectedValue);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(3);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
-        Assertions.assertThat(countInnerExtractKey).isLessThanOrEqualTo(3);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(2);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
 
         //first +1
         previousValue = cache.query().getPreviousValue(entities.get(2), 2);
         expectedValue = entities.get(0);
         Assertions.assertThat(previousValue).isEqualTo(expectedValue);
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(4);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
         Assertions.assertThat(countInnerExtractKey).isEqualTo(2);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
@@ -1265,7 +1265,7 @@ public class ATimeSeriesDBWithLimitedCacheTest extends ATest {
         previousValue = cache.query().getPreviousValue(entities.get(entities.size() - 2), 2);
         expectedValue = entities.get(entities.size() - 4);
         Assertions.assertThat(previousValue).isEqualTo(expectedValue);
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(4);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
         Assertions.assertThat(countInnerExtractKey).isEqualTo(2);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);

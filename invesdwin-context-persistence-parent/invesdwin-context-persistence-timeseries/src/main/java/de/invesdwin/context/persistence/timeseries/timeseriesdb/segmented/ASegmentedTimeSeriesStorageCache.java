@@ -14,6 +14,7 @@ import java.util.function.Function;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.lang3.SerializationException;
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.springframework.retry.backoff.BackOffPolicy;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
@@ -25,6 +26,7 @@ import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.TimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ChunkValue;
+import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ShiftUnitsRangeKey;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.updater.ALoggingTimeSeriesUpdater;
@@ -44,6 +46,7 @@ import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
+import de.invesdwin.util.concurrent.reference.MutableReference;
 import de.invesdwin.util.concurrent.taskinfo.provider.TaskInfoCallable;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.error.Throwables;
@@ -145,16 +148,28 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                                 public SingleValue apply(final Pair<String, ShiftUnitsRangeKey> input) {
                                     final FDate date = loadKey.getFirst();
                                     final int shiftBackUnits = loadKey.getSecond();
-                                    V previousValue = null;
+                                    final MutableReference<V> previousValue = new MutableReference<>();
+                                    final MutableInt shiftBackRemaining = new MutableInt(shiftBackUnits);
                                     try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null,
-                                            DisabledLock.INSTANCE).iterator()) {
-                                        for (int i = 0; i < shiftBackUnits; i++) {
-                                            previousValue = rangeValuesReverse.next();
+                                            DisabledLock.INSTANCE, new ISkipFileFunction() {
+                                                @Override
+                                                public boolean skipFile(final ChunkValue file) {
+                                                    final boolean skip = previousValue.get() != null
+                                                            && file.getCount() < shiftBackRemaining.intValue();
+                                                    if (skip) {
+                                                        shiftBackRemaining.add(file.getCount());
+                                                    }
+                                                    return skip;
+                                                }
+                                            }).iterator()) {
+                                        while (shiftBackRemaining.intValue() > 0) {
+                                            previousValue.set(rangeValuesReverse.next());
+                                            shiftBackRemaining.decrement();
                                         }
                                     } catch (final NoSuchElementException e) {
                                         //ignore
                                     }
-                                    return new SingleValue(valueSerde, previousValue);
+                                    return new SingleValue(valueSerde, previousValue.get());
                                 }
                             });
             return value.getValue(valueSerde);
@@ -184,16 +199,28 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                                 public SingleValue apply(final Pair<String, ShiftUnitsRangeKey> input) {
                                     final FDate date = loadKey.getFirst();
                                     final int shiftForwardUnits = loadKey.getSecond();
-                                    V nextValue = null;
+                                    final MutableReference<V> nextValue = new MutableReference<>();
+                                    final MutableInt shiftForwardRemaining = new MutableInt(shiftForwardUnits);
                                     try (ICloseableIterator<V> rangeValues = readRangeValues(date, null,
-                                            DisabledLock.INSTANCE).iterator()) {
-                                        for (int i = 0; i < shiftForwardUnits; i++) {
-                                            nextValue = rangeValues.next();
+                                            DisabledLock.INSTANCE, new ISkipFileFunction() {
+                                                @Override
+                                                public boolean skipFile(final ChunkValue file) {
+                                                    final boolean skip = nextValue.get() != null
+                                                            && file.getCount() < shiftForwardRemaining.intValue();
+                                                    if (skip) {
+                                                        shiftForwardRemaining.subtract(file.getCount());
+                                                    }
+                                                    return skip;
+                                                }
+                                            }).iterator()) {
+                                        while (shiftForwardRemaining.intValue() > 0) {
+                                            nextValue.set(rangeValues.next());
+                                            shiftForwardRemaining.decrement();
                                         }
                                     } catch (final NoSuchElementException e) {
                                         //ignore
                                     }
-                                    return new SingleValue(valueSerde, nextValue);
+                                    return new SingleValue(valueSerde, nextValue.get());
                                 }
                             });
             return value.getValue(valueSerde);
@@ -228,7 +255,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         };
     }
 
-    public ICloseableIterable<V> readRangeValues(final FDate from, final FDate to, final Lock readLock) {
+    public ICloseableIterable<V> readRangeValues(final FDate from, final FDate to, final Lock readLock,
+            final ISkipFileFunction skipFileFunction) {
         final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
         if (firstAvailableSegmentFrom == null) {
             return EmptyCloseableIterable.getInstance();
@@ -255,7 +283,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                         final Lock compositeReadLock = Locks.newCompositeLock(readLock,
                                 segmentedTable.getTableLock(segmentedKey).readLock());
                         return segmentedTable.getLookupTableCache(segmentedKey)
-                                .readRangeValues(segmentAdjFrom, segmentAdjTo, compositeReadLock);
+                                .readRangeValues(segmentAdjFrom, segmentAdjTo, compositeReadLock, skipFileFunction);
                     }
                 };
             }
@@ -365,7 +393,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                     }
                     initSegmentWithStatusHandling(segmentedKey, source);
                     onSegmentCompleted(segmentedKey, readRangeValues(segmentedKey.getSegment().getFrom(),
-                            segmentedKey.getSegment().getTo(), DisabledLock.INSTANCE));
+                            segmentedKey.getSegment().getTo(), DisabledLock.INSTANCE, null));
                     return true;
                 } finally {
                     segmentWriteLock.unlock();
@@ -579,7 +607,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
     protected abstract FDate getFirstAvailableSegmentFrom(K key);
 
-    public ICloseableIterable<V> readRangeValuesReverse(final FDate from, final FDate to, final Lock readLock) {
+    public ICloseableIterable<V> readRangeValuesReverse(final FDate from, final FDate to, final Lock readLock,
+            final ISkipFileFunction skipFileFunction) {
         final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
         final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key, to);
         //adjust dates directly to prevent unnecessary segment calculations
@@ -600,7 +629,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                         final Lock compositeReadLock = Locks.newCompositeLock(readLock,
                                 segmentedTable.getTableLock(segmentedKey).readLock());
                         return segmentedTable.getLookupTableCache(segmentedKey)
-                                .readRangeValuesReverse(segmentAdjFrom, segmentAdjTo, compositeReadLock);
+                                .readRangeValuesReverse(segmentAdjFrom, segmentAdjTo, compositeReadLock,
+                                        skipFileFunction);
                     }
                 };
             }

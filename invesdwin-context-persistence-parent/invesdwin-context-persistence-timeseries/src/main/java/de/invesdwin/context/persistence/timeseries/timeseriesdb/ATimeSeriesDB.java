@@ -316,7 +316,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
                 private ICloseableIterator<V> getReadRangeValues() {
                     if (finalizer.readRangeValues == null) {
                         finalizer.readRangeValues = getLookupTableCache(key).readRangeValuesReverse(from, to,
-                                getTableLock(key).readLock());
+                                getTableLock(key).readLock(), null);
                     }
                     return finalizer.readRangeValues;
                 }
@@ -365,7 +365,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
                 private ICloseableIterator<V> getReadRangeValues() {
                     if (finalizer.readRangeValues == null) {
                         finalizer.readRangeValues = getLookupTableCache(key).readRangeValues(from, to,
-                                getTableLock(key).readLock());
+                                getTableLock(key).readLock(), null);
                     }
                     return finalizer.readRangeValues;
                 }

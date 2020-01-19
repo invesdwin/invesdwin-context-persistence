@@ -12,19 +12,19 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.concurrent.locks.Lock;
+import java.util.function.Function;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.SerializationException;
-
-import com.google.common.base.Function;
+import org.apache.commons.lang3.mutable.MutableInt;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.Log;
-import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable.DelegateTableIterator;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ChunkValue;
+import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ShiftUnitsRangeKey;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.TimeSeriesStorage;
@@ -37,6 +37,7 @@ import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ASkippingIterator;
 import de.invesdwin.util.collections.iterable.ATransformingCloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
+import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.FlatteningIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -45,12 +46,13 @@ import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
+import de.invesdwin.util.concurrent.reference.MutableReference;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
-import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.time.fdate.FDate;
+import ezdb.TableRow;
 import ezdb.serde.Serde;
 
 // CHECKSTYLE:OFF ClassDataAbstractionCoupling
@@ -141,16 +143,34 @@ public class TimeSeriesStorageCache<K, V> {
                                 public SingleValue apply(final Pair<String, ShiftUnitsRangeKey> input) {
                                     final FDate date = key.getFirst();
                                     final int shiftBackUnits = key.getSecond();
-                                    V previousValue = null;
+                                    final MutableReference<V> previousValue = new MutableReference<>();
+                                    final MutableInt shiftBackRemaining = new MutableInt(shiftBackUnits);
                                     try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null,
-                                            DisabledLock.INSTANCE)) {
-                                        for (int i = 0; i < shiftBackUnits; i++) {
-                                            previousValue = rangeValuesReverse.next();
+                                            DisabledLock.INSTANCE, new ISkipFileFunction() {
+                                                @Override
+                                                public boolean skipFile(final ChunkValue file) {
+                                                    final boolean skip = previousValue.get() != null
+                                                            && file.getCount() < shiftBackRemaining.intValue();
+                                                    if (skip) {
+                                                        shiftBackRemaining.subtract(file.getCount());
+                                                    }
+                                                    return skip;
+                                                }
+                                            })) {
+                                        final V firstValue = rangeValuesReverse.next();
+                                        previousValue.set(firstValue);
+                                        final FDate firstTime = extractTime.apply(firstValue);
+                                        if (!date.equals(firstTime)) {
+                                            shiftBackRemaining.decrement();
+                                        }
+                                        while (shiftBackRemaining.intValue() > 0) {
+                                            previousValue.set(rangeValuesReverse.next());
+                                            shiftBackRemaining.decrement();
                                         }
                                     } catch (final NoSuchElementException e) {
                                         //ignore
                                     }
-                                    return new SingleValue(valueSerde, previousValue);
+                                    return new SingleValue(valueSerde, previousValue.get());
                                 }
                             });
             return value.getValue(valueSerde);
@@ -180,16 +200,34 @@ public class TimeSeriesStorageCache<K, V> {
                                 public SingleValue apply(final Pair<String, ShiftUnitsRangeKey> input) {
                                     final FDate date = key.getFirst();
                                     final int shiftForwardUnits = key.getSecond();
-                                    V nextValue = null;
+                                    final MutableReference<V> nextValue = new MutableReference<>();
+                                    final MutableInt shiftForwardRemaining = new MutableInt(shiftForwardUnits);
                                     try (ICloseableIterator<V> rangeValues = readRangeValues(date, null,
-                                            DisabledLock.INSTANCE)) {
-                                        for (int i = 0; i < shiftForwardUnits; i++) {
-                                            nextValue = rangeValues.next();
+                                            DisabledLock.INSTANCE, new ISkipFileFunction() {
+                                                @Override
+                                                public boolean skipFile(final ChunkValue file) {
+                                                    final boolean skip = nextValue.get() != null
+                                                            && file.getCount() < shiftForwardRemaining.intValue();
+                                                    if (skip) {
+                                                        shiftForwardRemaining.subtract(file.getCount());
+                                                    }
+                                                    return skip;
+                                                }
+                                            })) {
+                                        final V firstValue = rangeValues.next();
+                                        nextValue.set(firstValue);
+                                        final FDate firstTime = extractTime.apply(firstValue);
+                                        if (!date.equals(firstTime)) {
+                                            shiftForwardRemaining.decrement();
+                                        }
+                                        while (shiftForwardRemaining.intValue() > 0) {
+                                            nextValue.set(rangeValues.next());
+                                            shiftForwardRemaining.decrement();
                                         }
                                     } catch (final NoSuchElementException e) {
                                         //ignore
                                     }
-                                    return new SingleValue(valueSerde, nextValue);
+                                    return new SingleValue(valueSerde, nextValue.get());
                                 }
                             });
             return value.getValue(valueSerde);
@@ -222,8 +260,6 @@ public class TimeSeriesStorageCache<K, V> {
 
     private volatile Optional<V> cachedFirstValue;
     private volatile Optional<V> cachedLastValue;
-    private volatile ICloseableIterable<FDate> cachedAllRangeKeys;
-    private volatile ICloseableIterable<FDate> cachedAllRangeKeysReverse;
     private final Log log = new Log(this);
     private Map<FDate, File> redirectedFiles;
 
@@ -276,12 +312,13 @@ public class TimeSeriesStorageCache<K, V> {
         Assertions.checkNull(redirectedFiles.put(time, redirect));
     }
 
-    public void finishFile(final FDate time, final V firstValue, final V lastValue) {
-        storage.getFileLookupTable().put(hashKey, time, new ChunkValue(valueSerde, firstValue, lastValue));
+    public void finishFile(final FDate time, final V firstValue, final V lastValue, final int count) {
+        storage.getFileLookupTable().put(hashKey, time, new ChunkValue(valueSerde, firstValue, lastValue, count));
         clearCaches();
     }
 
-    protected ICloseableIterable<File> readRangeFiles(final FDate from, final FDate to, final Lock readLock) {
+    protected ICloseableIterable<File> readRangeFiles(final FDate from, final FDate to, final Lock readLock,
+            final ISkipFileFunction skipFileFunction) {
         final FDate usedFrom;
         if (from == null) {
             final V firstValue = getFirstValue();
@@ -302,24 +339,43 @@ public class TimeSeriesStorageCache<K, V> {
                     //use latest time available even if delegate iterator has no values
                     private FDate latestFirstTime = fileLookupTable_latestRangeKeyCache.get(usedFrom);
                     private FDate delegateFirstTime = null;
-                    private final ReadRangeFileDatesFinalizer finalizer;
+                    private final ICloseableIterator<TableRow<String, FDate, ChunkValue>> delegate;
 
                     {
-                        // add 1 ms to not collide with firstTime
-                        this.finalizer = new ReadRangeFileDatesFinalizer(
-                                getRangeKeys(hashKey, usedFrom.addMilliseconds(1), to));
-                        this.finalizer.register(this);
+                        if (latestFirstTime == null) {
+                            delegate = EmptyCloseableIterator.getInstance();
+                        } else {
+                            delegate = getRangeKeys(hashKey, latestFirstTime.addMilliseconds(1), to);
+                        }
                     }
 
                     @Override
                     protected boolean innerHasNext() {
-                        return latestFirstTime != null || delegateFirstTime != null || finalizer.delegate.hasNext();
+                        return latestFirstTime != null || delegateFirstTime != null || delegate.hasNext();
                     }
 
-                    private ICloseableIterator<FDate> getRangeKeys(final String hashKey, final FDate from,
-                            final FDate to) {
-                        final ICloseableIterator<FDate> range = getAllRangeKeys(readLock);
-                        return new GetRangeKeysIterator(range, from, to);
+                    private ICloseableIterator<TableRow<String, FDate, ChunkValue>> getRangeKeys(final String hashKey,
+                            final FDate from, final FDate to) {
+                        readLock.lock();
+                        try {
+                            final BufferingIterator<TableRow<String, FDate, ChunkValue>> buffer = new BufferingIterator<>(
+                                    storage.getFileLookupTable().range(hashKey, from, to));
+                            if (skipFileFunction != null) {
+                                return new ASkippingIterator<TableRow<String, FDate, ChunkValue>>(buffer) {
+                                    @Override
+                                    protected boolean skip(final TableRow<String, FDate, ChunkValue> element) {
+                                        if (element == buffer.getTail()) {
+                                            return false;
+                                        }
+                                        return skipFileFunction.skipFile(element.getValue());
+                                    }
+                                };
+                            } else {
+                                return buffer;
+                            }
+                        } finally {
+                            readLock.unlock();
+                        }
                     }
 
                     @Override
@@ -331,22 +387,15 @@ public class TimeSeriesStorageCache<K, V> {
                         } else if (latestFirstTime != null) {
                             time = latestFirstTime;
                             latestFirstTime = null;
-                            if (finalizer.delegate.hasNext()) {
-                                //prevent duplicate first times
-                                delegateFirstTime = finalizer.delegate.next();
-                                if (delegateFirstTime.isBeforeOrEqualTo(time)) {
-                                    delegateFirstTime = null;
-                                }
-                            }
                         } else {
-                            time = finalizer.delegate.next();
+                            time = delegate.next().getRangeKey();
                         }
                         return newFile(time);
                     }
 
                     @Override
                     protected void innerClose() {
-                        finalizer.close();
+                        delegate.close();
                     }
 
                 };
@@ -354,77 +403,8 @@ public class TimeSeriesStorageCache<K, V> {
         };
     }
 
-    private static final class GetRangeKeysReverseIterator extends ASkippingIterator<FDate> {
-        private final FDate from;
-        private final FDate to;
-
-        private GetRangeKeysReverseIterator(final ICloseableIterator<? extends FDate> delegate, final FDate from,
-                final FDate to) {
-            super(delegate);
-            this.from = from;
-            this.to = to;
-        }
-
-        @Override
-        protected boolean skip(final FDate element) {
-            if (element.isAfter(from)) {
-                return true;
-            } else if (element.isBefore(to)) {
-                throw new FastNoSuchElementException("getRangeKeysReverse reached end");
-            }
-            return false;
-        }
-    }
-
-    private static final class GetRangeKeysIterator extends ASkippingIterator<FDate> {
-        private final FDate from;
-        private final FDate to;
-
-        private GetRangeKeysIterator(final ICloseableIterator<? extends FDate> delegate, final FDate from,
-                final FDate to) {
-            super(delegate);
-            this.from = from;
-            this.to = to;
-        }
-
-        @Override
-        protected boolean skip(final FDate element) {
-            if (element.isBefore(from)) {
-                return true;
-            } else if (element.isAfter(to)) {
-                throw new FastNoSuchElementException("getRangeKeys reached end");
-            }
-            return false;
-        }
-    }
-
-    private static final class ReadRangeFileDatesFinalizer extends AFinalizer {
-
-        private ICloseableIterator<FDate> delegate;
-
-        private ReadRangeFileDatesFinalizer(final ICloseableIterator<FDate> delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        protected void clean() {
-            delegate.close();
-            delegate = null;
-        }
-
-        @Override
-        protected boolean isCleaned() {
-            return delegate == null;
-        }
-
-        @Override
-        public boolean isThreadLocal() {
-            return true;
-        }
-
-    }
-
-    protected ICloseableIterable<File> readRangeFilesReverse(final FDate from, final FDate to, final Lock readLock) {
+    protected ICloseableIterable<File> readRangeFilesReverse(final FDate from, final FDate to, final Lock readLock,
+            final ISkipFileFunction skipFileFunction) {
         final FDate usedFrom;
         if (from == null) {
             final V lastValue = getLastValue();
@@ -445,14 +425,15 @@ public class TimeSeriesStorageCache<K, V> {
                     //use latest time available even if delegate iterator has no values
                     private FDate latestLastTime = fileLookupTable_latestRangeKeyCache.get(usedFrom);
                     // add 1 ms to not collide with firstTime
-                    private final ICloseableIterator<FDate> delegate = getRangeKeysReverse(hashKey,
-                            usedFrom.addMilliseconds(-1), to);
+                    private final ICloseableIterator<TableRow<String, FDate, ChunkValue>> delegate;
                     private FDate delegateLastTime = null;
-                    private final AFinalizer finalizer;
 
                     {
-                        this.finalizer = new ReadRangeFileDatesFinalizer(delegate);
-                        this.finalizer.register(this);
+                        if (latestLastTime == null) {
+                            delegate = EmptyCloseableIterator.getInstance();
+                        } else {
+                            delegate = getRangeKeysReverse(hashKey, latestLastTime.addMilliseconds(-1), to);
+                        }
                     }
 
                     @Override
@@ -460,10 +441,29 @@ public class TimeSeriesStorageCache<K, V> {
                         return latestLastTime != null || delegateLastTime != null || delegate.hasNext();
                     }
 
-                    private ICloseableIterator<FDate> getRangeKeysReverse(final String hashKey, final FDate from,
-                            final FDate to) {
-                        final ICloseableIterator<FDate> range = getAllRangeKeysReverse(readLock);
-                        return new GetRangeKeysReverseIterator(range, from, to);
+                    private ICloseableIterator<TableRow<String, FDate, ChunkValue>> getRangeKeysReverse(
+                            final String hashKey, final FDate from, final FDate to) {
+                        readLock.lock();
+                        try {
+                            final BufferingIterator<TableRow<String, FDate, ChunkValue>> buffer = new BufferingIterator<>(
+                                    storage.getFileLookupTable().rangeReverse(hashKey, from, to));
+                            if (skipFileFunction != null) {
+                                return new ASkippingIterator<TableRow<String, FDate, ChunkValue>>(buffer) {
+
+                                    @Override
+                                    protected boolean skip(final TableRow<String, FDate, ChunkValue> element) {
+                                        if (element == buffer.getTail()) {
+                                            return false;
+                                        }
+                                        return skipFileFunction.skipFile(element.getValue());
+                                    }
+                                };
+                            } else {
+                                return buffer;
+                            }
+                        } finally {
+                            readLock.unlock();
+                        }
                     }
 
                     @Override
@@ -475,22 +475,15 @@ public class TimeSeriesStorageCache<K, V> {
                         } else if (latestLastTime != null) {
                             time = latestLastTime;
                             latestLastTime = null;
-                            if (delegate.hasNext()) {
-                                //prevent duplicate first times
-                                delegateLastTime = delegate.next();
-                                if (delegateLastTime.isAfterOrEqualTo(time)) {
-                                    delegateLastTime = null;
-                                }
-                            }
                         } else {
-                            time = delegate.next();
+                            time = delegate.next().getRangeKey();
                         }
                         return newFile(time);
                     }
 
                     @Override
                     protected void innerClose() {
-                        finalizer.close();
+                        delegate.close();
                     }
 
                 };
@@ -498,154 +491,64 @@ public class TimeSeriesStorageCache<K, V> {
         };
     }
 
-    private ICloseableIterator<FDate> getAllRangeKeys(final Lock readLock) {
-        readLock.lock();
-        try {
-            if (cachedAllRangeKeys == null) {
-                final BufferingIterator<FDate> allRangeKeys = new BufferingIterator<FDate>();
-                final DelegateTableIterator<String, FDate, ChunkValue> range = storage.getFileLookupTable()
-                        .range(hashKey, FDate.MIN_DATE, FDate.MAX_DATE);
-                while (range.hasNext()) {
-                    allRangeKeys.add(range.next().getRangeKey());
-                }
-                range.close();
-                cachedAllRangeKeys = allRangeKeys;
-            }
-            return cachedAllRangeKeys.iterator();
-        } finally {
-            readLock.unlock();
-        }
-    }
-
-    private ICloseableIterator<FDate> getAllRangeKeysReverse(final Lock readLock) {
-        readLock.lock();
-        try {
-            if (cachedAllRangeKeysReverse == null) {
-                final BufferingIterator<FDate> allRangeKeysReverse = new BufferingIterator<FDate>();
-                final DelegateTableIterator<String, FDate, ChunkValue> range = storage.getFileLookupTable()
-                        .rangeReverse(hashKey, FDate.MAX_DATE, FDate.MIN_DATE);
-                while (range.hasNext()) {
-                    allRangeKeysReverse.add(range.next().getRangeKey());
-                }
-                range.close();
-                cachedAllRangeKeysReverse = allRangeKeysReverse;
-            }
-            return cachedAllRangeKeysReverse.iterator();
-        } finally {
-            readLock.unlock();
-        }
-    }
-
-    public ICloseableIterator<V> readRangeValues(final FDate from, final FDate to, final Lock readLock) {
-        final ICloseableIterator<File> fileIterator = readRangeFiles(from, to, readLock).iterator();
+    public ICloseableIterator<V> readRangeValues(final FDate from, final FDate to, final Lock readLock,
+            final ISkipFileFunction skipFileFunction) {
+        final ICloseableIterator<File> fileIterator = readRangeFiles(from, to, readLock, skipFileFunction).iterator();
         final ICloseableIterator<ICloseableIterator<V>> chunkIterator = new ATransformingCloseableIterator<File, ICloseableIterator<V>>(
                 fileIterator) {
-            private boolean first = true;
-
             @Override
             protected ICloseableIterator<V> transform(final File value) {
                 final ICloseableIterable<V> serializingCollection = newSerializingCollection("readRangeValues", value,
                         readLock);
-                if (first) {
-                    first = false;
-                    if (hasNext()) {
-                        return new ASkippingIterator<V>(serializingCollection.iterator()) {
-                            @Override
-                            protected boolean skip(final V element) {
-                                final FDate time = extractTime.apply(element);
-                                return time.isBefore(from);
-                            }
-                        };
-                        //first and last
-                    } else {
-                        return new ASkippingIterator<V>(serializingCollection.iterator()) {
-                            @Override
-                            protected boolean skip(final V element) {
-                                final FDate time = extractTime.apply(element);
-                                if (time.isBefore(from)) {
-                                    return true;
-                                } else if (time.isAfter(to)) {
-                                    throw new FastNoSuchElementException("getRangeValues reached end");
-                                }
-                                return false;
-                            }
-                        };
-                    }
-                    //last
-                } else if (!hasNext()) {
+                if (from == null && to == null) {
+                    return serializingCollection.iterator();
+                } else {
                     return new ASkippingIterator<V>(serializingCollection.iterator()) {
-
                         @Override
                         protected boolean skip(final V element) {
                             final FDate time = extractTime.apply(element);
-                            if (time.isAfter(to)) {
+                            if (time.isBefore(from)) {
+                                return true;
+                            } else if (time.isAfter(to)) {
                                 throw new FastNoSuchElementException("getRangeValues reached end");
                             }
                             return false;
                         }
-
                     };
-                } else {
-                    return serializingCollection.iterator();
                 }
             }
 
         };
+
         final ICloseableIterator<V> rangeValues = new FlatteningIterator<V>(chunkIterator);
         return rangeValues;
     }
 
-    public ICloseableIterator<V> readRangeValuesReverse(final FDate from, final FDate to, final Lock readLock) {
-        final ICloseableIterator<File> fileIterator = readRangeFilesReverse(from, to, readLock).iterator();
+    public ICloseableIterator<V> readRangeValuesReverse(final FDate from, final FDate to, final Lock readLock,
+            final ISkipFileFunction skipFileFunction) {
+        final ICloseableIterator<File> fileIterator = readRangeFilesReverse(from, to, readLock, skipFileFunction)
+                .iterator();
         final ICloseableIterator<ICloseableIterator<V>> chunkIterator = new ATransformingCloseableIterator<File, ICloseableIterator<V>>(
                 fileIterator) {
-            private boolean first = true;
-
             @Override
             protected ICloseableIterator<V> transform(final File value) {
                 final IReverseCloseableIterable<V> serializingCollection = newSerializingCollection(
                         "readRangeValuesReverse", value, readLock);
-                if (first) {
-                    first = false;
-                    if (hasNext()) {
-                        return new ASkippingIterator<V>(serializingCollection.reverseIterator()) {
-                            @Override
-                            protected boolean skip(final V element) {
-                                final FDate time = extractTime.apply(element);
-                                return time.isAfter(from);
-                            }
-                        };
-                        //first and last
-                    } else {
-                        return new ASkippingIterator<V>(serializingCollection.reverseIterator()) {
-                            @Override
-                            protected boolean skip(final V element) {
-                                final FDate time = extractTime.apply(element);
-                                if (time.isAfter(from)) {
-                                    return true;
-                                } else if (time.isBefore(to)) {
-                                    throw new FastNoSuchElementException("getRangeValues reached end");
-                                }
-                                return false;
-                            }
-                        };
-                    }
-                    //last
-                } else if (!hasNext()) {
+                if (from == null && to == null) {
+                    return serializingCollection.reverseIterator();
+                } else {
                     return new ASkippingIterator<V>(serializingCollection.reverseIterator()) {
-
                         @Override
                         protected boolean skip(final V element) {
                             final FDate time = extractTime.apply(element);
-                            if (time.isBefore(to)) {
+                            if (time.isAfter(from)) {
+                                return true;
+                            } else if (time.isBefore(to)) {
                                 throw new FastNoSuchElementException("getRangeValues reached end");
                             }
                             return false;
                         }
-
                     };
-                } else {
-                    return serializingCollection.reverseIterator();
                 }
             }
 
@@ -744,8 +647,6 @@ public class TimeSeriesStorageCache<K, V> {
         nextValueLookupCache.clear();
         previousValueLookupCache.clear();
         fileLookupTable_latestRangeKeyCache.clear();
-        cachedAllRangeKeys = null;
-        cachedAllRangeKeysReverse = null;
         cachedFirstValue = null;
         cachedLastValue = null;
     }
@@ -791,7 +692,7 @@ public class TimeSeriesStorageCache<K, V> {
                 throw Throwables.propagate(t);
             }
         }
-        try (ICloseableIterator<File> files = readRangeFiles(null, null, DisabledLock.INSTANCE).iterator()) {
+        try (ICloseableIterator<File> files = readRangeFiles(null, null, DisabledLock.INSTANCE, null).iterator()) {
             boolean noFileFound = true;
             while (files.hasNext()) {
                 final File file = files.next();
