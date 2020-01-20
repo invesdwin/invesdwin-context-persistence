@@ -79,8 +79,8 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
 
     protected abstract ICloseableIterable<? extends V> downloadSegmentElements(SegmentedKey<K> segmentedKey);
 
-    protected SegmentedTimeSeriesStorage newStorage(final File directory) {
-        return new SegmentedTimeSeriesStorage(directory);
+    protected SegmentedTimeSeriesStorage newStorage(final File directory, final Integer valueFixedLength) {
+        return new SegmentedTimeSeriesStorage(directory, valueFixedLength);
     }
 
     protected void deleteCorruptedStorage(final File directory) {
@@ -93,7 +93,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         return historicalSegmentTable.getStorage();
     }
 
-    protected abstract Integer newFixedLength();
+    protected abstract Integer newValueFixedLength();
 
     protected abstract Serde<V> newValueSerde();
 
@@ -122,7 +122,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
 
         @Override
         public Integer newFixedLength() {
-            return ALiveSegmentedTimeSeriesDB.this.newFixedLength();
+            return ALiveSegmentedTimeSeriesDB.this.newValueFixedLength();
         }
 
         @Override
@@ -146,8 +146,8 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         }
 
         @Override
-        protected SegmentedTimeSeriesStorage newStorage(final File directory) {
-            return ALiveSegmentedTimeSeriesDB.this.newStorage(directory);
+        protected SegmentedTimeSeriesStorage newStorage(final File directory, final Integer valueFixedLength) {
+            return ALiveSegmentedTimeSeriesDB.this.newStorage(directory, valueFixedLength);
         }
 
         @Override

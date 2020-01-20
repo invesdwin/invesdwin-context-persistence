@@ -129,8 +129,8 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
     protected abstract ICloseableIterable<? extends V> downloadSegmentElements(SegmentedKey<K> segmentedKey);
 
-    protected SegmentedTimeSeriesStorage newStorage(final File directory) {
-        return new SegmentedTimeSeriesStorage(directory);
+    protected SegmentedTimeSeriesStorage newStorage(final File directory, final Integer valueFixedLength) {
+        return new SegmentedTimeSeriesStorage(directory, valueFixedLength);
     }
 
     protected SegmentedTable getSegmentedTable() {
@@ -456,7 +456,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         }
 
         @Override
-        protected Integer newFixedLength() {
+        protected Integer newValueFixedLength() {
             return ASegmentedTimeSeriesDB.this.newFixedLength();
         }
 
@@ -485,8 +485,8 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         }
 
         @Override
-        protected TimeSeriesStorage newStorage(final File directory) {
-            return ASegmentedTimeSeriesDB.this.newStorage(directory);
+        protected TimeSeriesStorage newStorage(final File directory, final Integer valueFixedLength) {
+            return ASegmentedTimeSeriesDB.this.newStorage(directory, valueFixedLength);
         }
 
         @Override

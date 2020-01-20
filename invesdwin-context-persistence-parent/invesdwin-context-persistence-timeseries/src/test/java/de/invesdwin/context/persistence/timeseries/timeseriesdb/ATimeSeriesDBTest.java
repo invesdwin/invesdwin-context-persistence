@@ -38,7 +38,7 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected Integer newFixedLength() {
+            protected Integer newValueFixedLength() {
                 return null;
             }
 
@@ -138,7 +138,7 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected Integer newFixedLength() {
+            protected Integer newValueFixedLength() {
                 return null;
             }
 

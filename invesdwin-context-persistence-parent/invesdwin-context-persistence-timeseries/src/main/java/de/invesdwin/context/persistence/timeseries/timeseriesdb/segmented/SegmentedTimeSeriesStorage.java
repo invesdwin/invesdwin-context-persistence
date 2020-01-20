@@ -14,8 +14,8 @@ public class SegmentedTimeSeriesStorage extends TimeSeriesStorage {
 
     private final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable;
 
-    public SegmentedTimeSeriesStorage(final File directory) {
-        super(directory);
+    public SegmentedTimeSeriesStorage(final File directory, final Integer valueFixedLength) {
+        super(directory, valueFixedLength);
         segmentStatusTable = new ADelegateRangeTable<String, TimeRange, SegmentStatus>("segmentStatusTable") {
             @Override
             protected boolean allowHasNext() {

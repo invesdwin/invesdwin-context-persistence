@@ -138,7 +138,7 @@ public class DatabasePerformanceTest extends ATest {
             }
 
             @Override
-            protected Integer newFixedLength() {
+            protected Integer newValueFixedLength() {
                 return FDateSerde.FIXED_LENGTH;
             }
 

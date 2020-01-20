@@ -18,7 +18,7 @@ public class TimeSeriesStorage {
     private final ADelegateRangeTable<String, ShiftUnitsRangeKey, SingleValue> previousValueLookupTable;
     private final ADelegateRangeTable<String, ShiftUnitsRangeKey, SingleValue> nextValueLookupTable;
 
-    public TimeSeriesStorage(final File directory) {
+    public TimeSeriesStorage(final File directory, final Integer valueFixedLength) {
         this.directory = directory;
         this.fileLookupTable = new ADelegateRangeTable<String, FDate, ChunkValue>("fileLookupTable") {
 
@@ -44,7 +44,7 @@ public class TimeSeriesStorage {
 
             @Override
             protected Serde<ChunkValue> newValueSerde() {
-                return ChunkValueSerde.GET;
+                return new ChunkValueSerde(valueFixedLength);
             }
 
         };

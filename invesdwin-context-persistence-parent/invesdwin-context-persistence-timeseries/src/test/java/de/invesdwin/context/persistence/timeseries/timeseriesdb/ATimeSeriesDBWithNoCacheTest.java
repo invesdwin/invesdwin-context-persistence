@@ -76,7 +76,7 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
             }
 
             @Override
-            protected Integer newFixedLength() {
+            protected Integer newValueFixedLength() {
                 return null;
             }
 

@@ -56,7 +56,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
     public ATimeSeriesDB(final String name) {
         this.name = name;
         this.valueSerde = newValueSerde();
-        this.fixedLength = newFixedLength();
+        this.fixedLength = newValueFixedLength();
         this.directory = new File(getBaseDirectory(), ATimeSeriesDB.class.getSimpleName() + "/" + getName());
         this.key_lookupTableCache = new ALoadingCache<K, TimeSeriesStorageCache<K, V>>() {
             @Override
@@ -90,13 +90,13 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
     private TimeSeriesStorage corruptionHandlingNewStorage() {
         try {
-            return newStorage(directory);
+            return newStorage(directory, newValueFixedLength());
         } catch (final Throwable t) {
             if (Throwables.isCausedByType(t, CorruptedTimeSeriesStorageException.class)) {
                 Err.process(new RuntimeException("Resetting " + ATimeSeriesDB.class.getSimpleName() + " ["
                         + getDirectory() + "] because the storage has been corrupted"));
                 deleteCorruptedStorage(directory);
-                return newStorage(directory);
+                return newStorage(directory, newValueFixedLength());
             } else {
                 throw Throwables.propagate(t);
             }
@@ -116,8 +116,8 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         return getLookupTableCache(key).newDataDirectory();
     }
 
-    protected TimeSeriesStorage newStorage(final File directory) {
-        return new TimeSeriesStorage(directory);
+    protected TimeSeriesStorage newStorage(final File directory, final Integer valueFixedLength) {
+        return new TimeSeriesStorage(directory, valueFixedLength);
     }
 
     protected File getBaseDirectory() {
@@ -128,7 +128,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         return ContextProperties.getHomeDirectory();
     }
 
-    protected abstract Integer newFixedLength();
+    protected abstract Integer newValueFixedLength();
 
     public Integer getFixedLength() {
         return fixedLength;
