@@ -10,6 +10,7 @@ import ezdb.serde.Serde;
 @NotThreadSafe
 public final class ChunkValueSerde implements Serde<ChunkValue> {
 
+    private static final int NO_FIXED_LENGTH_OVERHEAD = Integer.BYTES + Integer.BYTES + Integer.BYTES;
     private final Integer valueFixedLength;
     private final Integer fixedLength;
 
@@ -61,11 +62,21 @@ public final class ChunkValueSerde implements Serde<ChunkValue> {
         final byte[] firstValue = obj.getFirstValue();
         final byte[] lastValue = obj.getLastValue();
 
-        final ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + firstValue.length + lastValue.length);
-        buffer.putInt(count);
-        buffer.put(firstValue);
-        buffer.put(lastValue);
-        return buffer.array();
+        if (valueFixedLength == null) {
+            final ByteBuffer buffer = ByteBuffer.allocate(NO_FIXED_LENGTH_OVERHEAD + firstValue.length + lastValue.length);
+            buffer.putInt(count);
+            buffer.putInt(firstValue.length);
+            buffer.putInt(lastValue.length);
+            buffer.put(firstValue);
+            buffer.put(lastValue);
+            return buffer.array();
+        } else {
+            final ByteBuffer buffer = ByteBuffer.allocate(fixedLength);
+            buffer.putInt(count);
+            buffer.put(firstValue);
+            buffer.put(lastValue);
+            return buffer.array();
+        }
     }
 
 }
