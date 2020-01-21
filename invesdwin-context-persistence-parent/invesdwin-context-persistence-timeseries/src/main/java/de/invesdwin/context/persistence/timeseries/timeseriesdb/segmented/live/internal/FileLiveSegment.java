@@ -15,6 +15,7 @@ import de.invesdwin.context.persistence.timeseries.timeseriesdb.SerializingColle
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
+import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.util.collections.iterable.ATimeRangeSkippingIterable;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -72,9 +73,8 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     private File getFile() {
         if (file == null) {
             file = new File(historicalSegmentTable.getDirectory(),
-                    historicalSegmentTable.hashKeyToString(segmentedKey)
-                            .replace("/", "_")
-                            .replace("\\", "_") + "_" + "inProgress.data");
+                    historicalSegmentTable.hashKeyToString(segmentedKey).replace("/", "_").replace("\\", "_") + "_"
+                            + "inProgress.data");
         }
         return file;
     }
@@ -96,7 +96,8 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     //CHECKSTYLE:OFF
     @Override
-    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final Lock readLock) {
+    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final Lock readLock,
+            final ISkipFileFunction skipFileFunction) {
         //CHECKSTYLE:ON
         //we expect the read lock to be already locked from the outside
         if (values == null || from != null && to != null && from.isAfterNotNullSafe(to)) {
@@ -137,7 +138,8 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     //CHECKSTYLE:OFF
     @Override
-    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final Lock readLock) {
+    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final Lock readLock,
+            final ISkipFileFunction skipFileFunction) {
         //CHECKSTYLE:ON
         //we expect the read lock to be already locked from the outside
         if (values == null || from != null && to != null && from.isBeforeNotNullSafe(to)) {
@@ -202,7 +204,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             return firstValue;
         }
         V nextValue = null;
-        try (ICloseableIterator<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE).iterator()) {
+        try (ICloseableIterator<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE, null).iterator()) {
             for (int i = 0; i < shiftForwardUnits; i++) {
                 nextValue = rangeValues.next();
             }
@@ -225,7 +227,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             return firstValue;
         }
         V nextValue = null;
-        try (ICloseableIterator<V> reverse = rangeReverseValues(date, null, DisabledLock.INSTANCE).iterator()) {
+        try (ICloseableIterator<V> reverse = rangeReverseValues(date, null, DisabledLock.INSTANCE, null).iterator()) {
             nextValue = reverse.next();
         } catch (final NoSuchElementException e) {
             //ignore
@@ -270,7 +272,8 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
                 new Function<SegmentedKey<K>, ICloseableIterable<? extends V>>() {
                     @Override
                     public ICloseableIterable<? extends V> apply(final SegmentedKey<K> t) {
-                        return rangeValues(t.getSegment().getFrom(), t.getSegment().getTo(), DisabledLock.INSTANCE);
+                        return rangeValues(t.getSegment().getFrom(), t.getSegment().getTo(), DisabledLock.INSTANCE,
+                                null);
                     }
                 });
         if (!initialized) {

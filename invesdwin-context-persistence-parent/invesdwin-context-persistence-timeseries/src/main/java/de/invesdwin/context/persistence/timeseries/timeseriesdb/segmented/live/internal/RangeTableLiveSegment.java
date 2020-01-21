@@ -13,6 +13,7 @@ import de.invesdwin.context.persistence.timeseries.serde.VoidSerde;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
+import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
@@ -82,7 +83,8 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
-    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final Lock readLock) {
+    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final Lock readLock,
+            final ISkipFileFunction skipFileFunction) {
         final ICloseableIterable<V> iterable = new ICloseableIterable<V>() {
             @Override
             public ICloseableIterator<V> iterator() {
@@ -98,7 +100,8 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
-    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final Lock readLock) {
+    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final Lock readLock,
+            final ISkipFileFunction skipFileFunction) {
         final ICloseableIterable<V> iterable = new ICloseableIterable<V>() {
             @Override
             public ICloseableIterator<V> iterator() {
@@ -133,7 +136,7 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
             return firstValue;
         }
         V nextValue = null;
-        try (ICloseableIterator<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE).iterator()) {
+        try (ICloseableIterator<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE, null).iterator()) {
             for (int i = 0; i < shiftForwardUnits; i++) {
                 nextValue = rangeValues.next();
             }
@@ -180,7 +183,8 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
                 new Function<SegmentedKey<K>, ICloseableIterable<? extends V>>() {
                     @Override
                     public ICloseableIterable<? extends V> apply(final SegmentedKey<K> t) {
-                        return rangeValues(t.getSegment().getFrom(), t.getSegment().getTo(), DisabledLock.INSTANCE);
+                        return rangeValues(t.getSegment().getFrom(), t.getSegment().getTo(), DisabledLock.INSTANCE,
+                                null);
                     }
                 });
         if (!initialized) {

@@ -12,6 +12,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
+import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ASkippingIterable;
 import de.invesdwin.util.collections.iterable.ATransformingCloseableIterable;
@@ -56,7 +57,8 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
-    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final Lock readLock) {
+    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final Lock readLock,
+            final ISkipFileFunction skipFileFunction) {
         //we expect the read lock to be already locked from the outside
         final SortedMap<Long, V> tailMap;
         if (from == null) {
@@ -94,7 +96,8 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
-    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final Lock readLock) {
+    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final Lock readLock,
+            final ISkipFileFunction skipFileFunction) {
         //we expect the read lock to be already locked from the outside
         final SortedMap<Long, V> headMap;
         if (from == null) {
@@ -146,7 +149,7 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
     @Override
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
         V nextValue = null;
-        try (ICloseableIterator<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE).iterator()) {
+        try (ICloseableIterator<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE, null).iterator()) {
             for (int i = 0; i < shiftForwardUnits; i++) {
                 nextValue = rangeValues.next();
             }
@@ -192,7 +195,8 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
                 new Function<SegmentedKey<K>, ICloseableIterable<? extends V>>() {
                     @Override
                     public ICloseableIterable<? extends V> apply(final SegmentedKey<K> t) {
-                        return rangeValues(t.getSegment().getFrom(), t.getSegment().getTo(), DisabledLock.INSTANCE);
+                        return rangeValues(t.getSegment().getFrom(), t.getSegment().getTo(), DisabledLock.INSTANCE,
+                                null);
                     }
                 });
         if (!initialized) {

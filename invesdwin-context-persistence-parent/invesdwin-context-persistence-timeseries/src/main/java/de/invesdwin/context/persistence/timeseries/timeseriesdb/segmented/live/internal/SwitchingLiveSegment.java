@@ -7,12 +7,17 @@ import java.util.concurrent.locks.Lock;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.apache.commons.lang3.mutable.MutableInt;
+
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
+import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ChunkValue;
+import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
+import de.invesdwin.util.concurrent.reference.MutableReference;
 import de.invesdwin.util.time.fdate.FDate;
 
 @NotThreadSafe
@@ -68,52 +73,56 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
-    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final Lock readLock) {
+    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final Lock readLock,
+            final ISkipFileFunction skipFileFunction) {
         //we expect the read lock to be already locked from the outside
         if (inProgress.isEmpty()) {
             //no live segment, go with historical
-            return persistent.rangeValues(from, to, readLock);
+            return persistent.rangeValues(from, to, readLock, skipFileFunction);
         } else if (persistent.isEmpty()) {
-            return inProgress.rangeValues(from, to, readLock);
+            return inProgress.rangeValues(from, to, readLock, skipFileFunction);
         } else {
             final FDate memoryFrom = inProgress.getFirstValueKey();
             if (memoryFrom.isAfter(to)) {
                 //live segment is after requested range, go with historical
-                return persistent.rangeValues(from, to, readLock);
+                return persistent.rangeValues(from, to, readLock, skipFileFunction);
             } else if (memoryFrom.isBeforeOrEqualTo(from)) {
                 //historical segment is before requested range, go with live
-                return inProgress.rangeValues(from, to, readLock);
+                return inProgress.rangeValues(from, to, readLock, skipFileFunction);
             } else {
                 //use both segments
                 final ICloseableIterable<V> historicalRangeValues = persistent.rangeValues(from,
-                        memoryFrom.addMilliseconds(-1), readLock);
-                final ICloseableIterable<V> liveRangeValues = inProgress.rangeValues(memoryFrom, to, readLock);
+                        memoryFrom.addMilliseconds(-1), readLock, skipFileFunction);
+                final ICloseableIterable<V> liveRangeValues = inProgress.rangeValues(memoryFrom, to, readLock,
+                        skipFileFunction);
                 return new FlatteningIterable<V>(historicalRangeValues, liveRangeValues);
             }
         }
     }
 
     @Override
-    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final Lock readLock) {
+    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final Lock readLock,
+            final ISkipFileFunction skipFileFunction) {
         //we expect the read lock to be already locked from the outside
         if (inProgress.isEmpty()) {
             //no live segment, go with historical
-            return persistent.rangeReverseValues(from, to, readLock);
+            return persistent.rangeReverseValues(from, to, readLock, skipFileFunction);
         } else if (persistent.isEmpty()) {
-            return inProgress.rangeReverseValues(from, to, readLock);
+            return inProgress.rangeReverseValues(from, to, readLock, skipFileFunction);
         } else {
             final FDate memoryFrom = inProgress.getFirstValueKey();
             if (memoryFrom.isAfter(from)) {
                 //live segment is after requested range, go with historical
-                return persistent.rangeReverseValues(from, to, readLock);
+                return persistent.rangeReverseValues(from, to, readLock, skipFileFunction);
             } else if (memoryFrom.isBeforeOrEqualTo(to)) {
                 //historical segment is before requested range, go with live
-                return inProgress.rangeReverseValues(from, to, readLock);
+                return inProgress.rangeReverseValues(from, to, readLock, skipFileFunction);
             } else {
                 //use both segments
-                final ICloseableIterable<V> liveRangeValues = inProgress.rangeReverseValues(from, memoryFrom, readLock);
+                final ICloseableIterable<V> liveRangeValues = inProgress.rangeReverseValues(from, memoryFrom, readLock,
+                        skipFileFunction);
                 final ICloseableIterable<V> historicalRangeValues = persistent
-                        .rangeReverseValues(memoryFrom.addMilliseconds(-1), to, readLock);
+                        .rangeReverseValues(memoryFrom.addMilliseconds(-1), to, readLock, skipFileFunction);
                 return new FlatteningIterable<V>(liveRangeValues, historicalRangeValues);
             }
         }
@@ -149,15 +158,34 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
             return nextValue;
         } else {
             //use both segments
-            V nextValue = null;
-            try (ICloseableIterator<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE).iterator()) {
-                for (int i = 0; i < shiftForwardUnits; i++) {
-                    nextValue = rangeValues.next();
+            final MutableReference<V> nextValue = new MutableReference<>();
+            final MutableInt shiftForwardRemaining = new MutableInt(shiftForwardUnits);
+            try (ICloseableIterator<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE,
+                    new ISkipFileFunction() {
+                        @Override
+                        public boolean skipFile(final ChunkValue file) {
+                            final boolean skip = nextValue.get() != null
+                                    && file.getCount() < shiftForwardRemaining.intValue();
+                            if (skip) {
+                                shiftForwardRemaining.subtract(file.getCount());
+                            }
+                            return skip;
+                        }
+                    }).iterator()) {
+                final V firstValue = rangeValues.next();
+                nextValue.set(firstValue);
+                final FDate firstTime = historicalSegmentTable.extractTime(firstValue);
+                if (!date.equals(firstTime)) {
+                    shiftForwardRemaining.decrement();
+                }
+                while (shiftForwardRemaining.intValue() > 0) {
+                    nextValue.set(rangeValues.next());
+                    shiftForwardRemaining.decrement();
                 }
             } catch (final NoSuchElementException e) {
                 //ignore
             }
-            return nextValue;
+            return nextValue.get();
         }
     }
 
@@ -212,7 +240,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     private void flushLiveSegment() {
         persistent.putNextLiveValues(inProgress.rangeValues(inProgress.getFirstValueKey(), inProgress.getLastValueKey(),
-                DisabledLock.INSTANCE));
+                DisabledLock.INSTANCE, null));
         inProgressSize = 0;
         inProgress.close();
     }

@@ -1263,7 +1263,7 @@ public class ASegmentedTimeSeriesDBWithLimitedCacheTest extends ATest {
         expectedValue = entities.get(0);
         Assertions.assertThat(previousValue).isEqualTo(expectedValue);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(5);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
+        Assertions.assertThat(countReadNewestValueTo).isLessThanOrEqualTo(3);
         Assertions.assertThat(countInnerExtractKey).isLessThanOrEqualTo(5);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
 
@@ -1272,7 +1272,7 @@ public class ASegmentedTimeSeriesDBWithLimitedCacheTest extends ATest {
         expectedValue = entities.get(entities.size() - 4);
         Assertions.assertThat(previousValue).isEqualTo(expectedValue);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(5);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
+        Assertions.assertThat(countReadNewestValueTo).isLessThanOrEqualTo(3);
         Assertions.assertThat(countInnerExtractKey).isLessThanOrEqualTo(5);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }

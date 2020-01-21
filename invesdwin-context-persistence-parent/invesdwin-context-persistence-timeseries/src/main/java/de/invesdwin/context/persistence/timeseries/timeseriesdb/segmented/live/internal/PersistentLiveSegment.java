@@ -11,6 +11,7 @@ import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegme
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.SegmentStatus;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
+import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -78,26 +79,29 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
-    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final Lock readLock) {
-        return new ICloseableIterable<V>() {
-            @Override
-            public ICloseableIterator<V> iterator() {
-                final Lock compositeReadLock = Locks.newCompositeLock(readLock,
-                        table.getTableLock(segmentedKey).readLock());
-                return table.getLookupTableCache(segmentedKey).readRangeValues(from, to, compositeReadLock, null);
-            }
-        };
-    }
-
-    @Override
-    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final Lock readLock) {
+    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final Lock readLock,
+            final ISkipFileFunction skipFileFunction) {
         return new ICloseableIterable<V>() {
             @Override
             public ICloseableIterator<V> iterator() {
                 final Lock compositeReadLock = Locks.newCompositeLock(readLock,
                         table.getTableLock(segmentedKey).readLock());
                 return table.getLookupTableCache(segmentedKey)
-                        .readRangeValuesReverse(from, to, compositeReadLock, null);
+                        .readRangeValues(from, to, compositeReadLock, skipFileFunction);
+            }
+        };
+    }
+
+    @Override
+    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final Lock readLock,
+            final ISkipFileFunction skipFileFunction) {
+        return new ICloseableIterable<V>() {
+            @Override
+            public ICloseableIterator<V> iterator() {
+                final Lock compositeReadLock = Locks.newCompositeLock(readLock,
+                        table.getTableLock(segmentedKey).readLock());
+                return table.getLookupTableCache(segmentedKey)
+                        .readRangeValuesReverse(from, to, compositeReadLock, skipFileFunction);
             }
         };
     }
@@ -206,7 +210,7 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
             if (existingStatus == SegmentStatus.INITIALIZING) {
                 segmentStatusTable.put(hashKey, segmentedKey.getSegment(), SegmentStatus.COMPLETE);
                 final ICloseableIterable<V> rangeValues = rangeValues(segmentedKey.getSegment().getFrom(),
-                        segmentedKey.getSegment().getTo(), DisabledLock.INSTANCE);
+                        segmentedKey.getSegment().getTo(), DisabledLock.INSTANCE, null);
                 historicalSegmentTable.getLookupTableCache(segmentedKey.getKey())
                         .onSegmentCompleted(segmentedKey, rangeValues);
             }

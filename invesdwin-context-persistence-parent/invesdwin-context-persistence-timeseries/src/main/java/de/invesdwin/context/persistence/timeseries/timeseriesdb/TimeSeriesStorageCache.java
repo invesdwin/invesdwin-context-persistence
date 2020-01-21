@@ -36,7 +36,6 @@ import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ASkippingIterator;
 import de.invesdwin.util.collections.iterable.ATransformingCloseableIterator;
-import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.FlatteningIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -233,7 +232,7 @@ public class TimeSeriesStorageCache<K, V> {
             return value.getValue(valueSerde);
         }
     };
-    private final ALoadingCache<FDate, FDate> fileLookupTable_latestRangeKeyCache = new ALoadingCache<FDate, FDate>() {
+    private final ALoadingCache<FDate, TableRow<String, FDate, ChunkValue>> fileLookupTable_latestRangeKeyCache = new ALoadingCache<FDate, TableRow<String, FDate, ChunkValue>>() {
 
         @Override
         protected Integer getInitialMaximumSize() {
@@ -246,8 +245,8 @@ public class TimeSeriesStorageCache<K, V> {
         }
 
         @Override
-        protected FDate loadValue(final FDate key) {
-            return storage.getFileLookupTable().getLatestRangeKey(hashKey, key);
+        protected TableRow<String, FDate, ChunkValue> loadValue(final FDate key) {
+            return storage.getFileLookupTable().getLatest(hashKey, key);
         }
     };
 
@@ -319,25 +318,26 @@ public class TimeSeriesStorageCache<K, V> {
 
     protected ICloseableIterable<File> readRangeFiles(final FDate from, final FDate to, final Lock readLock,
             final ISkipFileFunction skipFileFunction) {
-        final FDate usedFrom;
-        if (from == null) {
-            final V firstValue = getFirstValue();
-            if (firstValue == null) {
-                return EmptyCloseableIterable.getInstance();
-            }
-            usedFrom = extractTime.apply(firstValue);
-        } else {
-            usedFrom = from;
-        }
         return new ICloseableIterable<File>() {
 
             @Override
-            public ACloseableIterator<File> iterator() {
+            public ICloseableIterator<File> iterator() {
+                final FDate usedFrom;
+                if (from == null) {
+                    final V firstValue = getFirstValue();
+                    if (firstValue == null) {
+                        return EmptyCloseableIterator.getInstance();
+                    }
+                    usedFrom = extractTime.apply(firstValue);
+                } else {
+                    usedFrom = from;
+                }
                 return new ACloseableIterator<File>(new TextDescription("%s[%s]: readRangeFiles(%s, %s)",
                         TimeSeriesStorageCache.class.getSimpleName(), hashKey, from, to)) {
 
                     //use latest time available even if delegate iterator has no values
-                    private FDate latestFirstTime = fileLookupTable_latestRangeKeyCache.get(usedFrom);
+                    private TableRow<String, FDate, ChunkValue> latestFirstTime = fileLookupTable_latestRangeKeyCache
+                            .get(usedFrom);
                     private FDate delegateFirstTime = null;
                     private final ICloseableIterator<TableRow<String, FDate, ChunkValue>> delegate;
 
@@ -345,7 +345,10 @@ public class TimeSeriesStorageCache<K, V> {
                         if (latestFirstTime == null) {
                             delegate = EmptyCloseableIterator.getInstance();
                         } else {
-                            delegate = getRangeKeys(hashKey, latestFirstTime.addMilliseconds(1), to);
+                            delegate = getRangeKeys(hashKey, latestFirstTime.getRangeKey().addMilliseconds(1), to);
+                            if (skipFileFunction != null && skipFileFunction.skipFile(latestFirstTime.getValue())) {
+                                latestFirstTime = null;
+                            }
                         }
                     }
 
@@ -365,6 +368,12 @@ public class TimeSeriesStorageCache<K, V> {
                                     @Override
                                     protected boolean skip(final TableRow<String, FDate, ChunkValue> element) {
                                         if (element == buffer.getTail()) {
+                                            /*
+                                             * cannot optimize this further for multiple segments because we don't know
+                                             * if a segment further back might be empty or not and thus the last segment
+                                             * of interest might have been the previous one from which we skipped the
+                                             * last file falsely
+                                             */
                                             return false;
                                         }
                                         return skipFileFunction.skipFile(element.getValue());
@@ -385,7 +394,7 @@ public class TimeSeriesStorageCache<K, V> {
                             time = delegateFirstTime;
                             delegateFirstTime = null;
                         } else if (latestFirstTime != null) {
-                            time = latestFirstTime;
+                            time = latestFirstTime.getRangeKey();
                             latestFirstTime = null;
                         } else {
                             time = delegate.next().getRangeKey();
@@ -405,25 +414,26 @@ public class TimeSeriesStorageCache<K, V> {
 
     protected ICloseableIterable<File> readRangeFilesReverse(final FDate from, final FDate to, final Lock readLock,
             final ISkipFileFunction skipFileFunction) {
-        final FDate usedFrom;
-        if (from == null) {
-            final V lastValue = getLastValue();
-            if (lastValue == null) {
-                return EmptyCloseableIterable.getInstance();
-            }
-            usedFrom = extractTime.apply(lastValue);
-        } else {
-            usedFrom = from;
-        }
         return new ICloseableIterable<File>() {
 
             @Override
-            public ACloseableIterator<File> iterator() {
+            public ICloseableIterator<File> iterator() {
+                final FDate usedFrom;
+                if (from == null) {
+                    final V lastValue = getLastValue();
+                    if (lastValue == null) {
+                        return EmptyCloseableIterator.getInstance();
+                    }
+                    usedFrom = extractTime.apply(lastValue);
+                } else {
+                    usedFrom = from;
+                }
                 return new ACloseableIterator<File>(new TextDescription("%s[%s]: readRangeFilesReverse(%s, %s)",
                         TimeSeriesStorageCache.class.getSimpleName(), hashKey, from, to)) {
 
                     //use latest time available even if delegate iterator has no values
-                    private FDate latestLastTime = fileLookupTable_latestRangeKeyCache.get(usedFrom);
+                    private TableRow<String, FDate, ChunkValue> latestLastTime = fileLookupTable_latestRangeKeyCache
+                            .get(usedFrom);
                     // add 1 ms to not collide with firstTime
                     private final ICloseableIterator<TableRow<String, FDate, ChunkValue>> delegate;
                     private FDate delegateLastTime = null;
@@ -432,7 +442,11 @@ public class TimeSeriesStorageCache<K, V> {
                         if (latestLastTime == null) {
                             delegate = EmptyCloseableIterator.getInstance();
                         } else {
-                            delegate = getRangeKeysReverse(hashKey, latestLastTime.addMilliseconds(-1), to);
+                            delegate = getRangeKeysReverse(hashKey, latestLastTime.getRangeKey().addMilliseconds(-1),
+                                    to);
+                            if (skipFileFunction != null && skipFileFunction.skipFile(latestLastTime.getValue())) {
+                                latestLastTime = null;
+                            }
                         }
                     }
 
@@ -453,6 +467,12 @@ public class TimeSeriesStorageCache<K, V> {
                                     @Override
                                     protected boolean skip(final TableRow<String, FDate, ChunkValue> element) {
                                         if (element == buffer.getTail()) {
+                                            /*
+                                             * cannot optimize this further for multiple segments because we don't know
+                                             * if a segment further back might be empty or not and thus the last segment
+                                             * of interest might have been the previous one from which we skipped the
+                                             * last file falsely
+                                             */
                                             return false;
                                         }
                                         return skipFileFunction.skipFile(element.getValue());
@@ -473,7 +493,7 @@ public class TimeSeriesStorageCache<K, V> {
                             time = delegateLastTime;
                             delegateLastTime = null;
                         } else if (latestLastTime != null) {
-                            time = latestLastTime;
+                            time = latestLastTime.getRangeKey();
                             latestLastTime = null;
                         } else {
                             time = delegate.next().getRangeKey();

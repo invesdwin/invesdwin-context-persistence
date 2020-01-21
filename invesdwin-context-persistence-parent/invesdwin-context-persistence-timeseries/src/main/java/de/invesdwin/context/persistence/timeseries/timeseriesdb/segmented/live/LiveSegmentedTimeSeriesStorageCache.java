@@ -110,7 +110,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
                             .readRangeValues(from, to, compositeReadLock, skipFileFunction);
                 } else if (liveSegmentFrom.isBeforeOrEqualTo(from)) {
                     //historical segment is before requested range, go with live
-                    return liveSegment.rangeValues(from, to, readLock);
+                    return liveSegment.rangeValues(from, to, readLock, skipFileFunction);
                 } else {
                     //use both segments
                     final Lock compositeReadLock = Locks.newCompositeLock(readLock,
@@ -118,8 +118,8 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
                     final ICloseableIterable<V> historicalRangeValues = historicalSegmentTable.getLookupTableCache(key)
                             .readRangeValues(from, liveSegmentFrom.addMilliseconds(-1), compositeReadLock,
                                     skipFileFunction);
-                    final ICloseableIterable<V> liveRangeValues = liveSegment.rangeValues(liveSegmentFrom, to,
-                            readLock);
+                    final ICloseableIterable<V> liveRangeValues = liveSegment.rangeValues(liveSegmentFrom, to, readLock,
+                            skipFileFunction);
                     return new FlatteningIterable<V>(historicalRangeValues, liveRangeValues);
                 }
             }
@@ -148,11 +148,11 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
                             .readRangeValuesReverse(from, to, compositeReadLock, skipFileFunction);
                 } else if (liveSegmentFrom.isBeforeOrEqualTo(to)) {
                     //historical segment is before requested range, go with live
-                    return liveSegment.rangeReverseValues(from, to, readLock);
+                    return liveSegment.rangeReverseValues(from, to, readLock, skipFileFunction);
                 } else {
                     //use both segments
                     final ICloseableIterable<V> liveRangeValues = liveSegment.rangeReverseValues(from, liveSegmentFrom,
-                            readLock);
+                            readLock, skipFileFunction);
                     final Lock compositeReadLock = Locks.newCompositeLock(readLock,
                             historicalSegmentTable.getTableLock(key).readLock());
                     final ICloseableIterable<V> historicalRangeValues = historicalSegmentTable.getLookupTableCache(key)
@@ -210,7 +210,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
                             final boolean skip = previousValue.get() != null
                                     && file.getCount() < shiftBackRemaining.intValue();
                             if (skip) {
-                                shiftBackRemaining.add(file.getCount());
+                                shiftBackRemaining.subtract(file.getCount());
                             }
                             return skip;
                         }
