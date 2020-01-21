@@ -346,9 +346,6 @@ public class TimeSeriesStorageCache<K, V> {
                             delegate = EmptyCloseableIterator.getInstance();
                         } else {
                             delegate = getRangeKeys(hashKey, latestFirstTime.getRangeKey().addMilliseconds(1), to);
-                            if (skipFileFunction != null && skipFileFunction.skipFile(latestFirstTime.getValue())) {
-                                latestFirstTime = null;
-                            }
                         }
                     }
 
@@ -444,9 +441,6 @@ public class TimeSeriesStorageCache<K, V> {
                         } else {
                             delegate = getRangeKeysReverse(hashKey, latestLastTime.getRangeKey().addMilliseconds(-1),
                                     to);
-                            if (skipFileFunction != null && skipFileFunction.skipFile(latestLastTime.getValue())) {
-                                latestLastTime = null;
-                            }
                         }
                     }
 
