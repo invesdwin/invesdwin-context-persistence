@@ -5,6 +5,7 @@ import java.io.File;
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
+import de.invesdwin.context.persistence.timeseries.ezdb.RangeTablePersistenceMode;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.CorruptedTimeSeriesStorageException;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.util.time.range.TimeRange;
@@ -30,6 +31,11 @@ public class SegmentedTimeSeriesStorage extends TimeSeriesStorage {
             @Override
             protected void onDeleteTableFinished() {
                 throw new CorruptedTimeSeriesStorageException(getName());
+            }
+
+            @Override
+            protected RangeTablePersistenceMode getPersistenceMode() {
+                return RangeTablePersistenceMode.MEMORY_WRITE_THROUGH_DISK;
             }
         };
     }

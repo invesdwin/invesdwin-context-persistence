@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.util.Comparator;
 import java.util.Map.Entry;
 import java.util.concurrent.Callable;
-import java.util.concurrent.locks.ReadWriteLock;
 import java.util.function.Function;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -23,7 +22,9 @@ import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.concurrent.future.Callables;
+import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
+import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.lang.Files;
@@ -58,7 +59,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     private final Comparator<Object> rangeKeyComparatorMemory;
 
     private final IRangeTableDb db;
-    private final ReadWriteLock tableLock;
+    private final IReadWriteLock tableLock;
 
     private final String name;
     private final File directory;
@@ -252,22 +253,23 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         }
     }
 
-    private RangeTable<H, R, V> getTableWithReadLock() {
+    private RangeTable<H, R, V> getTableWithReadLock(final boolean forUpdate) {
         maybePurgeTable();
         //directly return table with read lock if not null
-        tableLock.readLock().lock();
+        final ILock readLock = getReadLock(forUpdate);
+        readLock.lock();
         if (tableFinalizer.table != null) {
             return tableFinalizer.table;
         }
-        tableLock.readLock().unlock();
+        readLock.unlock();
 
         //otherwise initialize it with write lock (though check again because of lock switch)
         initializeTable();
 
         //and return the now not null table with read lock
-        tableLock.readLock().lock();
+        readLock.lock();
         if (tableFinalizer.table == null) {
-            tableLock.readLock().unlock();
+            readLock.unlock();
             throw new IllegalStateException("table should not be null here");
         }
         return tableFinalizer.table;
@@ -364,41 +366,45 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     @Override
     public void put(final H hashKey, final V value) {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithReadLock(true);
         try {
             table.put(hashKey, value);
         } finally {
-            tableLock.readLock().unlock();
+            getReadLock(true).unlock();
         }
+    }
+
+    protected ILock getReadLock(final boolean forUpdate) {
+        return tableLock.readLock();
     }
 
     @Override
     public V get(final H hashKey) {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithReadLock(false);
         try {
             return table.get(hashKey);
         } finally {
-            tableLock.readLock().unlock();
+            getReadLock(false).unlock();
         }
     }
 
     @Override
     public TableRow<H, R, V> getLatest(final H hashKey) {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithReadLock(false);
         try {
             return table.getLatest(hashKey);
         } finally {
-            tableLock.readLock().unlock();
+            getReadLock(false).unlock();
         }
     }
 
     @Override
     public TableRow<H, R, V> getLatest(final H hashKey, final R rangeKey) {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithReadLock(false);
         try {
             return table.getLatest(hashKey, rangeKey);
         } finally {
-            tableLock.readLock().unlock();
+            getReadLock(false).unlock();
         }
     }
 
@@ -416,11 +422,11 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     @Override
     public TableRow<H, R, V> getNext(final H hashKey, final R rangeKey) {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithReadLock(false);
         try {
             return table.getNext(hashKey, rangeKey);
         } finally {
-            tableLock.readLock().unlock();
+            getReadLock(false).unlock();
         }
     }
 
@@ -442,11 +448,11 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     @Override
     public TableRow<H, R, V> getPrev(final H hashKey, final R rangeKey) {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithReadLock(false);
         try {
             return table.getPrev(hashKey, rangeKey);
         } finally {
-            tableLock.readLock().unlock();
+            getReadLock(false).unlock();
         }
     }
 
@@ -504,51 +510,51 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     @Override
     public void delete(final H hashKey) {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithReadLock(true);
         try {
             table.delete(hashKey);
         } finally {
-            tableLock.readLock().unlock();
+            getReadLock(true).unlock();
         }
     }
 
     @Override
     public void delete(final H hashKey, final R rangeKey) {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithReadLock(true);
         try {
             table.delete(hashKey, rangeKey);
         } finally {
-            tableLock.readLock().unlock();
+            getReadLock(true).unlock();
         }
     }
 
     @Override
     public void deleteRange(final H hashKey) {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithReadLock(true);
         try {
             table.deleteRange(hashKey);
         } finally {
-            tableLock.readLock().unlock();
+            getReadLock(true).unlock();
         }
     }
 
     @Override
     public void deleteRange(final H hashKey, final R fromRangeKey) {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithReadLock(true);
         try {
             table.deleteRange(hashKey, fromRangeKey);
         } finally {
-            tableLock.readLock().unlock();
+            getReadLock(true).unlock();
         }
     }
 
     @Override
     public void deleteRange(final H hashKey, final R fromRangeKey, final R toRangeKey) {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithReadLock(true);
         try {
             table.deleteRange(hashKey, fromRangeKey, toRangeKey);
         } finally {
-            tableLock.readLock().unlock();
+            getReadLock(true).unlock();
         }
     }
 
@@ -571,35 +577,35 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         try {
             return tableFinalizer.table == null;
         } finally {
-            tableLock.writeLock().unlock();
+            tableLock.readLock().unlock();
         }
     }
 
     @Override
     public void put(final H hashKey, final R rangeKey, final V value) {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithReadLock(true);
         try {
             table.put(hashKey, rangeKey, value);
         } finally {
-            tableLock.readLock().unlock();
+            getReadLock(true).unlock();
         }
     }
 
     @Override
     public V get(final H hashKey, final R rangeKey) {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithReadLock(false);
         try {
             return table.get(hashKey, rangeKey);
         } finally {
-            tableLock.readLock().unlock();
+            getReadLock(false).unlock();
         }
     }
 
     @Override
     public DelegateTableIterator<H, R, V> range(final H hashKey) {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithReadLock(false);
         return new DelegateTableIterator<H, R, V>(name, hashKey, "range(final H hashKey)", table.range(hashKey),
-                tableLock, allowHasNext());
+                getReadLock(false), allowHasNext());
     }
 
     public ICloseableIterator<V> rangeValues(final H hashKey) {
@@ -608,9 +614,9 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     @Override
     public DelegateTableIterator<H, R, V> range(final H hashKey, final R fromRangeKey) {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithReadLock(false);
         return new DelegateTableIterator<H, R, V>(name, hashKey, "range(final H hashKey, final R fromRangeKey)",
-                table.range(hashKey, fromRangeKey), tableLock, allowHasNext());
+                table.range(hashKey, fromRangeKey), getReadLock(false), allowHasNext());
     }
 
     public ICloseableIterator<V> rangeValues(final H hashKey, final R fromRangeKey) {
@@ -619,10 +625,10 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     @Override
     public DelegateTableIterator<H, R, V> range(final H hashKey, final R fromRangeKey, final R toRangeKey) {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithReadLock(false);
         return new DelegateTableIterator<H, R, V>(name, hashKey,
                 "range(final H hashKey, final R fromRangeKey, final R toRangeKey)",
-                table.range(hashKey, fromRangeKey, toRangeKey), tableLock, allowHasNext());
+                table.range(hashKey, fromRangeKey, toRangeKey), getReadLock(false), allowHasNext());
     }
 
     public ICloseableIterator<V> rangeValues(final H hashKey, final R fromRangeKey, final R toRangeKey) {
@@ -631,9 +637,9 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     @Override
     public DelegateTableIterator<H, R, V> rangeReverse(final H hashKey) {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithReadLock(false);
         return new DelegateTableIterator<H, R, V>(name, hashKey, "rangeReverse(final H hashKey)",
-                table.rangeReverse(hashKey), tableLock, allowHasNext());
+                table.rangeReverse(hashKey), getReadLock(false), allowHasNext());
     }
 
     public ICloseableIterator<V> rangeReverseValues(final H hashKey) {
@@ -642,9 +648,9 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     @Override
     public DelegateTableIterator<H, R, V> rangeReverse(final H hashKey, final R fromRangeKey) {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithReadLock(false);
         return new DelegateTableIterator<H, R, V>(name, hashKey, "rangeReverse(final H hashKey, final R fromRangeKey)",
-                table.rangeReverse(hashKey, fromRangeKey), tableLock, allowHasNext());
+                table.rangeReverse(hashKey, fromRangeKey), getReadLock(false), allowHasNext());
     }
 
     public ICloseableIterator<V> rangeReverseValues(final H hashKey, final R fromRangeKey) {
@@ -653,10 +659,10 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     @Override
     public DelegateTableIterator<H, R, V> rangeReverse(final H hashKey, final R fromRangeKey, final R toRangeKey) {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
+        final RangeTable<H, R, V> table = getTableWithReadLock(false);
         return new DelegateTableIterator<H, R, V>(name, hashKey,
                 "rangeReverse(final H hashKey, final R fromRangeKey, final R toRangeKey)",
-                table.rangeReverse(hashKey, fromRangeKey, toRangeKey), tableLock, allowHasNext());
+                table.rangeReverse(hashKey, fromRangeKey, toRangeKey), getReadLock(false), allowHasNext());
     }
 
     public ICloseableIterator<V> rangeReverseValues(final H hashKey, final R fromRangeKey, final R toRangeKey) {
@@ -670,11 +676,11 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     @Override
     public RangeBatch<H, R, V> newRangeBatch() {
-        final RangeTable<H, R, V> table = getTableWithReadLock();
-        return new DelegateRangeBatch<H, R, V>(table.newRangeBatch(), tableLock);
+        final RangeTable<H, R, V> table = getTableWithReadLock(true);
+        return new DelegateRangeBatch<H, R, V>(table.newRangeBatch(), getReadLock(true));
     }
 
-    public ReadWriteLock getTableLock() {
+    public IReadWriteLock getTableLock() {
         return tableLock;
     }
 
@@ -682,8 +688,8 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
         private final RangeBatchFinalizer<H_, R_, V_> finalizer;
 
-        public DelegateRangeBatch(final RangeBatch<H_, R_, V_> delegate, final ReadWriteLock tableLockDelegate) {
-            this.finalizer = new RangeBatchFinalizer<>(delegate, tableLockDelegate);
+        public DelegateRangeBatch(final RangeBatch<H_, R_, V_> delegate, final ILock tableReadLockDelegate) {
+            this.finalizer = new RangeBatchFinalizer<>(delegate, tableReadLockDelegate);
             this.finalizer.register(this);
         }
 
@@ -721,11 +727,11 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     private static final class RangeBatchFinalizer<__H, __R, __V> extends AFinalizer {
         private final RangeBatch<__H, __R, __V> delegate;
-        private ReadWriteLock tableLockDelegate;
+        private ILock tableReadLockDelegate;
 
-        private RangeBatchFinalizer(final RangeBatch<__H, __R, __V> delegate, final ReadWriteLock tableLockDelegate) {
+        private RangeBatchFinalizer(final RangeBatch<__H, __R, __V> delegate, final ILock tableReadLockDelegate) {
             this.delegate = delegate;
-            this.tableLockDelegate = tableLockDelegate;
+            this.tableReadLockDelegate = tableReadLockDelegate;
         }
 
         @Override
@@ -736,14 +742,14 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             } finally {
-                tableLockDelegate.readLock().unlock();
-                tableLockDelegate = null;
+                tableReadLockDelegate.unlock();
+                tableReadLockDelegate = null;
             }
         }
 
         @Override
         protected boolean isCleaned() {
-            return tableLockDelegate == null;
+            return tableReadLockDelegate == null;
         }
 
         @Override
@@ -790,12 +796,12 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         private final TableIteratorFinalizer<_H, _R, _V> finalizer;
 
         public DelegateTableIterator(final String name, final _H hashKey, final String method,
-                final TableIterator<_H, _R, _V> delegate, final ReadWriteLock tableLockDelegate,
+                final TableIterator<_H, _R, _V> delegate, final ILock tableReadLockDelegate,
                 final boolean allowHasNext) {
             super(new TextDescription("%s[%s].%s[%s]: %s", ADelegateRangeTable.class.getSimpleName(), name,
                     DelegateTableIterator.class.getSimpleName(), hashKey, method));
             this.allowHasNext = allowHasNext;
-            this.finalizer = new TableIteratorFinalizer<_H, _R, _V>(delegate, tableLockDelegate);
+            this.finalizer = new TableIteratorFinalizer<_H, _R, _V>(delegate, tableReadLockDelegate);
             this.finalizer.register(this);
         }
 
@@ -829,12 +835,11 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     private static final class TableIteratorFinalizer<__H, __R, __V> extends AFinalizer {
         private final TableIterator<__H, __R, __V> delegate;
-        private ReadWriteLock tableLockDelegate;
+        private ILock tableReadLockDelegate;
 
-        private TableIteratorFinalizer(final TableIterator<__H, __R, __V> delegate,
-                final ReadWriteLock tableLockDelegate) {
+        private TableIteratorFinalizer(final TableIterator<__H, __R, __V> delegate, final ILock tableReadLockDelegate) {
             this.delegate = delegate;
-            this.tableLockDelegate = tableLockDelegate;
+            this.tableReadLockDelegate = tableReadLockDelegate;
         }
 
         @Override
@@ -842,14 +847,14 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
             try {
                 delegate.close();
             } finally {
-                tableLockDelegate.readLock().unlock();
-                tableLockDelegate = null;
+                tableReadLockDelegate.unlock();
+                tableReadLockDelegate = null;
             }
         }
 
         @Override
         protected boolean isCleaned() {
-            return tableLockDelegate == null;
+            return tableReadLockDelegate == null;
         }
 
         @Override

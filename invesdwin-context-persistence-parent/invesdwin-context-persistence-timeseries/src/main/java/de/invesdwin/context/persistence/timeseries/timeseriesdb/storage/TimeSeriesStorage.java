@@ -38,13 +38,13 @@ public class TimeSeriesStorage {
             }
 
             @Override
-            protected RangeTablePersistenceMode getPersistenceMode() {
-                return RangeTablePersistenceMode.MEMORY_WRITE_THROUGH_DISK;
+            protected Serde<ChunkValue> newValueSerde() {
+                return new ChunkValueSerde(valueFixedLength);
             }
 
             @Override
-            protected Serde<ChunkValue> newValueSerde() {
-                return new ChunkValueSerde(valueFixedLength);
+            protected RangeTablePersistenceMode getPersistenceMode() {
+                return RangeTablePersistenceMode.MEMORY_WRITE_THROUGH_DISK;
             }
 
         };
