@@ -247,6 +247,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         final Lock writeLock = getTableLock(key).writeLock();
         try {
             if (!writeLock.tryLock(1, TimeUnit.MINUTES)) {
+                System.out.println("use memory only again and find out where this lock is coming from...");
                 throw new RetryLaterRuntimeException("Write lock could not be acquired for table [" + name
                         + "] and key [" + key + "]. Please ensure all iterators are closed!");
             }
