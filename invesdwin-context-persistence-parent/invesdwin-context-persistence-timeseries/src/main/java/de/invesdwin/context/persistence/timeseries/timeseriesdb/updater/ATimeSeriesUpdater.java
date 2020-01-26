@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Lock;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -29,6 +28,8 @@ import de.invesdwin.util.collections.iterable.concurrent.AParallelChunkConsumerI
 import de.invesdwin.util.collections.iterable.concurrent.AProducerQueueIterator;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.lock.FileChannelLock;
+import de.invesdwin.util.concurrent.lock.ILock;
+import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.time.Instant;
@@ -86,11 +87,14 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
 
     @Override
     public final boolean update() throws IncompleteUpdateFoundException {
-        final Lock writeLock = table.getTableLock(key).writeLock();
+        final ILock writeLock = table.getTableLock(key).writeLock();
         try {
             if (!writeLock.tryLock(1, TimeUnit.MINUTES)) {
-                throw new RetryLaterRuntimeException("Write lock could not be acquired for table [" + table.getName()
-                        + "] and key [" + key + "]. Please ensure all iterators are closed!");
+                throw Locks.getLockTrace()
+                        .handleLockException(writeLock.getName(),
+                                new RetryLaterRuntimeException(
+                                        "Write lock could not be acquired for table [" + table.getName() + "] and key ["
+                                                + key + "]. Please ensure all iterators are closed!"));
             }
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();

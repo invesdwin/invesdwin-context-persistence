@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.OutputStream;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReadWriteLock;
 import java.util.function.Function;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -21,7 +20,9 @@ import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
+import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
+import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
@@ -34,9 +35,9 @@ import net.jpountz.lz4.LZ4BlockOutputStream;
 public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
     private final SegmentedTable segmentedTable;
-    private final ALoadingCache<K, ReadWriteLock> key_tableLock = new ALoadingCache<K, ReadWriteLock>() {
+    private final ALoadingCache<K, IReadWriteLock> key_tableLock = new ALoadingCache<K, IReadWriteLock>() {
         @Override
-        protected ReadWriteLock loadValue(final K key) {
+        protected IReadWriteLock loadValue(final K key) {
             return Locks.newReentrantReadWriteLock(ASegmentedTimeSeriesDB.class.getSimpleName() + "_" + getName() + "_"
                     + hashKeyToString(key) + "_tableLock");
         }
@@ -187,7 +188,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
     }
 
     @Override
-    public ReadWriteLock getTableLock(final K key) {
+    public IReadWriteLock getTableLock(final K key) {
         return key_tableLock.get(key);
     }
 
@@ -204,11 +205,14 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
     @Override
     public void deleteRange(final K key) {
-        final Lock writeLock = getTableLock(key).writeLock();
+        final ILock writeLock = getTableLock(key).writeLock();
         try {
             if (!writeLock.tryLock(1, TimeUnit.MINUTES)) {
-                throw new RetryLaterRuntimeException("Write lock could not be acquired for table [" + getName()
-                        + "] and key [" + key + "]. Please ensure all iterators are closed!");
+                throw Locks.getLockTrace()
+                        .handleLockException(writeLock.getName(),
+                                new RetryLaterRuntimeException(
+                                        "Write lock could not be acquired for table [" + getName() + "] and key [" + key
+                                                + "]. Please ensure all iterators are closed!"));
             }
         } catch (final InterruptedException e) {
             throw new RuntimeException(e);

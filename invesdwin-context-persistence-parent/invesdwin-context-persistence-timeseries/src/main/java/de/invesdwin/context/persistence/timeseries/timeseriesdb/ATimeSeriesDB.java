@@ -3,7 +3,6 @@ package de.invesdwin.context.persistence.timeseries.timeseriesdb;
 import java.io.File;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReadWriteLock;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -21,7 +20,9 @@ import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
+import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
+import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
@@ -37,9 +38,9 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
     private final Integer fixedLength;
     private final File directory;
     private final ALoadingCache<K, TimeSeriesStorageCache<K, V>> key_lookupTableCache;
-    private final ALoadingCache<K, ReadWriteLock> key_tableLock = new ALoadingCache<K, ReadWriteLock>() {
+    private final ALoadingCache<K, IReadWriteLock> key_tableLock = new ALoadingCache<K, IReadWriteLock>() {
         @Override
-        protected ReadWriteLock loadValue(final K key) {
+        protected IReadWriteLock loadValue(final K key) {
             return Locks.newReentrantReadWriteLock(
                     ATimeSeriesDB.class.getSimpleName() + "_" + getName() + "_" + hashKeyToString(key) + "_tableLock");
         }
@@ -135,7 +136,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
     }
 
     @Override
-    public ReadWriteLock getTableLock(final K key) {
+    public IReadWriteLock getTableLock(final K key) {
         return key_tableLock.get(key);
     }
 
@@ -244,12 +245,13 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
     @Override
     @Retry(fixedBackOffMillis = 1000)
     public void deleteRange(final K key) {
-        final Lock writeLock = getTableLock(key).writeLock();
+        final ILock writeLock = getTableLock(key).writeLock();
         try {
             if (!writeLock.tryLock(1, TimeUnit.MINUTES)) {
-                System.out.println("use memory only again and find out where this lock is coming from...");
-                throw new RetryLaterRuntimeException("Write lock could not be acquired for table [" + name
-                        + "] and key [" + key + "]. Please ensure all iterators are closed!");
+                throw Locks.getLockTrace()
+                        .handleLockException(writeLock.getName(),
+                                new RetryLaterRuntimeException("Write lock could not be acquired for table [" + name
+                                        + "] and key [" + key + "]. Please ensure all iterators are closed!"));
             }
         } catch (final InterruptedException e) {
             throw new RuntimeException(e);

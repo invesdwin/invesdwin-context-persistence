@@ -2,16 +2,16 @@ package de.invesdwin.context.persistence.timeseries.timeseriesdb;
 
 import java.io.Closeable;
 import java.io.File;
-import java.util.concurrent.locks.ReadWriteLock;
 
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
+import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
 import de.invesdwin.util.time.fdate.FDate;
 
 public interface ITimeSeriesDB<K, V> extends Closeable {
 
     File getDirectory();
 
-    ReadWriteLock getTableLock(K key);
+    IReadWriteLock getTableLock(K key);
 
     ICloseableIterable<V> rangeValues(K key, FDate from, FDate to);
 

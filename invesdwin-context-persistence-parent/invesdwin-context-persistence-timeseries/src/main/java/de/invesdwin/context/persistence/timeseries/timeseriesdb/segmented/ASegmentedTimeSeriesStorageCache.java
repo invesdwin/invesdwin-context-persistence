@@ -44,8 +44,10 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
+import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
+import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
 import de.invesdwin.util.concurrent.reference.MutableReference;
 import de.invesdwin.util.concurrent.taskinfo.provider.TaskInfoCallable;
 import de.invesdwin.util.error.FastNoSuchElementException;
@@ -360,7 +362,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             return false;
         }
         //1. check segment status in series storage
-        final ReadWriteLock segmentTableLock = segmentedTable.getTableLock(segmentedKey);
+        final IReadWriteLock segmentTableLock = segmentedTable.getTableLock(segmentedKey);
         /*
          * We need this synchronized block so that we don't collide on the write lock not being possible to be acquired
          * after 1 minute. The ReadWriteLock object should be safe to lock via synchronized keyword since no internal
@@ -370,16 +372,18 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             final SegmentStatus status = getSegmentStatusWithReadLock(segmentedKey, segmentTableLock);
             //2. if not existing or false, set status to false -> start segment update -> after update set status to true
             if (status == null || status == SegmentStatus.INITIALIZING) {
-                final Lock segmentWriteLock = segmentTableLock.writeLock();
+                final ILock segmentWriteLock = segmentTableLock.writeLock();
                 try {
                     if (!segmentWriteLock.tryLock(1, TimeUnit.MINUTES)) {
                         /*
                          * should not happen here because segment should not yet exist. Though if it happens we would
                          * rather like an exception instead of a deadlock!
                          */
-                        throw new RetryLaterRuntimeException(
-                                "Write lock could not be acquired for table [" + segmentedTable.getName()
-                                        + "] and key [" + segmentedKey + "]. Please ensure all iterators are closed!");
+                        throw Locks.getLockTrace()
+                                .handleLockException(segmentWriteLock.getName(),
+                                        new RetryLaterRuntimeException("Write lock could not be acquired for table ["
+                                                + segmentedTable.getName() + "] and key [" + segmentedKey
+                                                + "]. Please ensure all iterators are closed!"));
                     }
                 } catch (final InterruptedException e1) {
                     throw new RuntimeException(e1);
