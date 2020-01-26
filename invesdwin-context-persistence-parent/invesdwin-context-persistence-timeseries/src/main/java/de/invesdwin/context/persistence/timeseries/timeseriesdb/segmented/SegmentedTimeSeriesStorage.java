@@ -35,6 +35,7 @@ public class SegmentedTimeSeriesStorage extends TimeSeriesStorage {
 
             @Override
             protected RangeTablePersistenceMode getPersistenceMode() {
+                System.out.println("TODO: use mapdb for write through?");
                 return RangeTablePersistenceMode.MEMORY_WRITE_THROUGH_DISK;
             }
         };

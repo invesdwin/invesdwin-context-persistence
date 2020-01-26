@@ -50,6 +50,11 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     private SerializingCollection<V> newSerializingCollection() {
         final File file = getFile();
         Files.deleteQuietly(file);
+        try {
+            Files.forceMkdirParent(file);
+        } catch (final IOException e) {
+            throw new RuntimeException(e);
+        }
         final TextDescription name = new TextDescription("%s[%s]: newSerializingCollection()",
                 FileLiveSegment.class.getSimpleName(), segmentedKey);
         return new SerializingCollection<V>(name, file, false) {
