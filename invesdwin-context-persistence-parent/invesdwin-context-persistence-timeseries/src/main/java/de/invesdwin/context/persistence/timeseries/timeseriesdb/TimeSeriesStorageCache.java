@@ -263,8 +263,7 @@ public class TimeSeriesStorageCache<K, V> {
     /**
      * keeping the range keys outside of the concurrent linked hashmap of the ADelegateRangeTable with memory write
      * through to disk is still better for increased parallelity and for not having to iterate through each element of
-     * the other hashkeys. (also there seems to be a bug when doing this directly with ezdb because MIN_KEYs sometimes
-     * cannot be found there?!?)
+     * the other hashkeys.
      */
     private volatile ICloseableIterable<TableRow<String, FDate, ChunkValue>> cachedAllRangeKeys;
     private volatile ICloseableIterable<TableRow<String, FDate, ChunkValue>> cachedAllRangeKeysReverse;
