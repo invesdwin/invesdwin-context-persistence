@@ -23,7 +23,6 @@ import org.apache.commons.lang3.mutable.MutableInt;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.Log;
-import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable.DelegateTableIterator;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ChunkValue;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ShiftUnitsRangeKey;
@@ -260,14 +259,6 @@ public class TimeSeriesStorageCache<K, V> {
 
     private volatile Optional<V> cachedFirstValue;
     private volatile Optional<V> cachedLastValue;
-    /**
-     * keeping the range keys outside of the concurrent linked hashmap of the ADelegateRangeTable with memory write
-     * through to disk is still better for increased parallelity and for not having to iterate through each element of
-     * the other hashkeys. (also there seems to be a bug when doing this directly with ezdb because MIN_KEYs sometimes
-     * cannot be found there?!?)
-     */
-    private volatile ICloseableIterable<TableRow<String, FDate, ChunkValue>> cachedAllRangeKeys;
-    private volatile ICloseableIterable<TableRow<String, FDate, ChunkValue>> cachedAllRangeKeysReverse;
     private final Log log = new Log(this);
     private Map<FDate, File> redirectedFiles;
 
@@ -367,11 +358,8 @@ public class TimeSeriesStorageCache<K, V> {
                             final FDate from, final FDate to) {
                         readLock.lock();
                         try {
-                            final ICloseableIterator<TableRow<String, FDate, ChunkValue>> range = getAllRangeKeys(
-                                    readLock);
-                            final GetRangeKeysIterator rangeFiltered = new GetRangeKeysIterator(range, from, to);
                             final BufferingIterator<TableRow<String, FDate, ChunkValue>> buffer = new BufferingIterator<>(
-                                    rangeFiltered);
+                                    storage.getFileLookupTable().range(hashKey, from, to));
                             if (skipFileFunction != null) {
                                 return new ASkippingIterator<TableRow<String, FDate, ChunkValue>>(buffer) {
                                     @Override
@@ -465,12 +453,8 @@ public class TimeSeriesStorageCache<K, V> {
                             final String hashKey, final FDate from, final FDate to) {
                         readLock.lock();
                         try {
-                            final ICloseableIterator<TableRow<String, FDate, ChunkValue>> range = getAllRangeKeysReverse(
-                                    readLock);
-                            final GetRangeKeysReverseIterator rangeFiltered = new GetRangeKeysReverseIterator(range,
-                                    from, to);
                             final BufferingIterator<TableRow<String, FDate, ChunkValue>> buffer = new BufferingIterator<>(
-                                    rangeFiltered);
+                                    storage.getFileLookupTable().rangeReverse(hashKey, from, to));
                             if (skipFileFunction != null) {
                                 return new ASkippingIterator<TableRow<String, FDate, ChunkValue>>(buffer) {
 
@@ -677,8 +661,6 @@ public class TimeSeriesStorageCache<K, V> {
         nextValueLookupCache.clear();
         previousValueLookupCache.clear();
         fileLookupTable_latestRangeKeyCache.clear();
-        cachedAllRangeKeys = null;
-        cachedAllRangeKeysReverse = null;
         cachedFirstValue = null;
         cachedLastValue = null;
     }
@@ -782,90 +764,6 @@ public class TimeSeriesStorageCache<K, V> {
     private void assertShiftUnitsPositiveNonZero(final int shiftUnits) {
         if (shiftUnits <= 0) {
             throw new IllegalArgumentException("shiftUnits needs to be a positive non zero value: " + shiftUnits);
-        }
-    }
-
-    private ICloseableIterator<TableRow<String, FDate, ChunkValue>> getAllRangeKeys(final Lock readLock) {
-        readLock.lock();
-        try {
-            if (cachedAllRangeKeys == null) {
-                final BufferingIterator<TableRow<String, FDate, ChunkValue>> allRangeKeys = new BufferingIterator<TableRow<String, FDate, ChunkValue>>();
-                final DelegateTableIterator<String, FDate, ChunkValue> range = storage.getFileLookupTable()
-                        .range(hashKey, FDate.MIN_DATE, FDate.MAX_DATE);
-                while (range.hasNext()) {
-                    allRangeKeys.add(range.next());
-                }
-                range.close();
-                cachedAllRangeKeys = allRangeKeys;
-            }
-            return cachedAllRangeKeys.iterator();
-        } finally {
-            readLock.unlock();
-        }
-    }
-
-    private ICloseableIterator<TableRow<String, FDate, ChunkValue>> getAllRangeKeysReverse(final Lock readLock) {
-        readLock.lock();
-        try {
-            if (cachedAllRangeKeysReverse == null) {
-                final BufferingIterator<TableRow<String, FDate, ChunkValue>> allRangeKeysReverse = new BufferingIterator<TableRow<String, FDate, ChunkValue>>();
-                final DelegateTableIterator<String, FDate, ChunkValue> range = storage.getFileLookupTable()
-                        .rangeReverse(hashKey, FDate.MAX_DATE, FDate.MIN_DATE);
-                while (range.hasNext()) {
-                    allRangeKeysReverse.add(range.next());
-                }
-                range.close();
-                cachedAllRangeKeysReverse = allRangeKeysReverse;
-            }
-            return cachedAllRangeKeysReverse.iterator();
-        } finally {
-            readLock.unlock();
-        }
-    }
-
-    private static final class GetRangeKeysReverseIterator
-            extends ASkippingIterator<TableRow<String, FDate, ChunkValue>> {
-        private final FDate from;
-        private final FDate to;
-
-        private GetRangeKeysReverseIterator(
-                final ICloseableIterator<? extends TableRow<String, FDate, ChunkValue>> delegate, final FDate from,
-                final FDate to) {
-            super(delegate);
-            this.from = from;
-            this.to = to;
-        }
-
-        @Override
-        protected boolean skip(final TableRow<String, FDate, ChunkValue> element) {
-            if (element.getRangeKey().isAfter(from)) {
-                return true;
-            } else if (element.getRangeKey().isBefore(to)) {
-                throw new FastNoSuchElementException("getRangeKeysReverse reached end");
-            }
-            return false;
-        }
-    }
-
-    private static final class GetRangeKeysIterator extends ASkippingIterator<TableRow<String, FDate, ChunkValue>> {
-        private final FDate from;
-        private final FDate to;
-
-        private GetRangeKeysIterator(final ICloseableIterator<? extends TableRow<String, FDate, ChunkValue>> delegate,
-                final FDate from, final FDate to) {
-            super(delegate);
-            this.from = from;
-            this.to = to;
-        }
-
-        @Override
-        protected boolean skip(final TableRow<String, FDate, ChunkValue> element) {
-            if (element.getRangeKey().isBefore(from)) {
-                return true;
-            } else if (element.getRangeKey().isAfter(to)) {
-                throw new FastNoSuchElementException("getRangeKeys reached end");
-            }
-            return false;
         }
     }
 
