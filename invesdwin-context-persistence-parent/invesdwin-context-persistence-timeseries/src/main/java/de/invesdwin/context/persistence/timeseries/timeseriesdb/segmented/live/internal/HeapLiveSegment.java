@@ -64,7 +64,7 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
         if (from == null) {
             tailMap = values;
         } else {
-            tailMap = values.tailMap(from.millisValue());
+            tailMap = values.tailMap(from.millisValue(), true);
         }
         final ICloseableIterable<Entry<Long, V>> tail = WrapperCloseableIterable.maybeWrap(tailMap.entrySet());
         final ICloseableIterable<Entry<Long, V>> skipping;
@@ -103,7 +103,7 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
         if (from == null) {
             headMap = values.descendingMap();
         } else {
-            headMap = values.descendingMap().tailMap(from.millisValue());
+            headMap = values.descendingMap().tailMap(from.millisValue(), true);
         }
         final ICloseableIterable<Entry<Long, V>> tail = WrapperCloseableIterable.maybeWrap(headMap.entrySet());
         final ICloseableIterable<Entry<Long, V>> skipping;
