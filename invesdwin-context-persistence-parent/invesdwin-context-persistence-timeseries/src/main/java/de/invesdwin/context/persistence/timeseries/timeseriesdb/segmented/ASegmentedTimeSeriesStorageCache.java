@@ -44,6 +44,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
+import de.invesdwin.util.collections.loadingcache.historical.query.IHistoricalCacheQuery;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
@@ -819,20 +820,28 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             if (firstAvailableSegmentFrom == null) {
                 cachedFirstValue = Optional.empty();
             } else {
-                final TimeRange segment = getSegmentFinder(key).query().getValue(firstAvailableSegmentFrom);
+                final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key, null);
+                final IHistoricalCacheQuery<TimeRange> segmentFinderQuery = getSegmentFinder(key).query();
+                final TimeRange lastSegment = segmentFinderQuery.getValue(lastAvailableSegmentTo);
+                TimeRange segment = segmentFinderQuery.getValue(firstAvailableSegmentFrom);
                 Assertions.assertThat(segment.getFrom()).isEqualTo(firstAvailableSegmentFrom);
-                final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
-                maybeInitSegment(segmentedKey);
-                final String segmentedHashKey = segmentedTable.hashKeyToString(segmentedKey);
-                final ChunkValue latestValue = storage.getFileLookupTable()
-                        .getLatestValue(segmentedHashKey, FDate.MIN_DATE);
-                final V firstValue;
-                if (latestValue == null) {
-                    firstValue = null;
-                } else {
-                    firstValue = latestValue.getFirstValue(valueSerde);
+                while (cachedFirstValue == null && segment.getFrom().isBeforeOrEqualTo(lastSegment.getFrom())) {
+                    final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
+                    maybeInitSegment(segmentedKey);
+                    final String segmentedHashKey = segmentedTable.hashKeyToString(segmentedKey);
+                    final ChunkValue latestValue = storage.getFileLookupTable()
+                            .getLatestValue(segmentedHashKey, FDate.MIN_DATE);
+                    final V firstValue;
+                    if (latestValue == null) {
+                        segment = segmentFinderQuery.getValue(segment.getTo().addMilliseconds(1));
+                    } else {
+                        firstValue = latestValue.getFirstValue(valueSerde);
+                        cachedFirstValue = Optional.of(firstValue);
+                    }
                 }
-                cachedFirstValue = Optional.ofNullable(firstValue);
+                if (cachedFirstValue == null) {
+                    cachedFirstValue = Optional.empty();
+                }
             }
         }
         return cachedFirstValue.orElse(null);
