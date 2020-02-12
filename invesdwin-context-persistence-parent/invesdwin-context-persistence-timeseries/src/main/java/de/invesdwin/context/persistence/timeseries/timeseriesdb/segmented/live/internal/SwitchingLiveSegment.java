@@ -130,9 +130,9 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public void putNextLiveValue(final FDate nextLiveKey, final V nextLiveValue) {
-        if (lastValue != null && lastValueKey.isAfterOrEqualTo(nextLiveKey)) {
+        if (lastValue != null && lastValueKey.isAfter(nextLiveKey)) {
             throw new IllegalStateException(segmentedKey + ": nextLiveKey [" + nextLiveKey
-                    + "] should be after lastLiveKey [" + lastValueKey + "]");
+                    + "] should be after or equal to lastLiveKey [" + lastValueKey + "]");
         }
         inProgress.putNextLiveValue(nextLiveKey, nextLiveValue);
         if (firstValue == null) {
