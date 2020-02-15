@@ -82,11 +82,15 @@ public class TestEzLevelDbJni extends ATest {
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
-        reverseRangeTable.close();
-        reverseRangeTable.deleteTable();
+        if (reverseRangeTable != null) {
+            reverseRangeTable.close();
+            reverseRangeTable.deleteTable();
+        }
 
-        table.close();
-        table.deleteTable();
+        if (table != null) {
+            table.close();
+            table.deleteTable();
+        }
     }
 
     @Test
