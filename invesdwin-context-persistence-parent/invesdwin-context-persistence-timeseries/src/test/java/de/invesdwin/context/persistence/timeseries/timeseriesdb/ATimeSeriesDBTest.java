@@ -48,7 +48,7 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected FDate extractTime(final FDate value) {
+            protected FDate extractEndTime(final FDate value) {
                 return value;
             }
 
@@ -69,14 +69,11 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected void onUpdateFinished(final Instant updateStart) {}
+            protected void onUpdateFinished(final Instant updateStart) {
+            }
 
             @Override
-            protected void onUpdateStart() {}
-
-            @Override
-            protected FDate extractTime(final FDate element) {
-                return element;
+            protected void onUpdateStart() {
             }
 
             @Override
@@ -86,7 +83,8 @@ public class ATimeSeriesDBTest extends ATest {
 
             @Override
             protected void onFlush(final int flushIndex, final Instant flushStart,
-                    final ATimeSeriesUpdater<String, FDate>.UpdateProgress updateProgress) {}
+                    final ATimeSeriesUpdater<String, FDate>.UpdateProgress updateProgress) {
+            }
 
             @Override
             public Percent getProgress() {
@@ -148,7 +146,7 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected FDate extractTime(final FDate value) {
+            protected FDate extractEndTime(final FDate value) {
                 return value;
             }
 
@@ -170,14 +168,11 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected void onUpdateFinished(final Instant updateStart) {}
+            protected void onUpdateFinished(final Instant updateStart) {
+            }
 
             @Override
-            protected void onUpdateStart() {}
-
-            @Override
-            protected FDate extractTime(final FDate element) {
-                return element;
+            protected void onUpdateStart() {
             }
 
             @Override

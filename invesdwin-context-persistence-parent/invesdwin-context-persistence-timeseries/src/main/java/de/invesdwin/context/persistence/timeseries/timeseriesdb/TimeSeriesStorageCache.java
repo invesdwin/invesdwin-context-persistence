@@ -94,7 +94,7 @@ public class TimeSeriesStorageCache<K, V> {
                             try (ICloseableIterator<V> it = serializingCollection.iterator()) {
                                 while (true) {
                                     final V newValue = it.next();
-                                    final FDate newValueTime = extractTime.apply(newValue);
+                                    final FDate newValueTime = extractEndTime.apply(newValue);
                                     if (newValueTime.isAfter(key)) {
                                         break;
                                     } else {
@@ -159,7 +159,7 @@ public class TimeSeriesStorageCache<K, V> {
                                             })) {
                                         final V firstValue = rangeValuesReverse.next();
                                         previousValue.set(firstValue);
-                                        final FDate firstTime = extractTime.apply(firstValue);
+                                        final FDate firstTime = extractEndTime.apply(firstValue);
                                         if (!date.equals(firstTime)) {
                                             shiftBackRemaining.decrement();
                                         }
@@ -216,7 +216,7 @@ public class TimeSeriesStorageCache<K, V> {
                                             })) {
                                         final V firstValue = rangeValues.next();
                                         nextValue.set(firstValue);
-                                        final FDate firstTime = extractTime.apply(firstValue);
+                                        final FDate firstTime = extractEndTime.apply(firstValue);
                                         if (!date.equals(firstTime)) {
                                             shiftForwardRemaining.decrement();
                                         }
@@ -254,7 +254,7 @@ public class TimeSeriesStorageCache<K, V> {
     private final String hashKey;
     private final Serde<V> valueSerde;
     private final Integer fixedLength;
-    private final Function<V, FDate> extractTime;
+    private final Function<V, FDate> extractEndTime;
     @GuardedBy("this")
     private File dataDirectory;
 
@@ -276,7 +276,7 @@ public class TimeSeriesStorageCache<K, V> {
         this.hashKey = hashKey;
         this.valueSerde = valueSerde;
         this.fixedLength = fixedLength;
-        this.extractTime = extractTime;
+        this.extractEndTime = extractTime;
     }
 
     public synchronized File getDataDirectory() {
@@ -336,7 +336,7 @@ public class TimeSeriesStorageCache<K, V> {
                     if (firstValue == null) {
                         return EmptyCloseableIterator.getInstance();
                     }
-                    usedFrom = extractTime.apply(firstValue);
+                    usedFrom = extractEndTime.apply(firstValue);
                 } else {
                     usedFrom = from;
                 }
@@ -432,7 +432,7 @@ public class TimeSeriesStorageCache<K, V> {
                     if (lastValue == null) {
                         return EmptyCloseableIterator.getInstance();
                     }
-                    usedFrom = extractTime.apply(lastValue);
+                    usedFrom = extractEndTime.apply(lastValue);
                 } else {
                     usedFrom = from;
                 }
@@ -535,7 +535,7 @@ public class TimeSeriesStorageCache<K, V> {
                     return new ASkippingIterator<V>(serializingCollection.iterator()) {
                         @Override
                         protected boolean skip(final V element) {
-                            final FDate time = extractTime.apply(element);
+                            final FDate time = extractEndTime.apply(element);
                             if (time.isBefore(from)) {
                                 return true;
                             } else if (time.isAfter(to)) {
@@ -569,7 +569,7 @@ public class TimeSeriesStorageCache<K, V> {
                     return new ASkippingIterator<V>(serializingCollection.reverseIterator()) {
                         @Override
                         protected boolean skip(final V element) {
-                            final FDate time = extractTime.apply(element);
+                            final FDate time = extractEndTime.apply(element);
                             if (time.isAfter(from)) {
                                 return true;
                             } else if (time.isBefore(to)) {
@@ -689,7 +689,7 @@ public class TimeSeriesStorageCache<K, V> {
     public V getPreviousValue(final FDate date, final int shiftBackUnits) {
         assertShiftUnitsPositiveNonZero(shiftBackUnits);
         final V firstValue = getFirstValue();
-        final FDate firstTime = extractTime.apply(firstValue);
+        final FDate firstTime = extractEndTime.apply(firstValue);
         if (date.isBeforeOrEqualTo(firstTime)) {
             return firstValue;
         } else {
@@ -700,7 +700,7 @@ public class TimeSeriesStorageCache<K, V> {
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
         assertShiftUnitsPositiveNonZero(shiftForwardUnits);
         final V lastValue = getLastValue();
-        final FDate lastTime = extractTime.apply(lastValue);
+        final FDate lastTime = extractEndTime.apply(lastValue);
         if (date.isAfterOrEqualTo(lastTime)) {
             return lastValue;
         } else {
@@ -764,7 +764,7 @@ public class TimeSeriesStorageCache<K, V> {
                 }
                 //remove last value because it might be an incomplete bar
                 final V lastValue = lastValues.remove(lastValues.size() - 1);
-                updateFrom = extractTime.apply(lastValue);
+                updateFrom = extractEndTime.apply(lastValue);
                 lastFile.delete();
             } else {
                 latestRangeKey = latestRangeKey.addMilliseconds(1);

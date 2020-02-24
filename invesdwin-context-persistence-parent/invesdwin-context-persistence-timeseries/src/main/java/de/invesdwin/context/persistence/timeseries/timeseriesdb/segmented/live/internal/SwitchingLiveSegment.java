@@ -174,7 +174,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
                     }).iterator()) {
                 final V firstValue = rangeValues.next();
                 nextValue.set(firstValue);
-                final FDate firstTime = historicalSegmentTable.extractTime(firstValue);
+                final FDate firstTime = historicalSegmentTable.extractEndTime(firstValue);
                 if (!date.equals(firstTime)) {
                     shiftForwardRemaining.decrement();
                 }
@@ -200,7 +200,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
         for (int i = 0; i < latestValueProviders.size(); i++) {
             final ILiveSegment<K, V> latestValueProvider = latestValueProviders.get(i);
             final V newValue = latestValueProvider.getLatestValue(date);
-            final FDate newValueTime = historicalSegmentTable.extractTime(newValue);
+            final FDate newValueTime = historicalSegmentTable.extractEndTime(newValue);
             if (newValueTime.isBeforeOrEqualTo(date)) {
                 /*
                  * even if we got the first value in this segment and it is after the desired key we just continue to

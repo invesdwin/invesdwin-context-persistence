@@ -100,7 +100,7 @@ public class ALiveSegmentedTimeSeriesDBWithCacheTest extends ATest {
             }
 
             @Override
-            protected FDate extractTime(final FDate value) {
+            protected FDate extractEndTime(final FDate value) {
                 return value;
             }
 
@@ -121,11 +121,6 @@ public class ALiveSegmentedTimeSeriesDBWithCacheTest extends ATest {
                         return element.isBefore(from) || element.isAfter(to);
                     }
                 };
-            }
-
-            @Override
-            protected FDate extractEndTime(final FDate value) {
-                return value;
             }
 
             @Override

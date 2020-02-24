@@ -99,7 +99,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                                     maybeInitSegment(segmentedKey);
                                     final V newValue = segmentedTable.getLatestValue(segmentedKey, date);
                                     if (newValue != null) {
-                                        final FDate newValueTime = segmentedTable.extractTime(newValue);
+                                        final FDate newValueTime = segmentedTable.extractEndTime(newValue);
                                         if (newValueTime.isBeforeOrEqualTo(date)) {
                                             /*
                                              * even if we got the first value in this segment and it is after the
@@ -553,11 +553,6 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 }
 
                 @Override
-                protected FDate extractTime(final V element) {
-                    return segmentedTable.extractTime(element);
-                }
-
-                @Override
                 protected FDate extractEndTime(final V element) {
                     return segmentedTable.extractEndTime(element);
                 }
@@ -742,7 +737,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     public V getPreviousValue(final FDate date, final int shiftBackUnits) {
         assertShiftUnitsPositiveNonZero(shiftBackUnits);
         final V firstValue = getFirstValue();
-        final FDate firstTime = segmentedTable.extractTime(firstValue);
+        final FDate firstTime = segmentedTable.extractEndTime(firstValue);
         if (date.isBeforeOrEqualTo(firstTime)) {
             return firstValue;
         } else {
@@ -753,7 +748,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
         assertShiftUnitsPositiveNonZero(shiftForwardUnits);
         final V lastValue = getLastValue();
-        final FDate lastTime = segmentedTable.extractTime(lastValue);
+        final FDate lastTime = segmentedTable.extractEndTime(lastValue);
         if (date.isAfterOrEqualTo(lastTime)) {
             return lastValue;
         } else {

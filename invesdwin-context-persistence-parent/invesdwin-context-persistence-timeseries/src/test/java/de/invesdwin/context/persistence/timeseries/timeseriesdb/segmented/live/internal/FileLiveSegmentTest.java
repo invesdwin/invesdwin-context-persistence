@@ -65,13 +65,8 @@ public class FileLiveSegmentTest extends ATest {
             }
 
             @Override
-            protected FDate extractTime(final Integer value) {
-                return extractTime.get(value);
-            }
-
-            @Override
             protected FDate extractEndTime(final Integer value) {
-                throw new UnsupportedOperationException();
+                return extractTime.get(value);
             }
 
             @Override

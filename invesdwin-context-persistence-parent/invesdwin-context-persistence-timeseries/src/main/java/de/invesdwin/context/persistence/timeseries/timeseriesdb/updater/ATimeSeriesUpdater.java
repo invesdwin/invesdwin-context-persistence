@@ -137,7 +137,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             source = new ASkippingIterable<V>(source) {
                 @Override
                 protected boolean skip(final V element) {
-                    return extractTime(element).isBefore(updateFrom);
+                    return extractEndTime(element).isBefore(updateFrom);
                 }
             };
         }
@@ -251,8 +251,6 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
 
     protected abstract void onUpdateStart();
 
-    protected abstract FDate extractTime(V element);
-
     protected abstract FDate extractEndTime(V element);
 
     protected abstract void onFlush(int flushIndex, Instant flushStart, UpdateProgress updateProgress);
@@ -285,16 +283,15 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         }
 
         private boolean onElement(final V element) {
-            final FDate time = extractTime(element);
-            if (minTime == null) {
-                minTime = time;
-            }
-            if (maxTime != null && maxTime.isAfter(time)) {
-                throw new IllegalArgumentException(
-                        "New element time [" + time + "] is not after or equal to previous element end time [" + maxTime
-                                + "] for table [" + table.getName() + "] and key [" + key + "]");
-            }
             final FDate endTime = extractEndTime(element);
+            if (minTime == null) {
+                minTime = endTime;
+            }
+            if (maxTime != null && maxTime.isAfter(endTime)) {
+                throw new IllegalArgumentException(
+                        "New element end time [" + endTime + "] is not after or equal to previous element end time ["
+                                + maxTime + "] for table [" + table.getName() + "] and key [" + key + "]");
+            }
             maxTime = endTime;
             batch.add(element);
             count++;

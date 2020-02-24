@@ -94,11 +94,6 @@ public class ASegmentedTimeSeriesDBWithNoCacheTest extends ATest {
             }
 
             @Override
-            protected FDate extractTime(final FDate value) {
-                return value;
-            }
-
-            @Override
             protected File getBaseDirectory() {
                 return ContextProperties.TEMP_DIRECTORY;
             }

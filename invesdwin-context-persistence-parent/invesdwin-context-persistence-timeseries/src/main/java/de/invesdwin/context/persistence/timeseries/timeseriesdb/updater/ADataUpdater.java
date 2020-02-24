@@ -130,11 +130,6 @@ public abstract class ADataUpdater<K, V> {
             final ALoggingTimeSeriesUpdater<K, V> updater = new ALoggingTimeSeriesUpdater<K, V>(key, getTable(), log) {
 
                 @Override
-                protected FDate extractTime(final V element) {
-                    return ADataUpdater.this.extractTime(element);
-                }
-
-                @Override
                 protected FDate extractEndTime(final V element) {
                     return ADataUpdater.this.extractEndTime(element);
                 }
@@ -219,8 +214,6 @@ public abstract class ADataUpdater<K, V> {
     protected abstract String keyToString(K key);
 
     protected abstract String getElementsName();
-
-    protected abstract FDate extractTime(V element);
 
     protected abstract FDate extractEndTime(V element);
 

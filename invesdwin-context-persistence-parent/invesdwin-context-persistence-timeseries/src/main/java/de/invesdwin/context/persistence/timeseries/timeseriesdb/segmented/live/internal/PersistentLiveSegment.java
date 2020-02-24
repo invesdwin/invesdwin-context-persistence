@@ -122,7 +122,8 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
-    public void close() {}
+    public void close() {
+    }
 
     @Deprecated
     @Override
@@ -154,14 +155,11 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
 
             @Override
-            protected void onUpdateFinished(final Instant updateStart) {}
+            protected void onUpdateFinished(final Instant updateStart) {
+            }
 
             @Override
-            protected void onUpdateStart() {}
-
-            @Override
-            protected FDate extractTime(final V element) {
-                return historicalSegmentTable.extractTime(element);
+            protected void onUpdateStart() {
             }
 
             @Override
@@ -171,7 +169,8 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
 
             @Override
             protected void onFlush(final int flushIndex, final Instant flushStart,
-                    final ATimeSeriesUpdater<SegmentedKey<K>, V>.UpdateProgress updateProgress) {}
+                    final ATimeSeriesUpdater<SegmentedKey<K>, V>.UpdateProgress updateProgress) {
+            }
 
             @Override
             protected boolean shouldRedoLastFile() {

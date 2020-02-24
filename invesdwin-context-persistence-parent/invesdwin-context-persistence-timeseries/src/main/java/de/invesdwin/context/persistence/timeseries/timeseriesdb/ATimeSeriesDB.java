@@ -67,7 +67,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
                         new Function<V, FDate>() {
                             @Override
                             public FDate apply(final V input) {
-                                return extractTime(input);
+                                return extractEndTime(input);
                             }
                         });
             }
@@ -142,7 +142,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
     protected abstract Serde<V> newValueSerde();
 
-    protected abstract FDate extractTime(V value);
+    protected abstract FDate extractEndTime(V value);
 
     @Override
     public ICloseableIterable<V> rangeValues(final K key, final FDate from, final FDate to) {
@@ -177,7 +177,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         if (value == null) {
             return null;
         } else {
-            return extractTime(value);
+            return extractEndTime(value);
         }
     }
 
@@ -202,7 +202,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         if (value == null) {
             return null;
         } else {
-            return extractTime(value);
+            return extractEndTime(value);
         }
     }
 
@@ -238,7 +238,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         if (value == null) {
             return null;
         } else {
-            return extractTime(value);
+            return extractEndTime(value);
         }
     }
 

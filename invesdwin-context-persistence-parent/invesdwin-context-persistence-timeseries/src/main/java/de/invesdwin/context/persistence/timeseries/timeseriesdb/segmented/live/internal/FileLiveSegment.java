@@ -125,8 +125,8 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         return new ATimeRangeSkippingIterable<V>(from, to, getFlushedValues()) {
 
             @Override
-            protected FDate extractTime(final V element) {
-                return historicalSegmentTable.extractTime(element);
+            protected FDate extractEndTime(final V element) {
+                return historicalSegmentTable.extractEndTime(element);
             }
 
             @Override
@@ -167,8 +167,8 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         return new ATimeRangeSkippingIterable<V>(from, to, getFlushedValues().reverseIterable()) {
 
             @Override
-            protected FDate extractTime(final V element) {
-                return historicalSegmentTable.extractTime(element);
+            protected FDate extractEndTime(final V element) {
+                return historicalSegmentTable.extractEndTime(element);
             }
 
             @Override

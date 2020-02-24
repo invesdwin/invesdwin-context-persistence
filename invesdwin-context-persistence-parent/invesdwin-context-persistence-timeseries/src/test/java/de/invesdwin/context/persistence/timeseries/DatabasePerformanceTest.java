@@ -148,7 +148,7 @@ public class DatabasePerformanceTest extends ATest {
             }
 
             @Override
-            protected FDate extractTime(final FDate value) {
+            protected FDate extractEndTime(final FDate value) {
                 return value;
             }
         };
@@ -167,11 +167,7 @@ public class DatabasePerformanceTest extends ATest {
             }
 
             @Override
-            protected void onUpdateStart() {}
-
-            @Override
-            protected FDate extractTime(final FDate element) {
-                return element;
+            protected void onUpdateStart() {
             }
 
             @Override

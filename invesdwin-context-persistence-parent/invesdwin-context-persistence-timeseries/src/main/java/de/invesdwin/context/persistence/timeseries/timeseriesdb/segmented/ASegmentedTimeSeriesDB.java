@@ -120,7 +120,8 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         return null;
     }
 
-    protected void onSegmentCompleted(final SegmentedKey<K> segmentedKey, final ICloseableIterable<V> segmentValues) {}
+    protected void onSegmentCompleted(final SegmentedKey<K> segmentedKey, final ICloseableIterable<V> segmentValues) {
+    }
 
     protected abstract String getElementsName();
 
@@ -151,8 +152,6 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
     protected abstract Integer newFixedLength();
 
     protected abstract Serde<V> newValueSerde();
-
-    protected abstract FDate extractTime(V value);
 
     protected abstract FDate extractEndTime(V value);
 
@@ -249,7 +248,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         if (value == null) {
             return null;
         } else {
-            return extractTime(value);
+            return extractEndTime(value);
         }
     }
 
@@ -276,7 +275,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         if (value == null) {
             return null;
         } else {
-            return extractTime(value);
+            return extractEndTime(value);
         }
     }
 
@@ -301,7 +300,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         if (value == null) {
             return null;
         } else {
-            return extractTime(value);
+            return extractEndTime(value);
         }
     }
 
@@ -475,10 +474,6 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         }
 
         @Override
-        public FDate extractTime(final V value) {
-            return ASegmentedTimeSeriesDB.this.extractTime(value);
-        }
-
         public FDate extractEndTime(final V value) {
             return ASegmentedTimeSeriesDB.this.extractEndTime(value);
         }

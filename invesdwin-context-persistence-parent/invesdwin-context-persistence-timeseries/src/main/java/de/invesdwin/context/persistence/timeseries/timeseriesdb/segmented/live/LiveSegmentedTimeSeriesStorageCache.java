@@ -175,7 +175,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
             final Function<FDate, V> latestValueProvider = latestValueProviders.get(i);
             final V newValue = latestValueProvider.apply(date);
             if (newValue != null) {
-                final FDate newValueTime = historicalSegmentTable.extractTime(newValue);
+                final FDate newValueTime = historicalSegmentTable.extractEndTime(newValue);
                 if (newValueTime.isBeforeOrEqualTo(date)) {
                     /*
                      * even if we got the first value in this segment and it is after the desired key we just continue
@@ -262,7 +262,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
     }
 
     public void putNextLiveValue(final V nextLiveValue) {
-        final FDate nextLiveKey = historicalSegmentTable.extractTime(nextLiveValue);
+        final FDate nextLiveKey = historicalSegmentTable.extractEndTime(nextLiveValue);
         final FDate lastAvailableHistoricalSegmentTo = historicalSegmentTable.getLastAvailableHistoricalSegmentTo(key,
                 nextLiveKey);
         final TimeRange segment = historicalSegmentTable.getSegmentFinder(key).query().getValue(nextLiveKey);
