@@ -304,29 +304,31 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             public ICloseableIterator<TimeRange> iterator() {
                 return new ICloseableIterator<TimeRange>() {
 
-                    private TimeRange curSegment = getSegmentFinder(key).query().getValue(adjFrom);
+                    private TimeRange nextSegment = getSegmentFinder(key).query().getValue(adjFrom);
 
                     @Override
                     public boolean hasNext() {
-                        return curSegment != null && curSegment.getFrom().isBeforeOrEqualTo(adjTo);
+                        return nextSegment != null && nextSegment.getFrom().isBeforeOrEqualTo(adjTo);
                     }
 
                     @Override
                     public TimeRange next() {
-                        final TimeRange next = curSegment;
+                        final TimeRange curSegment = nextSegment;
                         //get one segment later
-                        final FDate nextSegmentStart = curSegment.getTo().addMilliseconds(1);
-                        curSegment = getSegmentFinder(key).query().getValue(nextSegmentStart);
-                        if (!nextSegmentStart.equals(curSegment.getFrom())) {
-                            throw new IllegalStateException("Segment start expected [" + nextSegmentStart
-                                    + "] != found [" + curSegment.getFrom() + "]");
+                        final FDate nextSegmentStart = nextSegment.getTo().addMilliseconds(1);
+                        nextSegment = getSegmentFinder(key).query().getValue(nextSegmentStart);
+                        if (!curSegment.getTo().equalsNotNullSafe(nextSegment.getFrom())
+                                && !nextSegmentStart.equals(nextSegment.getFrom())) {
+                            //allow overlapping segments
+                            throw new IllegalStateException("Segment start expected [" + curSegment.getTo() + " or "
+                                    + nextSegmentStart + "] != found [" + nextSegment.getFrom() + "]");
                         }
-                        return next;
+                        return curSegment;
                     }
 
                     @Override
                     public void close() {
-                        curSegment = null;
+                        nextSegment = null;
                     }
                 };
             }
@@ -648,30 +650,30 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             public ICloseableIterator<TimeRange> iterator() {
                 return new ICloseableIterator<TimeRange>() {
 
-                    private TimeRange curSegment = getSegmentFinder(key).query().getValue(adjFrom);
+                    private TimeRange nextSegment = getSegmentFinder(key).query().getValue(adjFrom);
 
                     @Override
                     public boolean hasNext() {
-                        return curSegment != null && curSegment.getTo().isAfter(adjTo);
+                        return nextSegment != null && nextSegment.getTo().isAfter(adjTo);
                     }
 
                     @Override
                     public TimeRange next() {
-                        final TimeRange next = curSegment;
-                        if (next == null) {
+                        final TimeRange curSegment = nextSegment;
+                        if (curSegment == null) {
                             throw new FastNoSuchElementException(
                                     "ASegmentedTimeSeriesStorageCache getSegments end reached null");
                         }
                         //get one segment earlier
-                        curSegment = getSegmentFinder(key).query()
+                        nextSegment = getSegmentFinder(key).query()
                                 .withFutureNull()
-                                .getValue(curSegment.getFrom().addMilliseconds(-1));
-                        return next;
+                                .getValue(nextSegment.getFrom().addMilliseconds(-1));
+                        return curSegment;
                     }
 
                     @Override
                     public void close() {
-                        curSegment = null;
+                        nextSegment = null;
                     }
                 };
             }
