@@ -520,9 +520,16 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             final FDate minTime = updater.getMinTime();
             if (minTime != null) {
                 final FDate segmentFrom = segmentedKey.getSegment().getFrom();
-                if (minTime.isBefore(segmentFrom)) {
-                    throw new IllegalStateException(segmentedKey + ": minTime [" + minTime
-                            + "] should not be before segmentFrom [" + segmentFrom + "]");
+                final TimeRange prevSegment = getSegmentFinder(segmentedKey.getKey()).query()
+                        .getValue(segmentFrom.addMilliseconds(-1));
+                if (prevSegment.getTo().equalsNotNullSafe(segmentFrom) && minTime.isBeforeOrEqualTo(segmentFrom)) {
+                    throw new IllegalStateException(
+                            segmentedKey + ": minTime [" + minTime + "] should not be before or equal to segmentFrom ["
+                                    + segmentFrom + "] when overlapping segments are used");
+                } else if (minTime.isBefore(segmentFrom)) {
+                    throw new IllegalStateException(
+                            segmentedKey + ": minTime [" + minTime + "] should not be before segmentFrom ["
+                                    + segmentFrom + "] when non overlapping segments are used");
                 }
                 final FDate maxTime = updater.getMaxTime();
                 final FDate segmentTo = segmentedKey.getSegment().getTo();
