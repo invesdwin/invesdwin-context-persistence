@@ -176,14 +176,14 @@ public class ATimeSeriesDBWithLimitedCacheTest extends ATest {
             Assertions.assertThat(cache.query().withFuture().getValue(entity.addYears(-5))).isNotNull();
         }
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(4);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(6);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
 
         //again in the same limit
         for (final FDate entity : entities) {
             Assertions.assertThat(cache.query().getValue(entity.addDays(2))).isNotNull();
         }
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(6);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
 
         //simulate cache eviction
         cache.clear();
@@ -195,14 +195,14 @@ public class ATimeSeriesDBWithLimitedCacheTest extends ATest {
             Assertions.assertThat(cache.query().getValue(entity.addDays(2))).isNotNull();
         }
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(9);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(10);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(11);
 
         //random order
         for (final FDate entity : new HashSet<FDate>(entities)) {
             Assertions.assertThat(cache.query().getValue(entity.addDays(2))).isNotNull();
         }
         Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(14);
-        Assertions.assertThat(countReadNewestValueTo).isLessThanOrEqualTo(18);
+        Assertions.assertThat(countReadNewestValueTo).isLessThanOrEqualTo(19);
     }
 
     @Test
@@ -232,14 +232,14 @@ public class ATimeSeriesDBWithLimitedCacheTest extends ATest {
             Assertions.assertThat(cache.query().withFuture().getValue(entity.addYears(-5))).isNotNull();
         }
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(10);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(6);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
 
         //again in the same limit
         for (final FDate entity : entities) {
             Assertions.assertThat(cache.query().getValue(entity.addDays(2))).isNotNull();
         }
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(15);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(6);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
 
         //simulate cache eviction
         cache.clear();
@@ -251,14 +251,14 @@ public class ATimeSeriesDBWithLimitedCacheTest extends ATest {
             Assertions.assertThat(cache.query().getValue(entity.addDays(2))).isNotNull();
         }
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(27);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(10);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(11);
 
         //random order
         for (final FDate entity : new HashSet<FDate>(entities)) {
             Assertions.assertThat(cache.query().getValue(entity.addDays(2))).isNotNull();
         }
         Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(37);
-        Assertions.assertThat(countReadNewestValueTo).isLessThanOrEqualTo(26);
+        Assertions.assertThat(countReadNewestValueTo).isLessThanOrEqualTo(27);
     }
 
     @Test
