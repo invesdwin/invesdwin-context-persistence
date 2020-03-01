@@ -295,10 +295,19 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         return rangeValues;
     }
 
-    private ICloseableIterable<TimeRange> getSegments(final FDate adjFrom, final FDate adjTo) {
-        if (adjFrom == null || adjTo == null) {
+    private ICloseableIterable<TimeRange> getSegments(final FDate from, final FDate to) {
+        if (from == null || to == null) {
             return EmptyCloseableIterable.getInstance();
         }
+        final TimeRange nextSegment = getSegmentFinder(key).query().getValue(to.addMilliseconds(1));
+        final FDate adjTo;
+        if (nextSegment.getFrom().equals(to)) {
+            //adjust for overlapping segments
+            adjTo = to.addMilliseconds(-1);
+        } else {
+            adjTo = to;
+        }
+        final FDate adjFrom = from;
         final ICloseableIterable<TimeRange> segments = new ICloseableIterable<TimeRange>() {
             @Override
             public ICloseableIterator<TimeRange> iterator() {
@@ -648,10 +657,19 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         return rangeValues;
     }
 
-    private ICloseableIterable<TimeRange> getSegmentsReverse(final FDate adjFrom, final FDate adjTo) {
-        if (adjFrom == null || adjTo == null) {
+    private ICloseableIterable<TimeRange> getSegmentsReverse(final FDate from, final FDate to) {
+        if (from == null || to == null) {
             return EmptyCloseableIterable.getInstance();
         }
+        final TimeRange nextSegment = getSegmentFinder(key).query().getValue(from.addMilliseconds(1));
+        final FDate adjFrom;
+        if (nextSegment.getFrom().equals(to)) {
+            //adjust for overlapping segments
+            adjFrom = from.addMilliseconds(-1);
+        } else {
+            adjFrom = from;
+        }
+        final FDate adjTo = to;
         final ICloseableIterable<TimeRange> segments = new ICloseableIterable<TimeRange>() {
             @Override
             public ICloseableIterator<TimeRange> iterator() {
