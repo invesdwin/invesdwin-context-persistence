@@ -847,7 +847,13 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             if (firstAvailableSegmentFrom == null) {
                 cachedFirstValue = Optional.empty();
             } else {
-                final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key, null);
+                FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key, null);
+                final TimeRange nextSegment = getSegmentFinder(key).query()
+                        .getValue(lastAvailableSegmentTo.addMilliseconds(1));
+                if (nextSegment.getFrom().equals(lastAvailableSegmentTo)) {
+                    //adjust for overlapping segments
+                    lastAvailableSegmentTo = lastAvailableSegmentTo.addMilliseconds(-1);
+                }
                 final IHistoricalCacheQuery<TimeRange> segmentFinderQuery = getSegmentFinder(key).query();
                 final TimeRange lastSegment = segmentFinderQuery.getValue(lastAvailableSegmentTo);
                 TimeRange segment = segmentFinderQuery.getValue(firstAvailableSegmentFrom);
