@@ -663,7 +663,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         }
         final TimeRange nextSegment = getSegmentFinder(key).query().getValue(from.addMilliseconds(1));
         final FDate adjFrom;
-        if (nextSegment.getFrom().equals(to)) {
+        if (nextSegment.getFrom().equals(from)) {
             //adjust for overlapping segments
             adjFrom = from.addMilliseconds(-1);
         } else {
