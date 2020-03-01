@@ -90,7 +90,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                             //already adjusted on the outside
                             final FDate adjFrom = input.getSecond();
                             final FDate adjTo = firstAvailableSegmentFrom;
-                            final ICloseableIterable<TimeRange> segmentsReverse = getSegmentsReverse(adjFrom, adjTo);
+                            final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key, adjFrom);
+                            final ICloseableIterable<TimeRange> segmentsReverse = getSegmentsReverse(adjFrom, adjTo,
+                                    lastAvailableSegmentTo);
                             try (ICloseableIterator<TimeRange> it = segmentsReverse.iterator()) {
                                 V latestValue = null;
                                 while (it.hasNext()) {
@@ -271,7 +273,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         //adjust dates directly to prevent unnecessary segment calculations
         final FDate adjFrom = FDates.max(from, firstAvailableSegmentFrom);
         final FDate adjTo = FDates.min(to, lastAvailableSegmentTo);
-        final ICloseableIterable<TimeRange> segments = getSegments(adjFrom, adjTo);
+        final ICloseableIterable<TimeRange> segments = getSegments(adjFrom, adjTo, lastAvailableSegmentTo);
         final ATransformingCloseableIterable<TimeRange, ICloseableIterable<V>> segmentQueries = new ATransformingCloseableIterable<TimeRange, ICloseableIterable<V>>(
                 segments) {
             @Override
@@ -295,13 +297,14 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         return rangeValues;
     }
 
-    private ICloseableIterable<TimeRange> getSegments(final FDate from, final FDate to) {
+    private ICloseableIterable<TimeRange> getSegments(final FDate from, final FDate to,
+            final FDate lastAvailableSegmentTo) {
         if (from == null || to == null) {
             return EmptyCloseableIterable.getInstance();
         }
         final TimeRange nextSegment = getSegmentFinder(key).query().getValue(to.addMilliseconds(1));
         final FDate adjTo;
-        if (nextSegment.getFrom().equals(to)) {
+        if (to.equalsNotNullSafe(lastAvailableSegmentTo) && nextSegment.getFrom().equalsNotNullSafe(to)) {
             //adjust for overlapping segments
             adjTo = to.addMilliseconds(-1);
         } else {
@@ -632,7 +635,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         //adjust dates directly to prevent unnecessary segment calculations
         final FDate adjFrom = FDates.min(from, lastAvailableSegmentTo);
         final FDate adjTo = FDates.max(to, firstAvailableSegmentFrom);
-        final ICloseableIterable<TimeRange> filteredSegments = getSegmentsReverse(adjFrom, adjTo);
+        final ICloseableIterable<TimeRange> filteredSegments = getSegmentsReverse(adjFrom, adjTo,
+                lastAvailableSegmentTo);
         final ATransformingCloseableIterable<TimeRange, ICloseableIterable<V>> segmentQueries = new ATransformingCloseableIterable<TimeRange, ICloseableIterable<V>>(
                 filteredSegments) {
             @Override
@@ -657,13 +661,14 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         return rangeValues;
     }
 
-    private ICloseableIterable<TimeRange> getSegmentsReverse(final FDate from, final FDate to) {
+    private ICloseableIterable<TimeRange> getSegmentsReverse(final FDate from, final FDate to,
+            final FDate lastAvailableSegmentTo) {
         if (from == null || to == null) {
             return EmptyCloseableIterable.getInstance();
         }
         final TimeRange nextSegment = getSegmentFinder(key).query().getValue(from.addMilliseconds(1));
         final FDate adjFrom;
-        if (nextSegment.getFrom().equals(from)) {
+        if (from.equalsNotNullSafe(lastAvailableSegmentTo) && nextSegment.getFrom().equalsNotNullSafe(from)) {
             //adjust for overlapping segments
             adjFrom = from.addMilliseconds(-1);
         } else {
