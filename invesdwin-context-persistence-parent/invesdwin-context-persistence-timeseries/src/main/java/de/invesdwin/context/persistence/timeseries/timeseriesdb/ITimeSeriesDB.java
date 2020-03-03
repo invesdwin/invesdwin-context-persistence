@@ -25,24 +25,40 @@ public interface ITimeSeriesDB<K, V> extends Closeable {
     FDate getLatestValueKey(K key, FDate date);
 
     /**
-     * 0 is invalid, 1 means current value, 2 means previous value
+     * Jumps the specified shiftBackUnits to the past instead of only one unit. 0 results in current value.
+     * 
+     * key is inclusive
+     * 
+     * index 0 is the current value (below or equal to key), index 1 the previous value and so on
      */
     V getPreviousValue(K key, FDate date, int shiftBackUnits);
 
     /**
-     * 0 is invalid, 1 means current value, 2 means previous value
+     * Jumps the specified shiftBackUnits to the past instead of only one unit. 0 results in current value.
+     * 
+     * key is inclusive
+     * 
+     * index 0 is the current value (below or equal to key), index 1 the previous value and so on
      */
     FDate getPreviousValueKey(K key, FDate date, int shiftBackUnits);
 
     boolean isEmptyOrInconsistent(K key);
 
     /**
-     * 0 is invalid, 1 means current value, 2 means next value
+     * Jumps the specified shiftForwardUnits to the future instead of only one unit.
+     * 
+     * key is inclusive
+     * 
+     * index 0 is the current value (above or equal to key), index 1 the next value and so on
      */
     V getNextValue(K key, FDate date, int shiftForwardUnits);
 
     /**
-     * 0 is invalid, 1 means current value, 2 means next value
+     * Jumps the specified shiftForwardUnits to the future instead of only one unit.
+     * 
+     * key is inclusive
+     * 
+     * index 0 is the current value (above or equal to key), index 1 the next value and so on
      */
     FDate getNextValueKey(K key, FDate date, int shiftForwardUnits);
 

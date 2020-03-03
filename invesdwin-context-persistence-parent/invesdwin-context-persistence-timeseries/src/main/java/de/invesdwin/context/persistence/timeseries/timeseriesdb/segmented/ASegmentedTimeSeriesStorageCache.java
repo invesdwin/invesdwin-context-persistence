@@ -167,7 +167,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                                                     return skip;
                                                 }
                                             }).iterator()) {
-                                        while (shiftBackRemaining.intValue() > 0) {
+                                        while (shiftBackRemaining.intValue() >= 0) {
                                             previousValue.set(rangeValuesReverse.next());
                                             shiftBackRemaining.decrement();
                                         }
@@ -218,7 +218,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                                                     return skip;
                                                 }
                                             }).iterator()) {
-                                        while (shiftForwardRemaining.intValue() > 0) {
+                                        while (shiftForwardRemaining.intValue() >= 0) {
                                             nextValue.set(rangeValues.next());
                                             shiftForwardRemaining.decrement();
                                         }
@@ -833,8 +833,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     }
 
     private void assertShiftUnitsPositiveNonZero(final int shiftUnits) {
-        if (shiftUnits <= 0) {
-            throw new IllegalArgumentException("shiftUnits needs to be a positive non zero value: " + shiftUnits);
+        if (shiftUnits < 0) {
+            throw new IllegalArgumentException("shiftUnits needs to be a positive or zero value: " + shiftUnits);
         }
     }
 

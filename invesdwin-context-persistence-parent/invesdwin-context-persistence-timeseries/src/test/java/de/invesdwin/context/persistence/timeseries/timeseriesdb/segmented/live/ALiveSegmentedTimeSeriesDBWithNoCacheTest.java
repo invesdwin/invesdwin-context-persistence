@@ -175,33 +175,33 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheTest extends ATest {
 
     @Test
     public void testGetPreviousAndNextWithTable() {
-        for (int i = 1; i < entities.size(); i++) {
+        for (int i = 0; i < entities.size(); i++) {
             final FDate value = table.getPreviousValue(KEY, entities.get(entities.size() - 1), i);
-            final FDate expectedValue = entities.get(entities.size() - i);
+            final FDate expectedValue = entities.get(entities.size() - i - 1);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
-        for (int i = 1; i < entities.size(); i++) {
+        for (int i = 0; i < entities.size(); i++) {
             final FDate value = table.getPreviousValue(KEY, FDate.MAX_DATE, i);
-            final FDate expectedValue = entities.get(entities.size() - i);
+            final FDate expectedValue = entities.get(entities.size() - i - 1);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
-        for (int i = 1; i < entities.size(); i++) {
+        for (int i = 0; i < entities.size(); i++) {
             final FDate value = table.getPreviousValue(KEY, FDate.MIN_DATE, i);
             final FDate expectedValue = entities.get(0);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
 
-        for (int i = 1; i < entities.size(); i++) {
+        for (int i = 0; i < entities.size(); i++) {
             final FDate value = table.getNextValue(KEY, entities.get(0), i);
-            final FDate expectedValue = entities.get(i - 1);
+            final FDate expectedValue = entities.get(i);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
-        for (int i = 1; i < entities.size(); i++) {
+        for (int i = 0; i < entities.size(); i++) {
             final FDate value = table.getNextValue(KEY, FDate.MIN_DATE, i);
-            final FDate expectedValue = entities.get(i - 1);
+            final FDate expectedValue = entities.get(i);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
-        for (int i = 1; i < entities.size(); i++) {
+        for (int i = 0; i < entities.size(); i++) {
             final FDate value = table.getNextValue(KEY, FDate.MAX_DATE, i);
             final FDate expectedValue = entities.get(entities.size() - 1);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
@@ -1575,12 +1575,12 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheTest extends ATest {
 
         @Override
         protected FDate innerCalculatePreviousKey(final FDate key) {
-            return table.getPreviousValueKey(KEY, key.addMilliseconds(-1), 1);
+            return table.getPreviousValueKey(KEY, key.addMilliseconds(-1), 0);
         }
 
         @Override
         protected FDate innerCalculateNextKey(final FDate key) {
-            return table.getNextValueKey(KEY, key.addMilliseconds(1), 1);
+            return table.getNextValueKey(KEY, key.addMilliseconds(1), 0);
         }
 
     }

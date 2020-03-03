@@ -172,13 +172,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
                             return skip;
                         }
                     }).iterator()) {
-                final V firstValue = rangeValues.next();
-                nextValue.set(firstValue);
-                final FDate firstTime = historicalSegmentTable.extractEndTime(firstValue);
-                if (!date.equals(firstTime)) {
-                    shiftForwardRemaining.decrement();
-                }
-                while (shiftForwardRemaining.intValue() > 0) {
+                while (shiftForwardRemaining.intValue() >= 0) {
                     nextValue.set(rangeValues.next());
                     shiftForwardRemaining.decrement();
                 }

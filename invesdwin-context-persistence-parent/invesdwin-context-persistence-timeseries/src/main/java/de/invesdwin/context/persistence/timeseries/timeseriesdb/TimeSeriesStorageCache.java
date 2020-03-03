@@ -157,13 +157,7 @@ public class TimeSeriesStorageCache<K, V> {
                                                     return skip;
                                                 }
                                             })) {
-                                        final V firstValue = rangeValuesReverse.next();
-                                        previousValue.set(firstValue);
-                                        final FDate firstTime = extractEndTime.apply(firstValue);
-                                        if (!date.equals(firstTime)) {
-                                            shiftBackRemaining.decrement();
-                                        }
-                                        while (shiftBackRemaining.intValue() > 0) {
+                                        while (shiftBackRemaining.intValue() >= 0) {
                                             previousValue.set(rangeValuesReverse.next());
                                             shiftBackRemaining.decrement();
                                         }
@@ -214,13 +208,7 @@ public class TimeSeriesStorageCache<K, V> {
                                                     return skip;
                                                 }
                                             })) {
-                                        final V firstValue = rangeValues.next();
-                                        nextValue.set(firstValue);
-                                        final FDate firstTime = extractEndTime.apply(firstValue);
-                                        if (!date.equals(firstTime)) {
-                                            shiftForwardRemaining.decrement();
-                                        }
-                                        while (shiftForwardRemaining.intValue() > 0) {
+                                        while (shiftForwardRemaining.intValue() >= 0) {
                                             nextValue.set(rangeValues.next());
                                             shiftForwardRemaining.decrement();
                                         }
@@ -779,8 +767,8 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     private void assertShiftUnitsPositiveNonZero(final int shiftUnits) {
-        if (shiftUnits <= 0) {
-            throw new IllegalArgumentException("shiftUnits needs to be a positive non zero value: " + shiftUnits);
+        if (shiftUnits < 0) {
+            throw new IllegalArgumentException("shiftUnits needs to be a positive or zero value: " + shiftUnits);
         }
     }
 

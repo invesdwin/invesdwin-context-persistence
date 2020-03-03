@@ -215,7 +215,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
                             return skip;
                         }
                     }).iterator()) {
-                while (shiftBackRemaining.intValue() > 0) {
+                while (shiftBackRemaining.intValue() >= 0) {
                     previousValue.set(rangeValuesReverse.next());
                     shiftBackRemaining.decrement();
                 }
@@ -250,7 +250,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
                             return skip;
                         }
                     }).iterator()) {
-                while (shiftForwardRemaining.intValue() > 0) {
+                while (shiftForwardRemaining.intValue() >= 0) {
                     nextValue.set(rangeValues.next());
                     shiftForwardRemaining.decrement();
                 }
