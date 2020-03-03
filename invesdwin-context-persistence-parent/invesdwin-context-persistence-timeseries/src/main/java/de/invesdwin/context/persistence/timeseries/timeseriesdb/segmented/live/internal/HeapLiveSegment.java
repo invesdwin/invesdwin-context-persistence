@@ -15,7 +15,7 @@ import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.A
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ASkippingIterable;
-import de.invesdwin.util.collections.iterable.ATransformingCloseableIterable;
+import de.invesdwin.util.collections.iterable.ATransformingIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
@@ -81,7 +81,7 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
                 }
             };
         }
-        final ATransformingCloseableIterable<Entry<Long, V>, V> transforming = new ATransformingCloseableIterable<Entry<Long, V>, V>(
+        final ATransformingIterable<Entry<Long, V>, V> transforming = new ATransformingIterable<Entry<Long, V>, V>(
                 skipping) {
             @Override
             protected V transform(final Entry<Long, V> value) {
@@ -121,7 +121,7 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
             };
         }
 
-        final ATransformingCloseableIterable<Entry<Long, V>, V> transforming = new ATransformingCloseableIterable<Entry<Long, V>, V>(
+        final ATransformingIterable<Entry<Long, V>, V> transforming = new ATransformingIterable<Entry<Long, V>, V>(
                 skipping) {
             @Override
             protected V transform(final Entry<Long, V> value) {

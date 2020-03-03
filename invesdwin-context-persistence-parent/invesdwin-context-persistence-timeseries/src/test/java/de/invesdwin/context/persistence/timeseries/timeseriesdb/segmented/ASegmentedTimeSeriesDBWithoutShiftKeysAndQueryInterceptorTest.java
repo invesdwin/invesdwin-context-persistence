@@ -20,7 +20,7 @@ import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.iterable.ASkippingIterable;
-import de.invesdwin.util.collections.iterable.ATransformingCloseableIterable;
+import de.invesdwin.util.collections.iterable.ATransformingIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
@@ -149,6 +149,284 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
         super.tearDown();
         table.deleteRange(KEY);
         table.close();
+    }
+
+    @Test
+    public void testGetPreviousAndNextWithTable() {
+        for (int i = 1; i < entities.size(); i++) {
+            final FDate value = table.getPreviousValue(KEY, entities.get(entities.size() - 1), i);
+            final FDate expectedValue = entities.get(entities.size() - i - 1);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 1; i < entities.size(); i++) {
+            final FDate value = table.getPreviousValue(KEY, FDate.MAX_DATE, i);
+            final FDate expectedValue = entities.get(entities.size() - i);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 1; i < entities.size(); i++) {
+            final FDate value = table.getPreviousValue(KEY, FDate.MIN_DATE, i);
+            final FDate expectedValue = entities.get(0);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+
+        for (int i = 1; i < entities.size(); i++) {
+            final FDate value = table.getNextValue(KEY, entities.get(0), i);
+            final FDate expectedValue = entities.get(i);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 1; i < entities.size(); i++) {
+            final FDate value = table.getNextValue(KEY, FDate.MIN_DATE, i);
+            final FDate expectedValue = entities.get(i - 1);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 1; i < entities.size(); i++) {
+            final FDate value = table.getNextValue(KEY, FDate.MAX_DATE, i);
+            final FDate expectedValue = entities.get(entities.size() - 1);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+    }
+
+    @Test
+    public void testGetPreviousAndNextValue() {
+        for (int i = 0; i < entities.size(); i++) {
+            final FDate value = cache.query().getPreviousValue(entities.get(entities.size() - 1), i);
+            final FDate expectedValue = entities.get(entities.size() - i - 1);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 0; i < entities.size(); i++) {
+            final FDate value = cache.query().getPreviousValue(FDate.MAX_DATE, i);
+            final FDate expectedValue = entities.get(entities.size() - i - 1);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 0; i < entities.size(); i++) {
+            final FDate value = cache.query().withFuture().getPreviousValue(FDate.MIN_DATE, i);
+            final FDate expectedValue = null; //filtering query removes the result because it is not a previous result
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+
+        for (int i = 0; i < entities.size(); i++) {
+            final FDate value = cache.query().withFuture().getNextValue(entities.get(0), i);
+            final FDate expectedValue = entities.get(i);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 0; i < entities.size(); i++) {
+            final FDate value = cache.query().withFuture().getNextValue(FDate.MIN_DATE, i);
+            final FDate expectedValue = entities.get(i);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 0; i < entities.size(); i++) {
+            final FDate value = cache.query().withFuture().getNextValue(FDate.MAX_DATE, i);
+            final FDate expectedValue = null; //filtering query removes the result because it is not a previous result
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+    }
+
+    @Test
+    public void testGetPreviousAndNextValues() {
+        for (int i = 1; i < entities.size(); i++) {
+            final List<FDate> value = Lists
+                    .toListWithoutHasNext(cache.query().getPreviousValues(entities.get(entities.size() - 1), i));
+            final List<FDate> expectedValue = entities.subList(entities.size() - i, entities.size());
+            Assertions.checkEquals(expectedValue.size(), i);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 1; i < entities.size(); i++) {
+            final List<FDate> value = Lists.toListWithoutHasNext(cache.query().getPreviousValues(FDate.MAX_DATE, i));
+            final List<FDate> expectedValue = entities.subList(entities.size() - i, entities.size());
+            Assertions.checkEquals(expectedValue.size(), i);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 1; i < entities.size(); i++) {
+            final List<FDate> value = Lists
+                    .toListWithoutHasNext(cache.query().withFuture().getPreviousValues(FDate.MIN_DATE, i));
+            final List<FDate> expectedValue = Collections.emptyList(); //filtering query removes the result because it is not a previous result
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+
+        for (int i = 1; i < entities.size(); i++) {
+            final List<FDate> value = Lists
+                    .toListWithoutHasNext(cache.query().withFuture().getNextValues(entities.get(0), i));
+            final List<FDate> expectedValue = entities.subList(0, i);
+            Assertions.checkEquals(expectedValue.size(), i);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 1; i < entities.size(); i++) {
+            final List<FDate> value = Lists
+                    .toListWithoutHasNext(cache.query().withFuture().getNextValues(FDate.MIN_DATE, i));
+            final List<FDate> expectedValue = entities.subList(0, i);
+            Assertions.checkEquals(expectedValue.size(), i);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 1; i < entities.size(); i++) {
+            final List<FDate> value = Lists
+                    .toListWithoutHasNext(cache.query().withFuture().getNextValues(FDate.MAX_DATE, i));
+            final List<FDate> expectedValue = Collections.emptyList(); //filtering query removes the result because it is not a previous result
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+    }
+
+    @Test
+    public void testGetPreviousAndNextKeys() {
+        for (int i = 1; i < entities.size(); i++) {
+            final List<FDate> value = Lists
+                    .toListWithoutHasNext(cache.query().getPreviousKeys(entities.get(entities.size() - 1), i));
+            final List<FDate> expectedValue = entities.subList(entities.size() - i, entities.size());
+            Assertions.checkEquals(expectedValue.size(), i);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 1; i < entities.size(); i++) {
+            final List<FDate> value = Lists.toListWithoutHasNext(cache.query().getPreviousKeys(FDate.MAX_DATE, i));
+            final List<FDate> expectedValue = entities.subList(entities.size() - i, entities.size());
+            Assertions.checkEquals(expectedValue.size(), i);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 1; i < entities.size(); i++) {
+            final List<FDate> value = Lists
+                    .toListWithoutHasNext(cache.query().withFuture().getPreviousKeys(FDate.MIN_DATE, i));
+            final List<FDate> expectedValue = Collections.emptyList(); //filtering query removes the result because it is not a previous result
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+
+        for (int i = 1; i < entities.size(); i++) {
+            final List<FDate> value = Lists
+                    .toListWithoutHasNext(cache.query().withFuture().getNextKeys(entities.get(0), i));
+            final List<FDate> expectedValue = entities.subList(0, i);
+            Assertions.checkEquals(expectedValue.size(), i);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 1; i < entities.size(); i++) {
+            final List<FDate> value = Lists
+                    .toListWithoutHasNext(cache.query().withFuture().getNextKeys(FDate.MIN_DATE, i));
+            final List<FDate> expectedValue = entities.subList(0, i);
+            Assertions.checkEquals(expectedValue.size(), i);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 1; i < entities.size(); i++) {
+            final List<FDate> value = Lists
+                    .toListWithoutHasNext(cache.query().withFuture().getNextKeys(FDate.MAX_DATE, i));
+            final List<FDate> expectedValue = Collections.emptyList(); //filtering query removes the result because it is not a previous result
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+    }
+
+    @Test
+    public void testGetPreviousAndNextEntries() {
+        for (int i = 1; i < entities.size(); i++) {
+            final List<FDate> value = Lists.toListWithoutHasNext(IHistoricalEntry
+                    .unwrapEntryValues(cache.query().getPreviousEntries(entities.get(entities.size() - 1), i)));
+            final List<FDate> expectedValue = entities.subList(entities.size() - i, entities.size());
+            Assertions.checkEquals(expectedValue.size(), i);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 1; i < entities.size(); i++) {
+            final List<FDate> value = Lists.toListWithoutHasNext(
+                    IHistoricalEntry.unwrapEntryValues(cache.query().getPreviousEntries(FDate.MAX_DATE, i)));
+            final List<FDate> expectedValue = entities.subList(entities.size() - i, entities.size());
+            Assertions.checkEquals(expectedValue.size(), i);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 1; i < entities.size(); i++) {
+            final List<FDate> value = Lists.toListWithoutHasNext(IHistoricalEntry
+                    .unwrapEntryValues(cache.query().withFuture().getPreviousEntries(FDate.MIN_DATE, i)));
+            final List<FDate> expectedValue = Collections.emptyList(); //filtering query removes the result because it is not a previous result
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+
+        for (int i = 1; i < entities.size(); i++) {
+            final List<FDate> value = Lists.toListWithoutHasNext(
+                    IHistoricalEntry.unwrapEntryValues(cache.query().withFuture().getNextEntries(entities.get(0), i)));
+            final List<FDate> expectedValue = entities.subList(0, i);
+            Assertions.checkEquals(expectedValue.size(), i);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 1; i < entities.size(); i++) {
+            final List<FDate> value = Lists.toListWithoutHasNext(
+                    IHistoricalEntry.unwrapEntryValues(cache.query().withFuture().getNextEntries(FDate.MIN_DATE, i)));
+            final List<FDate> expectedValue = entities.subList(0, i);
+            Assertions.checkEquals(expectedValue.size(), i);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 1; i < entities.size(); i++) {
+            final List<FDate> value = Lists.toListWithoutHasNext(
+                    IHistoricalEntry.unwrapEntryValues(cache.query().withFuture().getNextEntries(FDate.MAX_DATE, i)));
+            final List<FDate> expectedValue = Collections.emptyList(); //filtering query removes the result because it is not a previous result
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+    }
+
+    @Test
+    public void testGetPreviousAndNextKey() {
+        for (int i = 0; i < entities.size(); i++) {
+            final FDate value = cache.query().getPreviousKey(entities.get(entities.size() - 1), i);
+            final FDate expectedValue = entities.get(entities.size() - i - 1);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 0; i < entities.size(); i++) {
+            final FDate value = cache.query().getPreviousKey(FDate.MAX_DATE, i);
+            final FDate expectedValue = entities.get(entities.size() - i - 1);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 0; i < entities.size(); i++) {
+            final FDate value = cache.query().withFuture().getPreviousKey(FDate.MIN_DATE, i);
+            final FDate expectedValue = null; //filtering query removes the result because it is not a previous result
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+
+        for (int i = 0; i < entities.size(); i++) {
+            final FDate value = cache.query().withFuture().getNextKey(entities.get(0), i);
+            final FDate expectedValue = entities.get(i);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 0; i < entities.size(); i++) {
+            final FDate value = cache.query().withFuture().getNextKey(FDate.MIN_DATE, i);
+            final FDate expectedValue = entities.get(i);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 0; i < entities.size(); i++) {
+            final FDate value = cache.query().withFuture().getNextKey(FDate.MAX_DATE, i);
+            final FDate expectedValue = null; //filtering query removes the result because it is not a previous result
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+    }
+
+    @Test
+    public void testGetPreviousAndNextEntry() {
+        for (int i = 0; i < entities.size(); i++) {
+            final FDate value = IHistoricalEntry
+                    .unwrapEntryValue(cache.query().getPreviousEntry(entities.get(entities.size() - 1), i));
+            final FDate expectedValue = entities.get(entities.size() - i - 1);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 0; i < entities.size(); i++) {
+            final FDate value = IHistoricalEntry.unwrapEntryValue(cache.query().getPreviousEntry(FDate.MAX_DATE, i));
+            final FDate expectedValue = entities.get(entities.size() - i - 1);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 0; i < entities.size(); i++) {
+            final FDate value = IHistoricalEntry
+                    .unwrapEntryValue(cache.query().withFuture().getPreviousEntry(FDate.MIN_DATE, i));
+            final FDate expectedValue = null; //filtering query removes the result because it is not a previous result
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+
+        for (int i = 0; i < entities.size(); i++) {
+            final FDate value = IHistoricalEntry
+                    .unwrapEntryValue(cache.query().withFuture().getNextEntry(entities.get(0), i));
+            final FDate expectedValue = entities.get(i);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 0; i < entities.size(); i++) {
+            final FDate value = IHistoricalEntry
+                    .unwrapEntryValue(cache.query().withFuture().getNextEntry(FDate.MIN_DATE, i));
+            final FDate expectedValue = entities.get(i);
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
+        for (int i = 0; i < entities.size(); i++) {
+            final FDate value = IHistoricalEntry
+                    .unwrapEntryValue(cache.query().withFuture().getNextEntry(FDate.MAX_DATE, i));
+            final FDate expectedValue = null; //filtering query removes the result because it is not a previous result
+            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+        }
     }
 
     @Test
@@ -1416,7 +1694,7 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
                 @Override
                 public ICloseableIterable<IHistoricalEntry<FDate>> innerGetEntries(final FDate from, final FDate to) {
                     final ICloseableIterable<FDate> iterable = table.rangeValues(KEY, from, to);
-                    return new ATransformingCloseableIterable<FDate, IHistoricalEntry<FDate>>(iterable) {
+                    return new ATransformingIterable<FDate, IHistoricalEntry<FDate>>(iterable) {
                         @Override
                         protected IHistoricalEntry<FDate> transform(final FDate value) {
                             return value.asHistoricalEntry();

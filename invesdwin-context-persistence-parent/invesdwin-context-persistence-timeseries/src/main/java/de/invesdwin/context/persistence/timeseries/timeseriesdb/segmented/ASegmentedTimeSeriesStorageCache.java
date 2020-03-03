@@ -35,8 +35,8 @@ import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.eviction.EvictionMode;
 import de.invesdwin.util.collections.iterable.ASkippingIterable;
-import de.invesdwin.util.collections.iterable.ATransformingCloseableIterable;
-import de.invesdwin.util.collections.iterable.ATransformingCloseableIterator;
+import de.invesdwin.util.collections.iterable.ATransformingIterable;
+import de.invesdwin.util.collections.iterable.ATransformingIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -274,7 +274,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         final FDate adjFrom = FDates.max(from, firstAvailableSegmentFrom);
         final FDate adjTo = FDates.min(to, lastAvailableSegmentTo);
         final ICloseableIterable<TimeRange> segments = getSegments(adjFrom, adjTo, lastAvailableSegmentTo);
-        final ATransformingCloseableIterable<TimeRange, ICloseableIterable<V>> segmentQueries = new ATransformingCloseableIterable<TimeRange, ICloseableIterable<V>>(
+        final ATransformingIterable<TimeRange, ICloseableIterable<V>> segmentQueries = new ATransformingIterable<TimeRange, ICloseableIterable<V>>(
                 segments) {
             @Override
             protected ICloseableIterable<V> transform(final TimeRange value) {
@@ -637,7 +637,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         final FDate adjTo = FDates.max(to, firstAvailableSegmentFrom);
         final ICloseableIterable<TimeRange> filteredSegments = getSegmentsReverse(adjFrom, adjTo,
                 lastAvailableSegmentTo);
-        final ATransformingCloseableIterable<TimeRange, ICloseableIterable<V>> segmentQueries = new ATransformingCloseableIterable<TimeRange, ICloseableIterable<V>>(
+        final ATransformingIterable<TimeRange, ICloseableIterable<V>> segmentQueries = new ATransformingIterable<TimeRange, ICloseableIterable<V>>(
                 filteredSegments) {
             @Override
             protected ICloseableIterable<V> transform(final TimeRange value) {
@@ -730,7 +730,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable = storage
                 .getSegmentStatusTable();
         final List<TimeRange> rangeKeys;
-        try (ICloseableIterator<TimeRange> rangeKeysIterator = new ATransformingCloseableIterator<TableRow<String, TimeRange, SegmentStatus>, TimeRange>(
+        try (ICloseableIterator<TimeRange> rangeKeysIterator = new ATransformingIterator<TableRow<String, TimeRange, SegmentStatus>, TimeRange>(
                 segmentStatusTable.range(hashKey)) {
 
             @Override

@@ -9,7 +9,7 @@ import org.apache.commons.configuration2.AbstractConfiguration;
 
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable.DelegateTableIterator;
 import de.invesdwin.context.system.properties.AProperties;
-import de.invesdwin.util.collections.iterable.ATransformingCloseableIterator;
+import de.invesdwin.util.collections.iterable.ATransformingIterator;
 import ezdb.TableRow;
 
 @ThreadSafe
@@ -53,7 +53,7 @@ public class RangeTableProperties extends AProperties {
             @Override
             protected Iterator<String> getKeysInternal() {
                 final DelegateTableIterator<Void, String, Object> range = table.range(null);
-                return new ATransformingCloseableIterator<TableRow<Void, String, Object>, String>(range) {
+                return new ATransformingIterator<TableRow<Void, String, Object>, String>(range) {
                     @Override
                     protected String transform(final TableRow<Void, String, Object> value) {
                         return value.getRangeKey();

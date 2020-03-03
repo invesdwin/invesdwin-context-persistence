@@ -36,7 +36,7 @@ import de.invesdwin.util.collections.eviction.EvictionMode;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ASkippingIterator;
-import de.invesdwin.util.collections.iterable.ATransformingCloseableIterator;
+import de.invesdwin.util.collections.iterable.ATransformingIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.FlatteningIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -523,7 +523,7 @@ public class TimeSeriesStorageCache<K, V> {
     public ICloseableIterator<V> readRangeValues(final FDate from, final FDate to, final Lock readLock,
             final ISkipFileFunction skipFileFunction) {
         final ICloseableIterator<File> fileIterator = readRangeFiles(from, to, readLock, skipFileFunction).iterator();
-        final ICloseableIterator<ICloseableIterator<V>> chunkIterator = new ATransformingCloseableIterator<File, ICloseableIterator<V>>(
+        final ICloseableIterator<ICloseableIterator<V>> chunkIterator = new ATransformingIterator<File, ICloseableIterator<V>>(
                 fileIterator) {
             @Override
             protected ICloseableIterator<V> transform(final File value) {
@@ -557,7 +557,7 @@ public class TimeSeriesStorageCache<K, V> {
             final ISkipFileFunction skipFileFunction) {
         final ICloseableIterator<File> fileIterator = readRangeFilesReverse(from, to, readLock, skipFileFunction)
                 .iterator();
-        final ICloseableIterator<ICloseableIterator<V>> chunkIterator = new ATransformingCloseableIterator<File, ICloseableIterator<V>>(
+        final ICloseableIterator<ICloseableIterator<V>> chunkIterator = new ATransformingIterator<File, ICloseableIterator<V>>(
                 fileIterator) {
             @Override
             protected ICloseableIterator<V> transform(final File value) {
