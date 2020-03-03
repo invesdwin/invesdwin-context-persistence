@@ -178,7 +178,7 @@ public class ALiveSegmentedTimeSeriesDBWithCacheTest extends ATest {
     public void testGetPreviousAndNextWithTable() {
         for (int i = 1; i < entities.size(); i++) {
             final FDate value = table.getPreviousValue(KEY, entities.get(entities.size() - 1), i);
-            final FDate expectedValue = entities.get(entities.size() - i - 1);
+            final FDate expectedValue = entities.get(entities.size() - i);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < entities.size(); i++) {
@@ -194,7 +194,7 @@ public class ALiveSegmentedTimeSeriesDBWithCacheTest extends ATest {
 
         for (int i = 1; i < entities.size(); i++) {
             final FDate value = table.getNextValue(KEY, entities.get(0), i);
-            final FDate expectedValue = entities.get(i);
+            final FDate expectedValue = entities.get(i - 1);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < entities.size(); i++) {
