@@ -6,7 +6,7 @@
 	<parent>
 		<groupId>de.invesdwin</groupId>
 		<artifactId>invesdwin-context-parent</artifactId>
-		<version>1.0.1-SNAPSHOT</version>
+		<version>1.0.1</version>
 		<relativePath />
 	</parent>
 	<artifactId>invesdwin-context-persistence-parent</artifactId>
@@ -31,7 +31,7 @@
 	</modules>
 
 	<properties>
-		<project.version.invesdwin-context>1.0.1-SNAPSHOT</project.version.invesdwin-context>
+		<project.version.invesdwin-context>1.0.1</project.version.invesdwin-context>
 		<project.version.invesdwin-context-persistence>${project.version}</project.version.invesdwin-context-persistence>
 
 		<version.asm>3.3.1</version.asm>
