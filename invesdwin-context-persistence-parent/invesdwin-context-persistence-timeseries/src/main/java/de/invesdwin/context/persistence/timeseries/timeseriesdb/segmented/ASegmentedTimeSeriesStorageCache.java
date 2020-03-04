@@ -857,7 +857,10 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 final IHistoricalCacheQuery<TimeRange> segmentFinderQuery = getSegmentFinder(key).query();
                 final TimeRange lastSegment = segmentFinderQuery.getValue(lastAvailableSegmentTo);
                 TimeRange segment = segmentFinderQuery.getValue(firstAvailableSegmentFrom);
-                Assertions.assertThat(segment.getFrom()).isEqualTo(firstAvailableSegmentFrom);
+                if (!segment.getFrom().equalsNotNullSafe(firstAvailableSegmentFrom)) {
+                    throw new IllegalStateException("segment.from [" + segment.getFrom()
+                            + "] should be equal to firstAvailableSegmentFrom [" + firstAvailableSegmentFrom + "]");
+                }
                 while (cachedFirstValue == null && segment.getFrom().isBeforeOrEqualTo(lastSegment.getFrom())) {
                     final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
                     maybeInitSegment(segmentedKey);
