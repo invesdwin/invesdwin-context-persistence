@@ -13,7 +13,7 @@ Dependency declaration:
 <dependency>
 	<groupId>de.invesdwin</groupId>
 	<artifactId>invesdwin-context-persistence-jpa-hibernate</artifactId>
-	<version>1.0.0</version><!---project.version.invesdwin-context-persistence-parent-->
+	<version>1.0.1</version><!---project.version.invesdwin-context-persistence-parent-->
 </dependency>
 ```
 

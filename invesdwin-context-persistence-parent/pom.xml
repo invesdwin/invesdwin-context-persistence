@@ -29,7 +29,7 @@
 	</modules>
 
 	<properties>
-		<project.version.invesdwin-context>1.0.1</project.version.invesdwin-context>
+		<project.version.invesdwin-context>1.0.2-SNAPSHOT</project.version.invesdwin-context>
 		<project.version.invesdwin-context-persistence>${project.version}</project.version.invesdwin-context-persistence>
 
 		<version.asm>3.3.1</version.asm>
