@@ -8,7 +8,7 @@
 		<relativePath />
 	</parent>
 	<artifactId>invesdwin-context-persistence-parent</artifactId>
-	<version>1.0.2-SNAPSHOT</version>
+	<version>1.0.2</version>
 	<packaging>pom</packaging>
 
 	<licenses>
@@ -356,7 +356,7 @@
 	<scm>
 		<url>https://github.com/subes/invesdwin-context-persistence</url>
 		<connection>scm:git:https://github.com/subes/invesdwin-context-persistence.git</connection>
-		<tag>HEAD</tag>
+		<tag>invesdwin-context-persistence-parent-1.0.2</tag>
 	</scm>
 
 	<ciManagement>
