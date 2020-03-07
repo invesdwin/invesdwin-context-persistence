@@ -62,7 +62,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     public SerializingCollection(final TextDescription name, final String tempFileId) {
         this.name = name;
         this.finalizer = new SerializingCollectionFinalizer();
-        this.file = new File(getTempFolder(), UNIQUE_NAME_GENERATOR.get(Files.normalizeFilename(tempFileId) + ".data"));
+        this.file = new File(getTempFolder(), UNIQUE_NAME_GENERATOR.get(Files.normalizePath(tempFileId) + ".data"));
         if (file.exists()) {
             throw new IllegalStateException("File [" + file.getAbsolutePath() + "] already exists!");
         }
