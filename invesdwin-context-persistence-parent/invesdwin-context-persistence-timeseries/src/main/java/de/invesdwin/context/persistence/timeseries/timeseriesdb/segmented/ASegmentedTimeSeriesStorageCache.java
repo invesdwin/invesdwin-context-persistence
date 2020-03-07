@@ -327,15 +327,21 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                     public TimeRange next() {
                         final TimeRange curSegment = nextSegment;
                         //get one segment later
+                        nextSegment = determineNextSegment(curSegment);
+                        return curSegment;
+                    }
+
+                    private TimeRange determineNextSegment(final TimeRange curSegment) {
                         final FDate nextSegmentStart = nextSegment.getTo().addMilliseconds(1);
-                        nextSegment = getSegmentFinder(key).query().getValue(nextSegmentStart);
+                        final TimeRange nextSegment = getSegmentFinder(key).query().getValue(nextSegmentStart);
+                        final TimeRange firstSegment = getSegmentFinder(key).query().getValue(adjFrom);
                         if (!curSegment.getTo().equalsNotNullSafe(nextSegment.getFrom())
                                 && !nextSegmentStart.equals(nextSegment.getFrom())) {
                             //allow overlapping segments
                             throw new IllegalStateException("Segment start expected [" + curSegment.getTo() + " or "
                                     + nextSegmentStart + "] != found [" + nextSegment.getFrom() + "]");
                         }
-                        return curSegment;
+                        return nextSegment;
                     }
 
                     @Override
