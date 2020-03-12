@@ -68,7 +68,8 @@ public abstract class ASpinWait {
     }
 
     @SuppressWarnings("unused")
-    private static void noop() {}
+    private static void noop() {
+    }
 
     protected int determineMaxUntimedSpins() {
         return maxTimedSpins * 16;
@@ -102,7 +103,7 @@ public abstract class ASpinWait {
     protected abstract boolean isConditionFulfilled() throws IOException;
 
     protected boolean isSpinAllowed(final Instant waitingSince) {
-        return waitingSince.nanosValue() < skipSpinAfterWaitingSince;
+        return waitingSince.toDurationNanos() < skipSpinAfterWaitingSince;
     }
 
     public boolean awaitFulfill(final Instant waitingSince) throws IOException {
