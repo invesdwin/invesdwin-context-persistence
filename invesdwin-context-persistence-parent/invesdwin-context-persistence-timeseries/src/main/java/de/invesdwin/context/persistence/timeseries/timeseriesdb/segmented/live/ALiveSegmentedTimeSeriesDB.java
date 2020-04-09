@@ -345,7 +345,9 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         final Lock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            if (date.isBeforeOrEqualTo(FDate.MIN_DATE)) {
+            if (date == null) {
+                return null;
+            } else if (date.isBeforeOrEqualTo(FDate.MIN_DATE)) {
                 return getLookupTableCache(key).getFirstValue();
             } else {
                 return getLookupTableCache(key).getPreviousValue(date, shiftBackUnits);
