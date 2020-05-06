@@ -3,11 +3,10 @@ package de.invesdwin.context.persistence.timeseries.timeseriesdb;
 import java.io.File;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
+import java.util.function.Function;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
-import com.google.common.base.Function;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.retry.Retry;
@@ -25,6 +24,7 @@ import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
+import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.time.fdate.FDate;
@@ -58,7 +58,12 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         this.name = name;
         this.valueSerde = newValueSerde();
         this.fixedLength = newValueFixedLength();
-        this.directory = new File(getBaseDirectory(), ATimeSeriesDB.class.getSimpleName() + "/" + getName());
+        final File baseDirectory = getBaseDirectory();
+        if (Objects.equals(baseDirectory.getAbsolutePath(), new File(".").getAbsolutePath())) {
+            throw new IllegalStateException(
+                    "Should not use current working directory as base directory: " + baseDirectory);
+        }
+        this.directory = new File(baseDirectory, ATimeSeriesDB.class.getSimpleName() + "/" + getName());
         this.key_lookupTableCache = new ALoadingCache<K, TimeSeriesStorageCache<K, V>>() {
             @Override
             protected TimeSeriesStorageCache<K, V> loadValue(final K key) {
