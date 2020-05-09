@@ -32,6 +32,7 @@ import de.invesdwin.util.lang.Reflections;
 import de.invesdwin.util.lang.Strings;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
+import de.invesdwin.util.shutdown.ShutdownHookManager;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.RangeTable;
 import ezdb.RawTableRow;
@@ -292,6 +293,9 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     }
 
     private void initializeTable() {
+        if (ShutdownHookManager.isShuttingDown()) {
+            throw new RuntimeException("Shutting down");
+        }
         tableLock.writeLock().lock();
         try {
             if (tableFinalizer.table == null) {
@@ -358,7 +362,8 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         onDeleteTableFinished();
     }
 
-    protected void onDeleteTableFinished() {}
+    protected void onDeleteTableFinished() {
+    }
 
     protected boolean shouldPurgeTable() {
         return false;
