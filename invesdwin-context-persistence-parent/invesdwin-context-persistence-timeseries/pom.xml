@@ -54,9 +54,11 @@
 				</exclusion>
 				<exclusion>
 					<groupId>org.eclipse.collections</groupId>
-					<artifactId>
-						eclipse-collections-forkjoin
-					</artifactId>
+					<artifactId>eclipse-collections-forkjoin</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.jetbrains.kotlin</groupId>
+					<artifactId>kotlin-stdlib</artifactId>
 				</exclusion>
 			</exclusions>
 		</dependency>
