@@ -2,7 +2,7 @@ package de.invesdwin.context.persistence.timeseries.serde;
 
 import javax.annotation.concurrent.Immutable;
 
-import de.invesdwin.util.lang.Reflections;
+import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.math.decimal.Decimal;
 import de.invesdwin.util.math.decimal.TimedDecimal;
 import de.invesdwin.util.time.fdate.FDate;

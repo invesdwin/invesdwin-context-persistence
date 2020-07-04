@@ -34,7 +34,7 @@ import de.invesdwin.context.persistence.jpa.spi.impl.ConfiguredDataSource;
 import de.invesdwin.context.persistence.jpa.spi.impl.NativeJdbcIndexCreationHandler;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.error.UnknownArgumentException;
-import de.invesdwin.util.lang.Reflections;
+import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.fdate.FTimeUnit;
 

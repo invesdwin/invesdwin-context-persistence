@@ -7,7 +7,7 @@ import java.nio.channels.FileChannel;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.instrument.DynamicInstrumentationReflections;
-import de.invesdwin.util.lang.Reflections;
+import de.invesdwin.util.lang.reflection.Reflections;
 
 /**
  * Class for direct access to a memory mapped file.

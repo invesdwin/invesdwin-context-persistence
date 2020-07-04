@@ -3,7 +3,7 @@ package de.invesdwin.context.persistence.jpa.api.dao;
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.persistence.jpa.api.dao.entity.IEntity;
-import de.invesdwin.util.lang.Reflections;
+import de.invesdwin.util.lang.reflection.Reflections;
 
 /**
  * A DAO (DataAccessObject) is a special Repository that works for only one Entity. It implements default

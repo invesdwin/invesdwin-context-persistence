@@ -24,7 +24,7 @@ import org.springframework.util.ReflectionUtils.FieldCallback;
 import de.invesdwin.context.persistence.jpa.PersistenceProperties;
 import de.invesdwin.context.persistence.jpa.api.query.QueryConfig;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.lang.Reflections;
+import de.invesdwin.util.lang.reflection.Reflections;
 
 /**
  * A DAO (DataAccessObject) is a special Repository that works for only one Entity. It implements default

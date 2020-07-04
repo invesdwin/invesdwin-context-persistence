@@ -10,7 +10,7 @@ import de.invesdwin.context.persistence.jpa.test.PersistenceTest;
 import de.invesdwin.context.persistence.jpa.test.PersistenceTestContext;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.context.test.stub.StubSupport;
-import de.invesdwin.util.lang.Reflections;
+import de.invesdwin.util.lang.reflection.Reflections;
 
 @Named
 @NotThreadSafe

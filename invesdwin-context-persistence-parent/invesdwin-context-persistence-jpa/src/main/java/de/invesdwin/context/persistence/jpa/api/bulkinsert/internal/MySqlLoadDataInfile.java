@@ -29,7 +29,7 @@ import de.invesdwin.context.persistence.jpa.PersistenceUnitContext;
 import de.invesdwin.context.persistence.jpa.api.dao.entity.IEntity;
 import de.invesdwin.context.persistence.jpa.api.util.Attributes;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.lang.Reflections;
+import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.time.fdate.FDate;
 
 @ThreadSafe

@@ -7,7 +7,7 @@ import de.invesdwin.context.persistence.jpa.PersistenceUnitContext;
 import de.invesdwin.context.persistence.jpa.scanning.datasource.ADelegateDataSource;
 import de.invesdwin.context.persistence.jpa.scanning.datasource.ICloseableDataSource;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.lang.Reflections;
+import de.invesdwin.util.lang.reflection.Reflections;
 
 /**
  * HikariCP is normally the default for performance pursposes. Though if you want to debug database deadlocks, add a

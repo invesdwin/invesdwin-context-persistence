@@ -16,7 +16,7 @@ import de.invesdwin.context.beans.hook.IInstrumentationHook;
 import de.invesdwin.context.beans.init.platform.DelegatePlatformInitializer;
 import de.invesdwin.context.beans.init.platform.util.RegisterTypesForSerializationConfigurer;
 import de.invesdwin.util.classpath.ClassPathScanner;
-import de.invesdwin.util.lang.Reflections;
+import de.invesdwin.util.lang.reflection.Reflections;
 
 @NotThreadSafe
 public class DatanucleusEnhancerInstrumentationHook implements IInstrumentationHook {

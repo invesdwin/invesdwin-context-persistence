@@ -22,7 +22,7 @@ import de.invesdwin.context.persistence.jpa.api.dao.entity.IEntity;
 import de.invesdwin.context.persistence.jpa.api.query.DummyQuery;
 import de.invesdwin.context.persistence.jpa.api.query.QueryConfig;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.lang.Reflections;
+import de.invesdwin.util.lang.reflection.Reflections;
 
 @Immutable
 public class QueryByExampleHelper<E, PK extends Serializable> {

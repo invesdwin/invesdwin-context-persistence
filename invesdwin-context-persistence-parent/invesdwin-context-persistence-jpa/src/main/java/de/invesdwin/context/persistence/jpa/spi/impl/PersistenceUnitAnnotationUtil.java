@@ -12,8 +12,8 @@ import de.invesdwin.context.persistence.jpa.PersistenceProperties;
 import de.invesdwin.context.persistence.jpa.api.PersistenceUnitName;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.classpath.FastClassPathScanner;
-import de.invesdwin.util.lang.Reflections;
 import de.invesdwin.util.lang.Strings;
+import de.invesdwin.util.lang.reflection.Reflections;
 import io.github.classgraph.ClassInfo;
 import io.github.classgraph.ScanResult;
 

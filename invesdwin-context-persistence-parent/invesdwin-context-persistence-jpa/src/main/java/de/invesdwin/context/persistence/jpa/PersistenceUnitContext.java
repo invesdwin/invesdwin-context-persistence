@@ -28,7 +28,7 @@ import de.invesdwin.context.persistence.jpa.test.internal.ProdPersistenceContext
 import de.invesdwin.context.system.properties.IProperties;
 import de.invesdwin.context.system.properties.SystemProperties;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.lang.Reflections;
+import de.invesdwin.util.lang.reflection.Reflections;
 
 @ThreadSafe
 public final class PersistenceUnitContext {

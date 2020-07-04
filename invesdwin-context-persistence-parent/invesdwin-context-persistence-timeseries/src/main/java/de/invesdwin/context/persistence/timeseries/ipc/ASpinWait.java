@@ -8,7 +8,7 @@ import java.util.concurrent.locks.LockSupport;
 
 import javax.annotation.concurrent.Immutable;
 
-import de.invesdwin.util.lang.Reflections;
+import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.fdate.FTimeUnit;
