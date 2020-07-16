@@ -53,7 +53,7 @@ public class KunderaRdbmsDialectSpecificDelegate implements IDialectSpecificDele
     //    <property name="hibernate.show_sql" value="true" />
     //    <property name="hibernate.format_sql" value="true" />
     //    <property name="hibernate.dialect" value="org.hibernate.dialect.MySQL5Dialect" />
-    //    <property name="hibernate.connection.driver_class" value="com.mysql.jdbc.Driver" />
+    //    <property name="hibernate.connection.driver_class" value="com.mysql.cj.jdbc.Driver" />
     //    <property name="hibernate.connection.url" value="jdbc:mysql://localhost:3306/hibernatepoc" />
     //    <property name="hibernate.connection.username" value="root" />
     //    <property name="hibernate.connection.password" value="impetus" />
