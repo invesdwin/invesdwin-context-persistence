@@ -271,7 +271,8 @@ public class MySqlLoadDataInfile<E> implements IBulkInsertEntities<E> {
     @Transactional
     private int internalPersist(final StringBuilder workFileAndOutputStream) throws SQLException {
         try (Connection conn = ds.getConnection()) {
-            try (com.mysql.jdbc.Statement stmt = conn.createStatement().unwrap(com.mysql.jdbc.Statement.class)) {
+            try (com.mysql.cj.jdbc.JdbcStatement stmt = conn.createStatement()
+                    .unwrap(com.mysql.cj.jdbc.JdbcStatement.class)) {
                 final boolean prevAutoCommit = conn.getAutoCommit();
                 if (disabledChecks) {
                     if (prevAutoCommit) {

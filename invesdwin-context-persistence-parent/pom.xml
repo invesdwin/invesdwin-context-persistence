@@ -34,10 +34,10 @@
 
 		<version.asm>3.3.1</version.asm>
 		<version.jboss-transaction-api_1.1_spec>1.0.1.Final</version.jboss-transaction-api_1.1_spec>
-		<version.hikaricp>3.3.1</version.hikaricp>
-		<version.c3p0>0.9.5.4</version.c3p0>
-		<version.p6spy>3.8.1</version.p6spy>
-		<version.hibernate>5.4.1.Final</version.hibernate>
+		<version.hikaricp>3.4.5</version.hikaricp>
+		<version.c3p0>0.9.5.5</version.c3p0>
+		<version.p6spy>3.9.0</version.p6spy>
+		<version.hibernate>5.4.18.Final</version.hibernate>
 		<version.jboss-logging>3.3.2.Final</version.jboss-logging>
 		<version.datanucleus>5.2.0-m3</version.datanucleus>
 		<version.datanucleus-cache>5.1.1</version.datanucleus-cache>
