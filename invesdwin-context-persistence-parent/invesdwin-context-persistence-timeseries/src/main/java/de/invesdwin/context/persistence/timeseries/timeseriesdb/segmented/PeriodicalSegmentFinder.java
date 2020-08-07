@@ -31,7 +31,7 @@ public class PeriodicalSegmentFinder {
         }
 
         @Override
-        protected FDate innerExtractKey(final FDate key, final TimeRange value) {
+        protected FDate innerExtractKey(final TimeRange value) {
             return value.getFrom();
         }
 
@@ -280,7 +280,7 @@ public class PeriodicalSegmentFinder {
             }
 
             @Override
-            protected FDate innerExtractKey(final FDate key, final TimeRange value) {
+            protected FDate innerExtractKey(final TimeRange value) {
                 return value.getFrom();
             }
 

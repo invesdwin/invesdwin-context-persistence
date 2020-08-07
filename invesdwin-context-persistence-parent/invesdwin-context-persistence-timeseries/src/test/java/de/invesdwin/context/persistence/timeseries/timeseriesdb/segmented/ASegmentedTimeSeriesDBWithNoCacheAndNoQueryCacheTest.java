@@ -84,7 +84,7 @@ public class ASegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest 
             }
 
             @Override
-            protected FDate innerExtractKey(final FDate key, final TimeRange value) {
+            protected FDate innerExtractKey(final TimeRange value) {
                 return value.getFrom();
             }
 
@@ -1572,7 +1572,7 @@ public class ASegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest 
         }
 
         @Override
-        protected FDate innerExtractKey(final FDate key, final FDate entity) {
+        protected FDate innerExtractKey(final FDate entity) {
             countInnerExtractKey++;
             return entity;
         }

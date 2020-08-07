@@ -1558,7 +1558,7 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheTest extends ATest {
         }
 
         @Override
-        protected FDate innerExtractKey(final FDate key, final FDate entity) {
+        protected FDate innerExtractKey(final FDate entity) {
             countInnerExtractKey++;
             return entity;
         }
