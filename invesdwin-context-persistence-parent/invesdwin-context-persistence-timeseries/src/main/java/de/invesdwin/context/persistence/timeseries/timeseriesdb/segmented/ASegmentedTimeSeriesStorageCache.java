@@ -453,6 +453,32 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         if (segmentTo.isAfterNotNullSafe(lastAvailableSegmentTo)) {
             //            throw new IllegalStateException(segmentedKey + ": segmentTo [" + segmentTo
             //                    + "] should not be after lastAvailableSegmentTo [" + lastAvailableSegmentTo + "]");
+            //might happen very rarely when segment to is still initializing, for now just returning false to skip init
+            //            Caused by: java.lang.IllegalStateException: SegmentedKey[key:FXCM:EURUSD|segment:2020-08-01T00:00:00.000 -> 2020-08-31T23:59:59.999 => P1MT23H59M59.999S]: segmentTo [2020-08-31T23:59:59.999] should not be after lastAvailableSegmentTo [2020-07-31T23:59:59.999]
+            //                    at de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache.assertValidSegment(ASegmentedTimeSeriesStorageCache.java:454)
+            //                    at de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache.maybeInitSegment(ASegmentedTimeSeriesStorageCache.java:382)
+            //                    at de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache.maybeInitSegment(ASegmentedTimeSeriesStorageCache.java:377)
+            //                    at de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache$1$1.apply(ASegmentedTimeSeriesStorageCache.java:101)
+            //                    at de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache$1$1.apply(ASegmentedTimeSeriesStorageCache.java:1)
+            //                    at de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable.getOrLoad(ADelegateRangeTable.java:481)
+            //                    at de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache$1.loadValue(ASegmentedTimeSeriesStorageCache.java:85)
+            //                    at de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache$1.loadValue(ASegmentedTimeSeriesStorageCache.java:1)
+            //                    at de.invesdwin.util.collections.loadingcache.ALoadingCache$1.apply(ALoadingCache.java:54)
+            //                    at de.invesdwin.util.collections.loadingcache.map.ASynchronizedMapLoadingCache.get(ASynchronizedMapLoadingCache.java:38)
+            //                    at de.invesdwin.util.collections.loadingcache.ADelegateLoadingCache.get(ADelegateLoadingCache.java:29)
+            //                    at de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache.getLatestValue(ASegmentedTimeSeriesStorageCache.java:772)
+            //                    at de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesDB.getLatestValue(ASegmentedTimeSeriesDB.java:265)
+            //                    at de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.LiveSegmentedTimeSeriesStorageCache$2.apply(LiveSegmentedTimeSeriesStorageCache.java:43)
+            //                    at de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.LiveSegmentedTimeSeriesStorageCache$2.apply(LiveSegmentedTimeSeriesStorageCache.java:1)
+            //                    at de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.LiveSegmentedTimeSeriesStorageCache.getLatestValue(LiveSegmentedTimeSeriesStorageCache.java:171)
+            //                    at de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB.getLatestValue(ALiveSegmentedTimeSeriesDB.java:326)
+            //                    at de.invesdwin.trading.financialdata.live.bars.calculated.internal.LiveCalculatedTickCache.getLatestTick(LiveCalculatedTickCache.java:210)
+            //                    at de.invesdwin.trading.financialdata.live.bars.FinancialdataLiveTickCache$DelegateTickCache.readLatestValueFor(FinancialdataLiveTickCache.java:194)
+            //                    at de.invesdwin.trading.financialdata.live.bars.FinancialdataLiveTickCache$DelegateTickCache.readLatestValueFor(FinancialdataLiveTickCache.java:1)
+            //                    at de.invesdwin.util.collections.loadingcache.historical.AGapHistoricalCache.readNewestValueFromDB(AGapHistoricalCache.java:523)
+            //                    at de.invesdwin.util.collections.loadingcache.historical.AGapHistoricalCache.loadValue(AGapHistoricalCache.java:152)
+            //                    at de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache$InnerLoadingCache$1.apply(AHistoricalCache.java:465)
+            //                    ... 52 common frames omitted
             return false;
         }
         return true;
