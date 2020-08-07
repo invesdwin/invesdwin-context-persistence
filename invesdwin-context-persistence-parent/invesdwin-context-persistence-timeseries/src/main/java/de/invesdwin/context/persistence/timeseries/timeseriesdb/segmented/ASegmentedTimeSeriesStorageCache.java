@@ -439,7 +439,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         if (lastAvailableSegmentTo == null) {
             return false;
         }
-        if (firstAvailableSegmentFrom.isAfter(lastAvailableSegmentTo)) {
+        if (firstAvailableSegmentFrom.isAfterNotNullSafe(lastAvailableSegmentTo)) {
             throw new IllegalStateException(segmentedKey + ": firstAvailableSegmentFrom [" + firstAvailableSegmentFrom
                     + "] should not be after lastAvailableSegmentTo [" + lastAvailableSegmentTo + "]");
         }
@@ -450,9 +450,10 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                     + "] should not be before firstAvailableSegmentFrom [" + firstAvailableSegmentFrom + "]");
         }
         final FDate segmentTo = segmentedKey.getSegment().getTo();
-        if (segmentTo.isAfter(lastAvailableSegmentTo)) {
-            throw new IllegalStateException(segmentedKey + ": segmentTo [" + segmentTo
-                    + "] should not be after lastAvailableSegmentTo [" + lastAvailableSegmentTo + "]");
+        if (segmentTo.isAfterNotNullSafe(lastAvailableSegmentTo)) {
+            //            throw new IllegalStateException(segmentedKey + ": segmentTo [" + segmentTo
+            //                    + "] should not be after lastAvailableSegmentTo [" + lastAvailableSegmentTo + "]");
+            return false;
         }
         return true;
     }
