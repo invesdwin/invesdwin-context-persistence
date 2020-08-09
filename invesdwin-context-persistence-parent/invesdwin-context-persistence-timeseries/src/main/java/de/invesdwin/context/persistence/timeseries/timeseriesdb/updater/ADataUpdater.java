@@ -26,7 +26,7 @@ import de.invesdwin.util.time.fdate.FDates;
 import io.netty.util.concurrent.FastThreadLocal;
 
 @ThreadSafe
-public abstract class ADataUpdater<K, V> {
+public abstract class ADataUpdater<K, V> implements IDataUpdater<K, V> {
 
     private static final FastThreadLocal<Boolean> SKIP_UPDATE_ON_CURRENT_THREAD_IF_ALREADY_RUNNING = new FastThreadLocal<Boolean>();
     protected final Log log = new Log(this);
@@ -69,6 +69,7 @@ public abstract class ADataUpdater<K, V> {
         return BooleanUtils.isTrue(SKIP_UPDATE_ON_CURRENT_THREAD_IF_ALREADY_RUNNING.get());
     }
 
+    @Override
     public final void maybeUpdate() {
         final FDate newUpdateCheck = new FDate();
         if (shouldCheckForUpdate(newUpdateCheck)) {
