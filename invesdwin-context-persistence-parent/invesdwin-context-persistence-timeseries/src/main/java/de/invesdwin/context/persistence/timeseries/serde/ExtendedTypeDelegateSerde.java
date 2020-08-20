@@ -36,6 +36,9 @@ public class ExtendedTypeDelegateSerde<O> extends TypeDelegateSerde<O> {
         if (Boolean.class.isAssignableFrom(type) || boolean.class.isAssignableFrom(type)) {
             return BooleanSerde.GET;
         }
+        if (Integer.class.isAssignableFrom(type) || int.class.isAssignableFrom(type)) {
+            return IntegerSerde.GET;
+        }
         if (TimedDecimal.class.isAssignableFrom(type)) {
             return TimedDecimalSerde.GET;
         }
