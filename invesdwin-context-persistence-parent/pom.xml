@@ -45,7 +45,7 @@
 
 		<version.kundera>3.13</version.kundera>
 		<version.ezdb>0.1.16</version.ezdb>
-		<version.leveldb>1.1</version.leveldb>
+		<version.leveldb>1.2</version.leveldb>
 		<version.mapdb>3.0.8</version.mapdb>
 		<version.eclipse-collections>7.1.0</version.eclipse-collections>
 		<version.eclipselink>2.7.4</version.eclipselink>
