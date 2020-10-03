@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
 		<groupId>de.invesdwin</groupId>
@@ -26,6 +28,7 @@
 		<module>invesdwin-context-persistence-jpa-kundera</module>
 		<module>invesdwin-context-persistence-jpa-kundera-rdbms</module>
 		<module>invesdwin-context-persistence-timeseries</module>
+		<module>invesdwin-context-persistence-influxdb</module>
 	</modules>
 
 	<properties>
@@ -49,6 +52,9 @@
 		<version.mapdb>3.0.8</version.mapdb>
 		<version.eclipse-collections>7.1.0</version.eclipse-collections>
 		<version.eclipselink>2.7.4</version.eclipselink>
+		
+		<version.embed-influxdb>1.2.1</version.embed-influxdb>
+		<version.influxdb-java>2.20</version.influxdb-java>
 	</properties>
 
 	<dependencyManagement>
@@ -317,6 +323,17 @@
 				<groupId>org.eclipse.persistence</groupId>
 				<artifactId>eclipselink</artifactId>
 				<version>${version.eclipselink}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>io.apisense.embed.influx</groupId>
+				<artifactId>embed-influxDB</artifactId>
+				<version>${version.embed-influxdb}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.influxdb</groupId>
+				<artifactId>influxdb-java</artifactId>
+				<version>${version.influxdb-java}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
