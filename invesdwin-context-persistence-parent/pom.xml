@@ -52,7 +52,7 @@
 		<version.mapdb>3.0.8</version.mapdb>
 		<version.eclipse-collections>7.1.0</version.eclipse-collections>
 		<version.eclipselink>2.7.4</version.eclipselink>
-		
+
 		<version.embed-influxdb>1.2.1</version.embed-influxdb>
 		<version.influxdb-java>2.20</version.influxdb-java>
 	</properties>
@@ -329,6 +329,16 @@
 				<groupId>io.apisense.embed.influx</groupId>
 				<artifactId>embed-influxDB</artifactId>
 				<version>${version.embed-influxdb}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>log4j</groupId>
+						<artifactId>log4j</artifactId>
+					</exclusion>
+					<exclusion>
+						<groupId>org.slf4j</groupId>
+						<artifactId>slf4j-log4j12</artifactId>
+					</exclusion>
+				</exclusions>
 			</dependency>
 			<dependency>
 				<groupId>org.influxdb</groupId>
