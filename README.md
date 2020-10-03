@@ -228,7 +228,7 @@ New Benchmarks (2020, Core i9-9900k with SSD, LevelDB via Java Port, InfluxDB 1.
       LevelDB     1,000,000    Writes:     155.80/ms
       LevelDB    10,000,000     Reads:   1,228.70/ms
      InfluxDB     1,000,000    Writes:     200.84/ms  =>  ~0.3 times faster than LevelDB
-     InfluxDB    10,000,000     Reads:     649.31/ms  =>  ~2.0 times slower than LevelDB
+     InfluxDB    10,000,000     Reads:     649.31/ms  =>  ~2.0 times SLOWER than LevelDB
 ATimeSeriesDB     1,000,000    Writes:   4,759.64/ms  => ~30.5 times faster than LevelDB
 ATimeSeriesDB    10,000,000     Reads:  25,813.11/ms  => ~21.0 times faster than LevelDB
 ```
