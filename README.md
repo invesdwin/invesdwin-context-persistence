@@ -216,14 +216,14 @@ The `invesdwin-context-persistence-timeseries` module provides support for the p
 	- `ExtendedTypeDelegateSerde` as the default serializer/deserializer with support for most common types with a fallback to [FST](https://github.com/RuedigerMoeller/fast-serialization) for complex types. To get faster serialization/deserialization you should consider providing your own `Serde` implementation via the `newHashKeySerde`/`newRangeKeySerde`/`newValueSerde()` callbacks. Utilizing `ByteBuffer` for custom serialization/deserialization is in most cases the fastest and most compact way, but requires a few lines of manual coding.
 - **ATimeSeriesDB**: this is a binary data system that stores continuous time data. It uses LevelDB as an index for the file chunks which it saves separately per 10,000 entries which are compressed via [LZ4](https://github.com/jpountz/lz4-java) (which is the fastest and most compact compression algorithm we could determine for our use cases). By chunking the data and looking up the files to process via LevelDB date range lookup, we can provide even faster iteration over large financialdata tick series than would be possible with LevelDB itself. Random access is possible, but you should rather let the in-memory `AGapHistoricalCache` from [invesdwin-util](https://github.com/subes/invesdwin-util#caches) handle that and only use `getLatestValue()` here to hook up the callbacks of that cache. This is because always going to the file storage can be really slow, thus an in-memory cache should be put before it. The raw insert and iteration speed for financial tick data was measured to be about 13 times faster with `ATimeSeriesDB` in comparison to directly using LevelDB (both with performance tuned serializer/deserializer implementations). We were able to process more than 2,000,000 ticks per second with this setup instead of just around 150,000 ticks per second with only LevelDB in place. A more synthetic performance test with simpler data structures (which is included in the modules test cases) resulted in the following numbers:
 
-Old Benchmarks:
+Old Benchmarks (2016, Core i7-4790K with SSD, LevelDB via JNI):
 ```
       LevelDB     1,000,000    Writes:     100.68/ms  in   9,932 ms
       LevelDB    10,000,000     Reads:     373.15/ms  in  26,799 ms
 ATimeSeriesDB     1,000,000    Writes:   3,344.48/ms  in     299 ms  =>  ~33 times faster
 ATimeSeriesDB    10,000,000     Reads:  14,204.55/ms  in     704 ms  =>  ~38 times faster
 ```
-New Benchmarks:
+New Benchmarks (2020, Core i9-9900k with SSD, LevelDB via Java Port, InfluxDB 1.x for reference):
 ```
       LevelDB     1,000,000    Writes:     155.80/ms
       LevelDB    10,000,000     Reads:   1,228.70/ms
