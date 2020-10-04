@@ -3,6 +3,9 @@ package de.invesdwin.context.persistence.timeseries;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -13,13 +16,17 @@ import org.influxdb.dto.Point;
 import org.influxdb.dto.Query;
 import org.influxdb.dto.QueryResult;
 import org.influxdb.dto.QueryResult.Result;
+import org.influxdb.dto.QueryResult.Series;
 import org.junit.Ignore;
 import org.junit.Test;
 
 import de.flapdoodle.embed.process.runtime.Network;
+import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
+import de.invesdwin.util.concurrent.reference.IMutableReference;
+import de.invesdwin.util.concurrent.reference.VolatileReference;
 import de.invesdwin.util.lang.ProcessedEventsRateString;
 import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.math.decimal.scaled.PercentScale;
@@ -41,7 +48,104 @@ public class DatabasePerformanceTest extends ATest {
     private static final int FLUSH_INTERVAL = 10_000;
 
     @Test
-    public void testInfluxDbPerformance() throws Exception {
+    public void testInfluxDbPerformanceAsync() throws Exception {
+        final int freeHttpPort = Network.getFreeServerPort();
+        final int freeUdpPort = Network.getFreeServerPort();
+
+        final InfluxServer server = startInfluxDB(freeHttpPort, freeUdpPort);
+        server.start();
+        try {
+            Thread.sleep(10 * 1000);
+
+            final String dbname = "influxDbPerformance";
+            final String policyname = "defaultPolicy";
+            final String measurementName = "measurementsPerformance";
+
+            final InfluxDB influxDB = InfluxDBFactory.connect("http://localhost:" + freeHttpPort);
+            influxDB.createDatabase(dbname);
+            influxDB.createRetentionPolicy(policyname, dbname, "9999d", 1, true);
+
+            BatchPoints batch = BatchPoints.database(dbname).retentionPolicy(policyname).build();
+            final Instant writesStart = new Instant();
+            int i = 0;
+            for (final FDate date : newValues()) {
+                final Point point = Point.measurement(measurementName)
+                        .time(date.millisValue(), TimeUnit.MILLISECONDS)
+                        .tag("hashKey", HASH_KEY)
+                        .addField("value", date.millisValue())
+                        .build();
+
+                batch.point(point);
+                i++;
+                if (i % FLUSH_INTERVAL == 0) {
+                    printProgress("Writes", writesStart, i, VALUES);
+                    influxDB.write(batch);
+                    batch = BatchPoints.database(dbname).retentionPolicy(policyname).build();
+                }
+            }
+            influxDB.write(batch);
+            batch = null;
+            printProgress("WritesFinished", writesStart, VALUES, VALUES);
+
+            TimeUnit.SECONDS.sleep(1);
+
+            final Instant readsStart = new Instant();
+            for (int reads = 1; reads <= READS; reads++) {
+                final IMutableReference<FDate> prevValueRef = new VolatileReference<>();
+                final AtomicBoolean finished = new AtomicBoolean();
+                final int readsFinal = reads;
+                final AtomicInteger count = new AtomicInteger();
+                influxDB.query(new Query("Select value from " + measurementName + " where hashKey = '" + HASH_KEY + "'",
+                        dbname), 10_000, new Consumer<QueryResult>() {
+
+                            @Override
+                            public void accept(final QueryResult queryResult) {
+                                try {
+                                    final List<Result> range = queryResult.getResults();
+                                    if (range == null || range.isEmpty()) {
+                                        return;
+                                    }
+                                    final Result firstResult = range.get(0);
+                                    if (firstResult == null) {
+                                        return;
+                                    }
+                                    final List<Series> series = firstResult.getSeries();
+                                    if (series == null || series.isEmpty()) {
+                                        return;
+                                    }
+                                    final List<List<Object>> firstSeries = series.get(0).getValues();
+                                    if (firstSeries == null) {
+                                        return;
+                                    }
+                                    for (int result = 0; result < firstSeries.size(); result++) {
+                                        final Double valueDouble = (Double) firstSeries.get(result).get(1);
+                                        final FDate value = new FDate(valueDouble.longValue());
+                                        final FDate prevValue = prevValueRef.get();
+                                        if (prevValue != null) {
+                                            Assertions.checkTrue(prevValue.isBefore(value));
+                                        }
+                                        prevValueRef.set(value);
+                                        count.incrementAndGet();
+                                    }
+                                } catch (final Throwable t) {
+                                    Err.process(t);
+                                }
+                            }
+                        }, () -> finished.set(true));
+                while (!finished.get() || count.get() != VALUES) {
+                    TimeUnit.NANOSECONDS.sleep(1);
+                }
+                Assertions.checkEquals(count.get(), VALUES);
+                printProgress("Reads", readsStart, VALUES * readsFinal, VALUES * READS);
+            }
+            printProgress("ReadsFinished", readsStart, VALUES * READS, VALUES * READS);
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    public void testInfluxDbPerformanceSync() throws Exception {
         final int freeHttpPort = Network.getFreeServerPort();
         final int freeUdpPort = Network.getFreeServerPort();
 
