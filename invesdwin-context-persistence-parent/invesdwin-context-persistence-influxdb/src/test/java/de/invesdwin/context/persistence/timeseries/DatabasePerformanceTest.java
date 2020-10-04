@@ -132,7 +132,7 @@ public class DatabasePerformanceTest extends ATest {
                                 }
                             }
                         }, () -> finished.set(true));
-                while (!finished.get() || count.get() != VALUES) {
+                while (!finished.get() && count.get() != VALUES) {
                     TimeUnit.NANOSECONDS.sleep(1);
                 }
                 Assertions.checkEquals(count.get(), VALUES);
