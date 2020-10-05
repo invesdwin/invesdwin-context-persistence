@@ -194,7 +194,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     }
 
     protected CompressionType newCompressionType() {
-        return CompressionType.NONE;
+        return CompressionType.SNAPPY;
     }
 
     protected IRangeTableDb newDiskDb() {
