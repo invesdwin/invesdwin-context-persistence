@@ -193,6 +193,10 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         };
     }
 
+    protected CompressionType newCompressionType() {
+        return CompressionType.NONE;
+    }
+
     protected IRangeTableDb newDiskDb() {
         return new IRangeTableDb() {
             private final EzLevelDb db = new EzLevelDb(directory, new EzLevelDbJavaFactory() {
@@ -200,7 +204,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
                 public DB open(final File path, final org.iq80.leveldb.Options options) throws IOException {
                     options.paranoidChecks(false);
                     //make sure snappy is enabled
-                    options.compressionType(CompressionType.SNAPPY);
+                    options.compressionType(newCompressionType());
                     final DB open = super.open(path, options);
                     try {
                         //do some sanity checks just to be safe
