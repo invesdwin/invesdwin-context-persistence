@@ -9,6 +9,7 @@ import java.util.function.Function;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.iq80.leveldb.CompressionType;
 import org.iq80.leveldb.DB;
 import org.iq80.leveldb.DBIterator;
 
@@ -198,6 +199,8 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
                 @Override
                 public DB open(final File path, final org.iq80.leveldb.Options options) throws IOException {
                     options.paranoidChecks(false);
+                    //make sure snappy is enabled
+                    options.compressionType(CompressionType.SNAPPY);
                     final DB open = super.open(path, options);
                     try {
                         //do some sanity checks just to be safe
