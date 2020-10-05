@@ -2,8 +2,6 @@ package de.invesdwin.context.persistence.timeseries.ezdb;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Field;
-import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.Map.Entry;
 import java.util.concurrent.Callable;
@@ -14,8 +12,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.iq80.leveldb.CompressionType;
 import org.iq80.leveldb.DB;
 import org.iq80.leveldb.DBIterator;
-import org.iq80.leveldb.util.Snappy;
-import org.iq80.leveldb.util.Snappy.SPI;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
@@ -23,7 +19,6 @@ import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.timeseries.ezdb.db.IRangeTableDb;
 import de.invesdwin.context.persistence.timeseries.ezdb.db.WriteThroughRangeTableDb;
 import de.invesdwin.context.persistence.timeseries.serde.ExtendedTypeDelegateSerde;
-import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -38,7 +33,6 @@ import de.invesdwin.util.lang.Strings;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.lang.reflection.Reflections;
-import de.invesdwin.util.lang.reflection.UnsafeStaticField;
 import de.invesdwin.util.shutdown.ShutdownHookManager;
 import de.invesdwin.util.time.fdate.FDate;
 import ezdb.RangeTable;
@@ -54,94 +48,9 @@ import ezdb.leveldb.EzLevelDb;
 import ezdb.leveldb.EzLevelDbJavaFactory;
 import ezdb.serde.Serde;
 import ezdb.treemap.object.EzObjectTreeMapDb;
-import net.jpountz.lz4.LZ4CompressorWithLength;
-import net.jpountz.lz4.LZ4DecompressorWithLength;
-import net.jpountz.lz4.LZ4Factory;
 
 @ThreadSafe
 public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V> {
-
-    static {
-        final SPI spi = new SPI() {
-
-            private final LZ4DecompressorWithLength decompressor = new LZ4DecompressorWithLength(
-                    LZ4Factory.fastestInstance().fastDecompressor());
-            private final LZ4CompressorWithLength compressor = new LZ4CompressorWithLength(
-                    LZ4Factory.fastestInstance().highCompressor());
-
-            @Override
-            public int uncompress(final ByteBuffer compressed, final ByteBuffer uncompressed) throws IOException {
-                final byte[] input;
-                final int inputOffset;
-                final int length;
-                final byte[] output;
-                final int outputOffset;
-                if (compressed.hasArray()) {
-                    input = compressed.array();
-                    inputOffset = compressed.arrayOffset() + compressed.position();
-                    length = compressed.remaining();
-                } else {
-                    input = new byte[compressed.remaining()];
-                    inputOffset = 0;
-                    length = input.length;
-                    compressed.mark();
-                    compressed.get(input);
-                    compressed.reset();
-                }
-                if (uncompressed.hasArray()) {
-                    output = uncompressed.array();
-                    outputOffset = uncompressed.arrayOffset() + uncompressed.position();
-                } else {
-                    final int t = LZ4DecompressorWithLength.getDecompressedLength(compressed);
-                    output = new byte[t];
-                    outputOffset = 0;
-                }
-
-                final int count = uncompress(input, inputOffset, length, output, outputOffset);
-                if (uncompressed.hasArray()) {
-                    uncompressed.limit(uncompressed.position() + count);
-                } else {
-                    final int p = uncompressed.position();
-                    uncompressed.limit(uncompressed.capacity());
-                    uncompressed.put(output, 0, count);
-                    uncompressed.flip().position(p);
-                }
-                return count;
-            }
-
-            @Override
-            public int uncompress(final byte[] input, final int inputOffset, final int length, final byte[] output,
-                    final int outputOffset) throws IOException {
-                return decompressor.decompress(input, inputOffset, output, outputOffset);
-            }
-
-            @Override
-            public int compress(final byte[] input, final int inputOffset, final int length, final byte[] output,
-                    final int outputOffset) throws IOException {
-                return compressor.compress(input, inputOffset, length, output, outputOffset);
-            }
-
-            @Override
-            public byte[] compress(final String text) throws IOException {
-                return compressor.compress(text.getBytes());
-            }
-
-            @Override
-            public int maxCompressedLength(final int length) {
-                return compressor.maxCompressedLength(length);
-            }
-
-        };
-        try {
-            Assertions.checkNotNull(Snappy.available()); //init final field
-            final Field snappyField = Snappy.class.getDeclaredField("SNAPPY");
-            final UnsafeStaticField<Object> unsafeField = new UnsafeStaticField<>(snappyField);
-            unsafeField.set(spi);
-            Assertions.checkTrue(Snappy.available());
-        } catch (NoSuchFieldException | SecurityException e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     private final Serde<H> hashKeySerde;
     private final Serde<R> rangeKeySerde;
