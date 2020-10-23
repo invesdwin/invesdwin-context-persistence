@@ -334,7 +334,6 @@ public class TimeSeriesStorageCache<K, V> {
                     //use latest time available even if delegate iterator has no values
                     private TableRow<String, FDate, ChunkValue> latestFirstTime = fileLookupTable_latestRangeKeyCache
                             .get(usedFrom);
-                    private FDate delegateFirstTime = null;
                     private final ICloseableIterator<TableRow<String, FDate, ChunkValue>> delegate;
 
                     {
@@ -347,7 +346,7 @@ public class TimeSeriesStorageCache<K, V> {
 
                     @Override
                     protected boolean innerHasNext() {
-                        return latestFirstTime != null || delegateFirstTime != null || delegate.hasNext();
+                        return latestFirstTime != null || delegate.hasNext();
                     }
 
                     private ICloseableIterator<TableRow<String, FDate, ChunkValue>> getRangeKeys(final String hashKey,
@@ -386,10 +385,7 @@ public class TimeSeriesStorageCache<K, V> {
                     @Override
                     protected File innerNext() {
                         final FDate time;
-                        if (delegateFirstTime != null) {
-                            time = delegateFirstTime;
-                            delegateFirstTime = null;
-                        } else if (latestFirstTime != null) {
+                        if (latestFirstTime != null) {
                             time = latestFirstTime.getRangeKey();
                             latestFirstTime = null;
                         } else {
@@ -432,7 +428,6 @@ public class TimeSeriesStorageCache<K, V> {
                             .get(usedFrom);
                     // add 1 ms to not collide with firstTime
                     private final ICloseableIterator<TableRow<String, FDate, ChunkValue>> delegate;
-                    private FDate delegateLastTime = null;
 
                     {
                         if (latestLastTime == null) {
@@ -445,7 +440,7 @@ public class TimeSeriesStorageCache<K, V> {
 
                     @Override
                     protected boolean innerHasNext() {
-                        return latestLastTime != null || delegateLastTime != null || delegate.hasNext();
+                        return latestLastTime != null || delegate.hasNext();
                     }
 
                     private ICloseableIterator<TableRow<String, FDate, ChunkValue>> getRangeKeysReverse(
@@ -486,10 +481,7 @@ public class TimeSeriesStorageCache<K, V> {
                     @Override
                     protected File innerNext() {
                         final FDate time;
-                        if (delegateLastTime != null) {
-                            time = delegateLastTime;
-                            delegateLastTime = null;
-                        } else if (latestLastTime != null) {
+                        if (latestLastTime != null) {
                             time = latestLastTime.getRangeKey();
                             latestLastTime = null;
                         } else {

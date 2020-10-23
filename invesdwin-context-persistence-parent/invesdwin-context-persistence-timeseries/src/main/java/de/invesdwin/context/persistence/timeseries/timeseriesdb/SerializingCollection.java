@@ -42,7 +42,7 @@ import de.invesdwin.util.math.Bytes;
 import ezdb.serde.Serde;
 
 @NotThreadSafe
-public class SerializingCollection<E> implements Collection<E>, IReverseCloseableIterable<E>, Serializable, Closeable {
+public class SerializingCollection<E> implements Collection<E>, IReverseCloseableIterable<E>, Closeable {
 
     private static final int READ_ONLY_FILE_SIZE = Integer.MAX_VALUE;
     private static final UniqueNameGenerator UNIQUE_NAME_GENERATOR = new UniqueNameGenerator() {
@@ -519,13 +519,6 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         public boolean isThreadLocal() {
             return true;
         }
-    }
-
-    private void writeObject(final java.io.ObjectOutputStream stream) throws IOException {
-        if (!finalizer.closed) {
-            throw new IllegalStateException("You need to close this instance before serializing it!");
-        }
-        stream.defaultWriteObject();
     }
 
     @Override
