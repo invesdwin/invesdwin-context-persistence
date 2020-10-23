@@ -153,8 +153,10 @@ public final class ClasspathScanningPersistenceUnitManager extends MergingPersis
      */
     private void scan() {
         final Map<String, Set<Class<?>>> entities = PersistenceUnitAnnotationUtil.scanForEntities();
-        for (final String persistenceUnitName : entities.keySet()) {
-            for (final Class<?> entityClass : entities.get(persistenceUnitName)) {
+        for (final Entry<String, Set<Class<?>>> entry : entities.entrySet()) {
+            final String persistenceUnitName = entry.getKey();
+            final Set<Class<?>> entityClasses = entry.getValue();
+            for (final Class<?> entityClass : entityClasses) {
                 for (final IEntityClasspathScanningHook hook : entityClasspathScanningHooks) {
                     hook.entityAssociated(entityClass, persistenceUnitName);
                 }
