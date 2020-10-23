@@ -137,7 +137,8 @@ public abstract class ADataUpdater<K, V> implements IDataUpdater<K, V> {
 
                 @Override
                 protected ICloseableIterable<? extends V> getSource(final FDate updateFrom) {
-                    final ICloseableIterable<? extends V> downloadElements = downloadElements(getKey(), updateFrom);
+                    final ICloseableIterable<? extends V> downloadElements = ADataUpdater.this
+                            .downloadElements(getKey(), updateFrom);
                     return downloadElements;
                 }
 

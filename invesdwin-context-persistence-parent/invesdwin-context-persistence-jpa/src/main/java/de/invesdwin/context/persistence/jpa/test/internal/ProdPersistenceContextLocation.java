@@ -50,7 +50,7 @@ public final class ProdPersistenceContextLocation implements IContextLocation, I
                     throw new IllegalArgumentException("More than one " + PersistenceContext.class.getSimpleName()
                             + "s found, please choose only one! Contexts: " + contextLocations);
                 } else {
-                    activePersistenceContext = persistenceContext;
+                    ProdPersistenceContextLocation.activePersistenceContext = persistenceContext;
                     contextFound = true;
                 }
             }
@@ -58,7 +58,7 @@ public final class ProdPersistenceContextLocation implements IContextLocation, I
         if (!contextFound) {
             if (ContextProperties.IS_TEST_ENVIRONMENT) {
                 //add default location, since this might be a test where ATest was not used as the base class...
-                activePersistenceContext = PersistenceContext.TEST_MEMORY;
+                ProdPersistenceContextLocation.activePersistenceContext = PersistenceContext.TEST_MEMORY;
                 contextLocations.add(activePersistenceContext.getContextLocationResource());
             } else {
                 throw new IllegalArgumentException(
