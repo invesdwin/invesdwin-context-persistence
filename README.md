@@ -5,7 +5,7 @@ This project provides persistence modules for the [invesdwin-context](https://gi
 
 Releases and snapshots are deployed to this maven repository:
 ```
-https://invesdwin.de/repo/invesdwin-oss-remote
+https://invesdwin.de/repo/invesdwin-oss-remote/
 ```
 
 Dependency declaration:
