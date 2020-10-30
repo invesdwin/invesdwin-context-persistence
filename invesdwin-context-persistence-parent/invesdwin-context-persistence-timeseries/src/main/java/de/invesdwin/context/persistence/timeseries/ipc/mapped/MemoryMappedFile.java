@@ -17,6 +17,7 @@ import de.invesdwin.util.lang.reflection.Reflections;
  * https://github.com/caplogic/Mappedbus/blob/master/src/main/io/mappedbus/MemoryMappedFile.java
  *
  */
+@SuppressWarnings("restriction")
 @NotThreadSafe
 public class MemoryMappedFile {
 
