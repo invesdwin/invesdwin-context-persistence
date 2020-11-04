@@ -51,7 +51,7 @@ public class TestEzLevelDbJni extends ATest {
 
             @Override
             protected File getBaseDirectory() {
-                return ContextProperties.getCacheDirectory();
+                return ContextProperties.TEMP_DIRECTORY;
             }
 
         };
@@ -64,7 +64,7 @@ public class TestEzLevelDbJni extends ATest {
 
             @Override
             protected File getBaseDirectory() {
-                return ContextProperties.getCacheDirectory();
+                return ContextProperties.TEMP_DIRECTORY;
             }
 
         };
@@ -962,6 +962,11 @@ public class TestEzLevelDbJni extends ATest {
             @Override
             protected boolean allowHasNext() {
                 return true;
+            }
+
+            @Override
+            protected File getBaseDirectory() {
+                return ContextProperties.TEMP_DIRECTORY;
             }
 
         };

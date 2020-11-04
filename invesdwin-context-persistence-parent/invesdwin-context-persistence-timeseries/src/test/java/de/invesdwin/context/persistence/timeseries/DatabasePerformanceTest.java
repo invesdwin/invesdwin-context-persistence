@@ -49,8 +49,8 @@ public class DatabasePerformanceTest extends ATest {
         final ADelegateRangeTable<String, FDate, FDate> table = new ADelegateRangeTable<String, FDate, FDate>(
                 "testLevelDbPerformance") {
             @Override
-            protected File getDirectory() {
-                return new File(ContextProperties.getCacheDirectory(), ADelegateRangeTable.class.getSimpleName());
+            protected File getBaseDirectory() {
+                return ContextProperties.TEMP_DIRECTORY;
             }
 
             @Override
@@ -129,7 +129,7 @@ public class DatabasePerformanceTest extends ATest {
 
             @Override
             protected File getBaseDirectory() {
-                return new File(ContextProperties.getCacheDirectory(), ATimeSeriesDB.class.getSimpleName());
+                return ContextProperties.TEMP_DIRECTORY;
             }
 
             @Override

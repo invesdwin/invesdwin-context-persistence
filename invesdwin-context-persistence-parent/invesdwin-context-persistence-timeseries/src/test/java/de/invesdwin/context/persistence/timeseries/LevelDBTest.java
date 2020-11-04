@@ -1,5 +1,6 @@
 package de.invesdwin.context.persistence.timeseries;
 
+import java.io.File;
 import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -29,8 +30,8 @@ public class LevelDBTest extends ATest {
 
     @Test
     public void testLevelDB() {
-        final Db ezdb = new EzLevelDb(ContextProperties.getCacheDirectory(), new EzLevelDbJavaFactory());
-        final Table<String, String> table = ezdb.getTable(getClass().getSimpleName(), StringSerde.get, StringSerde.get);
+        final Db ezdb = new EzLevelDb(ContextProperties.TEMP_DIRECTORY, new EzLevelDbJavaFactory());
+        final Table<String, String> table = ezdb.getTable("testLevelDB", StringSerde.get, StringSerde.get);
         table.put(HASHKEY, "value");
         Assertions.assertThat(table.get(HASHKEY)).isEqualTo("value");
     }
@@ -47,6 +48,11 @@ public class LevelDBTest extends ATest {
             @Override
             protected boolean allowHasNext() {
                 return true;
+            }
+
+            @Override
+            protected File getBaseDirectory() {
+                return ContextProperties.TEMP_DIRECTORY;
             }
 
         };

@@ -51,7 +51,7 @@ public class TestStockData extends ATest {
 
             @Override
             protected File getBaseDirectory() {
-                return ContextProperties.getCacheDirectory();
+                return ContextProperties.TEMP_DIRECTORY;
             }
 
         };
