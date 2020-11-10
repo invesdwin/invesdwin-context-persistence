@@ -34,7 +34,7 @@ public class HeapSerializingCollection<E> extends SerializingCollection<E> {
         if (bytes != null) {
             return new ByteArrayInputStream(bytes);
         } else {
-            return new ByteArrayInputStream(bos.toByteArray());
+            return new ByteArrayInputStream(getBytes());
         }
     }
 
@@ -42,6 +42,7 @@ public class HeapSerializingCollection<E> extends SerializingCollection<E> {
         if (bytes != null) {
             return bytes;
         } else {
+            flush();
             return bos.toByteArray();
         }
     }
