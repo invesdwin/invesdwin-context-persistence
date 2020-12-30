@@ -110,7 +110,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
     }
 
     protected void deleteCorruptedStorage(final File directory) {
-        Files.deleteQuietly(directory);
+        Files.deleteNative(directory);
     }
 
     @Override
