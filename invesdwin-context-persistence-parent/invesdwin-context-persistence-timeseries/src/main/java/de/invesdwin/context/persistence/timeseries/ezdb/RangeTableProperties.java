@@ -7,6 +7,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.commons.configuration2.AbstractConfiguration;
 
+import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable.DelegateTableIterator;
 import de.invesdwin.context.system.properties.AProperties;
 import de.invesdwin.util.collections.iterable.ATransformingIterator;
@@ -30,9 +31,14 @@ public class RangeTableProperties extends AProperties {
 
             @Override
             protected File getDirectory() {
-                return new File(getBaseDirectory(), RangeTableProperties.class.getSimpleName());
+                return new File(RangeTableProperties.this.getBaseDirectory(),
+                        RangeTableProperties.class.getSimpleName());
             }
         };
+    }
+
+    protected File getBaseDirectory() {
+        return ContextProperties.getHomeDirectory();
     }
 
     @Override
