@@ -381,8 +381,8 @@
 	</pluginRepositories>
 
 	<scm>
-		<url>https://github.com/subes/invesdwin-context-persistence</url>
-		<connection>scm:git:https://github.com/subes/invesdwin-context-persistence.git</connection>
+		<url>https://github.com/invesdwin/invesdwin-context-persistence</url>
+		<connection>scm:git:https://github.com/invesdwin/invesdwin-context-persistence.git</connection>
 		<tag>HEAD</tag>
 	</scm>
 
