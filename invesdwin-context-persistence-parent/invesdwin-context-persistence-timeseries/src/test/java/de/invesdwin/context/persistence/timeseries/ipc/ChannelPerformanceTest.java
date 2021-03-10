@@ -318,13 +318,13 @@ public class ChannelPerformanceTest extends ATest {
                     return responseReader.hasNext();
                 }
             };
-            Instant waitingSince = new Instant();
+            long waitingSinceNanos = System.nanoTime();
             while (true) {
                 requestWriter.write(MESSAGE_TYPE, MESSAGE_SEQUENCE, Bytes.EMPTY_ARRAY);
                 if (DEBUG) {
                     log.info("client request out");
                 }
-                Assertions.checkTrue(spinWait.awaitFulfill(waitingSince, MAX_WAIT_DURATION));
+                Assertions.checkTrue(spinWait.awaitFulfill(waitingSinceNanos, MAX_WAIT_DURATION));
                 final SynchronousResponse readMessage = responseReader.readMessage();
                 if (DEBUG) {
                     log.info("client response in");
@@ -341,7 +341,7 @@ public class ChannelPerformanceTest extends ATest {
                 }
                 prevValue = value;
                 count++;
-                waitingSince = new Instant();
+                waitingSinceNanos = System.nanoTime();
             }
         } catch (final EOFException e) {
             //writer closed
@@ -405,9 +405,9 @@ public class ChannelPerformanceTest extends ATest {
                     log.info("server open response writer");
                 }
                 responseWriter.open();
-                Instant waitingSince = new Instant();
+                long waitingSinceNanos = System.nanoTime();
                 for (final FDate date : newValues()) {
-                    Assertions.checkTrue(spinWait.awaitFulfill(waitingSince, MAX_WAIT_DURATION));
+                    Assertions.checkTrue(spinWait.awaitFulfill(waitingSinceNanos, MAX_WAIT_DURATION));
                     if (DEBUG) {
                         log.info("server request in");
                     }
@@ -425,7 +425,7 @@ public class ChannelPerformanceTest extends ATest {
                     if (i % FLUSH_INTERVAL == 0) {
                         printProgress("Writes", writesStart, i, VALUES);
                     }
-                    waitingSince = new Instant();
+                    waitingSinceNanos = System.nanoTime();
                 }
                 printProgress("WritesFinished", writesStart, VALUES, VALUES);
                 if (DEBUG) {
