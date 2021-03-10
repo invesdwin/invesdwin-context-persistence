@@ -10,6 +10,7 @@ import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
+import java.util.function.BooleanSupplier;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -33,6 +34,7 @@ import de.invesdwin.context.persistence.timeseries.serde.FDateSerde;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
+import de.invesdwin.util.concurrent.ASpinWait;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
 import de.invesdwin.util.error.UnknownArgumentException;
@@ -312,7 +314,7 @@ public class ChannelPerformanceTest extends ATest {
             responseReader.open();
             final ASpinWait spinWait = new ASpinWait() {
                 @Override
-                protected boolean isConditionFulfilled() throws IOException {
+                protected boolean isConditionFulfilled(final BooleanSupplier outerCondition) throws Exception {
                     return responseReader.hasNext();
                 }
             };
@@ -343,7 +345,7 @@ public class ChannelPerformanceTest extends ATest {
             }
         } catch (final EOFException e) {
             //writer closed
-        } catch (final IOException e) {
+        } catch (final Exception e) {
             throw new RuntimeException(e);
         }
         Assertions.checkEquals(count, VALUES);
@@ -388,7 +390,7 @@ public class ChannelPerformanceTest extends ATest {
         public void run() {
             final ASpinWait spinWait = new ASpinWait() {
                 @Override
-                protected boolean isConditionFulfilled() throws IOException {
+                protected boolean isConditionFulfilled(final BooleanSupplier outerCondition) throws Exception {
                     return requestReader.hasNext();
                 }
             };
@@ -434,7 +436,7 @@ public class ChannelPerformanceTest extends ATest {
                     log.info("server close request reader");
                 }
                 requestReader.close();
-            } catch (final IOException e) {
+            } catch (final Exception e) {
                 throw new RuntimeException(e);
             }
         }
