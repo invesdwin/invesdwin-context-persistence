@@ -10,7 +10,6 @@ import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
-import java.util.function.BooleanSupplier;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -314,7 +313,7 @@ public class ChannelPerformanceTest extends ATest {
             responseReader.open();
             final ASpinWait spinWait = new ASpinWait() {
                 @Override
-                protected boolean isConditionFulfilled(final BooleanSupplier outerCondition) throws Exception {
+                protected boolean isConditionFulfilled() throws Exception {
                     return responseReader.hasNext();
                 }
             };
@@ -390,7 +389,7 @@ public class ChannelPerformanceTest extends ATest {
         public void run() {
             final ASpinWait spinWait = new ASpinWait() {
                 @Override
-                protected boolean isConditionFulfilled(final BooleanSupplier outerCondition) throws Exception {
+                protected boolean isConditionFulfilled() throws Exception {
                     return requestReader.hasNext();
                 }
             };
