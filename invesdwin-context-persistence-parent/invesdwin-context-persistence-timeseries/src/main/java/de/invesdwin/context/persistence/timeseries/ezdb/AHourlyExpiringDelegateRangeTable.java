@@ -15,7 +15,7 @@ public abstract class AHourlyExpiringDelegateRangeTable<H, R, V> extends ADelega
     @Override
     protected boolean shouldPurgeTable() {
         final FDate tableCreationTime = getTableCreationTime();
-        return tableCreationTime != null && !FDates.isSameJulianDay(tableCreationTime, new FDate());
+        return tableCreationTime != null && !FDates.isSameJulianHour(tableCreationTime, new FDate());
     }
 
 }
