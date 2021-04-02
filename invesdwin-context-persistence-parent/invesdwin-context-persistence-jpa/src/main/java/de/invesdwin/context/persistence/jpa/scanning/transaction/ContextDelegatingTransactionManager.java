@@ -20,13 +20,13 @@ import io.netty.util.concurrent.FastThreadLocal;
 public class ContextDelegatingTransactionManager implements PlatformTransactionManager {
 
     private static final TransactionStatus NO_TRANSACTION = new DisabledTransactionStatus();
-    private static boolean enabled;
-    private final FastThreadLocal<Deque<PersistenceUnitContext>> curContext = new FastThreadLocal<Deque<PersistenceUnitContext>>() {
+    private static final FastThreadLocal<Deque<PersistenceUnitContext>> CUR_CONTEXT = new FastThreadLocal<Deque<PersistenceUnitContext>>() {
         @Override
         protected Deque<PersistenceUnitContext> initialValue() {
             return new LinkedList<PersistenceUnitContext>();
         };
     };
+    private static boolean enabled;
     private final ALoadingCache<String, PersistenceUnitContext> className_persistenceUnitContext = new ALoadingCache<String, PersistenceUnitContext>() {
         @Override
         protected PersistenceUnitContext loadValue(final String key) {
@@ -40,7 +40,7 @@ public class ContextDelegatingTransactionManager implements PlatformTransactionM
         if (!enabled) {
             return null;
         }
-        final Deque<PersistenceUnitContext> deque = curContext.get();
+        final Deque<PersistenceUnitContext> deque = CUR_CONTEXT.get();
         if (definition.getPropagationBehavior() == TransactionDefinition.PROPAGATION_NEVER && deque.size() == 0) {
             /*
              * don't delegate if no transaction is desired and currently none exists; this resolves some bugs with
@@ -67,10 +67,10 @@ public class ContextDelegatingTransactionManager implements PlatformTransactionM
         if (status == NO_TRANSACTION) {
             return;
         }
-        final Deque<PersistenceUnitContext> deque = curContext.get();
+        final Deque<PersistenceUnitContext> deque = CUR_CONTEXT.get();
         final PersistenceUnitContext context = deque.removeLast();
         if (deque.isEmpty()) {
-            curContext.remove();
+            CUR_CONTEXT.remove();
         }
         context.getTransactionManager().commit(status);
     }
@@ -80,10 +80,10 @@ public class ContextDelegatingTransactionManager implements PlatformTransactionM
         if (status == NO_TRANSACTION) {
             return;
         }
-        final Deque<PersistenceUnitContext> deque = curContext.get();
+        final Deque<PersistenceUnitContext> deque = CUR_CONTEXT.get();
         final PersistenceUnitContext context = deque.removeLast();
         if (deque.isEmpty()) {
-            curContext.remove();
+            CUR_CONTEXT.remove();
         }
         context.getTransactionManager().rollback(status);
     }

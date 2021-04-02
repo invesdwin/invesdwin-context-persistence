@@ -21,7 +21,7 @@ import io.netty.util.concurrent.FastThreadLocal;
 @ThreadSafe
 public class HibernateExtendedJpaDialect extends HibernateJpaDialect {
 
-    private final FastThreadLocal<Deque<ConnectionContext>> curContext = new FastThreadLocal<Deque<ConnectionContext>>() {
+    private static final FastThreadLocal<Deque<ConnectionContext>> CUR_CONTEXT = new FastThreadLocal<Deque<ConnectionContext>>() {
         @Override
         protected Deque<ConnectionContext> initialValue() {
             return new LinkedList<ConnectionContext>();
@@ -34,7 +34,7 @@ public class HibernateExtendedJpaDialect extends HibernateJpaDialect {
 
         final boolean readOnly = definition.isReadOnly();
         final Connection connection = this.getJdbcConnection(entityManager, readOnly).getConnection();
-        final Deque<ConnectionContext> deque = curContext.get();
+        final Deque<ConnectionContext> deque = CUR_CONTEXT.get();
         final ConnectionContext context = new ConnectionContext(connection, definition);
         deque.addLast(context);
 
@@ -50,10 +50,10 @@ public class HibernateExtendedJpaDialect extends HibernateJpaDialect {
     @Override
     public void cleanupTransaction(final Object transactionData) {
         super.cleanupTransaction(transactionData);
-        final Deque<ConnectionContext> deque = curContext.get();
+        final Deque<ConnectionContext> deque = CUR_CONTEXT.get();
         final ConnectionContext context = deque.removeLast();
         if (deque.isEmpty()) {
-            curContext.remove();
+            CUR_CONTEXT.remove();
         }
         context.reset();
     }
