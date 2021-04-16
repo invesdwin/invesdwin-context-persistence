@@ -11,7 +11,7 @@ import ezdb.serde.Serde;
 public class BooleanSerde implements Serde<Boolean> {
 
     public static final BooleanSerde GET = new BooleanSerde();
-    public static final int FIXED_LENGTH = 1;
+    public static final int FIXED_LENGTH = Booleans.BYTES;
 
     @Override
     public Boolean fromBytes(final byte[] bytes) {
