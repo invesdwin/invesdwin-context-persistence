@@ -7,6 +7,7 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
+import de.invesdwin.util.math.expression.lambda.IEvaluateGenericFDate;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.fdate.FTimeUnit;
@@ -36,14 +37,18 @@ public class PeriodicalSegmentFinder {
         }
 
         @Override
-        protected TimeRange loadValue(final FDate key) {
-            if (key.isBefore(DUMMY_RANGE.getFrom())) {
-                return BEFORE_DUMMY_RANGE;
-            } else if (key.isAfter(DUMMY_RANGE.getTo())) {
-                return AFTER_DUMMY_RANGE;
-            } else {
-                return DUMMY_RANGE;
-            }
+        protected IEvaluateGenericFDate<TimeRange> newLoadValue() {
+            return pKey -> {
+                final FDate key = pKey.asFDate();
+                if (key.isBefore(DUMMY_RANGE.getFrom())) {
+                    return BEFORE_DUMMY_RANGE;
+                } else if (key.isAfter(DUMMY_RANGE.getTo())) {
+                    return AFTER_DUMMY_RANGE;
+                } else {
+                    return DUMMY_RANGE;
+                }
+            };
+
         }
 
         @Override
@@ -285,8 +290,8 @@ public class PeriodicalSegmentFinder {
             }
 
             @Override
-            protected TimeRange loadValue(final FDate key) {
-                return calculation.getSegment(key);
+            protected IEvaluateGenericFDate<TimeRange> newLoadValue() {
+                return (key) -> calculation.getSegment(key.asFDate());
             }
 
             @Override

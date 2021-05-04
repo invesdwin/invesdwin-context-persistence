@@ -34,10 +34,12 @@ import de.invesdwin.util.collections.loadingcache.historical.key.IHistoricalCach
 import de.invesdwin.util.collections.loadingcache.historical.query.internal.core.DefaultHistoricalCacheQueryCore;
 import de.invesdwin.util.collections.loadingcache.historical.query.internal.core.IHistoricalCacheQueryCore;
 import de.invesdwin.util.collections.loadingcache.historical.refresh.HistoricalCacheRefreshManager;
+import de.invesdwin.util.math.expression.lambda.IEvaluateGenericFDate;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.fdate.FDate;
 import de.invesdwin.util.time.fdate.FDateBuilder;
 import de.invesdwin.util.time.fdate.FTimeUnit;
+import de.invesdwin.util.time.fdate.IFDateProvider;
 import de.invesdwin.util.time.range.TimeRange;
 import ezdb.serde.Serde;
 
@@ -89,7 +91,12 @@ public class ASegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest 
             }
 
             @Override
-            protected synchronized TimeRange loadValue(final FDate key) {
+            protected IEvaluateGenericFDate<TimeRange> newLoadValue() {
+                return this::loadValue;
+            }
+
+            private synchronized TimeRange loadValue(final IFDateProvider pKey) {
+                final FDate key = pKey.asFDate();
                 final TimeRange value = calculation.getSegment(key);
                 final TimeRange upperTimeRange = new TimeRange(value.getFrom().addYears(1), value.getTo().addYears(1));
                 if (upperTimeRange.contains(key)) {
