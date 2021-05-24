@@ -137,6 +137,10 @@ public class PeriodicalSegmentFinder {
             } while (curTimeRange.getTo().isBefore(key));
         }
 
+        if (calculationBounds.getTo().isBefore(curTimeRange.getTo())) {
+            curTimeRange = new TimeRange(curTimeRange.getFrom(), calculationBounds.getTo());
+        }
+
         return curTimeRange;
     }
 
