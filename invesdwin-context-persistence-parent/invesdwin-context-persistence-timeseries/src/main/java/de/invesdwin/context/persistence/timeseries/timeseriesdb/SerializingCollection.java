@@ -57,7 +57,8 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     private final File file;
     private final SerializingCollectionFinalizer finalizer;
     private final Integer fixedLength = getFixedLength();
-    private final Serde<E> serde = newSerde();
+    @SuppressWarnings("unchecked")
+    private final Serde<E> serde = (Serde<E>) newSerde();
 
     public SerializingCollection(final TextDescription name, final String tempFileId) {
         this.name = name;
@@ -151,7 +152,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         return LZ4Streams.newDefaultLZ4InputStream(inputStream);
     }
 
-    protected Serde<E> newSerde() {
+    protected Serde<? extends E> newSerde() {
         return new Serde<E>() {
             @Override
             public E fromBytes(final byte[] bytes) {
