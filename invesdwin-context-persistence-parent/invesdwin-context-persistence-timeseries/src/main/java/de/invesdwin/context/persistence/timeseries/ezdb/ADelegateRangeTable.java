@@ -95,7 +95,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     }
 
     protected File getBaseDirectory() {
-        return ContextProperties.getHomeDirectory();
+        return ContextProperties.getHomeDataDirectory();
     }
 
     /**

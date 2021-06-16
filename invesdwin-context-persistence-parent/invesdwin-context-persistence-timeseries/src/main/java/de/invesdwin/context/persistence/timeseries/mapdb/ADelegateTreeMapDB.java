@@ -176,7 +176,7 @@ public abstract class ADelegateTreeMapDB<K, V> implements ConcurrentNavigableMap
     }
 
     protected File getBaseDirectory() {
-        return ContextProperties.getHomeDirectory();
+        return ContextProperties.getHomeDataDirectory();
     }
 
     @SuppressWarnings("unchecked")

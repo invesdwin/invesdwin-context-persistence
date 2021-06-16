@@ -38,7 +38,7 @@ public class RangeTableProperties extends AProperties {
     }
 
     protected File getBaseDirectory() {
-        return ContextProperties.getHomeDirectory();
+        return ContextProperties.getHomeDataDirectory();
     }
 
     @Override

@@ -172,7 +172,7 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
     }
 
     protected File getBaseDirectory() {
-        return ContextProperties.getHomeDirectory();
+        return ContextProperties.getHomeDataDirectory();
     }
 
     @SuppressWarnings("unchecked")

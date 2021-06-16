@@ -131,7 +131,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
     }
 
     public static File getDefaultBaseDirectory() {
-        return ContextProperties.getHomeDirectory();
+        return ContextProperties.getHomeDataDirectory();
     }
 
     protected abstract Integer newValueFixedLength();
