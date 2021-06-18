@@ -37,6 +37,11 @@ public class PeriodicalSegmentFinder {
         }
 
         @Override
+        public boolean isThreadSafe() {
+            return false;
+        }
+
+        @Override
         protected IEvaluateGenericFDate<TimeRange> newLoadValue() {
             return pKey -> {
                 final FDate key = pKey.asFDate();
@@ -278,7 +283,7 @@ public class PeriodicalSegmentFinder {
         }
     }
 
-    public static AHistoricalCache<TimeRange> newCache(final Duration period) {
+    public static AHistoricalCache<TimeRange> newCache(final Duration period, final boolean threadSafe) {
         return new AHistoricalCache<TimeRange>() {
 
             private final PeriodicalSegmentFinder calculation = PeriodicalSegmentFinder.newInstance(period);
@@ -286,6 +291,11 @@ public class PeriodicalSegmentFinder {
             @Override
             protected Integer getInitialMaximumSize() {
                 return 10;
+            }
+
+            @Override
+            public boolean isThreadSafe() {
+                return threadSafe;
             }
 
             @Override

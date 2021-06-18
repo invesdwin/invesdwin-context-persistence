@@ -74,7 +74,7 @@ public class ALiveSegmentedTimeSeriesDBWithLimitedCacheTest extends ATest {
     public void setUp() throws Exception {
         super.setUp();
         final AHistoricalCache<TimeRange> segmentFinder = PeriodicalSegmentFinder
-                .newCache(new Duration(2, FTimeUnit.YEARS));
+                .newCache(new Duration(2, FTimeUnit.YEARS), false);
         table = new ALiveSegmentedTimeSeriesDB<String, FDate>(getClass().getSimpleName()) {
 
             private FDate curTime = null;

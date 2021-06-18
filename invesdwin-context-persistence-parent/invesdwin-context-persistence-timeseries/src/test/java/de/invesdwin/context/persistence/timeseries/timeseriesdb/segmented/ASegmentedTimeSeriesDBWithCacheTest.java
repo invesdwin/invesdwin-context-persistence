@@ -72,7 +72,7 @@ public class ASegmentedTimeSeriesDBWithCacheTest extends ATest {
         super.setUp();
 
         final AHistoricalCache<TimeRange> segmentFinder = PeriodicalSegmentFinder
-                .newCache(new Duration(2, FTimeUnit.YEARS));
+                .newCache(new Duration(2, FTimeUnit.YEARS), false);
         table = new ASegmentedTimeSeriesDB<String, FDate>(getClass().getSimpleName()) {
 
             @Override
