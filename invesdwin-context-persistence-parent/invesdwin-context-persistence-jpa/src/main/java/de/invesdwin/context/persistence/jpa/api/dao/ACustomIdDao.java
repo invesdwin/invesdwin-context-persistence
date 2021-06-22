@@ -419,17 +419,17 @@ public abstract class ACustomIdDao<E, PK extends Serializable> extends AReposito
     }
 
     @Override
-    public void deleteAllByIdInBatch(final Iterable<Long> ids) {
-        return getDelegate().deleteAllByIdInBatch(ids);
+    public void deleteAllByIdInBatch(final Iterable<PK> ids) {
+        getDelegate().deleteAllByIdInBatch(ids);
     }
 
     @Override
-    public E getById(final Long id) {
+    public E getById(final PK id) {
         return getDelegate().getById(id);
     }
 
     @Override
-    public void deleteAllById(final Iterable<? extends Long> ids) {
+    public void deleteAllById(final Iterable<? extends PK> ids) {
         getDelegate().deleteAllById(ids);
     }
 
