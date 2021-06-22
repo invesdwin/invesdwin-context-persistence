@@ -283,4 +283,29 @@ public class SimpleTestDao extends ARepository implements IDao<SimpleTestEntity,
         throw new UnsupportedOperationException("TODO");
     }
 
+    @Override
+    public <S extends SimpleTestEntity> List<S> saveAllAndFlush(final Iterable<S> entities) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    @Override
+    public void deleteAllInBatch(final Iterable<SimpleTestEntity> entities) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    @Override
+    public void deleteAllByIdInBatch(final Iterable<Long> ids) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    @Override
+    public SimpleTestEntity getById(final Long id) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    @Override
+    public void deleteAllById(final Iterable<? extends Long> ids) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
 }

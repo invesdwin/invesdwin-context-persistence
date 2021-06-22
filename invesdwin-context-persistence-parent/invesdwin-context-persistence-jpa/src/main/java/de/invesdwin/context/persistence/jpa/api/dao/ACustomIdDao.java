@@ -408,6 +408,31 @@ public abstract class ACustomIdDao<E, PK extends Serializable> extends AReposito
         return getDelegate().exists(example);
     }
 
+    @Override
+    public <S extends E> List<S> saveAllAndFlush(final Iterable<S> entities) {
+        return getDelegate().saveAllAndFlush(entities);
+    }
+
+    @Override
+    public void deleteAllInBatch(final Iterable<E> entities) {
+        getDelegate().deleteAllInBatch(entities);
+    }
+
+    @Override
+    public void deleteAllByIdInBatch(final Iterable<Long> ids) {
+        return getDelegate().deleteAllByIdInBatch(ids);
+    }
+
+    @Override
+    public E getById(final Long id) {
+        return getDelegate().getById(id);
+    }
+
+    @Override
+    public void deleteAllById(final Iterable<? extends Long> ids) {
+        getDelegate().deleteAllById(ids);
+    }
+
     /******************* protected **************************************/
 
     /**
