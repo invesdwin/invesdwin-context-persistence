@@ -6,7 +6,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseries.ezdb.RangeTablePersistenceMode;
-import de.invesdwin.util.time.fdate.FDate;
+import de.invesdwin.util.time.date.FDate;
 import ezdb.serde.Serde;
 
 @ThreadSafe

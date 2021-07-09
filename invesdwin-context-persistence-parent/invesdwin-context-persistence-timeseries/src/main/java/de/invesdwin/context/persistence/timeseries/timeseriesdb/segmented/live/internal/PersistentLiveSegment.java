@@ -21,7 +21,7 @@ import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.time.Instant;
-import de.invesdwin.util.time.fdate.FDate;
+import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.range.TimeRange;
 import net.jpountz.lz4.LZ4BlockOutputStream;
 

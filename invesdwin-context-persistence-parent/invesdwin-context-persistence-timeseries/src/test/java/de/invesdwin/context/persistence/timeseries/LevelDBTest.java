@@ -14,8 +14,8 @@ import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable.Dele
 import de.invesdwin.context.persistence.timeseries.serde.FDateSerde;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.time.fdate.FDate;
-import de.invesdwin.util.time.fdate.FDateBuilder;
+import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.date.FDateBuilder;
 import ezdb.Db;
 import ezdb.Table;
 import ezdb.leveldb.EzLevelDb;

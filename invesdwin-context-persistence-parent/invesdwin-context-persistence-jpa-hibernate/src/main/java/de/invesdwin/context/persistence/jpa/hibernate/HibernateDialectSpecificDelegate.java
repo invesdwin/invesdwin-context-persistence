@@ -35,8 +35,8 @@ import de.invesdwin.context.persistence.jpa.spi.impl.NativeJdbcIndexCreationHand
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.lang.reflection.Reflections;
+import de.invesdwin.util.time.date.FTimeUnit;
 import de.invesdwin.util.time.duration.Duration;
-import de.invesdwin.util.time.fdate.FTimeUnit;
 
 @Named
 @ThreadSafe

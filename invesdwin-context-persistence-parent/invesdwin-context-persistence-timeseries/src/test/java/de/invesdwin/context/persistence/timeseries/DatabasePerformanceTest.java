@@ -23,10 +23,10 @@ import de.invesdwin.util.lang.ProcessedEventsRateString;
 import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.math.decimal.scaled.PercentScale;
 import de.invesdwin.util.time.Instant;
+import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.date.FDates;
+import de.invesdwin.util.time.date.FTimeUnit;
 import de.invesdwin.util.time.duration.Duration;
-import de.invesdwin.util.time.fdate.FDate;
-import de.invesdwin.util.time.fdate.FDates;
-import de.invesdwin.util.time.fdate.FTimeUnit;
 import ezdb.batch.RangeBatch;
 import ezdb.serde.Serde;
 

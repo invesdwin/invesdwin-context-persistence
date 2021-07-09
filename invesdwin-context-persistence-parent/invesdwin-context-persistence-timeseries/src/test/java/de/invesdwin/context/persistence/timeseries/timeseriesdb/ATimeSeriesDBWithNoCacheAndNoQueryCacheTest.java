@@ -34,8 +34,8 @@ import de.invesdwin.util.collections.loadingcache.historical.query.internal.core
 import de.invesdwin.util.collections.loadingcache.historical.refresh.HistoricalCacheRefreshManager;
 import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.time.Instant;
-import de.invesdwin.util.time.fdate.FDate;
-import de.invesdwin.util.time.fdate.FDateBuilder;
+import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.date.FDateBuilder;
 import ezdb.serde.Serde;
 
 @ThreadSafe

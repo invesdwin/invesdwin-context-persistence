@@ -12,8 +12,8 @@ import de.invesdwin.context.persistence.jpa.complex.TestEntity;
 import de.invesdwin.context.persistence.jpa.test.APersistenceTest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.assertions.Executable;
+import de.invesdwin.util.time.date.FTimeUnit;
 import de.invesdwin.util.time.duration.Duration;
-import de.invesdwin.util.time.fdate.FTimeUnit;
 
 @ThreadSafe
 //@ContextConfiguration(locations = { APersistenzTest.CTX_TEST_SERVER }, inheritLocations = false)

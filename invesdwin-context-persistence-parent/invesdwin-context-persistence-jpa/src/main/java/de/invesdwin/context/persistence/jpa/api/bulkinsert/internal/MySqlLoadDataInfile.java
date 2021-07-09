@@ -30,7 +30,7 @@ import de.invesdwin.context.persistence.jpa.api.dao.entity.IEntity;
 import de.invesdwin.context.persistence.jpa.api.util.Attributes;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.lang.reflection.Reflections;
-import de.invesdwin.util.time.fdate.FDate;
+import de.invesdwin.util.time.date.FDate;
 
 @ThreadSafe
 public class MySqlLoadDataInfile<E> implements IBulkInsertEntities<E> {

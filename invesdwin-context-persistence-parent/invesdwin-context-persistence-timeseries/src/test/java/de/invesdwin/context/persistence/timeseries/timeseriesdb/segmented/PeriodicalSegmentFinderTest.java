@@ -6,9 +6,9 @@ import org.junit.Test;
 
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.time.date.FDateBuilder;
+import de.invesdwin.util.time.date.timezone.FTimeZone;
 import de.invesdwin.util.time.duration.Duration;
-import de.invesdwin.util.time.fdate.FDateBuilder;
-import de.invesdwin.util.time.fdate.ftimezone.FTimeZone;
 import de.invesdwin.util.time.range.TimeRange;
 
 @NotThreadSafe

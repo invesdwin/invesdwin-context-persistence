@@ -5,7 +5,7 @@ import java.io.File;
 
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
-import de.invesdwin.util.time.fdate.FDate;
+import de.invesdwin.util.time.date.FDate;
 
 public interface ITimeSeriesDB<K, V> extends Closeable {
 

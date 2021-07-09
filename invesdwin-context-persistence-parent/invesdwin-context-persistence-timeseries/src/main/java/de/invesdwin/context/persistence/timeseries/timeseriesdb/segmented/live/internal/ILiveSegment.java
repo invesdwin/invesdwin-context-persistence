@@ -6,7 +6,7 @@ import java.util.concurrent.locks.Lock;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
-import de.invesdwin.util.time.fdate.FDate;
+import de.invesdwin.util.time.date.FDate;
 
 public interface ILiveSegment<K, V> extends Closeable {
 

@@ -7,7 +7,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.math.Bytes;
 import de.invesdwin.util.math.TimedDouble;
-import de.invesdwin.util.time.fdate.FDate;
+import de.invesdwin.util.time.date.FDate;
 import ezdb.serde.Serde;
 
 @ThreadSafe

@@ -8,10 +8,10 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.math.expression.lambda.IEvaluateGenericFDate;
+import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.date.FTimeUnit;
+import de.invesdwin.util.time.date.FWeekday;
 import de.invesdwin.util.time.duration.Duration;
-import de.invesdwin.util.time.fdate.FDate;
-import de.invesdwin.util.time.fdate.FTimeUnit;
-import de.invesdwin.util.time.fdate.FWeekday;
 import de.invesdwin.util.time.range.TimeRange;
 
 @ThreadSafe

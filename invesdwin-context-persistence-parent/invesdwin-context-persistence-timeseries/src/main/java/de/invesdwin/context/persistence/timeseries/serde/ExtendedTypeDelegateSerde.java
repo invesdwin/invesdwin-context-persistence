@@ -5,7 +5,7 @@ import javax.annotation.concurrent.Immutable;
 import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.math.decimal.Decimal;
 import de.invesdwin.util.math.decimal.TimedDecimal;
-import de.invesdwin.util.time.fdate.FDate;
+import de.invesdwin.util.time.date.FDate;
 import ezdb.serde.Serde;
 import ezdb.serde.SerializingSerde;
 import ezdb.serde.TypeDelegateSerde;

@@ -10,7 +10,7 @@ import org.junit.Test;
 
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.time.fdate.FDateBuilder;
+import de.invesdwin.util.time.date.FDateBuilder;
 
 @NotThreadSafe
 public class ShiftUnitsRangeKeyTest extends ATest {

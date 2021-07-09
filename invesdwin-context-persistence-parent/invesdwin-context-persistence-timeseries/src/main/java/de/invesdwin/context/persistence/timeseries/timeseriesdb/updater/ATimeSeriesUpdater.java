@@ -33,7 +33,7 @@ import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.time.Instant;
-import de.invesdwin.util.time.fdate.FDate;
+import de.invesdwin.util.time.date.FDate;
 import ezdb.serde.Serde;
 import net.jpountz.lz4.LZ4BlockOutputStream;
 

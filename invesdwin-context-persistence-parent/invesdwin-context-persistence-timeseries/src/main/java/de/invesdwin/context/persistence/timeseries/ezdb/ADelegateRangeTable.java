@@ -34,7 +34,7 @@ import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.shutdown.ShutdownHookManager;
-import de.invesdwin.util.time.fdate.FDate;
+import de.invesdwin.util.time.date.FDate;
 import ezdb.RangeTable;
 import ezdb.RawTableRow;
 import ezdb.TableIterator;

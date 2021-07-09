@@ -21,7 +21,7 @@ import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.iterable.buffer.IBufferingIterator;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.concurrent.reference.MutableReference;
-import de.invesdwin.util.time.fdate.FDate;
+import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
 public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {

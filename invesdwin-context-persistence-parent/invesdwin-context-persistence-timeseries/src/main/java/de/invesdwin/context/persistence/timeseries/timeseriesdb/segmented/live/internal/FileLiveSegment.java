@@ -25,7 +25,7 @@ import de.invesdwin.util.collections.iterable.buffer.IBufferingIterator;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
-import de.invesdwin.util.time.fdate.FDate;
+import de.invesdwin.util.time.date.FDate;
 import ezdb.serde.Serde;
 
 @NotThreadSafe

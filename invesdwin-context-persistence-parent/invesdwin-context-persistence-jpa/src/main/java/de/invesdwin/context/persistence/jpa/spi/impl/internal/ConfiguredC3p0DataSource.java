@@ -13,8 +13,8 @@ import de.invesdwin.context.persistence.jpa.PersistenceUnitContext;
 import de.invesdwin.context.persistence.jpa.scanning.datasource.ADelegateDataSource;
 import de.invesdwin.context.persistence.jpa.scanning.datasource.ICloseableDataSource;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.time.date.FTimeUnit;
 import de.invesdwin.util.time.duration.Duration;
-import de.invesdwin.util.time.fdate.FTimeUnit;
 
 @ThreadSafe
 public class ConfiguredC3p0DataSource extends ADelegateDataSource implements ICloseableDataSource {

@@ -51,7 +51,7 @@ import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
-import de.invesdwin.util.time.fdate.FDate;
+import de.invesdwin.util.time.date.FDate;
 import ezdb.TableRow;
 import ezdb.serde.Serde;
 

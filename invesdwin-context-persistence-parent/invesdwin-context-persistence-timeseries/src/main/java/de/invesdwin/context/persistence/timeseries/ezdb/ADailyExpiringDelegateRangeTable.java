@@ -2,8 +2,8 @@ package de.invesdwin.context.persistence.timeseries.ezdb;
 
 import javax.annotation.concurrent.ThreadSafe;
 
-import de.invesdwin.util.time.fdate.FDate;
-import de.invesdwin.util.time.fdate.FDates;
+import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.date.FDates;
 
 @ThreadSafe
 public abstract class ADailyExpiringDelegateRangeTable<H, R, V> extends ADelegateRangeTable<H, R, V> {

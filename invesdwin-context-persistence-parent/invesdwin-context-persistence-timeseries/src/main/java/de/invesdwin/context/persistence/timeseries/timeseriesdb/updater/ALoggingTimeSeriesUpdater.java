@@ -11,9 +11,9 @@ import de.invesdwin.util.math.Integers;
 import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.math.decimal.scaled.PercentScale;
 import de.invesdwin.util.time.Instant;
+import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.date.FDates;
 import de.invesdwin.util.time.duration.Duration;
-import de.invesdwin.util.time.fdate.FDate;
-import de.invesdwin.util.time.fdate.FDates;
 
 @NotThreadSafe
 public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater<K, V> {

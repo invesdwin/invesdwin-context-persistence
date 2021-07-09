@@ -29,7 +29,7 @@ import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
-import de.invesdwin.util.time.fdate.FDate;
+import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.range.TimeRange;
 import ezdb.serde.Serde;
 import net.jpountz.lz4.LZ4BlockOutputStream;

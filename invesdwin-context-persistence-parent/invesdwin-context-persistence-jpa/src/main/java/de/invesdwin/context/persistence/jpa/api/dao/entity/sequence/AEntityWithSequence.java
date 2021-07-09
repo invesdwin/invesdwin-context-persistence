@@ -9,7 +9,7 @@ import javax.persistence.MappedSuperclass;
 import javax.persistence.Version;
 
 import de.invesdwin.norva.beanpath.annotation.Hidden;
-import de.invesdwin.util.time.fdate.FDate;
+import de.invesdwin.util.time.date.FDate;
 
 /**
  * An Entity is the same as a table row and is persistent as one. These are JPA-Annotated classes that do not contain

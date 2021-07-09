@@ -4,8 +4,8 @@ import java.nio.ByteBuffer;
 
 import javax.annotation.concurrent.Immutable;
 
-import de.invesdwin.util.time.fdate.FDate;
-import de.invesdwin.util.time.fdate.FDates;
+import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.date.FDates;
 import ezdb.serde.Serde;
 
 @Immutable

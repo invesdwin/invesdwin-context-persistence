@@ -27,7 +27,7 @@ import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
-import de.invesdwin.util.time.fdate.FDate;
+import de.invesdwin.util.time.date.FDate;
 import ezdb.serde.Serde;
 
 @ThreadSafe

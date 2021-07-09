@@ -24,7 +24,7 @@ import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.iterable.buffer.IBufferingIterator;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.error.FastNoSuchElementException;
-import de.invesdwin.util.time.fdate.FDate;
+import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
 public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
