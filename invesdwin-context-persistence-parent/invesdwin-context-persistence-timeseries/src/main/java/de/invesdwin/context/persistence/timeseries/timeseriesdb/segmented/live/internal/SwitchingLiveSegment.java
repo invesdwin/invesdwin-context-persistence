@@ -103,8 +103,8 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
                 return inProgress.rangeValues(from, to, readLock, skipFileFunction);
             } else {
                 //use both segments
-                final ICloseableIterable<V> historicalRangeValues = persistent.rangeValues(from,
-                        memoryFrom.addMilliseconds(-1), readLock, skipFileFunction);
+                final ICloseableIterable<V> historicalRangeValues = persistent.rangeValues(from, memoryFrom, readLock,
+                        skipFileFunction);
                 final ICloseableIterable<V> liveRangeValues = inProgress.rangeValues(memoryFrom, to, readLock,
                         skipFileFunction);
                 return new FlatteningIterable<V>(historicalRangeValues, liveRangeValues);
@@ -152,8 +152,8 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
                 //use both segments
                 final ICloseableIterable<V> liveRangeValues = inProgress.rangeReverseValues(from, memoryFrom, readLock,
                         skipFileFunction);
-                final ICloseableIterable<V> historicalRangeValues = persistent
-                        .rangeReverseValues(memoryFrom.addMilliseconds(-1), to, readLock, skipFileFunction);
+                final ICloseableIterable<V> historicalRangeValues = persistent.rangeReverseValues(memoryFrom, to,
+                        readLock, skipFileFunction);
                 return new FlatteningIterable<V>(liveRangeValues, historicalRangeValues);
             }
         }
