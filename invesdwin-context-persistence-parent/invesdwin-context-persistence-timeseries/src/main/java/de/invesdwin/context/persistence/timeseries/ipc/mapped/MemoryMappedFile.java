@@ -22,7 +22,7 @@ import de.invesdwin.util.lang.reflection.Reflections;
 public class MemoryMappedFile {
 
     private static final sun.misc.Unsafe UNSAFE = DynamicInstrumentationReflections.getUnsafe();
-    private static final Method MMAP;
+    private static final IMap0Invoker MMAP;
     private static final Method UNMMAP;
     private static final int BYTE_ARRAY_OFFSET;
 
@@ -33,7 +33,7 @@ public class MemoryMappedFile {
     static {
         try {
             final Class<Object> fileChannelImplClass = Reflections.classForName("sun.nio.ch.FileChannelImpl");
-            MMAP = getMethod(fileChannelImplClass, "map0", int.class, long.class, long.class);
+            MMAP = getMmap(fileChannelImplClass);
             UNMMAP = getMethod(fileChannelImplClass, "unmap0", long.class, long.class);
             BYTE_ARRAY_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
         } catch (final Exception e) {
@@ -57,6 +57,26 @@ public class MemoryMappedFile {
         mapAndSetOffset();
     }
 
+    @FunctionalInterface
+    private interface IMap0Invoker {
+        long map0(FileChannel channel, int prot, long position, long length) throws Exception;
+    }
+
+    private static IMap0Invoker getMmap(final Class<Object> fileChannelImplClass) throws Exception {
+        try {
+            //java < 14
+            final Method method = getMethod(fileChannelImplClass, "map0", int.class, long.class, long.class);
+            return (channel, prot, position, length) -> (long) method.invoke(channel, prot, position, length);
+        } catch (final Throwable t) {
+            //java >= 14
+            final Method method = getMethod(fileChannelImplClass, "map0", int.class, long.class, long.class,
+                    boolean.class);
+            //https://github.com/OpenHFT/Chronicle-Core/blob/ea/src/main/java/net/openhft/chronicle/core/OS.java they also use sync=false
+            final boolean isSync = false;
+            return (channel, prot, position, length) -> (long) method.invoke(channel, prot, position, length, isSync);
+        }
+    }
+
     private static Method getMethod(final Class<?> cls, final String name, final Class<?>... params) throws Exception {
         final Method m = cls.getDeclaredMethod(name, params);
         m.setAccessible(true);
@@ -71,7 +91,7 @@ public class MemoryMappedFile {
         final RandomAccessFile backingFile = new RandomAccessFile(this.loc, "rw");
         backingFile.setLength(this.size);
         final FileChannel ch = backingFile.getChannel();
-        this.addr = (long) MMAP.invoke(ch, 1, 0L, this.size);
+        this.addr = MMAP.map0(ch, 1, 0L, this.size);
         ch.close();
         backingFile.close();
     }
