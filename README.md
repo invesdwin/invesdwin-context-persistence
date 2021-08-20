@@ -253,8 +253,9 @@ ATimeSeriesDB    10,000,000     Reads:  25,813.11/ms  => ~21 times faster than L
 - **ASpinWait**:  the channel implementations are non-blocking by themselves (Named Pipes are normally blocking, but the implementation uses them in a non-blocking way, while Memory Mapping is per default non-blocking). This causes the problem of how one should wait on a reader without causing delays from sleeps or causing CPU load from spinning. This problem is solved by `ASpinWait`. It first spins when things are rolling and falls back to a fast sleep interval when communication has cooled down (similar to what `java.util.concurrent.SynchronousQueue` does between threads). The actual timings can be fully customized. To use this class, just override the `isConditionFulfilled()` method by calling `reader.hasNext()`.
 - **Performance**: here are some performance measurements against in-process queue implementations using one channel for requests and another separate one for responses, thus each record (of 10,000,000), each involving two messages (becoming 20,000,000), is passed between two threads (one simulating a server and the other one a client). This shows that memory mapping might even be useful as a faster alternative to queues for inter-thread-communication besides it being designed for inter-process-communication (as long as the serialization is cheap):
 ```
-Socket (loopback)          Records:   111.01/ms  in  90078 ms    => ~60% slower than Named Pipes
-ArrayDeque (synced)        Records:   127.26/ms  in  78579 ms    => ~50% slower than Named Pipes
+Socket (loopback)          Records:    94.37/ms  in  90491 ms    => ~66% slower than Named Pipes
+DatagramSocket (loopback)  Records:   111.01/ms  in  90078 ms    => ~60% slower than Named Pipes
+ArrayDeque (synced)        Records:   127.26/ms  in  78579 ms    => ~54% slower than Named Pipes
 Named Pipes                Records:   281.15/ms  in  35568 ms    => using this as baseline
 SynchronousQueue           Records:   924.90/ms  in  10812 ms    => ~3 times faster than Named Pipes
 LinkedBlockingQueue        Records:  1988.47/ms  in   5029 ms    => ~7 times faster than Named Pipes
