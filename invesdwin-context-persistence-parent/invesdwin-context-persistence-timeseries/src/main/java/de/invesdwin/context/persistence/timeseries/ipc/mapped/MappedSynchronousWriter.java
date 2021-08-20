@@ -7,13 +7,14 @@ import java.io.IOException;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousWriter;
+import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
 
 /**
  * There should only be one writer per file, or else the threads might destroy each others data.
  *
  */
 @NotThreadSafe
-public class MappedSynchronousWriter extends AMappedSynchronousChannel implements ISynchronousWriter {
+public class MappedSynchronousWriter extends AMappedSynchronousChannel implements ISynchronousWriter<byte[]> {
 
     public MappedSynchronousWriter(final File file, final int maxMessageSize) {
         super(file, maxMessageSize);
@@ -48,6 +49,11 @@ public class MappedSynchronousWriter extends AMappedSynchronousChannel implement
 
         //commit
         setTransaction(nextTransaction);
+    }
+
+    @Override
+    public void write(final ISynchronousResponse<byte[]> response) throws IOException {
+        write(response.getType(), response.getSequence(), response.getMessage());
     }
 
     @Override

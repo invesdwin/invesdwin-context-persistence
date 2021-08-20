@@ -8,11 +8,12 @@ import java.net.SocketAddress;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousReader;
-import de.invesdwin.context.persistence.timeseries.ipc.SynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.response.SynchronousResponse;
 import de.invesdwin.util.assertions.Assertions;
 
 @NotThreadSafe
-public class SocketSynchronousReader extends ASocketSynchronousChannel implements ISynchronousReader {
+public class SocketSynchronousReader extends ASocketSynchronousChannel implements ISynchronousReader<byte[]> {
 
     private static final int CLOSED_READ_COUNT = -1;
     private static final int TIMEOUT_READ_COUNT = 0;
@@ -50,7 +51,7 @@ public class SocketSynchronousReader extends ASocketSynchronousChannel implement
     }
 
     @Override
-    public SynchronousResponse readMessage() throws IOException {
+    public ISynchronousResponse<byte[]> readMessage() throws IOException {
         Assertions.checkTrue(read(typeBuffer));
         final int type = TYPE_SERDE.fromBytes(typeBuffer);
         if (type == TYPE_CLOSED_VALUE) {
@@ -64,7 +65,7 @@ public class SocketSynchronousReader extends ASocketSynchronousChannel implement
         if (size > 0) {
             Assertions.checkTrue(read(message));
         }
-        return new SynchronousResponse(type, sequence, message);
+        return new SynchronousResponse<byte[]>(type, sequence, message);
     }
 
     private boolean read(final byte[] buffer) throws IOException {

@@ -7,7 +7,8 @@ import java.io.IOException;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousReader;
-import de.invesdwin.context.persistence.timeseries.ipc.SynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.response.SynchronousResponse;
 
 /**
  * There can be multiple readers per file, but it is better to only have one.
@@ -21,7 +22,7 @@ import de.invesdwin.context.persistence.timeseries.ipc.SynchronousResponse;
  *
  */
 @NotThreadSafe
-public class MappedSynchronousReader extends AMappedSynchronousChannel implements ISynchronousReader {
+public class MappedSynchronousReader extends AMappedSynchronousChannel implements ISynchronousReader<byte[]> {
     private int lastTransaction;
 
     public MappedSynchronousReader(final File file, final int maxMessageSize) {
@@ -55,9 +56,9 @@ public class MappedSynchronousReader extends AMappedSynchronousChannel implement
     }
 
     @Override
-    public SynchronousResponse readMessage() {
+    public ISynchronousResponse<byte[]> readMessage() {
         lastTransaction = getTransaction();
-        return new SynchronousResponse(getType(), getSequence(), getMessage());
+        return new SynchronousResponse<byte[]>(getType(), getSequence(), getMessage());
     }
 
 }

@@ -7,13 +7,13 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
@@ -25,6 +25,7 @@ import de.invesdwin.context.persistence.timeseries.ipc.queue.QueueSynchronousRea
 import de.invesdwin.context.persistence.timeseries.ipc.queue.QueueSynchronousWriter;
 import de.invesdwin.context.persistence.timeseries.ipc.queue.blocking.BlockingQueueSynchronousReader;
 import de.invesdwin.context.persistence.timeseries.ipc.queue.blocking.BlockingQueueSynchronousWriter;
+import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
 import de.invesdwin.context.persistence.timeseries.ipc.socket.SocketSynchronousReader;
 import de.invesdwin.context.persistence.timeseries.ipc.socket.SocketSynchronousWriter;
 import de.invesdwin.context.persistence.timeseries.ipc.socket.udp.DatagramSocketSynchronousReader;
@@ -50,7 +51,7 @@ import de.invesdwin.util.time.duration.Duration;
 
 // CHECKSTYLE:OFF
 @NotThreadSafe
-@Ignore("manual test")
+//@Ignore("manual test")
 public class ChannelPerformanceTest extends ATest {
     //CHECKSTYLE:ON
 
@@ -58,7 +59,7 @@ public class ChannelPerformanceTest extends ATest {
     private static final int MESSAGE_SIZE = FDateSerde.FIXED_LENGTH;
     private static final int MESSAGE_TYPE = 1;
     private static final int MESSAGE_SEQUENCE = 1;
-    private static final int VALUES = DEBUG ? 10 : 1_000_000;
+    private static final int VALUES = DEBUG ? 10 : 100_000_000;
     private static final int FLUSH_INTERVAL = Math.max(10, VALUES / 10);
     private static final Duration MAX_WAIT_DURATION = new Duration(10, DEBUG ? FTimeUnit.DAYS : FTimeUnit.SECONDS);
 
@@ -131,70 +132,92 @@ public class ChannelPerformanceTest extends ATest {
     @Test
     public void testArrayDequePerformance() throws InterruptedException {
         //ArrayDeque is not threadsafe, thus requires manual synchronization
-        final Queue<SynchronousResponse> responseQueue = new ArrayDeque<SynchronousResponse>();
-        final Queue<SynchronousResponse> requestQueue = new ArrayDeque<SynchronousResponse>();
+        final Queue<ISynchronousResponse<byte[]>> responseQueue = new ArrayDeque<ISynchronousResponse<byte[]>>();
+        final Queue<ISynchronousResponse<byte[]>> requestQueue = new ArrayDeque<ISynchronousResponse<byte[]>>();
         runQueuePerformanceTest(responseQueue, requestQueue, requestQueue, responseQueue);
     }
 
     @Test
     public void testLinkedBlockingQueuePerformance() throws InterruptedException {
-        final Queue<SynchronousResponse> responseQueue = new LinkedBlockingQueue<SynchronousResponse>();
-        final Queue<SynchronousResponse> requestQueue = new LinkedBlockingQueue<SynchronousResponse>();
+        final Queue<ISynchronousResponse<byte[]>> responseQueue = new LinkedBlockingQueue<ISynchronousResponse<byte[]>>();
+        final Queue<ISynchronousResponse<byte[]>> requestQueue = new LinkedBlockingQueue<ISynchronousResponse<byte[]>>();
         runQueuePerformanceTest(responseQueue, requestQueue, null, null);
     }
 
     @Test
     public void testLinkedBlockingQueuePerformanceWithBlocking() throws InterruptedException {
-        final BlockingQueue<SynchronousResponse> responseQueue = new LinkedBlockingQueue<SynchronousResponse>();
-        final BlockingQueue<SynchronousResponse> requestQueue = new LinkedBlockingQueue<SynchronousResponse>();
+        final BlockingQueue<ISynchronousResponse<byte[]>> responseQueue = new LinkedBlockingQueue<ISynchronousResponse<byte[]>>();
+        final BlockingQueue<ISynchronousResponse<byte[]>> requestQueue = new LinkedBlockingQueue<ISynchronousResponse<byte[]>>();
+        runBlockingQueuePerformanceTest(responseQueue, requestQueue, null, null);
+    }
+
+    @Test
+    public void testArrayBlockingQueuePerformanceWithBlocking() throws InterruptedException {
+        final BlockingQueue<ISynchronousResponse<byte[]>> responseQueue = new ArrayBlockingQueue<ISynchronousResponse<byte[]>>(
+                1, false);
+        final BlockingQueue<ISynchronousResponse<byte[]>> requestQueue = new ArrayBlockingQueue<ISynchronousResponse<byte[]>>(
+                1, false);
+        runBlockingQueuePerformanceTest(responseQueue, requestQueue, null, null);
+    }
+
+    @Test
+    public void testArrayBlockingQueuePerformanceWithBlockingFair() throws InterruptedException {
+        final BlockingQueue<ISynchronousResponse<byte[]>> responseQueue = new ArrayBlockingQueue<ISynchronousResponse<byte[]>>(
+                1, true);
+        final BlockingQueue<ISynchronousResponse<byte[]>> requestQueue = new ArrayBlockingQueue<ISynchronousResponse<byte[]>>(
+                1, true);
         runBlockingQueuePerformanceTest(responseQueue, requestQueue, null, null);
     }
 
     @Test
     public void testSynchronousQueuePerformance() throws InterruptedException {
-        final SynchronousQueue<SynchronousResponse> responseQueue = new SynchronousQueue<SynchronousResponse>(false);
-        final SynchronousQueue<SynchronousResponse> requestQueue = new SynchronousQueue<SynchronousResponse>(false);
+        final SynchronousQueue<ISynchronousResponse<byte[]>> responseQueue = new SynchronousQueue<ISynchronousResponse<byte[]>>(
+                false);
+        final SynchronousQueue<ISynchronousResponse<byte[]>> requestQueue = new SynchronousQueue<ISynchronousResponse<byte[]>>(
+                false);
         runBlockingQueuePerformanceTest(responseQueue, requestQueue, null, null);
     }
 
     @Test
     public void testSynchronousQueuePerformanceWithFair() throws InterruptedException {
-        final SynchronousQueue<SynchronousResponse> responseQueue = new SynchronousQueue<SynchronousResponse>(true);
-        final SynchronousQueue<SynchronousResponse> requestQueue = new SynchronousQueue<SynchronousResponse>(true);
+        final SynchronousQueue<ISynchronousResponse<byte[]>> responseQueue = new SynchronousQueue<ISynchronousResponse<byte[]>>(
+                true);
+        final SynchronousQueue<ISynchronousResponse<byte[]>> requestQueue = new SynchronousQueue<ISynchronousResponse<byte[]>>(
+                true);
         runBlockingQueuePerformanceTest(responseQueue, requestQueue, null, null);
     }
 
-    private void runQueuePerformanceTest(final Queue<SynchronousResponse> responseQueue,
-            final Queue<SynchronousResponse> requestQueue, final Object synchronizeRequest,
+    private void runQueuePerformanceTest(final Queue<ISynchronousResponse<byte[]>> responseQueue,
+            final Queue<ISynchronousResponse<byte[]>> requestQueue, final Object synchronizeRequest,
             final Object synchronizeResponse) throws InterruptedException {
-        final ISynchronousWriter responseWriter = maybeSynchronize(new QueueSynchronousWriter(responseQueue),
-                synchronizeResponse);
-        final ISynchronousReader requestReader = maybeSynchronize(new QueueSynchronousReader(requestQueue),
-                synchronizeRequest);
+        final ISynchronousWriter<byte[]> responseWriter = maybeSynchronize(
+                new QueueSynchronousWriter<byte[]>(responseQueue), synchronizeResponse);
+        final ISynchronousReader<byte[]> requestReader = maybeSynchronize(
+                new QueueSynchronousReader<byte[]>(requestQueue), synchronizeRequest);
         final WrappedExecutorService executor = Executors.newFixedThreadPool("testQueuePerformance", 1);
         executor.execute(new WriterTask(requestReader, responseWriter));
-        final ISynchronousWriter requestWriter = maybeSynchronize(new QueueSynchronousWriter(requestQueue),
-                synchronizeRequest);
-        final ISynchronousReader responseReader = maybeSynchronize(new QueueSynchronousReader(responseQueue),
-                synchronizeResponse);
+        final ISynchronousWriter<byte[]> requestWriter = maybeSynchronize(
+                new QueueSynchronousWriter<byte[]>(requestQueue), synchronizeRequest);
+        final ISynchronousReader<byte[]> responseReader = maybeSynchronize(
+                new QueueSynchronousReader<byte[]>(responseQueue), synchronizeResponse);
         read(requestWriter, responseReader);
         executor.shutdown();
         executor.awaitTermination();
     }
 
-    private void runBlockingQueuePerformanceTest(final BlockingQueue<SynchronousResponse> responseQueue,
-            final BlockingQueue<SynchronousResponse> requestQueue, final Object synchronizeRequest,
+    private void runBlockingQueuePerformanceTest(final BlockingQueue<ISynchronousResponse<byte[]>> responseQueue,
+            final BlockingQueue<ISynchronousResponse<byte[]>> requestQueue, final Object synchronizeRequest,
             final Object synchronizeResponse) throws InterruptedException {
-        final ISynchronousWriter responseWriter = maybeSynchronize(new BlockingQueueSynchronousWriter(responseQueue),
-                synchronizeResponse);
-        final ISynchronousReader requestReader = maybeSynchronize(new BlockingQueueSynchronousReader(requestQueue),
-                synchronizeRequest);
+        final ISynchronousWriter<byte[]> responseWriter = maybeSynchronize(
+                new BlockingQueueSynchronousWriter<byte[]>(responseQueue), synchronizeResponse);
+        final ISynchronousReader<byte[]> requestReader = maybeSynchronize(
+                new BlockingQueueSynchronousReader<byte[]>(requestQueue), synchronizeRequest);
         final WrappedExecutorService executor = Executors.newFixedThreadPool("testBlockingQueuePerformance", 1);
         executor.execute(new WriterTask(requestReader, responseWriter));
-        final ISynchronousWriter requestWriter = maybeSynchronize(new BlockingQueueSynchronousWriter(requestQueue),
-                synchronizeRequest);
-        final ISynchronousReader responseReader = maybeSynchronize(new BlockingQueueSynchronousReader(responseQueue),
-                synchronizeResponse);
+        final ISynchronousWriter<byte[]> requestWriter = maybeSynchronize(
+                new BlockingQueueSynchronousWriter<byte[]>(requestQueue), synchronizeRequest);
+        final ISynchronousReader<byte[]> responseReader = maybeSynchronize(
+                new BlockingQueueSynchronousReader<byte[]>(responseQueue), synchronizeResponse);
         read(requestWriter, responseReader);
         executor.shutdown();
         executor.awaitTermination();
@@ -209,12 +232,16 @@ public class ChannelPerformanceTest extends ATest {
 
     private void runSocketPerformanceTest(final SocketAddress responseAddress, final SocketAddress requestAddress)
             throws InterruptedException {
-        final ISynchronousWriter responseWriter = new SocketSynchronousWriter(responseAddress, true, MESSAGE_SIZE);
-        final ISynchronousReader requestReader = new SocketSynchronousReader(requestAddress, true, MESSAGE_SIZE);
+        final ISynchronousWriter<byte[]> responseWriter = new SocketSynchronousWriter(responseAddress, true,
+                MESSAGE_SIZE);
+        final ISynchronousReader<byte[]> requestReader = new SocketSynchronousReader(requestAddress, true,
+                MESSAGE_SIZE);
         final WrappedExecutorService executor = Executors.newFixedThreadPool("testSocketPerformance", 1);
         executor.execute(new WriterTask(requestReader, responseWriter));
-        final ISynchronousWriter requestWriter = new SocketSynchronousWriter(requestAddress, false, MESSAGE_SIZE);
-        final ISynchronousReader responseReader = new SocketSynchronousReader(responseAddress, false, MESSAGE_SIZE);
+        final ISynchronousWriter<byte[]> requestWriter = new SocketSynchronousWriter(requestAddress, false,
+                MESSAGE_SIZE);
+        final ISynchronousReader<byte[]> responseReader = new SocketSynchronousReader(responseAddress, false,
+                MESSAGE_SIZE);
         read(requestWriter, responseReader);
         executor.shutdown();
         executor.awaitTermination();
@@ -229,18 +256,22 @@ public class ChannelPerformanceTest extends ATest {
 
     private void runDatagramSocketPerformanceTest(final SocketAddress responseAddress,
             final SocketAddress requestAddress) throws InterruptedException {
-        final ISynchronousWriter responseWriter = new DatagramSocketSynchronousWriter(responseAddress, MESSAGE_SIZE);
-        final ISynchronousReader requestReader = new DatagramSocketSynchronousReader(requestAddress, MESSAGE_SIZE);
+        final ISynchronousWriter<byte[]> responseWriter = new DatagramSocketSynchronousWriter(responseAddress,
+                MESSAGE_SIZE);
+        final ISynchronousReader<byte[]> requestReader = new DatagramSocketSynchronousReader(requestAddress,
+                MESSAGE_SIZE);
         final WrappedExecutorService executor = Executors.newFixedThreadPool("testDatagramSocketPerformance", 1);
         executor.execute(new WriterTask(requestReader, responseWriter));
-        final ISynchronousWriter requestWriter = new DatagramSocketSynchronousWriter(requestAddress, MESSAGE_SIZE);
-        final ISynchronousReader responseReader = new DatagramSocketSynchronousReader(responseAddress, MESSAGE_SIZE);
+        final ISynchronousWriter<byte[]> requestWriter = new DatagramSocketSynchronousWriter(requestAddress,
+                MESSAGE_SIZE);
+        final ISynchronousReader<byte[]> responseReader = new DatagramSocketSynchronousReader(responseAddress,
+                MESSAGE_SIZE);
         read(requestWriter, responseReader);
         executor.shutdown();
         executor.awaitTermination();
     }
 
-    private ISynchronousReader maybeSynchronize(final ISynchronousReader reader, final Object synchronize) {
+    private <T> ISynchronousReader<T> maybeSynchronize(final ISynchronousReader<T> reader, final Object synchronize) {
         if (synchronize != null) {
             return SynchronousChannels.synchronize(reader, synchronize);
         } else {
@@ -248,7 +279,7 @@ public class ChannelPerformanceTest extends ATest {
         }
     }
 
-    private ISynchronousWriter maybeSynchronize(final ISynchronousWriter writer, final Object synchronize) {
+    private <T> ISynchronousWriter<T> maybeSynchronize(final ISynchronousWriter<T> writer, final Object synchronize) {
         if (synchronize != null) {
             return SynchronousChannels.synchronize(writer, synchronize);
         } else {
@@ -259,15 +290,15 @@ public class ChannelPerformanceTest extends ATest {
     private void runPerformanceTest(final FileChannelType pipes, final File requestFile, final File responseFile,
             final Object synchronizeRequest, final Object synchronizeResponse) throws InterruptedException {
         try {
-            final ISynchronousWriter responseWriter = maybeSynchronize(newWriter(responseFile, pipes),
+            final ISynchronousWriter<byte[]> responseWriter = maybeSynchronize(newWriter(responseFile, pipes),
                     synchronizeResponse);
-            final ISynchronousReader requestReader = maybeSynchronize(newReader(requestFile, pipes),
+            final ISynchronousReader<byte[]> requestReader = maybeSynchronize(newReader(requestFile, pipes),
                     synchronizeRequest);
             final WrappedExecutorService executor = Executors.newFixedThreadPool(responseFile.getName(), 1);
             executor.execute(new WriterTask(requestReader, responseWriter));
-            final ISynchronousWriter requestWriter = maybeSynchronize(newWriter(requestFile, pipes),
+            final ISynchronousWriter<byte[]> requestWriter = maybeSynchronize(newWriter(requestFile, pipes),
                     synchronizeRequest);
-            final ISynchronousReader responseReader = maybeSynchronize(newReader(responseFile, pipes),
+            final ISynchronousReader<byte[]> responseReader = maybeSynchronize(newReader(responseFile, pipes),
                     synchronizeResponse);
             read(requestWriter, responseReader);
             executor.shutdown();
@@ -278,7 +309,7 @@ public class ChannelPerformanceTest extends ATest {
         }
     }
 
-    private ISynchronousReader newReader(final File file, final FileChannelType pipes) {
+    private ISynchronousReader<byte[]> newReader(final File file, final FileChannelType pipes) {
         if (pipes == FileChannelType.PIPE) {
             return new PipeSynchronousReader(file, MESSAGE_SIZE);
         } else if (pipes == FileChannelType.MAPPED) {
@@ -288,7 +319,7 @@ public class ChannelPerformanceTest extends ATest {
         }
     }
 
-    private ISynchronousWriter newWriter(final File file, final FileChannelType pipes) {
+    private ISynchronousWriter<byte[]> newWriter(final File file, final FileChannelType pipes) {
         if (pipes == FileChannelType.PIPE) {
             return new PipeSynchronousWriter(file, MESSAGE_SIZE);
         } else if (pipes == FileChannelType.MAPPED) {
@@ -298,7 +329,7 @@ public class ChannelPerformanceTest extends ATest {
         }
     }
 
-    private void read(final ISynchronousWriter requestWriter, final ISynchronousReader responseReader) {
+    private void read(final ISynchronousWriter<byte[]> requestWriter, final ISynchronousReader<byte[]> responseReader) {
         final Instant readsStart = new Instant();
         FDate prevValue = null;
         int count = 0;
@@ -324,7 +355,7 @@ public class ChannelPerformanceTest extends ATest {
                     log.info("client request out");
                 }
                 Assertions.checkTrue(spinWait.awaitFulfill(waitingSinceNanos, MAX_WAIT_DURATION));
-                final SynchronousResponse readMessage = responseReader.readMessage();
+                final ISynchronousResponse<byte[]> readMessage = responseReader.readMessage();
                 if (DEBUG) {
                     log.info("client response in");
                 }
@@ -377,10 +408,10 @@ public class ChannelPerformanceTest extends ATest {
 
     private class WriterTask implements Runnable {
 
-        private final ISynchronousReader requestReader;
-        private final ISynchronousWriter responseWriter;
+        private final ISynchronousReader<byte[]> requestReader;
+        private final ISynchronousWriter<byte[]> responseWriter;
 
-        WriterTask(final ISynchronousReader requestReader, final ISynchronousWriter responseWriter) {
+        WriterTask(final ISynchronousReader<byte[]> requestReader, final ISynchronousWriter<byte[]> responseWriter) {
             this.requestReader = requestReader;
             this.responseWriter = responseWriter;
         }
@@ -410,7 +441,7 @@ public class ChannelPerformanceTest extends ATest {
                     if (DEBUG) {
                         log.info("server request in");
                     }
-                    final SynchronousResponse readMessage = requestReader.readMessage();
+                    final ISynchronousResponse<byte[]> readMessage = requestReader.readMessage();
                     Assertions.checkEquals(readMessage.getType(), MESSAGE_TYPE);
                     Assertions.checkEquals(readMessage.getSequence(), MESSAGE_SEQUENCE);
                     Assertions.checkEquals(readMessage.getMessage().length, 0);

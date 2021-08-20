@@ -9,26 +9,27 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.math3.random.RandomGenerator;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousChannel;
-import de.invesdwin.context.persistence.timeseries.ipc.SynchronousResponse;
-import de.invesdwin.context.persistence.timeseries.ipc.queue.QueueSynchronousWriter;
+import de.invesdwin.context.persistence.timeseries.ipc.response.ClosedSynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
 import de.invesdwin.util.math.random.RandomGenerators;
 
 @NotThreadSafe
-public abstract class ABlockingQueueSynchronousChannel implements ISynchronousChannel {
+public abstract class ABlockingQueueSynchronousChannel<M> implements ISynchronousChannel {
 
     public static final WrappedExecutorService CLOSED_SYNCHRONIZER = Executors
             .newCachedThreadPool(ABlockingQueueSynchronousChannel.class.getSimpleName() + "_closedSynchronizer");
 
-    protected BlockingQueue<SynchronousResponse> queue;
+    protected BlockingQueue<ISynchronousResponse<M>> queue;
 
-    public ABlockingQueueSynchronousChannel(final BlockingQueue<SynchronousResponse> queue) {
+    public ABlockingQueueSynchronousChannel(final BlockingQueue<ISynchronousResponse<M>> queue) {
         this.queue = queue;
     }
 
     @Override
-    public void open() throws IOException {}
+    public void open() throws IOException {
+    }
 
     @Override
     public void close() throws IOException {
@@ -39,7 +40,7 @@ public abstract class ABlockingQueueSynchronousChannel implements ISynchronousCh
     }
 
     protected void sendClosedMessage() {
-        final BlockingQueue<SynchronousResponse> queueCopy = queue;
+        final BlockingQueue<ISynchronousResponse<M>> queueCopy = queue;
         CLOSED_SYNCHRONIZER.execute(new Runnable() {
             @Override
             public void run() {
@@ -49,11 +50,11 @@ public abstract class ABlockingQueueSynchronousChannel implements ISynchronousCh
                     boolean closedMessageSent = false;
                     boolean closedMessageReceived = false;
                     while (!closedMessageReceived || !closedMessageSent) {
-                        if (queueCopy.poll(random.nextInt(2),
-                                TimeUnit.MILLISECONDS) == QueueSynchronousWriter.CLOSED_MESSAGE) {
+                        if (queueCopy.poll(random.nextInt(2), TimeUnit.MILLISECONDS) == ClosedSynchronousResponse
+                                .getInstance()) {
                             closedMessageReceived = true;
                         }
-                        if (queueCopy.offer(QueueSynchronousWriter.CLOSED_MESSAGE, random.nextInt(2),
+                        if (queueCopy.offer(ClosedSynchronousResponse.getInstance(), random.nextInt(2),
                                 TimeUnit.MILLISECONDS)) {
                             closedMessageSent = true;
                         }

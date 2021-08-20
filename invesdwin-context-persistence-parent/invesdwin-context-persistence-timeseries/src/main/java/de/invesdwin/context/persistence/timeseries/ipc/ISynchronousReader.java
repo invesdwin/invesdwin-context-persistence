@@ -2,10 +2,12 @@ package de.invesdwin.context.persistence.timeseries.ipc;
 
 import java.io.IOException;
 
-public interface ISynchronousReader extends ISynchronousChannel {
+import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
+
+public interface ISynchronousReader<M> extends ISynchronousChannel {
 
     boolean hasNext() throws IOException;
 
-    SynchronousResponse readMessage() throws IOException;
+    ISynchronousResponse<M> readMessage() throws IOException;
 
 }

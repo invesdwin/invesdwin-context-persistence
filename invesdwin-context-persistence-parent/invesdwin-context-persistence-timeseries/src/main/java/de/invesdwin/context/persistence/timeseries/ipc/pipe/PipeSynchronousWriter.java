@@ -8,10 +8,11 @@ import java.io.IOException;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousWriter;
+import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
 import de.invesdwin.util.math.Bytes;
 
 @NotThreadSafe
-public class PipeSynchronousWriter extends APipeSynchronousChannel implements ISynchronousWriter {
+public class PipeSynchronousWriter extends APipeSynchronousChannel implements ISynchronousWriter<byte[]> {
 
     private BufferedOutputStream out;
 
@@ -56,6 +57,11 @@ public class PipeSynchronousWriter extends APipeSynchronousChannel implements IS
     public void write(final int type, final int sequence, final byte[] message) throws IOException {
         checkType(type);
         writeWithoutTypeCheck(type, sequence, message);
+    }
+
+    @Override
+    public void write(final ISynchronousResponse<byte[]> response) throws IOException {
+        write(response.getType(), response.getSequence(), response.getMessage());
     }
 
     private void writeWithoutTypeCheck(final int type, final int sequence, final byte[] message) throws IOException {
