@@ -14,6 +14,7 @@ import java.util.concurrent.SynchronousQueue;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
@@ -51,7 +52,7 @@ import de.invesdwin.util.time.duration.Duration;
 
 // CHECKSTYLE:OFF
 @NotThreadSafe
-//@Ignore("manual test")
+@Ignore("manual test")
 public class ChannelPerformanceTest extends ATest {
     //CHECKSTYLE:ON
 
@@ -59,7 +60,7 @@ public class ChannelPerformanceTest extends ATest {
     private static final int MESSAGE_SIZE = FDateSerde.FIXED_LENGTH;
     private static final int MESSAGE_TYPE = 1;
     private static final int MESSAGE_SEQUENCE = 1;
-    private static final int VALUES = DEBUG ? 10 : 100_000_000;
+    private static final int VALUES = DEBUG ? 10 : 10_000_000;
     private static final int FLUSH_INTERVAL = Math.max(10, VALUES / 10);
     private static final Duration MAX_WAIT_DURATION = new Duration(10, DEBUG ? FTimeUnit.DAYS : FTimeUnit.SECONDS);
 
@@ -132,23 +133,36 @@ public class ChannelPerformanceTest extends ATest {
     @Test
     public void testArrayDequePerformance() throws InterruptedException {
         //ArrayDeque is not threadsafe, thus requires manual synchronization
-        final Queue<ISynchronousResponse<byte[]>> responseQueue = new ArrayDeque<ISynchronousResponse<byte[]>>();
-        final Queue<ISynchronousResponse<byte[]>> requestQueue = new ArrayDeque<ISynchronousResponse<byte[]>>();
+        final Queue<ISynchronousResponse<byte[]>> responseQueue = new ArrayDeque<ISynchronousResponse<byte[]>>(1);
+        final Queue<ISynchronousResponse<byte[]>> requestQueue = new ArrayDeque<ISynchronousResponse<byte[]>>(1);
         runQueuePerformanceTest(responseQueue, requestQueue, requestQueue, responseQueue);
     }
 
     @Test
     public void testLinkedBlockingQueuePerformance() throws InterruptedException {
-        final Queue<ISynchronousResponse<byte[]>> responseQueue = new LinkedBlockingQueue<ISynchronousResponse<byte[]>>();
-        final Queue<ISynchronousResponse<byte[]>> requestQueue = new LinkedBlockingQueue<ISynchronousResponse<byte[]>>();
+        final Queue<ISynchronousResponse<byte[]>> responseQueue = new LinkedBlockingQueue<ISynchronousResponse<byte[]>>(
+                2);
+        final Queue<ISynchronousResponse<byte[]>> requestQueue = new LinkedBlockingQueue<ISynchronousResponse<byte[]>>(
+                2);
         runQueuePerformanceTest(responseQueue, requestQueue, null, null);
     }
 
     @Test
     public void testLinkedBlockingQueuePerformanceWithBlocking() throws InterruptedException {
-        final BlockingQueue<ISynchronousResponse<byte[]>> responseQueue = new LinkedBlockingQueue<ISynchronousResponse<byte[]>>();
-        final BlockingQueue<ISynchronousResponse<byte[]>> requestQueue = new LinkedBlockingQueue<ISynchronousResponse<byte[]>>();
+        final BlockingQueue<ISynchronousResponse<byte[]>> responseQueue = new LinkedBlockingQueue<ISynchronousResponse<byte[]>>(
+                1);
+        final BlockingQueue<ISynchronousResponse<byte[]>> requestQueue = new LinkedBlockingQueue<ISynchronousResponse<byte[]>>(
+                1);
         runBlockingQueuePerformanceTest(responseQueue, requestQueue, null, null);
+    }
+
+    @Test
+    public void testArrayBlockingQueuePerformance() throws InterruptedException {
+        final Queue<ISynchronousResponse<byte[]>> responseQueue = new ArrayBlockingQueue<ISynchronousResponse<byte[]>>(
+                2);
+        final Queue<ISynchronousResponse<byte[]>> requestQueue = new ArrayBlockingQueue<ISynchronousResponse<byte[]>>(
+                2);
+        runQueuePerformanceTest(responseQueue, requestQueue, null, null);
     }
 
     @Test
@@ -169,8 +183,17 @@ public class ChannelPerformanceTest extends ATest {
         runBlockingQueuePerformanceTest(responseQueue, requestQueue, null, null);
     }
 
-    @Test
+    @Test(expected = AssertionError.class)
     public void testSynchronousQueuePerformance() throws InterruptedException {
+        final Queue<ISynchronousResponse<byte[]>> responseQueue = new SynchronousQueue<ISynchronousResponse<byte[]>>(
+                false);
+        final Queue<ISynchronousResponse<byte[]>> requestQueue = new SynchronousQueue<ISynchronousResponse<byte[]>>(
+                false);
+        runQueuePerformanceTest(responseQueue, requestQueue, null, null);
+    }
+
+    @Test
+    public void testSynchronousQueuePerformanceWithBlocking() throws InterruptedException {
         final SynchronousQueue<ISynchronousResponse<byte[]>> responseQueue = new SynchronousQueue<ISynchronousResponse<byte[]>>(
                 false);
         final SynchronousQueue<ISynchronousResponse<byte[]>> requestQueue = new SynchronousQueue<ISynchronousResponse<byte[]>>(
@@ -179,7 +202,7 @@ public class ChannelPerformanceTest extends ATest {
     }
 
     @Test
-    public void testSynchronousQueuePerformanceWithFair() throws InterruptedException {
+    public void testSynchronousQueuePerformanceWithBlockingFair() throws InterruptedException {
         final SynchronousQueue<ISynchronousResponse<byte[]>> responseQueue = new SynchronousQueue<ISynchronousResponse<byte[]>>(
                 true);
         final SynchronousQueue<ISynchronousResponse<byte[]>> requestQueue = new SynchronousQueue<ISynchronousResponse<byte[]>>(
