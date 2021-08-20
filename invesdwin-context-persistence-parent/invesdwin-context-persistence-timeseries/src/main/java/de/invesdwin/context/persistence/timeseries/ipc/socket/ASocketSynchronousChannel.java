@@ -80,6 +80,7 @@ public abstract class ASocketSynchronousChannel implements ISynchronousChannel {
                 ADatagramSocketSynchronousChannel.IPTOS_LOWDELAY | ADatagramSocketSynchronousChannel.IPTOS_THROUGHPUT);
         socket.setReceiveBufferSize(bufferSize);
         socket.setSendBufferSize(bufferSize);
+        socket.setTcpNoDelay(true);
     }
 
     protected Duration getConnectRetryDelay() {
