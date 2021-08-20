@@ -10,15 +10,23 @@ import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.SynchronousQueue;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.junit.Test;
 
+import com.conversantmedia.util.concurrent.ConcurrentQueue;
+import com.conversantmedia.util.concurrent.DisruptorBlockingQueue;
+import com.conversantmedia.util.concurrent.MultithreadConcurrentQueue;
+import com.conversantmedia.util.concurrent.PushPullBlockingQueue;
+import com.conversantmedia.util.concurrent.PushPullConcurrentQueue;
 import com.lmax.disruptor.RingBuffer;
 
 import de.invesdwin.context.ContextProperties;
+import de.invesdwin.context.persistence.timeseries.ipc.conversant.ConversantSynchronousReader;
+import de.invesdwin.context.persistence.timeseries.ipc.conversant.ConversantSynchronousWriter;
 import de.invesdwin.context.persistence.timeseries.ipc.lmax.LmaxSynchronousReader;
 import de.invesdwin.context.persistence.timeseries.ipc.lmax.LmaxSynchronousWriter;
 import de.invesdwin.context.persistence.timeseries.ipc.mapped.MappedSynchronousReader;
@@ -187,6 +195,20 @@ public class ChannelPerformanceTest extends ATest {
         runBlockingQueuePerformanceTest(responseQueue, requestQueue, null, null);
     }
 
+    @Test
+    public void testLinkedTransferQueuePerformance() throws InterruptedException {
+        final BlockingQueue<ISynchronousResponse<byte[]>> responseQueue = new LinkedTransferQueue<ISynchronousResponse<byte[]>>();
+        final BlockingQueue<ISynchronousResponse<byte[]>> requestQueue = new LinkedTransferQueue<ISynchronousResponse<byte[]>>();
+        runQueuePerformanceTest(responseQueue, requestQueue, null, null);
+    }
+
+    @Test
+    public void testLinkedTransferQueuePerformanceWithBlocking() throws InterruptedException {
+        final BlockingQueue<ISynchronousResponse<byte[]>> responseQueue = new LinkedTransferQueue<ISynchronousResponse<byte[]>>();
+        final BlockingQueue<ISynchronousResponse<byte[]>> requestQueue = new LinkedTransferQueue<ISynchronousResponse<byte[]>>();
+        runBlockingQueuePerformanceTest(responseQueue, requestQueue, null, null);
+    }
+
     @Test(expected = AssertionError.class)
     public void testSynchronousQueuePerformance() throws InterruptedException {
         final Queue<ISynchronousResponse<byte[]>> responseQueue = new SynchronousQueue<ISynchronousResponse<byte[]>>(
@@ -232,6 +254,73 @@ public class ChannelPerformanceTest extends ATest {
         executor.awaitTermination();
     }
 
+    private void runBlockingQueuePerformanceTest(final BlockingQueue<ISynchronousResponse<byte[]>> responseQueue,
+            final BlockingQueue<ISynchronousResponse<byte[]>> requestQueue, final Object synchronizeRequest,
+            final Object synchronizeResponse) throws InterruptedException {
+        final ISynchronousWriter<byte[]> responseWriter = maybeSynchronize(
+                new BlockingQueueSynchronousWriter<byte[]>(responseQueue), synchronizeResponse);
+        final ISynchronousReader<byte[]> requestReader = maybeSynchronize(
+                new BlockingQueueSynchronousReader<byte[]>(requestQueue), synchronizeRequest);
+        final WrappedExecutorService executor = Executors.newFixedThreadPool("testBlockingQueuePerformance", 1);
+        executor.execute(new WriterTask(requestReader, responseWriter));
+        final ISynchronousWriter<byte[]> requestWriter = maybeSynchronize(
+                new BlockingQueueSynchronousWriter<byte[]>(requestQueue), synchronizeRequest);
+        final ISynchronousReader<byte[]> responseReader = maybeSynchronize(
+                new BlockingQueueSynchronousReader<byte[]>(responseQueue), synchronizeResponse);
+        read(requestWriter, responseReader);
+        executor.shutdown();
+        executor.awaitTermination();
+    }
+
+    @Test
+    public void testConversantPushPullConcurrentPerformance() throws InterruptedException {
+        final ConcurrentQueue<ISynchronousResponse<byte[]>> responseQueue = new PushPullConcurrentQueue<ISynchronousResponse<byte[]>>(
+                1);
+        final ConcurrentQueue<ISynchronousResponse<byte[]>> requestQueue = new PushPullConcurrentQueue<ISynchronousResponse<byte[]>>(
+                1);
+        runConversantPerformanceTest(responseQueue, requestQueue);
+    }
+
+    @Test
+    public void testConversantPushPullBlockingPerformance() throws InterruptedException {
+        final ConcurrentQueue<ISynchronousResponse<byte[]>> responseQueue = new PushPullBlockingQueue<ISynchronousResponse<byte[]>>(
+                1);
+        final ConcurrentQueue<ISynchronousResponse<byte[]>> requestQueue = new PushPullBlockingQueue<ISynchronousResponse<byte[]>>(
+                1);
+        runConversantPerformanceTest(responseQueue, requestQueue);
+    }
+
+    @Test
+    public void testConversantDisruptorConcurrentPerformance() throws InterruptedException {
+        final ConcurrentQueue<ISynchronousResponse<byte[]>> responseQueue = new MultithreadConcurrentQueue<ISynchronousResponse<byte[]>>(
+                1);
+        final ConcurrentQueue<ISynchronousResponse<byte[]>> requestQueue = new MultithreadConcurrentQueue<ISynchronousResponse<byte[]>>(
+                1);
+        runConversantPerformanceTest(responseQueue, requestQueue);
+    }
+
+    @Test
+    public void testConversantDisruptorBlockingPerformance() throws InterruptedException {
+        final ConcurrentQueue<ISynchronousResponse<byte[]>> responseQueue = new DisruptorBlockingQueue<ISynchronousResponse<byte[]>>(
+                1);
+        final ConcurrentQueue<ISynchronousResponse<byte[]>> requestQueue = new DisruptorBlockingQueue<ISynchronousResponse<byte[]>>(
+                1);
+        runConversantPerformanceTest(responseQueue, requestQueue);
+    }
+
+    private void runConversantPerformanceTest(final ConcurrentQueue<ISynchronousResponse<byte[]>> responseQueue,
+            final ConcurrentQueue<ISynchronousResponse<byte[]>> requestQueue) throws InterruptedException {
+        final ISynchronousWriter<byte[]> responseWriter = new ConversantSynchronousWriter<byte[]>(responseQueue);
+        final ISynchronousReader<byte[]> requestReader = new ConversantSynchronousReader<byte[]>(requestQueue);
+        final WrappedExecutorService executor = Executors.newFixedThreadPool("testQueuePerformance", 1);
+        executor.execute(new WriterTask(requestReader, responseWriter));
+        final ISynchronousWriter<byte[]> requestWriter = new ConversantSynchronousWriter<byte[]>(requestQueue);
+        final ISynchronousReader<byte[]> responseReader = new ConversantSynchronousReader<byte[]>(responseQueue);
+        read(requestWriter, responseReader);
+        executor.shutdown();
+        executor.awaitTermination();
+    }
+
     @Test
     public void testLmaxDisruptorPerformance() throws InterruptedException {
         final RingBuffer<MutableSynchronousResponse<byte[]>> responseQueue = RingBuffer
@@ -249,24 +338,6 @@ public class ChannelPerformanceTest extends ATest {
         executor.execute(new WriterTask(requestReader, responseWriter));
         final ISynchronousWriter<byte[]> requestWriter = new LmaxSynchronousWriter<byte[]>(requestQueue);
         final ISynchronousReader<byte[]> responseReader = new LmaxSynchronousReader<byte[]>(responseQueue);
-        read(requestWriter, responseReader);
-        executor.shutdown();
-        executor.awaitTermination();
-    }
-
-    private void runBlockingQueuePerformanceTest(final BlockingQueue<ISynchronousResponse<byte[]>> responseQueue,
-            final BlockingQueue<ISynchronousResponse<byte[]>> requestQueue, final Object synchronizeRequest,
-            final Object synchronizeResponse) throws InterruptedException {
-        final ISynchronousWriter<byte[]> responseWriter = maybeSynchronize(
-                new BlockingQueueSynchronousWriter<byte[]>(responseQueue), synchronizeResponse);
-        final ISynchronousReader<byte[]> requestReader = maybeSynchronize(
-                new BlockingQueueSynchronousReader<byte[]>(requestQueue), synchronizeRequest);
-        final WrappedExecutorService executor = Executors.newFixedThreadPool("testBlockingQueuePerformance", 1);
-        executor.execute(new WriterTask(requestReader, responseWriter));
-        final ISynchronousWriter<byte[]> requestWriter = maybeSynchronize(
-                new BlockingQueueSynchronousWriter<byte[]>(requestQueue), synchronizeRequest);
-        final ISynchronousReader<byte[]> responseReader = maybeSynchronize(
-                new BlockingQueueSynchronousReader<byte[]>(responseQueue), synchronizeResponse);
         read(requestWriter, responseReader);
         executor.shutdown();
         executor.awaitTermination();
