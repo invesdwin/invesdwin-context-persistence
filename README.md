@@ -268,8 +268,8 @@ New Benchmarks (2021, Core i9-9900k with SSD):
 Socket (loopback)          Records:    94.37/ms  in  90491 ms    => using this as baseline
 DatagramSocket (loopback)  Records:   113.54/ms  in  88078 ms    => ~20% faster than TCP
 Named Pipes                Records:   137.14/ms  in  72917 ms    => ~50% faster than TCP
-ArrayBlockingQueue         Records:   976.94/ms  in  10236 ms    => ~10 times faster than TCP
-ArrayDeque (synced)        Records:  1581.53/ms  in   6323 ms    => ~17 times faster than TCP
+ArrayBlockingQueue         Records:  1602.05/ms  in   6242 ms    => ~17 times faster than TCP
+ArrayDeque (synced)        Records:  1803.10/ms  in   5546 ms    => ~19 times faster than TCP
 LinkedBlockingQueue        Records:  1806.68/ms  in   5535 ms    => ~19 times faster than TCP
 SynchronousQueue           Records:  2320.19/ms  in   4310 ms    => ~24 times faster than TCP
 Mapped Memory              Records:  6257.82/ms  in   1598 ms    => ~66 times faster than TCP
