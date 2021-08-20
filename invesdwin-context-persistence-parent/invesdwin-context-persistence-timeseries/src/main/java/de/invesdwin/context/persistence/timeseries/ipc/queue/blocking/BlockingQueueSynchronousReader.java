@@ -7,17 +7,17 @@ import java.util.concurrent.BlockingQueue;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousReader;
-import de.invesdwin.context.persistence.timeseries.ipc.response.EmptySynchronousResponse;
-import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.message.EmptySynchronousMessage;
+import de.invesdwin.context.persistence.timeseries.ipc.message.ISynchronousMessage;
 
 @NotThreadSafe
 public class BlockingQueueSynchronousReader<M> extends ABlockingQueueSynchronousChannel<M>
         implements ISynchronousReader<M> {
     ;
 
-    private ISynchronousResponse<M> next;
+    private ISynchronousMessage<M> next;
 
-    public BlockingQueueSynchronousReader(final BlockingQueue<ISynchronousResponse<M>> queue) {
+    public BlockingQueueSynchronousReader(final BlockingQueue<ISynchronousMessage<M>> queue) {
         super(queue);
     }
 
@@ -31,11 +31,11 @@ public class BlockingQueueSynchronousReader<M> extends ABlockingQueueSynchronous
     }
 
     @Override
-    public ISynchronousResponse<M> readMessage() throws IOException {
-        final ISynchronousResponse<M> message;
+    public ISynchronousMessage<M> readMessage() throws IOException {
+        final ISynchronousMessage<M> message;
         message = next;
         next = null;
-        if (message == EmptySynchronousResponse.getInstance()) {
+        if (message == EmptySynchronousMessage.getInstance()) {
             close();
             throw new EOFException("closed by other side");
         }

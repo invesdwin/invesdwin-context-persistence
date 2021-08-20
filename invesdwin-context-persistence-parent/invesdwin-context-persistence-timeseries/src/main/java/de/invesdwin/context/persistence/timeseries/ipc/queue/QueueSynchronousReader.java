@@ -8,16 +8,16 @@ import java.util.concurrent.SynchronousQueue;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousReader;
-import de.invesdwin.context.persistence.timeseries.ipc.response.EmptySynchronousResponse;
-import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.message.EmptySynchronousMessage;
+import de.invesdwin.context.persistence.timeseries.ipc.message.ISynchronousMessage;
 import de.invesdwin.util.assertions.Assertions;
 
 @NotThreadSafe
 public class QueueSynchronousReader<M> implements ISynchronousReader<M> {
 
-    private Queue<ISynchronousResponse<M>> queue;
+    private Queue<ISynchronousMessage<M>> queue;
 
-    public QueueSynchronousReader(final Queue<ISynchronousResponse<M>> queue) {
+    public QueueSynchronousReader(final Queue<ISynchronousMessage<M>> queue) {
         Assertions.assertThat(queue)
                 .as("this implementation does not support non-blocking calls")
                 .isNotInstanceOf(SynchronousQueue.class);
@@ -39,9 +39,9 @@ public class QueueSynchronousReader<M> implements ISynchronousReader<M> {
     }
 
     @Override
-    public ISynchronousResponse<M> readMessage() throws IOException {
-        final ISynchronousResponse<M> message = queue.remove();
-        if (message == EmptySynchronousResponse.getInstance()) {
+    public ISynchronousMessage<M> readMessage() throws IOException {
+        final ISynchronousMessage<M> message = queue.remove();
+        if (message == EmptySynchronousMessage.getInstance()) {
             close();
             throw new EOFException("closed by other side");
         }

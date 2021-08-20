@@ -7,7 +7,7 @@ import java.net.SocketAddress;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousWriter;
-import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.message.ISynchronousMessage;
 import de.invesdwin.util.math.Bytes;
 
 @NotThreadSafe
@@ -64,8 +64,8 @@ public class SocketSynchronousWriter extends ASocketSynchronousChannel implement
     }
 
     @Override
-    public void write(final ISynchronousResponse<byte[]> response) throws IOException {
-        write(response.getType(), response.getSequence(), response.getMessage());
+    public void write(final ISynchronousMessage<byte[]> message) throws IOException {
+        write(message.getType(), message.getSequence(), message.getMessage());
     }
 
     private void writeWithoutTypeCheck(final int type, final int sequence, final byte[] message) throws IOException {

@@ -9,24 +9,24 @@ import com.lmax.disruptor.EventPoller;
 import com.lmax.disruptor.RingBuffer;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousReader;
-import de.invesdwin.context.persistence.timeseries.ipc.response.EmptySynchronousResponse;
-import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
-import de.invesdwin.context.persistence.timeseries.ipc.response.ImmutableSynchronousResponse;
-import de.invesdwin.context.persistence.timeseries.ipc.response.MutableSynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.message.EmptySynchronousMessage;
+import de.invesdwin.context.persistence.timeseries.ipc.message.ISynchronousMessage;
+import de.invesdwin.context.persistence.timeseries.ipc.message.ImmutableSynchronousMessage;
+import de.invesdwin.context.persistence.timeseries.ipc.message.MutableSynchronousMessage;
 
 @NotThreadSafe
 public class LmaxSynchronousReader<M> implements ISynchronousReader<M> {
 
-    private RingBuffer<MutableSynchronousResponse<M>> ringBuffer;
-    private EventPoller<MutableSynchronousResponse<M>> eventPoller;
-    private ImmutableSynchronousResponse<M> polledValue;
+    private RingBuffer<MutableSynchronousMessage<M>> ringBuffer;
+    private EventPoller<MutableSynchronousMessage<M>> eventPoller;
+    private ImmutableSynchronousMessage<M> polledValue;
 
-    private final EventPoller.Handler<MutableSynchronousResponse<M>> pollerHandler = (event, sequence, endOfBatch) -> {
-        polledValue = ImmutableSynchronousResponse.valueOf(event);
+    private final EventPoller.Handler<MutableSynchronousMessage<M>> pollerHandler = (event, sequence, endOfBatch) -> {
+        polledValue = ImmutableSynchronousMessage.valueOf(event);
         return false;
     };
 
-    public LmaxSynchronousReader(final RingBuffer<MutableSynchronousResponse<M>> ringBuffer) {
+    public LmaxSynchronousReader(final RingBuffer<MutableSynchronousMessage<M>> ringBuffer) {
         this.ringBuffer = ringBuffer;
         this.eventPoller = ringBuffer.newPoller();
         ringBuffer.addGatingSequences(eventPoller.getSequence());
@@ -56,25 +56,25 @@ public class LmaxSynchronousReader<M> implements ISynchronousReader<M> {
     }
 
     @Override
-    public ISynchronousResponse<M> readMessage() throws IOException {
-        final ISynchronousResponse<M> message = getPolledMessage();
-        if (message.getType() == EmptySynchronousResponse.TYPE) {
+    public ISynchronousMessage<M> readMessage() throws IOException {
+        final ISynchronousMessage<M> message = getPolledMessage();
+        if (message.getType() == EmptySynchronousMessage.TYPE) {
             close();
             throw new EOFException("closed by other side");
         }
         return message;
     }
 
-    private ISynchronousResponse<M> getPolledMessage() {
+    private ISynchronousMessage<M> getPolledMessage() {
         if (polledValue != null) {
-            final ImmutableSynchronousResponse<M> value = polledValue;
+            final ImmutableSynchronousMessage<M> value = polledValue;
             polledValue = null;
             return value;
         }
         try {
             final EventPoller.PollState poll = eventPoller.poll(pollerHandler);
             if (poll == EventPoller.PollState.PROCESSING) {
-                final ImmutableSynchronousResponse<M> value = polledValue;
+                final ImmutableSynchronousMessage<M> value = polledValue;
                 polledValue = null;
                 return value;
             } else {

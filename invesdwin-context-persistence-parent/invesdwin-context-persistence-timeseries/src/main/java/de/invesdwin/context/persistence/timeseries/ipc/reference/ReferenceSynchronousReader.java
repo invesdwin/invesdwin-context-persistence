@@ -6,17 +6,17 @@ import java.io.IOException;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousReader;
-import de.invesdwin.context.persistence.timeseries.ipc.response.EmptySynchronousResponse;
-import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.message.EmptySynchronousMessage;
+import de.invesdwin.context.persistence.timeseries.ipc.message.ISynchronousMessage;
 import de.invesdwin.util.concurrent.reference.DisabledReference;
 import de.invesdwin.util.concurrent.reference.IMutableReference;
 
 @NotThreadSafe
 public class ReferenceSynchronousReader<M> implements ISynchronousReader<M> {
 
-    private IMutableReference<ISynchronousResponse<M>> reference;
+    private IMutableReference<ISynchronousMessage<M>> reference;
 
-    public ReferenceSynchronousReader(final IMutableReference<ISynchronousResponse<M>> reference) {
+    public ReferenceSynchronousReader(final IMutableReference<ISynchronousMessage<M>> reference) {
         this.reference = reference;
     }
 
@@ -35,9 +35,9 @@ public class ReferenceSynchronousReader<M> implements ISynchronousReader<M> {
     }
 
     @Override
-    public ISynchronousResponse<M> readMessage() throws IOException {
-        final ISynchronousResponse<M> message = reference.getAndSet(null);
-        if (message == EmptySynchronousResponse.getInstance()) {
+    public ISynchronousMessage<M> readMessage() throws IOException {
+        final ISynchronousMessage<M> message = reference.getAndSet(null);
+        if (message == EmptySynchronousMessage.getInstance()) {
             close();
             throw new EOFException("closed by other side");
         }

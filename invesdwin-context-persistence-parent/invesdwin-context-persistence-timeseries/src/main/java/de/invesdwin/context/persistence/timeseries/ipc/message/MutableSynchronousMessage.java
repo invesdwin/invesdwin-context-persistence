@@ -1,9 +1,9 @@
-package de.invesdwin.context.persistence.timeseries.ipc.response;
+package de.invesdwin.context.persistence.timeseries.ipc.message;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
 @NotThreadSafe
-public class MutableSynchronousResponse<M> implements ISynchronousResponse<M> {
+public class MutableSynchronousMessage<M> implements ISynchronousMessage<M> {
 
     protected int type;
     protected int sequence;

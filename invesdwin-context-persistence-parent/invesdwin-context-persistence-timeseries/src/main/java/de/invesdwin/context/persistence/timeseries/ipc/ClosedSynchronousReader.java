@@ -5,7 +5,7 @@ import java.io.IOException;
 
 import javax.annotation.concurrent.Immutable;
 
-import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.message.ISynchronousMessage;
 
 @Immutable
 public class ClosedSynchronousReader<M> implements ISynchronousReader<M> {
@@ -26,7 +26,7 @@ public class ClosedSynchronousReader<M> implements ISynchronousReader<M> {
     }
 
     @Override
-    public ISynchronousResponse<M> readMessage() {
+    public ISynchronousMessage<M> readMessage() {
         return null;
     }
 

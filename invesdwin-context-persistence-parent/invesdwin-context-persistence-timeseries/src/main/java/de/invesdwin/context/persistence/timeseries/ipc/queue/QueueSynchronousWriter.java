@@ -7,17 +7,17 @@ import java.util.concurrent.SynchronousQueue;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousWriter;
-import de.invesdwin.context.persistence.timeseries.ipc.response.EmptySynchronousResponse;
-import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
-import de.invesdwin.context.persistence.timeseries.ipc.response.ImmutableSynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.message.EmptySynchronousMessage;
+import de.invesdwin.context.persistence.timeseries.ipc.message.ISynchronousMessage;
+import de.invesdwin.context.persistence.timeseries.ipc.message.ImmutableSynchronousMessage;
 import de.invesdwin.util.assertions.Assertions;
 
 @NotThreadSafe
 public class QueueSynchronousWriter<M> implements ISynchronousWriter<M> {
 
-    private Queue<ISynchronousResponse<M>> queue;
+    private Queue<ISynchronousMessage<M>> queue;
 
-    public QueueSynchronousWriter(final Queue<ISynchronousResponse<M>> queue) {
+    public QueueSynchronousWriter(final Queue<ISynchronousMessage<M>> queue) {
         Assertions.assertThat(queue)
                 .as("this implementation does not support non-blocking calls")
                 .isNotInstanceOf(SynchronousQueue.class);
@@ -30,18 +30,18 @@ public class QueueSynchronousWriter<M> implements ISynchronousWriter<M> {
 
     @Override
     public void close() throws IOException {
-        queue.add(EmptySynchronousResponse.getInstance());
+        queue.add(EmptySynchronousMessage.getInstance());
         queue = null;
     }
 
     @Override
     public void write(final int type, final int sequence, final M message) throws IOException {
-        queue.add(new ImmutableSynchronousResponse<M>(type, sequence, message));
+        queue.add(new ImmutableSynchronousMessage<M>(type, sequence, message));
     }
 
     @Override
-    public void write(final ISynchronousResponse<M> response) throws IOException {
-        queue.add(response);
+    public void write(final ISynchronousMessage<M> message) throws IOException {
+        queue.add(message);
     }
 
 }

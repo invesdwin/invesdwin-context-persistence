@@ -13,7 +13,7 @@ import org.zeroturnaround.exec.stop.ProcessStopper;
 import org.zeroturnaround.exec.stream.slf4j.Slf4jStream;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.message.ISynchronousMessage;
 import de.invesdwin.instrument.DynamicInstrumentationProperties;
 import de.invesdwin.util.lang.Files;
 
@@ -43,7 +43,7 @@ public final class SynchronousChannels {
             }
 
             @Override
-            public synchronized ISynchronousResponse<T> readMessage() throws IOException {
+            public synchronized ISynchronousMessage<T> readMessage() throws IOException {
                 return delegate.readMessage();
             }
 
@@ -73,8 +73,8 @@ public final class SynchronousChannels {
             }
 
             @Override
-            public synchronized void write(final ISynchronousResponse<T> response) throws IOException {
-                delegate.write(response);
+            public synchronized void write(final ISynchronousMessage<T> message) throws IOException {
+                delegate.write(message);
             }
 
         };
@@ -98,7 +98,7 @@ public final class SynchronousChannels {
             }
 
             @Override
-            public ISynchronousResponse<T> readMessage() throws IOException {
+            public ISynchronousMessage<T> readMessage() throws IOException {
                 synchronized (lock) {
                     return delegate.readMessage();
                 }
@@ -138,9 +138,9 @@ public final class SynchronousChannels {
             }
 
             @Override
-            public void write(final ISynchronousResponse<T> response) throws IOException {
+            public void write(final ISynchronousMessage<T> message) throws IOException {
                 synchronized (lock) {
-                    delegate.write(response);
+                    delegate.write(message);
                 }
             }
 

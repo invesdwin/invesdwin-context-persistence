@@ -4,7 +4,7 @@ import java.io.IOException;
 
 import javax.annotation.concurrent.Immutable;
 
-import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.message.ISynchronousMessage;
 
 @Immutable
 public class ClosedSynchronousWriter<M> implements ISynchronousWriter<M> {
@@ -30,6 +30,6 @@ public class ClosedSynchronousWriter<M> implements ISynchronousWriter<M> {
     }
 
     @Override
-    public void write(final ISynchronousResponse<M> response) throws IOException {
+    public void write(final ISynchronousMessage<M> message) throws IOException {
     }
 }
