@@ -252,14 +252,28 @@ ATimeSeriesDB    10,000,000     Reads:  25,813.11/ms  => ~21 times faster than L
 	- **Queue**: the classes `QueueSynchronousReader` and `QueueSynchronousWriter` provide implementations for non-blocking `java.util.Queue` usage for inter-thread-communication inside the JVM, e.g. for using `LinkedBlockingQueue`. The classes `BlockingQueueSynchronousReader` and `BlockingQueueSynchronousWriter` provide an alternative for blocking `java.util.concurrent.BlockingQueue` implementations like `SynchronousQueue` which do not support non-blocking usage. Be aware that not all queue implementations are thread safe, so you might want to synchronize the channels via `SynchronousChannels.synchronize(...)`. Since it might be unfortunate to use the serialization with ISynchronousQueue inside the JVM on queues, this should only be considered as a fallback solution for restricted environments where no faster alternative implementation is supported (e.g. java applets with tight security constraints). Using queues directly with your objects should yield better performance though, if you can live with pass-by-reference or work around that yourself.
 - **ASpinWait**:  the channel implementations are non-blocking by themselves (Named Pipes are normally blocking, but the implementation uses them in a non-blocking way, while Memory Mapping is per default non-blocking). This causes the problem of how one should wait on a reader without causing delays from sleeps or causing CPU load from spinning. This problem is solved by `ASpinWait`. It first spins when things are rolling and falls back to a fast sleep interval when communication has cooled down (similar to what `java.util.concurrent.SynchronousQueue` does between threads). The actual timings can be fully customized. To use this class, just override the `isConditionFulfilled()` method by calling `reader.hasNext()`.
 - **Performance**: here are some performance measurements against in-process queue implementations using one channel for requests and another separate one for responses, thus each record (of 10,000,000), each involving two messages (becoming 20,000,000), is passed between two threads (one simulating a server and the other one a client). This shows that memory mapping might even be useful as a faster alternative to queues for inter-thread-communication besides it being designed for inter-process-communication (as long as the serialization is cheap):
+
+Old Benchmarks (2016, Core i7-4790K with SSD):
 ```
-Socket (loopback)          Records:   111.01/ms  in  90078 ms    => ~60% slower than Named Pipes
+DatagramSocket (loopback)  Records:   111.01/ms  in  90078 ms    => ~60% slower than Named Pipes
 ArrayDeque (synced)        Records:   127.26/ms  in  78579 ms    => ~50% slower than Named Pipes
 Named Pipes                Records:   281.15/ms  in  35568 ms    => using this as baseline
 SynchronousQueue           Records:   924.90/ms  in  10812 ms    => ~3 times faster than Named Pipes
 LinkedBlockingQueue        Records:  1988.47/ms  in   5029 ms    => ~7 times faster than Named Pipes
 Mapped Memory              Records:  3214.40/ms  in   3111 ms    => ~11 times faster than Named Pipes
 Mapped Memory (tmpfs)      Records:  4237.29/ms  in   2360 ms    => ~15 times faster than Named Pipes
+```
+New Benchmarks (2021, Core i9-9900k with SSD):
+```
+Socket (loopback)          Records:    94.37/ms  in  90491 ms    => using this as baseline
+DatagramSocket (loopback)  Records:   113.54/ms  in  88078 ms    => ~20% faster than TCP
+Named Pipes                Records:   137.14/ms  in  72917 ms    => ~50% faster than TCP
+ArrayBlockingQueue         Records:   976.94/ms  in  10236 ms    => ~10 times faster than TCP
+ArrayDeque (synced)        Records:  1581.53/ms  in   6323 ms    => ~17 times faster than TCP
+LinkedBlockingQueue        Records:  1806.68/ms  in   5535 ms    => ~19 times faster than TCP
+SynchronousQueue           Records:  2320.19/ms  in   4310 ms    => ~24 times faster than TCP
+Mapped Memory              Records:  6257.82/ms  in   1598 ms    => ~66 times faster than TCP
+Mapped Memory (tmpfs)      Records:  7119.46/ms  in   1404 ms    => ~75 times faster than TCP
 ```
 - **Dynamic Client/Server**: you could utilize RMI with its service registry on localhost  (or something similar) to make processes become master/slave dynamically with failover when the master process exits. Just let each process race to become the master (first one wins) and let all other processes fallback to being slaves and connecting to the master. The RMI service provides mechanisms to setup the synchronous channels (by handing out pipe files) and the communication will then continue faster via your chosen channel implementation (RMI is slower because it uses the default java serialization and the TCP/IP communication causes undesired overhead). When the master process exits, the clients should just race again to get a new master nominated. To also handle clients disappearing, one should implement timeouts via a heartbeat that clients regularly send to the server to detect missing clients and a response timeout on the client so it detects a missing server. This is just for being bullet-proof, the endspoints should normally notify the other end when they close a channel, but this might fail when a process exits abnormally (see [SIGKILL](https://en.wikipedia.org/wiki/Unix_signal#SIGKILL)).
 
