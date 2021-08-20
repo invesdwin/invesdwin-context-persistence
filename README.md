@@ -272,6 +272,7 @@ ArrayBlockingQueue         Records:  1602.05/ms  in   6242 ms    => ~17 times fa
 ArrayDeque (synced)        Records:  1803.10/ms  in   5546 ms    => ~19 times faster than TCP
 LinkedBlockingQueue        Records:  1806.68/ms  in   5535 ms    => ~19 times faster than TCP
 SynchronousQueue           Records:  2320.19/ms  in   4310 ms    => ~24 times faster than TCP
+LmaxDisruptor              Records:  3057.17/ms  in   3271 ms    => ~32 times faster than TCP
 Mapped Memory              Records:  6257.82/ms  in   1598 ms    => ~66 times faster than TCP
 Mapped Memory (tmpfs)      Records:  7119.46/ms  in   1404 ms    => ~75 times faster than TCP
 ```
