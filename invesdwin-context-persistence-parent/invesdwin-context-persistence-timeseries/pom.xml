@@ -1,4 +1,6 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
 		<groupId>de.invesdwin</groupId>
@@ -26,6 +28,28 @@
 			<groupId>org.iq80.snappy</groupId>
 			<artifactId>snappy</artifactId>
 		</dependency>
+
+		<dependency>
+			<groupId>com.lmax</groupId>
+			<artifactId>disruptor</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.agrona</groupId>
+			<artifactId>agrona</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.jctools</groupId>
+			<artifactId>jctools-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.conversantmedia</groupId>
+			<artifactId>disruptor</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>net.openhft</groupId>
+			<artifactId>chronicle-queue</artifactId>
+		</dependency>
+
 
 		<dependency>
 			<groupId>org.mapdb</groupId>

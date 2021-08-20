@@ -7,7 +7,7 @@ import java.net.SocketAddress;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousReader;
-import de.invesdwin.context.persistence.timeseries.ipc.response.SynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.response.ImmutableSynchronousResponse;
 
 @NotThreadSafe
 public class DatagramSocketSynchronousReader extends ADatagramSocketSynchronousChannel
@@ -24,14 +24,14 @@ public class DatagramSocketSynchronousReader extends ADatagramSocketSynchronousC
     }
 
     @Override
-    public SynchronousResponse<byte[]> readMessage() throws IOException {
+    public ImmutableSynchronousResponse<byte[]> readMessage() throws IOException {
         final int type = getType();
         if (type == TYPE_CLOSED_VALUE) {
             throw new EOFException("Channel was closed by the other endpoint");
         }
         final int sequence = getSequence();
         final byte[] message = getMessage();
-        return new SynchronousResponse<byte[]>(type, sequence, message);
+        return new ImmutableSynchronousResponse<byte[]>(type, sequence, message);
     }
 
 }

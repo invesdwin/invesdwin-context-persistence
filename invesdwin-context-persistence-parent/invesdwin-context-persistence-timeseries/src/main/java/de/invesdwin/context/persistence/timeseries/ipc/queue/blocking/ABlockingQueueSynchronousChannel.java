@@ -9,7 +9,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.math3.random.RandomGenerator;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousChannel;
-import de.invesdwin.context.persistence.timeseries.ipc.response.ClosedSynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.response.EmptySynchronousResponse;
 import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
@@ -50,11 +50,11 @@ public abstract class ABlockingQueueSynchronousChannel<M> implements ISynchronou
                     boolean closedMessageSent = false;
                     boolean closedMessageReceived = false;
                     while (!closedMessageReceived || !closedMessageSent) {
-                        if (queueCopy.poll(random.nextInt(2), TimeUnit.MILLISECONDS) == ClosedSynchronousResponse
+                        if (queueCopy.poll(random.nextInt(2), TimeUnit.MILLISECONDS) == EmptySynchronousResponse
                                 .getInstance()) {
                             closedMessageReceived = true;
                         }
-                        if (queueCopy.offer(ClosedSynchronousResponse.getInstance(), random.nextInt(2),
+                        if (queueCopy.offer(EmptySynchronousResponse.getInstance(), random.nextInt(2),
                                 TimeUnit.MILLISECONDS)) {
                             closedMessageSent = true;
                         }

@@ -14,10 +14,13 @@ import java.util.concurrent.SynchronousQueue;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
+import com.lmax.disruptor.RingBuffer;
+
 import de.invesdwin.context.ContextProperties;
+import de.invesdwin.context.persistence.timeseries.ipc.lmax.LmaxSynchronousReader;
+import de.invesdwin.context.persistence.timeseries.ipc.lmax.LmaxSynchronousWriter;
 import de.invesdwin.context.persistence.timeseries.ipc.mapped.MappedSynchronousReader;
 import de.invesdwin.context.persistence.timeseries.ipc.mapped.MappedSynchronousWriter;
 import de.invesdwin.context.persistence.timeseries.ipc.pipe.PipeSynchronousReader;
@@ -27,6 +30,7 @@ import de.invesdwin.context.persistence.timeseries.ipc.queue.QueueSynchronousWri
 import de.invesdwin.context.persistence.timeseries.ipc.queue.blocking.BlockingQueueSynchronousReader;
 import de.invesdwin.context.persistence.timeseries.ipc.queue.blocking.BlockingQueueSynchronousWriter;
 import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.response.MutableSynchronousResponse;
 import de.invesdwin.context.persistence.timeseries.ipc.socket.SocketSynchronousReader;
 import de.invesdwin.context.persistence.timeseries.ipc.socket.SocketSynchronousWriter;
 import de.invesdwin.context.persistence.timeseries.ipc.socket.udp.DatagramSocketSynchronousReader;
@@ -52,7 +56,7 @@ import de.invesdwin.util.time.duration.Duration;
 
 // CHECKSTYLE:OFF
 @NotThreadSafe
-@Ignore("manual test")
+//@Ignore("manual test")
 public class ChannelPerformanceTest extends ATest {
     //CHECKSTYLE:ON
 
@@ -60,7 +64,7 @@ public class ChannelPerformanceTest extends ATest {
     private static final int MESSAGE_SIZE = FDateSerde.FIXED_LENGTH;
     private static final int MESSAGE_TYPE = 1;
     private static final int MESSAGE_SEQUENCE = 1;
-    private static final int VALUES = DEBUG ? 10 : 10_000_000;
+    private static final int VALUES = DEBUG ? 10 : 100_000_000;
     private static final int FLUSH_INTERVAL = Math.max(10, VALUES / 10);
     private static final Duration MAX_WAIT_DURATION = new Duration(10, DEBUG ? FTimeUnit.DAYS : FTimeUnit.SECONDS);
 
@@ -223,6 +227,28 @@ public class ChannelPerformanceTest extends ATest {
                 new QueueSynchronousWriter<byte[]>(requestQueue), synchronizeRequest);
         final ISynchronousReader<byte[]> responseReader = maybeSynchronize(
                 new QueueSynchronousReader<byte[]>(responseQueue), synchronizeResponse);
+        read(requestWriter, responseReader);
+        executor.shutdown();
+        executor.awaitTermination();
+    }
+
+    @Test
+    public void testLmaxDisruptorPerformance() throws InterruptedException {
+        final RingBuffer<MutableSynchronousResponse<byte[]>> responseQueue = RingBuffer
+                .createSingleProducer(() -> new MutableSynchronousResponse<byte[]>(), 2);
+        final RingBuffer<MutableSynchronousResponse<byte[]>> requestQueue = RingBuffer
+                .createSingleProducer(() -> new MutableSynchronousResponse<byte[]>(), 2);
+        runLmaxPerformanceTest(responseQueue, requestQueue);
+    }
+
+    private void runLmaxPerformanceTest(final RingBuffer<MutableSynchronousResponse<byte[]>> responseQueue,
+            final RingBuffer<MutableSynchronousResponse<byte[]>> requestQueue) throws InterruptedException {
+        final ISynchronousWriter<byte[]> responseWriter = new LmaxSynchronousWriter<byte[]>(responseQueue);
+        final ISynchronousReader<byte[]> requestReader = new LmaxSynchronousReader<byte[]>(requestQueue);
+        final WrappedExecutorService executor = Executors.newFixedThreadPool("testQueuePerformance", 1);
+        executor.execute(new WriterTask(requestReader, responseWriter));
+        final ISynchronousWriter<byte[]> requestWriter = new LmaxSynchronousWriter<byte[]>(requestQueue);
+        final ISynchronousReader<byte[]> responseReader = new LmaxSynchronousReader<byte[]>(responseQueue);
         read(requestWriter, responseReader);
         executor.shutdown();
         executor.awaitTermination();

@@ -6,9 +6,9 @@ import java.util.concurrent.BlockingQueue;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousWriter;
-import de.invesdwin.context.persistence.timeseries.ipc.response.ClosedSynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.response.EmptySynchronousResponse;
 import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
-import de.invesdwin.context.persistence.timeseries.ipc.response.SynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.response.ImmutableSynchronousResponse;
 
 @NotThreadSafe
 public class BlockingQueueSynchronousWriter<M> extends ABlockingQueueSynchronousChannel<M>
@@ -22,7 +22,7 @@ public class BlockingQueueSynchronousWriter<M> extends ABlockingQueueSynchronous
     public void write(final int type, final int sequence, final M message) throws IOException {
         final ISynchronousResponse<M> closedMessage = queue.poll();
         if (closedMessage != null) {
-            if (closedMessage != ClosedSynchronousResponse.getInstance()) {
+            if (closedMessage != EmptySynchronousResponse.getInstance()) {
                 throw new IllegalStateException("Multiple writers on queue are not supported!");
             } else {
                 close();
@@ -31,7 +31,7 @@ public class BlockingQueueSynchronousWriter<M> extends ABlockingQueueSynchronous
         }
 
         try {
-            queue.put(new SynchronousResponse<M>(type, sequence, message));
+            queue.put(new ImmutableSynchronousResponse<M>(type, sequence, message));
         } catch (final InterruptedException e) {
             throw new RuntimeException(e);
         }
@@ -41,7 +41,7 @@ public class BlockingQueueSynchronousWriter<M> extends ABlockingQueueSynchronous
     public void write(final ISynchronousResponse<M> response) throws IOException {
         final ISynchronousResponse<M> closedMessage = queue.poll();
         if (closedMessage != null) {
-            if (closedMessage != ClosedSynchronousResponse.getInstance()) {
+            if (closedMessage != EmptySynchronousResponse.getInstance()) {
                 throw new IllegalStateException("Multiple writers on queue are not supported!");
             } else {
                 close();

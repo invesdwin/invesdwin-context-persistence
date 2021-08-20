@@ -7,7 +7,7 @@ import java.util.concurrent.BlockingQueue;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousReader;
-import de.invesdwin.context.persistence.timeseries.ipc.response.ClosedSynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.response.EmptySynchronousResponse;
 import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
 
 @NotThreadSafe
@@ -35,7 +35,7 @@ public class BlockingQueueSynchronousReader<M> extends ABlockingQueueSynchronous
         final ISynchronousResponse<M> message;
         message = next;
         next = null;
-        if (message == ClosedSynchronousResponse.getInstance()) {
+        if (message == EmptySynchronousResponse.getInstance()) {
             close();
             throw new EOFException("closed by other side");
         }

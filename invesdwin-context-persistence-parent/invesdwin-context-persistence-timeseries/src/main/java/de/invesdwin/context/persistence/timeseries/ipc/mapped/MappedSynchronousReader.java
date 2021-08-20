@@ -8,7 +8,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousReader;
 import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
-import de.invesdwin.context.persistence.timeseries.ipc.response.SynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.response.ImmutableSynchronousResponse;
 
 /**
  * There can be multiple readers per file, but it is better to only have one.
@@ -58,7 +58,7 @@ public class MappedSynchronousReader extends AMappedSynchronousChannel implement
     @Override
     public ISynchronousResponse<byte[]> readMessage() {
         lastTransaction = getTransaction();
-        return new SynchronousResponse<byte[]>(getType(), getSequence(), getMessage());
+        return new ImmutableSynchronousResponse<byte[]>(getType(), getSequence(), getMessage());
     }
 
 }

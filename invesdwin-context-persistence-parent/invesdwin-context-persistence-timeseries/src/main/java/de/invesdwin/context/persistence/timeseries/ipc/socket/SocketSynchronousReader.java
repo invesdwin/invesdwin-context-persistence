@@ -9,7 +9,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousReader;
 import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
-import de.invesdwin.context.persistence.timeseries.ipc.response.SynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.response.ImmutableSynchronousResponse;
 import de.invesdwin.util.assertions.Assertions;
 
 @NotThreadSafe
@@ -65,7 +65,7 @@ public class SocketSynchronousReader extends ASocketSynchronousChannel implement
         if (size > 0) {
             Assertions.checkTrue(read(message));
         }
-        return new SynchronousResponse<byte[]>(type, sequence, message);
+        return new ImmutableSynchronousResponse<byte[]>(type, sequence, message);
     }
 
     private boolean read(final byte[] buffer) throws IOException {

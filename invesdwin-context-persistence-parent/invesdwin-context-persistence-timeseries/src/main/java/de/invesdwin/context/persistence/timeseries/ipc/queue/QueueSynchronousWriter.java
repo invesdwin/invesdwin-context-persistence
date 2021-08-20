@@ -7,9 +7,9 @@ import java.util.concurrent.SynchronousQueue;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousWriter;
-import de.invesdwin.context.persistence.timeseries.ipc.response.ClosedSynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.response.EmptySynchronousResponse;
 import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
-import de.invesdwin.context.persistence.timeseries.ipc.response.SynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.response.ImmutableSynchronousResponse;
 import de.invesdwin.util.assertions.Assertions;
 
 @NotThreadSafe
@@ -30,13 +30,13 @@ public class QueueSynchronousWriter<M> implements ISynchronousWriter<M> {
 
     @Override
     public void close() throws IOException {
-        queue.add(ClosedSynchronousResponse.getInstance());
+        queue.add(EmptySynchronousResponse.getInstance());
         queue = null;
     }
 
     @Override
     public void write(final int type, final int sequence, final M message) throws IOException {
-        queue.add(new SynchronousResponse<M>(type, sequence, message));
+        queue.add(new ImmutableSynchronousResponse<M>(type, sequence, message));
     }
 
     @Override

@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
 		<groupId>de.invesdwin</groupId>
@@ -43,6 +45,7 @@
 		<version.datanucleus>5.2.4</version.datanucleus>
 		<version.datanucleus-cache>5.1.1</version.datanucleus-cache>
 		<version.javax.jdo>3.2.0-m10</version.javax.jdo>
+		<version.eclipselink>2.7.4</version.eclipselink>
 
 		<version.kundera>3.13</version.kundera>
 		<version.ezdb>0.1.16</version.ezdb>
@@ -50,7 +53,12 @@
 		<version.snappy>0.4</version.snappy>
 		<version.mapdb>3.0.8</version.mapdb>
 		<version.eclipse-collections>7.1.0</version.eclipse-collections>
-		<version.eclipselink>2.7.4</version.eclipselink>
+
+		<version.lmax-disruptor>3.4.4</version.lmax-disruptor>
+		<version.agrona>1.12.0</version.agrona>
+		<version.jctools>3.3.0</version.jctools>
+		<version.conversant-disruptor>1.2.19</version.conversant-disruptor>
+		<version.chronicle-queue>5.21ea87</version.chronicle-queue>
 
 		<version.embed-influxdb>1.2.1</version.embed-influxdb>
 		<version.influxdb-java>2.20</version.influxdb-java>
@@ -293,6 +301,32 @@
 				<groupId>org.eclipse.collections</groupId>
 				<artifactId>eclipse-collections-api</artifactId>
 				<version>${version.eclipse-collections}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>com.lmax</groupId>
+				<artifactId>disruptor</artifactId>
+				<version>${version.lmax-disruptor}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.agrona</groupId>
+				<artifactId>agrona</artifactId>
+				<version>${version.agrona}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.jctools</groupId>
+				<artifactId>jctools-core</artifactId>
+				<version>${version.jctools}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.conversantmedia</groupId>
+				<artifactId>disruptor</artifactId>
+				<version>${version.conversant-disruptor}</version>
+			</dependency>
+			<dependency>
+				<groupId>net.openhft</groupId>
+				<artifactId>chronicle-queue</artifactId>
+				<version>${version.chronicle-queue}</version>
 			</dependency>
 
 			<dependency>

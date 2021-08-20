@@ -8,7 +8,7 @@ import java.util.concurrent.SynchronousQueue;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseries.ipc.ISynchronousReader;
-import de.invesdwin.context.persistence.timeseries.ipc.response.ClosedSynchronousResponse;
+import de.invesdwin.context.persistence.timeseries.ipc.response.EmptySynchronousResponse;
 import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
 import de.invesdwin.util.assertions.Assertions;
 
@@ -41,7 +41,7 @@ public class QueueSynchronousReader<M> implements ISynchronousReader<M> {
     @Override
     public ISynchronousResponse<M> readMessage() throws IOException {
         final ISynchronousResponse<M> message = queue.remove();
-        if (message == ClosedSynchronousResponse.getInstance()) {
+        if (message == EmptySynchronousResponse.getInstance()) {
             close();
             throw new EOFException("closed by other side");
         }

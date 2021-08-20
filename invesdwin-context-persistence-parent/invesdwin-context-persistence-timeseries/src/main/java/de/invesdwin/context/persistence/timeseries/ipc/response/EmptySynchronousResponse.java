@@ -3,24 +3,27 @@ package de.invesdwin.context.persistence.timeseries.ipc.response;
 import javax.annotation.concurrent.Immutable;
 
 @Immutable
-public class ClosedSynchronousResponse<M> implements ISynchronousResponse<M> {
+public class EmptySynchronousResponse<M> implements ISynchronousResponse<M> {
+
+    public static final int TYPE = -1;
+    public static final int SEQUENCE = -1;
 
     @SuppressWarnings("rawtypes")
-    private static final ClosedSynchronousResponse INSTANCE = new ClosedSynchronousResponse<>();
+    private static final EmptySynchronousResponse INSTANCE = new EmptySynchronousResponse<>();
 
     @SuppressWarnings("unchecked")
-    public static <T> ClosedSynchronousResponse<T> getInstance() {
+    public static <T> EmptySynchronousResponse<T> getInstance() {
         return INSTANCE;
     }
 
     @Override
     public int getType() {
-        return -1;
+        return TYPE;
     }
 
     @Override
     public int getSequence() {
-        return -1;
+        return SEQUENCE;
     }
 
     @Override
