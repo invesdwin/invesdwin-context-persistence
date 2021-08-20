@@ -225,12 +225,14 @@ ATimeSeriesDB    10,000,000     Reads:  14,204.55/ms  in     704 ms  =>  ~38 tim
 ```
 New Benchmarks (2020, Core i9-9900k with SSD, LevelDB via Java Port, InfluxDB 1.x for reference):
 ```
-      LevelDB     1,000,000    Writes:     155.80/ms
-      LevelDB    10,000,000     Reads:   1,228.70/ms
-     InfluxDB     1,000,000    Writes:     252.08/ms  => ~60% faster than LevelDB
-     InfluxDB    10,000,000     Reads:     649.31/ms  => ~2 times slower than LevelDB
-ATimeSeriesDB     1,000,000    Writes:   4,759.64/ms  => ~30.5 times faster than LevelDB
-ATimeSeriesDB    10,000,000     Reads:  25,813.11/ms  => ~21 times faster than LevelDB
+       LevelDB     1,000,000    Writes:     155.80/ms
+       LevelDB    10,000,000     Reads:   1,228.70/ms
+      InfluxDB     1,000,000    Writes:     252.08/ms  => ~60% faster than LevelDB
+      InfluxDB    10,000,000     Reads:     649.31/ms  => ~2 times slower than LevelDB
+ChronicleQueue     1,000,000    Writes:     442.48/ms  => ~2.8 times faster than LevelDB
+ChronicleQueue    10,000,000     Reads:  16,583.75/ms  => ~13.5 times faster than LevelDB
+ ATimeSeriesDB     1,000,000    Writes:   4,759.64/ms  => ~30.5 times faster than LevelDB
+ ATimeSeriesDB    10,000,000     Reads:  25,813.11/ms  => ~21 times faster than LevelDB
 ```
 - **ATimeSeriesUpdater**: this is a helper class with which one can handle large inserts/updates into an instance of `ATimeSeriesDB`. This handles the creation of separate chunk files and writing them to disk in the most efficient way.
 - **SerializingCollection**: this collection implementation is used to store and retrieve each file chunk. It supports two modes of serialization. The default and slower one supports variable length objects by Base64 encoding the serialized bytes and putting a delimiter between each element. The second and faster approach can be enabled by overriding `getFixedLength()` which allows the collection to skip the Base64 encoding and instead just count the bytes to separate each element. Though as this suggests, it only works with fixed length serialization/deserialization which you can provide by overriding the `toBytes`/`fromBytes()` callback methods (which use FST per default). You can also deviate from the default LZ4 high compression algorithm by overriding the `newCompressor`/`newDecompressor` callback methods. Despite efficiently storing financial data, this collection can be used to move any kind of data out of memory into a file to preserve precious memory instead of wasting it on metadata that is only rarely used (e.g. during a backtests we can record all sorts of information in a serialized fashion and load it back from file when generating our reports once. This allows us to run more backtests in parallel which would otherwise be limited by tight memory).
@@ -268,6 +270,7 @@ New Benchmarks (2021, Core i9-9900k with SSD):
 Socket (loopback)              Records:    94.37/ms  in  90491 ms    => using this as baseline
 DatagramSocket (loopback)      Records:   113.54/ms  in  88078 ms    => ~20% faster than TCP
 Named Pipes                    Records:   137.14/ms  in  72917 ms    => ~50% faster than TCP
+ChronicleQueue                 Records:   288.45/ms  in  34668 ms    => ~3 times faster than TCP
 LockedReference                Records:   784.74/ms  in  12743 ms    => ~8 times faster than TCP
 ArrayBlockingQueue             Records:  1602.05/ms  in   6242 ms    => ~17 times faster than TCP
 ArrayDeque (synced)            Records:  1803.10/ms  in   5546 ms    => ~19 times faster than TCP
