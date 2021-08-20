@@ -73,6 +73,7 @@ import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.ProcessedEventsRateString;
 import de.invesdwin.util.math.Bytes;
+import de.invesdwin.util.math.Integers;
 import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.math.decimal.scaled.PercentScale;
 import de.invesdwin.util.time.Instant;
@@ -258,9 +259,9 @@ public class ChannelPerformanceTest extends ATest {
     @Test
     public void testAgronaOneToOneConcurrentArrayQueuePerformance() throws InterruptedException {
         final Queue<ISynchronousResponse<byte[]>> responseQueue = new OneToOneConcurrentArrayQueue<ISynchronousResponse<byte[]>>(
-                2);
+                256);
         final Queue<ISynchronousResponse<byte[]>> requestQueue = new OneToOneConcurrentArrayQueue<ISynchronousResponse<byte[]>>(
-                2);
+                256);
         runQueuePerformanceTest(responseQueue, requestQueue, null, null);
     }
 
@@ -425,18 +426,18 @@ public class ChannelPerformanceTest extends ATest {
     @Test
     public void testConversantDisruptorConcurrentPerformance() throws InterruptedException {
         final ConcurrentQueue<ISynchronousResponse<byte[]>> responseQueue = new MultithreadConcurrentQueue<ISynchronousResponse<byte[]>>(
-                1);
+                256);
         final ConcurrentQueue<ISynchronousResponse<byte[]>> requestQueue = new MultithreadConcurrentQueue<ISynchronousResponse<byte[]>>(
-                1);
+                256);
         runConversantPerformanceTest(responseQueue, requestQueue);
     }
 
     @Test
     public void testConversantDisruptorBlockingPerformance() throws InterruptedException {
         final ConcurrentQueue<ISynchronousResponse<byte[]>> responseQueue = new DisruptorBlockingQueue<ISynchronousResponse<byte[]>>(
-                1);
+                256);
         final ConcurrentQueue<ISynchronousResponse<byte[]>> requestQueue = new DisruptorBlockingQueue<ISynchronousResponse<byte[]>>(
-                1);
+                256);
         runConversantPerformanceTest(responseQueue, requestQueue);
     }
 
@@ -456,9 +457,9 @@ public class ChannelPerformanceTest extends ATest {
     @Test
     public void testLmaxDisruptorPerformance() throws InterruptedException {
         final RingBuffer<MutableSynchronousResponse<byte[]>> responseQueue = RingBuffer
-                .createSingleProducer(() -> new MutableSynchronousResponse<byte[]>(), 2);
+                .createSingleProducer(() -> new MutableSynchronousResponse<byte[]>(), Integers.pow(2, 8));
         final RingBuffer<MutableSynchronousResponse<byte[]>> requestQueue = RingBuffer
-                .createSingleProducer(() -> new MutableSynchronousResponse<byte[]>(), 2);
+                .createSingleProducer(() -> new MutableSynchronousResponse<byte[]>(), Integers.pow(2, 8));
         runLmaxPerformanceTest(responseQueue, requestQueue);
     }
 
