@@ -12,9 +12,18 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.agrona.concurrent.ManyToManyConcurrentArrayQueue;
+import org.agrona.concurrent.ManyToOneConcurrentArrayQueue;
+import org.agrona.concurrent.OneToOneConcurrentArrayQueue;
+import org.jctools.queues.SpscArrayQueue;
+import org.jctools.queues.SpscLinkedQueue;
+import org.jctools.queues.atomic.SpscAtomicArrayQueue;
+import org.jctools.queues.atomic.SpscLinkedAtomicQueue;
 import org.junit.Test;
 
 import com.conversantmedia.util.concurrent.ConcurrentQueue;
@@ -37,6 +46,8 @@ import de.invesdwin.context.persistence.timeseries.ipc.queue.QueueSynchronousRea
 import de.invesdwin.context.persistence.timeseries.ipc.queue.QueueSynchronousWriter;
 import de.invesdwin.context.persistence.timeseries.ipc.queue.blocking.BlockingQueueSynchronousReader;
 import de.invesdwin.context.persistence.timeseries.ipc.queue.blocking.BlockingQueueSynchronousWriter;
+import de.invesdwin.context.persistence.timeseries.ipc.reference.ReferenceSynchronousReader;
+import de.invesdwin.context.persistence.timeseries.ipc.reference.ReferenceSynchronousWriter;
 import de.invesdwin.context.persistence.timeseries.ipc.response.ISynchronousResponse;
 import de.invesdwin.context.persistence.timeseries.ipc.response.MutableSynchronousResponse;
 import de.invesdwin.context.persistence.timeseries.ipc.socket.SocketSynchronousReader;
@@ -46,10 +57,18 @@ import de.invesdwin.context.persistence.timeseries.ipc.socket.udp.DatagramSocket
 import de.invesdwin.context.persistence.timeseries.serde.FDateSerde;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
+import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.loop.ASpinWait;
+import de.invesdwin.util.concurrent.reference.AtomicReference;
+import de.invesdwin.util.concurrent.reference.IMutableReference;
+import de.invesdwin.util.concurrent.reference.JavaLockedReference;
+import de.invesdwin.util.concurrent.reference.LockedReference;
+import de.invesdwin.util.concurrent.reference.SynchronizedReference;
+import de.invesdwin.util.concurrent.reference.VolatileReference;
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.ProcessedEventsRateString;
@@ -236,6 +255,63 @@ public class ChannelPerformanceTest extends ATest {
         runBlockingQueuePerformanceTest(responseQueue, requestQueue, null, null);
     }
 
+    @Test
+    public void testAgronaOneToOneConcurrentArrayQueuePerformance() throws InterruptedException {
+        final Queue<ISynchronousResponse<byte[]>> responseQueue = new OneToOneConcurrentArrayQueue<ISynchronousResponse<byte[]>>(
+                2);
+        final Queue<ISynchronousResponse<byte[]>> requestQueue = new OneToOneConcurrentArrayQueue<ISynchronousResponse<byte[]>>(
+                2);
+        runQueuePerformanceTest(responseQueue, requestQueue, null, null);
+    }
+
+    @Test
+    public void testAgronaManyToOneConcurrentArrayQueuePerformance() throws InterruptedException {
+        final Queue<ISynchronousResponse<byte[]>> responseQueue = new ManyToOneConcurrentArrayQueue<ISynchronousResponse<byte[]>>(
+                2);
+        final Queue<ISynchronousResponse<byte[]>> requestQueue = new ManyToOneConcurrentArrayQueue<ISynchronousResponse<byte[]>>(
+                2);
+        runQueuePerformanceTest(responseQueue, requestQueue, null, null);
+    }
+
+    @Test
+    public void testAgronaManyToManyConcurrentArrayQueuePerformance() throws InterruptedException {
+        final Queue<ISynchronousResponse<byte[]>> responseQueue = new ManyToManyConcurrentArrayQueue<ISynchronousResponse<byte[]>>(
+                2);
+        final Queue<ISynchronousResponse<byte[]>> requestQueue = new ManyToManyConcurrentArrayQueue<ISynchronousResponse<byte[]>>(
+                2);
+        runQueuePerformanceTest(responseQueue, requestQueue, null, null);
+    }
+
+    @Test
+    public void testJctoolsSpscAtomicArrayQueuePerformance() throws InterruptedException {
+        final Queue<ISynchronousResponse<byte[]>> responseQueue = new SpscAtomicArrayQueue<ISynchronousResponse<byte[]>>(
+                2);
+        final Queue<ISynchronousResponse<byte[]>> requestQueue = new SpscAtomicArrayQueue<ISynchronousResponse<byte[]>>(
+                2);
+        runQueuePerformanceTest(responseQueue, requestQueue, null, null);
+    }
+
+    @Test
+    public void testJctoolsSpscLinkedAtomicQueuePerformance() throws InterruptedException {
+        final Queue<ISynchronousResponse<byte[]>> responseQueue = new SpscLinkedAtomicQueue<ISynchronousResponse<byte[]>>();
+        final Queue<ISynchronousResponse<byte[]>> requestQueue = new SpscLinkedAtomicQueue<ISynchronousResponse<byte[]>>();
+        runQueuePerformanceTest(responseQueue, requestQueue, null, null);
+    }
+
+    @Test
+    public void testJctoolsSpscLinkedQueuePerformance() throws InterruptedException {
+        final Queue<ISynchronousResponse<byte[]>> responseQueue = new SpscLinkedQueue<ISynchronousResponse<byte[]>>();
+        final Queue<ISynchronousResponse<byte[]>> requestQueue = new SpscLinkedQueue<ISynchronousResponse<byte[]>>();
+        runQueuePerformanceTest(responseQueue, requestQueue, null, null);
+    }
+
+    @Test
+    public void testJctoolsSpscArrayQueuePerformance() throws InterruptedException {
+        final Queue<ISynchronousResponse<byte[]>> responseQueue = new SpscArrayQueue<ISynchronousResponse<byte[]>>(2);
+        final Queue<ISynchronousResponse<byte[]>> requestQueue = new SpscArrayQueue<ISynchronousResponse<byte[]>>(2);
+        runQueuePerformanceTest(responseQueue, requestQueue, null, null);
+    }
+
     private void runQueuePerformanceTest(final Queue<ISynchronousResponse<byte[]>> responseQueue,
             final Queue<ISynchronousResponse<byte[]>> requestQueue, final Object synchronizeRequest,
             final Object synchronizeResponse) throws InterruptedException {
@@ -267,6 +343,62 @@ public class ChannelPerformanceTest extends ATest {
                 new BlockingQueueSynchronousWriter<byte[]>(requestQueue), synchronizeRequest);
         final ISynchronousReader<byte[]> responseReader = maybeSynchronize(
                 new BlockingQueueSynchronousReader<byte[]>(responseQueue), synchronizeResponse);
+        read(requestWriter, responseReader);
+        executor.shutdown();
+        executor.awaitTermination();
+    }
+
+    @Test
+    public void testSynchronizedReferencePerformance() throws InterruptedException {
+        final IMutableReference<ISynchronousResponse<byte[]>> responseQueue = new SynchronizedReference<ISynchronousResponse<byte[]>>();
+        final IMutableReference<ISynchronousResponse<byte[]>> requestQueue = new SynchronizedReference<ISynchronousResponse<byte[]>>();
+        runReferencePerformanceTest(responseQueue, requestQueue);
+    }
+
+    @Test
+    public void testLockedReferencePerformance() throws InterruptedException {
+        final ILock lock = ILockCollectionFactory.getInstance(true).newLock("asdf");
+        final IMutableReference<ISynchronousResponse<byte[]>> responseQueue = new LockedReference<ISynchronousResponse<byte[]>>(
+                lock);
+        final IMutableReference<ISynchronousResponse<byte[]>> requestQueue = new LockedReference<ISynchronousResponse<byte[]>>(
+                lock);
+        runReferencePerformanceTest(responseQueue, requestQueue);
+    }
+
+    @Test
+    public void testJavaLockedReferencePerformance() throws InterruptedException {
+        //CHECKSTYLE:OFF
+        final Lock lock = new ReentrantLock();
+        //CHECKSTYLE:ON
+        final IMutableReference<ISynchronousResponse<byte[]>> responseQueue = new JavaLockedReference<ISynchronousResponse<byte[]>>(
+                lock);
+        final IMutableReference<ISynchronousResponse<byte[]>> requestQueue = new JavaLockedReference<ISynchronousResponse<byte[]>>(
+                lock);
+        runReferencePerformanceTest(responseQueue, requestQueue);
+    }
+
+    @Test
+    public void testAtomicReferencePerformance() throws InterruptedException {
+        final IMutableReference<ISynchronousResponse<byte[]>> responseQueue = new AtomicReference<ISynchronousResponse<byte[]>>();
+        final IMutableReference<ISynchronousResponse<byte[]>> requestQueue = new AtomicReference<ISynchronousResponse<byte[]>>();
+        runReferencePerformanceTest(responseQueue, requestQueue);
+    }
+
+    @Test
+    public void testVolatileReferencePerformance() throws InterruptedException {
+        final IMutableReference<ISynchronousResponse<byte[]>> responseQueue = new VolatileReference<ISynchronousResponse<byte[]>>();
+        final IMutableReference<ISynchronousResponse<byte[]>> requestQueue = new VolatileReference<ISynchronousResponse<byte[]>>();
+        runReferencePerformanceTest(responseQueue, requestQueue);
+    }
+
+    private void runReferencePerformanceTest(final IMutableReference<ISynchronousResponse<byte[]>> responseQueue,
+            final IMutableReference<ISynchronousResponse<byte[]>> requestQueue) throws InterruptedException {
+        final ISynchronousWriter<byte[]> responseWriter = new ReferenceSynchronousWriter<byte[]>(responseQueue);
+        final ISynchronousReader<byte[]> requestReader = new ReferenceSynchronousReader<byte[]>(requestQueue);
+        final WrappedExecutorService executor = Executors.newFixedThreadPool("testQueuePerformance", 1);
+        executor.execute(new WriterTask(requestReader, responseWriter));
+        final ISynchronousWriter<byte[]> requestWriter = new ReferenceSynchronousWriter<byte[]>(requestQueue);
+        final ISynchronousReader<byte[]> responseReader = new ReferenceSynchronousReader<byte[]>(responseQueue);
         read(requestWriter, responseReader);
         executor.shutdown();
         executor.awaitTermination();

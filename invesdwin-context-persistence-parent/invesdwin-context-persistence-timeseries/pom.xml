@@ -32,22 +32,27 @@
 		<dependency>
 			<groupId>com.lmax</groupId>
 			<artifactId>disruptor</artifactId>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.agrona</groupId>
 			<artifactId>agrona</artifactId>
+			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.jctools</groupId>
 			<artifactId>jctools-core</artifactId>
+			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>com.conversantmedia</groupId>
 			<artifactId>disruptor</artifactId>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>net.openhft</groupId>
 			<artifactId>chronicle-queue</artifactId>
+			<scope>provided</scope>
 		</dependency>
 
 
