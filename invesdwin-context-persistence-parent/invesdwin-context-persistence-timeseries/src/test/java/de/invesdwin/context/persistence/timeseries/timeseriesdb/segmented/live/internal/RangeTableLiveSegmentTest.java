@@ -11,6 +11,8 @@ import org.assertj.core.api.Fail;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
+import de.invesdwin.context.integration.serde.ISerde;
+import de.invesdwin.context.integration.serde.basic.IntegerSerde;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB.HistoricalSegmentTable;
@@ -24,8 +26,6 @@ import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
 import de.invesdwin.util.time.range.TimeRange;
-import ezdb.serde.IntegerSerde;
-import ezdb.serde.Serde;
 
 @NotThreadSafe
 public class RangeTableLiveSegmentTest extends ATest {
@@ -60,8 +60,8 @@ public class RangeTableLiveSegmentTest extends ATest {
             }
 
             @Override
-            protected Serde<Integer> newValueSerde() {
-                return IntegerSerde.get;
+            protected ISerde<Integer> newValueSerde() {
+                return IntegerSerde.GET;
             }
 
             @Override

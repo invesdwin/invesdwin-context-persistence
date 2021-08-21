@@ -21,6 +21,7 @@ import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.task.ARetryCallable;
 import de.invesdwin.context.integration.retry.task.BackOffPolicies;
 import de.invesdwin.context.integration.retry.task.RetryOriginator;
+import de.invesdwin.context.integration.serde.ISerde;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.IncompleteUpdateFoundException;
@@ -59,7 +60,6 @@ import de.invesdwin.util.time.date.FDates;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.range.TimeRange;
 import ezdb.TableRow;
-import ezdb.serde.Serde;
 import net.jpountz.lz4.LZ4BlockOutputStream;
 
 @NotThreadSafe
@@ -242,7 +242,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     private final SegmentedTimeSeriesStorage storage;
     private final K key;
     private final String hashKey;
-    private final Serde<V> valueSerde;
+    private final ISerde<V> valueSerde;
     private final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source;
 
     public ASegmentedTimeSeriesStorageCache(final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable,

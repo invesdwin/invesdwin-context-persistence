@@ -9,6 +9,7 @@ import java.util.function.Function;
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
+import de.invesdwin.context.integration.serde.ISerde;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.TimeSeriesStorage;
@@ -28,7 +29,6 @@ import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.range.TimeRange;
-import ezdb.serde.Serde;
 import net.jpountz.lz4.LZ4BlockOutputStream;
 
 @ThreadSafe
@@ -151,7 +151,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
     protected abstract Integer newFixedLength();
 
-    protected abstract Serde<V> newValueSerde();
+    protected abstract ISerde<V> newValueSerde();
 
     protected abstract FDate extractEndTime(V value);
 
@@ -456,7 +456,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         }
 
         @Override
-        public Serde<V> getValueSerde() {
+        public ISerde<V> getValueSerde() {
             return super.getValueSerde();
         }
 
@@ -471,7 +471,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         }
 
         @Override
-        protected Serde<V> newValueSerde() {
+        protected ISerde<V> newValueSerde() {
             return ASegmentedTimeSeriesDB.this.newValueSerde();
         }
 

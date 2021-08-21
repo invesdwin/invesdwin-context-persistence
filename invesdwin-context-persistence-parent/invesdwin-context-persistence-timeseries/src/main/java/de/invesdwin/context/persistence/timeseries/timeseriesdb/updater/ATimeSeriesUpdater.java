@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
+import de.invesdwin.context.integration.serde.ISerde;
 import de.invesdwin.context.integration.streams.LZ4Streams;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.IncompleteUpdateFoundException;
@@ -34,7 +35,6 @@ import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
-import ezdb.serde.Serde;
 import net.jpountz.lz4.LZ4BlockOutputStream;
 
 @NotThreadSafe
@@ -45,7 +45,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     public static final int BATCH_QUEUE_SIZE = 500_000 / BATCH_FLUSH_INTERVAL;
     public static final int BATCH_WRITER_THREADS = Executors.getCpuThreadPoolCount();
 
-    private final Serde<V> valueSerde;
+    private final ISerde<V> valueSerde;
     private final ATimeSeriesDB<K, V> table;
     private final TimeSeriesStorageCache<K, V> lookupTable;
     private final File updateLockFile;
@@ -306,8 +306,8 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                     ATimeSeriesUpdater.class.getSimpleName(), key, flushIndex);
             final SerializingCollection<V> collection = new SerializingCollection<V>(name, newFile, false) {
                 @Override
-                protected Serde<V> newSerde() {
-                    return new Serde<V>() {
+                protected ISerde<V> newSerde() {
+                    return new ISerde<V>() {
 
                         @Override
                         public V fromBytes(final byte[] bytes) {

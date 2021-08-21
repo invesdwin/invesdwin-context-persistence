@@ -4,11 +4,11 @@ import java.nio.ByteBuffer;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import de.invesdwin.context.integration.serde.ISerde;
 import de.invesdwin.util.math.Bytes;
-import ezdb.serde.Serde;
 
 @NotThreadSafe
-public final class ChunkValueSerde implements Serde<ChunkValue> {
+public final class ChunkValueSerde implements ISerde<ChunkValue> {
 
     private static final int NO_FIXED_LENGTH_OVERHEAD = Integer.BYTES + Integer.BYTES + Integer.BYTES;
     private final Integer valueFixedLength;
@@ -63,7 +63,8 @@ public final class ChunkValueSerde implements Serde<ChunkValue> {
         final byte[] lastValue = obj.getLastValue();
 
         if (valueFixedLength == null) {
-            final ByteBuffer buffer = ByteBuffer.allocate(NO_FIXED_LENGTH_OVERHEAD + firstValue.length + lastValue.length);
+            final ByteBuffer buffer = ByteBuffer
+                    .allocate(NO_FIXED_LENGTH_OVERHEAD + firstValue.length + lastValue.length);
             buffer.putInt(count);
             buffer.putInt(firstValue.length);
             buffer.putInt(lastValue.length);

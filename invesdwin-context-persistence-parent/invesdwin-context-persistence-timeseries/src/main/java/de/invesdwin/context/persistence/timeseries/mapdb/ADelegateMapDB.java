@@ -26,12 +26,12 @@ import org.mapdb.DataOutput2;
 import org.mapdb.Serializer;
 
 import de.invesdwin.context.ContextProperties;
+import de.invesdwin.context.integration.serde.ISerde;
+import de.invesdwin.context.integration.serde.TypeDelegateSerde;
 import de.invesdwin.context.integration.streams.LZ4Streams;
-import de.invesdwin.context.persistence.timeseries.serde.ExtendedTypeDelegateSerde;
 import de.invesdwin.util.lang.Closeables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.reflection.Reflections;
-import ezdb.serde.Serde;
 
 /**
  * If you need to store large data on disk, it is better to use LevelDB only for an ordered index and store the actual
@@ -95,7 +95,7 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
         return newSerializer(newKeySerde());
     }
 
-    private <T> Serializer<T> newSerializer(final Serde<T> serde) {
+    private <T> Serializer<T> newSerializer(final ISerde<T> serde) {
         return new Serializer<T>() {
 
             @Override
@@ -155,12 +155,12 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
         return LZ4Streams.newDefaultLZ4OutputStream(out);
     }
 
-    protected Serde<K> newKeySerde() {
-        return new ExtendedTypeDelegateSerde<K>(getKeyType());
+    protected ISerde<K> newKeySerde() {
+        return new TypeDelegateSerde<K>(getKeyType());
     }
 
-    protected Serde<V> newValueSerde() {
-        return new ExtendedTypeDelegateSerde<V>(getValueType());
+    protected ISerde<V> newValueSerde() {
+        return new TypeDelegateSerde<V>(getValueType());
     }
 
     protected File getFile() {

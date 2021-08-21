@@ -9,6 +9,7 @@ import java.util.function.Function;
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
+import de.invesdwin.context.integration.serde.ISerde;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesDB;
@@ -31,7 +32,6 @@ import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.range.TimeRange;
-import ezdb.serde.Serde;
 import net.jpountz.lz4.LZ4BlockOutputStream;
 
 @ThreadSafe
@@ -95,7 +95,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
 
     protected abstract Integer newValueFixedLength();
 
-    protected abstract Serde<V> newValueSerde();
+    protected abstract ISerde<V> newValueSerde();
 
     protected abstract FDate extractEndTime(V value);
 
@@ -124,7 +124,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         }
 
         @Override
-        public Serde<V> newValueSerde() {
+        public ISerde<V> newValueSerde() {
             return ALiveSegmentedTimeSeriesDB.this.newValueSerde();
         }
 

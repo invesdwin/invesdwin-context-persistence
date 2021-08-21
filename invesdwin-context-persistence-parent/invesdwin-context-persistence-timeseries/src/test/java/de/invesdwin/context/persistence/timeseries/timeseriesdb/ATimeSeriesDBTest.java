@@ -10,7 +10,8 @@ import org.apache.commons.lang3.mutable.MutableInt;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.persistence.timeseries.serde.ExtendedTypeDelegateSerde;
+import de.invesdwin.context.integration.serde.ISerde;
+import de.invesdwin.context.integration.serde.TypeDelegateSerde;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
@@ -20,7 +21,6 @@ import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
-import ezdb.serde.Serde;
 
 // CHECKSTYLE:OFF
 @NotThreadSafe
@@ -33,8 +33,8 @@ public class ATimeSeriesDBTest extends ATest {
         final ATimeSeriesDB<String, FDate> table = new ATimeSeriesDB<String, FDate>("testGetPrevious") {
 
             @Override
-            protected Serde<FDate> newValueSerde() {
-                return new ExtendedTypeDelegateSerde<FDate>(FDate.class);
+            protected ISerde<FDate> newValueSerde() {
+                return new TypeDelegateSerde<FDate>(FDate.class);
             }
 
             @Override
@@ -131,8 +131,8 @@ public class ATimeSeriesDBTest extends ATest {
         final ATimeSeriesDB<String, FDate> table = new ATimeSeriesDB<String, FDate>("testGetPreviousSkipFile") {
 
             @Override
-            protected Serde<FDate> newValueSerde() {
-                return new ExtendedTypeDelegateSerde<FDate>(FDate.class);
+            protected ISerde<FDate> newValueSerde() {
+                return new TypeDelegateSerde<FDate>(FDate.class);
             }
 
             @Override

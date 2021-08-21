@@ -14,7 +14,8 @@ import org.apache.commons.lang3.RandomUtils;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.persistence.timeseries.serde.ExtendedTypeDelegateSerde;
+import de.invesdwin.context.integration.serde.ISerde;
+import de.invesdwin.context.integration.serde.TypeDelegateSerde;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.PeriodicalSegmentFinder;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.SegmentedKey;
@@ -39,7 +40,6 @@ import de.invesdwin.util.time.date.FDates;
 import de.invesdwin.util.time.date.FTimeUnit;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.range.TimeRange;
-import ezdb.serde.Serde;
 
 @ThreadSafe
 public class ALiveSegmentedTimeSeriesDBWithLimitedCacheTest extends ATest {
@@ -85,8 +85,8 @@ public class ALiveSegmentedTimeSeriesDBWithLimitedCacheTest extends ATest {
             }
 
             @Override
-            protected Serde<FDate> newValueSerde() {
-                return new ExtendedTypeDelegateSerde<FDate>(FDate.class);
+            protected ISerde<FDate> newValueSerde() {
+                return new TypeDelegateSerde<FDate>(FDate.class);
             }
 
             @Override

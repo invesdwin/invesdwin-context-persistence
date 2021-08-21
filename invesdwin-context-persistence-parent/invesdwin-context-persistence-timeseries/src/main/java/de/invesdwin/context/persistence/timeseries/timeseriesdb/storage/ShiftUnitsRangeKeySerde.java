@@ -4,17 +4,18 @@ import java.nio.ByteBuffer;
 
 import javax.annotation.concurrent.Immutable;
 
+import de.invesdwin.context.integration.serde.ISerde;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
-import ezdb.serde.Serde;
 
 @Immutable
-public final class ShiftUnitsRangeKeySerde implements Serde<ShiftUnitsRangeKey> {
+public final class ShiftUnitsRangeKeySerde implements ISerde<ShiftUnitsRangeKey> {
 
     public static final ShiftUnitsRangeKeySerde GET = new ShiftUnitsRangeKeySerde();
     public static final int FIXED_LENGTH = 8 + 4;
 
-    private ShiftUnitsRangeKeySerde() {}
+    private ShiftUnitsRangeKeySerde() {
+    }
 
     @Override
     public ShiftUnitsRangeKey fromBytes(final byte[] bytes) {

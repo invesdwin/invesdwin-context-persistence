@@ -11,8 +11,9 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
+import de.invesdwin.context.integration.serde.ISerde;
+import de.invesdwin.context.integration.serde.basic.FDateSerde;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
-import de.invesdwin.context.persistence.timeseries.serde.FDateSerde;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.updater.ATimeSeriesUpdater;
@@ -29,7 +30,6 @@ import de.invesdwin.util.time.date.FDates;
 import de.invesdwin.util.time.date.FTimeUnit;
 import de.invesdwin.util.time.duration.Duration;
 import ezdb.batch.RangeBatch;
-import ezdb.serde.Serde;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.ExcerptTailer;
@@ -60,12 +60,12 @@ public class DatabasePerformanceTest extends ATest {
             }
 
             @Override
-            protected Serde<FDate> newValueSerde() {
+            protected ISerde<FDate> newValueSerde() {
                 return FDateSerde.GET;
             }
 
             @Override
-            protected Serde<FDate> newRangeKeySerde() {
+            protected ISerde<FDate> newRangeKeySerde() {
                 return FDateSerde.GET;
             }
         };
@@ -182,7 +182,7 @@ public class DatabasePerformanceTest extends ATest {
             }
 
             @Override
-            protected Serde<FDate> newValueSerde() {
+            protected ISerde<FDate> newValueSerde() {
                 return FDateSerde.GET;
             }
 

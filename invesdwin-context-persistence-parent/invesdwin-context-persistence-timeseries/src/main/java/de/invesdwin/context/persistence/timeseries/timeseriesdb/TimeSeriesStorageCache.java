@@ -22,6 +22,7 @@ import org.apache.commons.lang3.SerializationException;
 import org.apache.commons.lang3.mutable.MutableInt;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
+import de.invesdwin.context.integration.serde.ISerde;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable.DelegateTableIterator;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ChunkValue;
@@ -53,7 +54,6 @@ import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.time.date.FDate;
 import ezdb.TableRow;
-import ezdb.serde.Serde;
 
 // CHECKSTYLE:OFF ClassDataAbstractionCoupling
 @NotThreadSafe
@@ -240,7 +240,7 @@ public class TimeSeriesStorageCache<K, V> {
     };
 
     private final String hashKey;
-    private final Serde<V> valueSerde;
+    private final ISerde<V> valueSerde;
     private final Integer fixedLength;
     private final Function<V, FDate> extractEndTime;
     @GuardedBy("this")
@@ -258,7 +258,7 @@ public class TimeSeriesStorageCache<K, V> {
     private final Log log = new Log(this);
     private Map<FDate, File> redirectedFiles;
 
-    public TimeSeriesStorageCache(final TimeSeriesStorage storage, final String hashKey, final Serde<V> valueSerde,
+    public TimeSeriesStorageCache(final TimeSeriesStorage storage, final String hashKey, final ISerde<V> valueSerde,
             final Integer fixedLength, final Function<V, FDate> extractTime) {
         this.storage = storage;
         this.hashKey = hashKey;
@@ -573,8 +573,8 @@ public class TimeSeriesStorageCache<K, V> {
         return new SerializingCollection<V>(name, file, true) {
 
             @Override
-            protected Serde<V> newSerde() {
-                return new Serde<V>() {
+            protected ISerde<V> newSerde() {
+                return new ISerde<V>() {
                     @Override
                     public V fromBytes(final byte[] bytes) {
                         return valueSerde.fromBytes(bytes);

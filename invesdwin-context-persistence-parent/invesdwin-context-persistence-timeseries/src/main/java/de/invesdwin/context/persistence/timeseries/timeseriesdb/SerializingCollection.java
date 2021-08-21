@@ -23,6 +23,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.lang3.SerializationException;
 
 import de.invesdwin.context.ContextProperties;
+import de.invesdwin.context.integration.serde.ISerde;
 import de.invesdwin.context.integration.streams.LZ4Streams;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
@@ -39,7 +40,6 @@ import de.invesdwin.util.lang.UniqueNameGenerator;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.math.Bytes;
-import ezdb.serde.Serde;
 
 @NotThreadSafe
 public class SerializingCollection<E> implements Collection<E>, IReverseCloseableIterable<E>, Closeable {
@@ -58,7 +58,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     private final SerializingCollectionFinalizer finalizer;
     private final Integer fixedLength = getFixedLength();
     @SuppressWarnings("unchecked")
-    private final Serde<E> serde = (Serde<E>) newSerde();
+    private final ISerde<E> serde = (ISerde<E>) newSerde();
 
     public SerializingCollection(final TextDescription name, final String tempFileId) {
         this.name = name;
@@ -153,8 +153,8 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         return LZ4Streams.newDefaultLZ4InputStream(inputStream);
     }
 
-    protected Serde<? extends E> newSerde() {
-        return new Serde<E>() {
+    protected ISerde<? extends E> newSerde() {
+        return new ISerde<E>() {
             @Override
             public E fromBytes(final byte[] bytes) {
                 return Objects.deserialize(bytes);

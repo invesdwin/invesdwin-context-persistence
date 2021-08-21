@@ -2,15 +2,16 @@ package de.invesdwin.context.persistence.timeseries.timeseriesdb.storage;
 
 import javax.annotation.concurrent.Immutable;
 
+import de.invesdwin.context.integration.serde.ISerde;
 import de.invesdwin.util.math.Bytes;
-import ezdb.serde.Serde;
 
 @Immutable
-public final class SingleValueSerde implements Serde<SingleValue> {
+public final class SingleValueSerde implements ISerde<SingleValue> {
 
     public static final SingleValueSerde GET = new SingleValueSerde();
 
-    private SingleValueSerde() {}
+    private SingleValueSerde() {
+    }
 
     @Override
     public SingleValue fromBytes(final byte[] bytes) {

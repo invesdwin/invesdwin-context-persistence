@@ -15,10 +15,12 @@ import org.iq80.leveldb.DBIterator;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
+import de.invesdwin.context.integration.serde.ISerde;
+import de.invesdwin.context.integration.serde.SerdeComparator;
+import de.invesdwin.context.integration.serde.TypeDelegateSerde;
 import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.timeseries.ezdb.db.IRangeTableDb;
 import de.invesdwin.context.persistence.timeseries.ezdb.db.WriteThroughRangeTableDb;
-import de.invesdwin.context.persistence.timeseries.serde.ExtendedTypeDelegateSerde;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -43,18 +45,16 @@ import ezdb.batch.Batch;
 import ezdb.batch.RangeBatch;
 import ezdb.comparator.ComparableComparator;
 import ezdb.comparator.LexicographicalComparator;
-import ezdb.comparator.SerdeComparator;
 import ezdb.leveldb.EzLevelDb;
 import ezdb.leveldb.EzLevelDbJavaFactory;
-import ezdb.serde.Serde;
 import ezdb.treemap.object.EzObjectTreeMapDb;
 
 @ThreadSafe
 public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V> {
 
-    private final Serde<H> hashKeySerde;
-    private final Serde<R> rangeKeySerde;
-    private final Serde<V> valueSerde;
+    private final ISerde<H> hashKeySerde;
+    private final ISerde<R> rangeKeySerde;
+    private final ISerde<V> valueSerde;
     private final Comparator<byte[]> hashKeyComparatorDisk;
     private final Comparator<byte[]> rangeKeyComparatorDisk;
     private final Comparator<Object> hashKeyComparatorMemory;
@@ -123,21 +123,21 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     }
 
     @SuppressWarnings("unchecked")
-    protected Serde<V> newValueSerde() {
+    protected ISerde<V> newValueSerde() {
         final Class<V> type = (Class<V>) Reflections.resolveTypeArguments(getClass(), ADelegateRangeTable.class)[2];
-        return new ExtendedTypeDelegateSerde<V>(type);
+        return new TypeDelegateSerde<V>(type);
     }
 
     @SuppressWarnings("unchecked")
-    protected Serde<R> newRangeKeySerde() {
+    protected ISerde<R> newRangeKeySerde() {
         final Class<R> type = (Class<R>) Reflections.resolveTypeArguments(getClass(), ADelegateRangeTable.class)[1];
-        return new ExtendedTypeDelegateSerde<R>(type);
+        return new TypeDelegateSerde<R>(type);
     }
 
     @SuppressWarnings("unchecked")
-    protected Serde<H> newHashKeySerde() {
+    protected ISerde<H> newHashKeySerde() {
         final Class<H> type = (Class<H>) Reflections.resolveTypeArguments(getClass(), ADelegateRangeTable.class)[0];
-        return new ExtendedTypeDelegateSerde<H>(type);
+        return new TypeDelegateSerde<H>(type);
     }
 
     public String getName() {
@@ -229,8 +229,8 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
                 private void validateRow(final Entry<byte[], byte[]> rawRow) {
                     //fst library might have been updated, in that case deserialization might fail
-                    final RawTableRow<H, R, V> row = new RawTableRow<H, R, V>(rawRow, hashKeySerde, rangeKeySerde,
-                            valueSerde);
+                    final RawTableRow<H, R, V> row = new RawTableRow<H, R, V>(rawRow, EzdbSerde.valueOf(hashKeySerde),
+                            EzdbSerde.valueOf(rangeKeySerde), EzdbSerde.valueOf(valueSerde));
                     row.getHashKey();
                     row.getRangeKey();
                     row.getValue();
@@ -241,8 +241,9 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
             @Override
             public <_H, _R, _V> RangeTable<_H, _R, _V> getTable(final String tableName) {
                 initDirectory();
-                final RangeTable<H, R, V> table = db.getTable(tableName, hashKeySerde, rangeKeySerde, valueSerde,
-                        hashKeyComparatorDisk, rangeKeyComparatorDisk);
+                final RangeTable<H, R, V> table = db.getTable(tableName, EzdbSerde.valueOf(hashKeySerde),
+                        EzdbSerde.valueOf(rangeKeySerde), EzdbSerde.valueOf(valueSerde), hashKeyComparatorDisk,
+                        rangeKeyComparatorDisk);
                 return (RangeTable<_H, _R, _V>) table;
             }
 

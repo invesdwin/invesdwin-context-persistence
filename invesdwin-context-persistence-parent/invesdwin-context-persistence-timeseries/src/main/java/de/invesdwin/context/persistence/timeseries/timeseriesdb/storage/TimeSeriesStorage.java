@@ -4,10 +4,10 @@ import java.io.File;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import de.invesdwin.context.integration.serde.ISerde;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseries.ezdb.RangeTablePersistenceMode;
 import de.invesdwin.util.time.date.FDate;
-import ezdb.serde.Serde;
 
 @ThreadSafe
 public class TimeSeriesStorage {
@@ -38,7 +38,7 @@ public class TimeSeriesStorage {
             }
 
             @Override
-            protected Serde<ChunkValue> newValueSerde() {
+            protected ISerde<ChunkValue> newValueSerde() {
                 return new ChunkValueSerde(valueFixedLength);
             }
 
@@ -56,7 +56,7 @@ public class TimeSeriesStorage {
             }
 
             @Override
-            protected Serde<SingleValue> newValueSerde() {
+            protected ISerde<SingleValue> newValueSerde() {
                 return SingleValueSerde.GET;
             }
 
@@ -75,12 +75,12 @@ public class TimeSeriesStorage {
             }
 
             @Override
-            protected Serde<ShiftUnitsRangeKey> newRangeKeySerde() {
+            protected ISerde<ShiftUnitsRangeKey> newRangeKeySerde() {
                 return ShiftUnitsRangeKeySerde.GET;
             }
 
             @Override
-            protected Serde<SingleValue> newValueSerde() {
+            protected ISerde<SingleValue> newValueSerde() {
                 return SingleValueSerde.GET;
             }
 
@@ -98,12 +98,12 @@ public class TimeSeriesStorage {
             }
 
             @Override
-            protected Serde<ShiftUnitsRangeKey> newRangeKeySerde() {
+            protected ISerde<ShiftUnitsRangeKey> newRangeKeySerde() {
                 return ShiftUnitsRangeKeySerde.GET;
             }
 
             @Override
-            protected Serde<SingleValue> newValueSerde() {
+            protected ISerde<SingleValue> newValueSerde() {
                 return SingleValueSerde.GET;
             }
 

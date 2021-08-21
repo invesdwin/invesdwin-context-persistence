@@ -11,6 +11,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.retry.Retry;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
+import de.invesdwin.context.integration.serde.ISerde;
 import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.CorruptedTimeSeriesStorageException;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.TimeSeriesStorage;
@@ -28,13 +29,12 @@ import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.time.date.FDate;
-import ezdb.serde.Serde;
 
 @ThreadSafe
 public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
     private final String name;
-    private final Serde<V> valueSerde;
+    private final ISerde<V> valueSerde;
     private final Integer fixedLength;
     private final File directory;
     private final ALoadingCache<K, TimeSeriesStorageCache<K, V>> key_lookupTableCache;
@@ -146,7 +146,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         return key_tableLock.get(key);
     }
 
-    protected abstract Serde<V> newValueSerde();
+    protected abstract ISerde<V> newValueSerde();
 
     protected abstract FDate extractEndTime(V value);
 
@@ -280,7 +280,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         return key_lookupTableCache.get(key);
     }
 
-    public Serde<V> getValueSerde() {
+    public ISerde<V> getValueSerde() {
         return valueSerde;
     }
 

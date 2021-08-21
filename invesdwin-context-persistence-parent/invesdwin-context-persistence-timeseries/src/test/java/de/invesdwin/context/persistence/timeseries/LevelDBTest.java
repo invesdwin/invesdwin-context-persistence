@@ -9,9 +9,10 @@ import org.assertj.core.api.Fail;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
+import de.invesdwin.context.integration.serde.ISerde;
+import de.invesdwin.context.integration.serde.basic.FDateSerde;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable.DelegateTableIterator;
-import de.invesdwin.context.persistence.timeseries.serde.FDateSerde;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.time.date.FDate;
@@ -20,7 +21,6 @@ import ezdb.Db;
 import ezdb.Table;
 import ezdb.leveldb.EzLevelDb;
 import ezdb.leveldb.EzLevelDbJavaFactory;
-import ezdb.serde.Serde;
 import ezdb.serde.StringSerde;
 
 @ThreadSafe
@@ -41,7 +41,7 @@ public class LevelDBTest extends ATest {
         final ADelegateRangeTable<String, FDate, Integer> rangeTable = new ADelegateRangeTable<String, FDate, Integer>(
                 "testInverseOrder") {
             @Override
-            protected Serde<FDate> newRangeKeySerde() {
+            protected ISerde<FDate> newRangeKeySerde() {
                 return FDateSerde.GET;
             }
 

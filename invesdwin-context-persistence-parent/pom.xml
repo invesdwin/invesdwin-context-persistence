@@ -54,13 +54,6 @@
 		<version.mapdb>3.0.8</version.mapdb>
 		<version.eclipse-collections>7.1.0</version.eclipse-collections>
 
-		<version.lmax-disruptor>3.4.4</version.lmax-disruptor>
-		<version.agrona>1.12.0</version.agrona>
-		<version.jctools>3.3.0</version.jctools>
-		<version.conversant-disruptor>1.2.19</version.conversant-disruptor>
-		<version.chronicle-queue>5.21ea87</version.chronicle-queue>
-		<version.aeron>1.35.0</version.aeron>
-
 		<version.embed-influxdb>1.2.1</version.embed-influxdb>
 		<version.influxdb-java>2.20</version.influxdb-java>
 	</properties>
@@ -302,37 +295,6 @@
 				<groupId>org.eclipse.collections</groupId>
 				<artifactId>eclipse-collections-api</artifactId>
 				<version>${version.eclipse-collections}</version>
-			</dependency>
-
-			<dependency>
-				<groupId>com.lmax</groupId>
-				<artifactId>disruptor</artifactId>
-				<version>${version.lmax-disruptor}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.agrona</groupId>
-				<artifactId>agrona</artifactId>
-				<version>${version.agrona}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.jctools</groupId>
-				<artifactId>jctools-core</artifactId>
-				<version>${version.jctools}</version>
-			</dependency>
-			<dependency>
-				<groupId>com.conversantmedia</groupId>
-				<artifactId>disruptor</artifactId>
-				<version>${version.conversant-disruptor}</version>
-			</dependency>
-			<dependency>
-				<groupId>net.openhft</groupId>
-				<artifactId>chronicle-queue</artifactId>
-				<version>${version.chronicle-queue}</version>
-			</dependency>
-			<dependency>
-				<groupId>io.aeron</groupId>
-				<artifactId>aeron-driver</artifactId>
-				<version>${version.aeron}</version>
 			</dependency>
 
 			<dependency>

@@ -10,6 +10,7 @@ import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 
+import de.invesdwin.context.integration.serde.ISerde;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.HeapSerializingCollection;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
@@ -26,7 +27,6 @@ import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.time.date.FDate;
-import ezdb.serde.Serde;
 
 @NotThreadSafe
 public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
@@ -60,7 +60,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
                 FileLiveSegment.class.getSimpleName(), segmentedKey);
         return new SerializingCollection<V>(name, file, false) {
             @Override
-            protected Serde<V> newSerde() {
+            protected ISerde<V> newSerde() {
                 return historicalSegmentTable.newValueSerde();
             }
 
@@ -308,7 +308,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             final byte[] bytes = Files.readFileToByteArray(values.getFile());
             return new HeapSerializingCollection<V>(name, bytes) {
                 @Override
-                protected Serde<V> newSerde() {
+                protected ISerde<V> newSerde() {
                     return historicalSegmentTable.newValueSerde();
                 }
 

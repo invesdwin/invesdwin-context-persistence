@@ -7,9 +7,10 @@ import java.util.function.Function;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import de.invesdwin.context.integration.serde.ISerde;
+import de.invesdwin.context.integration.serde.basic.FDateSerde;
+import de.invesdwin.context.integration.serde.basic.VoidSerde;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
-import de.invesdwin.context.persistence.timeseries.serde.FDateSerde;
-import de.invesdwin.context.persistence.timeseries.serde.VoidSerde;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
@@ -21,7 +22,6 @@ import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.iterable.buffer.IBufferingIterator;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.time.date.FDate;
-import ezdb.serde.Serde;
 
 @NotThreadSafe
 public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
@@ -52,17 +52,17 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
 
             @Override
-            protected Serde<Void> newHashKeySerde() {
+            protected ISerde<Void> newHashKeySerde() {
                 return VoidSerde.GET;
             }
 
             @Override
-            protected Serde<FDate> newRangeKeySerde() {
+            protected ISerde<FDate> newRangeKeySerde() {
                 return FDateSerde.GET;
             }
 
             @Override
-            protected Serde<V> newValueSerde() {
+            protected ISerde<V> newValueSerde() {
                 return historicalSegmentTable.newValueSerde();
             }
 
