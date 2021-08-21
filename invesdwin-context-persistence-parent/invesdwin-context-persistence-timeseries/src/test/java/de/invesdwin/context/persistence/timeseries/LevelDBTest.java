@@ -21,7 +21,6 @@ import ezdb.Db;
 import ezdb.Table;
 import ezdb.leveldb.EzLevelDb;
 import ezdb.leveldb.EzLevelDbJavaFactory;
-import ezdb.serde.StringSerde;
 
 @ThreadSafe
 public class LevelDBTest extends ATest {
@@ -29,9 +28,11 @@ public class LevelDBTest extends ATest {
     private static final String HASHKEY = "one";
 
     @Test
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testLevelDB() {
-        final Db ezdb = new EzLevelDb(ContextProperties.TEMP_DIRECTORY, new EzLevelDbJavaFactory());
-        final Table<String, String> table = ezdb.getTable("testLevelDB", StringSerde.get, StringSerde.get);
+        final Db db = new EzLevelDb(ContextProperties.TEMP_DIRECTORY, new EzLevelDbJavaFactory());
+        final Table<String, String> table = db.getTable("testLevelDB", ezdb.serde.StringSerde.get,
+                ezdb.serde.StringSerde.get);
         table.put(HASHKEY, "value");
         Assertions.assertThat(table.get(HASHKEY)).isEqualTo("value");
     }

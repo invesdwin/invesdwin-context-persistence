@@ -3,10 +3,9 @@ package de.invesdwin.context.persistence.timeseries.ezdb;
 import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.context.integration.serde.ISerde;
-import ezdb.serde.Serde;
 
 @Immutable
-public class EzdbSerde<O> implements Serde<O> {
+public class EzdbSerde<O> implements ezdb.serde.Serde<O> {
 
     private final ISerde<O> delegate;
 
@@ -25,11 +24,11 @@ public class EzdbSerde<O> implements Serde<O> {
     }
 
     @SuppressWarnings("unchecked")
-    public static <T> Serde<T> valueOf(final ISerde<T> delegate) {
+    public static <T> ezdb.serde.Serde<T> valueOf(final ISerde<T> delegate) {
         if (delegate == null) {
             return null;
-        } else if (delegate instanceof Serde) {
-            return (Serde<T>) delegate;
+        } else if (delegate instanceof ezdb.serde.Serde) {
+            return (ezdb.serde.Serde<T>) delegate;
         } else {
             return new EzdbSerde<T>(delegate);
         }
