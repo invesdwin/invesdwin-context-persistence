@@ -270,7 +270,7 @@ New Benchmarks (2021, Core i9-9900k with SSD):
 Network    Socket (loopback)              Records:    94.37/ms  in  90491 ms    => using this as baseline
 Network    DatagramSocket (loopback)      Records:   113.54/ms  in  88078 ms    => ~20% faster than TCP
 Process    Named Pipes                    Records:   137.14/ms  in  72917 ms    => ~50% faster than TCP
-Network    AeronUDP (loopback)            Records:   173.76/ms  in  57549 ms    => ~85% faster than TCP
+Network    *AeronUDP (loopback)            Records:   173.76/ms  in  57549 ms    => ~85% faster than TCP
 Process    ChronicleQueue                 Records:   288.45/ms  in  34668 ms    => ~3 times faster than TCP
 Thread     LockedReference                Records:   784.74/ms  in  12743 ms    => ~8 times faster than TCP
 Thread     ArrayBlockingQueue             Records:  1602.05/ms  in   6242 ms    => ~17 times faster than TCP
@@ -290,9 +290,9 @@ Thread     ConversantPushPullConcurrent   Records:  3767.33/ms  in   2654 ms    
 Thread     AgronaManyToMany               Records:  3959.46/ms  in   2525 ms    => ~42 times faster than TCP
 Thread     JctoolsSpscArray               Records:  4269.31/ms  in   2342 ms    => ~45 times faster than TCP
 Thread     JctoolsSpscAtomicArray         Records:  4311.65/ms  in   2319 ms    => ~45 times faster than TCP
-Thread     LmaxDisruptor                  Records:  4542.15/ms  in   2201 ms    => ~48 times faster than TCP
+Thread     *LmaxDisruptor                  Records:  4542.15/ms  in   2201 ms    => ~48 times faster than TCP
 Process    Mapped Memory                  Records:  6257.82/ms  in   1598 ms    => ~66 times faster than TCP
-Process    Mapped Memory (tmpfs)          Records:  7119.46/ms  in   1404 ms    => ~75 times faster than TCP
+Process    *Mapped Memory (tmpfs)          Records:  7119.46/ms  in   1404 ms    => ~75 times faster than TCP
 ```
 - **Dynamic Client/Server**: you could utilize RMI with its service registry on localhost  (or something similar) to make processes become master/slave dynamically with failover when the master process exits. Just let each process race to become the master (first one wins) and let all other processes fallback to being slaves and connecting to the master. The RMI service provides mechanisms to setup the synchronous channels (by handing out pipe files) and the communication will then continue faster via your chosen channel implementation (RMI is slower because it uses the default java serialization and the TCP/IP communication causes undesired overhead). When the master process exits, the clients should just race again to get a new master nominated. To also handle clients disappearing, one should implement timeouts via a heartbeat that clients regularly send to the server to detect missing clients and a response timeout on the client so it detects a missing server. This is just for being bullet-proof, the endspoints should normally notify the other end when they close a channel, but this might fail when a process exits abnormally (see [SIGKILL](https://en.wikipedia.org/wiki/Unix_signal#SIGKILL)).
 
