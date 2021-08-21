@@ -42,7 +42,7 @@ public class ChronicleSynchronousWriter extends AChronicleSynchronousChannel imp
             final net.openhft.chronicle.bytes.Bytes<?> bytes = doc.wire().bytes();
             bytes.writeInt(type);
             bytes.writeInt(sequence);
-            if (message == null) {
+            if (message == null || message.length == 0) {
                 bytes.writeInt(0);
             } else {
                 bytes.writeInt(message.length);

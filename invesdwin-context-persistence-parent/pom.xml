@@ -59,6 +59,7 @@
 		<version.jctools>3.3.0</version.jctools>
 		<version.conversant-disruptor>1.2.19</version.conversant-disruptor>
 		<version.chronicle-queue>5.21ea87</version.chronicle-queue>
+		<version.aeron>1.35.0</version.aeron>
 
 		<version.embed-influxdb>1.2.1</version.embed-influxdb>
 		<version.influxdb-java>2.20</version.influxdb-java>
@@ -327,6 +328,11 @@
 				<groupId>net.openhft</groupId>
 				<artifactId>chronicle-queue</artifactId>
 				<version>${version.chronicle-queue}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.aeron</groupId>
+				<artifactId>aeron-driver</artifactId>
+				<version>${version.aeron}</version>
 			</dependency>
 
 			<dependency>

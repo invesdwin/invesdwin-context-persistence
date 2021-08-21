@@ -35,6 +35,8 @@ import com.conversantmedia.util.concurrent.PushPullConcurrentQueue;
 import com.lmax.disruptor.RingBuffer;
 
 import de.invesdwin.context.ContextProperties;
+import de.invesdwin.context.persistence.timeseries.ipc.aeron.AeronSynchronousReader;
+import de.invesdwin.context.persistence.timeseries.ipc.aeron.AeronSynchronousWriter;
 import de.invesdwin.context.persistence.timeseries.ipc.chronicle.ChronicleSynchronousReader;
 import de.invesdwin.context.persistence.timeseries.ipc.chronicle.ChronicleSynchronousWriter;
 import de.invesdwin.context.persistence.timeseries.ipc.conversant.ConversantSynchronousReader;
@@ -96,7 +98,7 @@ public class ChannelPerformanceTest extends ATest {
     private static final int MESSAGE_SIZE = FDateSerde.FIXED_LENGTH;
     private static final int MESSAGE_TYPE = 1;
     private static final int MESSAGE_SEQUENCE = 1;
-    private static final int VALUES = DEBUG ? 10 : 10_000_000;
+    private static final int VALUES = DEBUG ? 10 : 100_000_000;
     private static final int FLUSH_INTERVAL = Math.max(10, VALUES / 10);
     private static final Duration MAX_WAIT_DURATION = new Duration(10, DEBUG ? FTimeUnit.DAYS : FTimeUnit.SECONDS);
 
@@ -564,6 +566,33 @@ public class ChannelPerformanceTest extends ATest {
                 MESSAGE_SIZE);
         final ISynchronousReader<byte[]> responseReader = new DatagramSocketSynchronousReader(responseAddress,
                 MESSAGE_SIZE);
+        read(requestWriter, responseReader);
+        executor.shutdown();
+        executor.awaitTermination();
+    }
+
+    @Test
+    public void testAeronDatagramSocketPerformance() throws InterruptedException {
+        final String responseChannel = "aeron:udp?endpoint=localhost:7878";
+        final String requestChannel = "aeron:udp?endpoint=localhost:7879";
+        runAeronSocketPerformanceTest(responseChannel, 1001, requestChannel, 1002);
+    }
+
+    @Test
+    public void testAeronIpcPerformance() throws InterruptedException {
+        final String responseChannel = "aeron:ipc";
+        final String requestChannel = "aeron:ipc";
+        runAeronSocketPerformanceTest(responseChannel, 1001, requestChannel, 1002);
+    }
+
+    private void runAeronSocketPerformanceTest(final String responseChannel, final int responseStreamId,
+            final String requestChannel, final int requestStreamId) throws InterruptedException {
+        final ISynchronousWriter<byte[]> responseWriter = new AeronSynchronousWriter(responseChannel, responseStreamId);
+        final ISynchronousReader<byte[]> requestReader = new AeronSynchronousReader(requestChannel, requestStreamId);
+        final WrappedExecutorService executor = Executors.newFixedThreadPool("runAeronSocketPerformanceTest", 1);
+        executor.execute(new WriterTask(requestReader, responseWriter));
+        final ISynchronousWriter<byte[]> requestWriter = new AeronSynchronousWriter(requestChannel, requestStreamId);
+        final ISynchronousReader<byte[]> responseReader = new AeronSynchronousReader(responseChannel, responseStreamId);
         read(requestWriter, responseReader);
         executor.shutdown();
         executor.awaitTermination();
