@@ -32,6 +32,7 @@ import de.invesdwin.util.concurrent.lock.FileChannelLock;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.lang.Files;
+import de.invesdwin.util.lang.buffer.IByteBuffer;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
@@ -317,6 +318,16 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                         @Override
                         public byte[] toBytes(final V obj) {
                             return valueSerde.toBytes(obj);
+                        }
+
+                        @Override
+                        public V fromBuffer(final IByteBuffer buffer) {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public int toBuffer(final V obj, final IByteBuffer buffer) {
+                            return valueSerde.toBuffer(obj, buffer);
                         }
                     };
                 }

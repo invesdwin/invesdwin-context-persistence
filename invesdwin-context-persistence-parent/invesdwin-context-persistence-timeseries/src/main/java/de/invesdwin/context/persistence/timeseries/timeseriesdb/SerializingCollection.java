@@ -12,7 +12,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -24,6 +23,7 @@ import org.apache.commons.lang3.SerializationException;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.serde.ISerde;
+import de.invesdwin.context.integration.serde.LocalFastSerializingSerde;
 import de.invesdwin.context.integration.streams.LZ4Streams;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
@@ -35,7 +35,6 @@ import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.lang.Closeables;
 import de.invesdwin.util.lang.Files;
-import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.UniqueNameGenerator;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
@@ -154,17 +153,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     }
 
     protected ISerde<? extends E> newSerde() {
-        return new ISerde<E>() {
-            @Override
-            public E fromBytes(final byte[] bytes) {
-                return Objects.deserialize(bytes);
-            }
-
-            @Override
-            public byte[] toBytes(final E obj) {
-                return Objects.serialize((Serializable) obj);
-            }
-        };
+        return LocalFastSerializingSerde.get();
     }
 
     /**

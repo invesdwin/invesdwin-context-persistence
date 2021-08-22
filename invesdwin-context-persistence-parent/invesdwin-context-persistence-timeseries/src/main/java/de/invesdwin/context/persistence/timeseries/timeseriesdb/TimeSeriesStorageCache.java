@@ -51,6 +51,7 @@ import de.invesdwin.util.concurrent.reference.MutableReference;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
+import de.invesdwin.util.lang.buffer.IByteBuffer;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.time.date.FDate;
 import ezdb.TableRow;
@@ -578,6 +579,16 @@ public class TimeSeriesStorageCache<K, V> {
                     @Override
                     public V fromBytes(final byte[] bytes) {
                         return valueSerde.fromBytes(bytes);
+                    }
+
+                    @Override
+                    public V fromBuffer(final IByteBuffer buffer) {
+                        return valueSerde.fromBuffer(buffer);
+                    }
+
+                    @Override
+                    public int toBuffer(final V obj, final IByteBuffer buffer) {
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override

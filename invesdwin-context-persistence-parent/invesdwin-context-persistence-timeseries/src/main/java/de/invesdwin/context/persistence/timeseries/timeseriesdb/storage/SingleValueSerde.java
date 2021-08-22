@@ -3,6 +3,8 @@ package de.invesdwin.context.persistence.timeseries.timeseriesdb.storage;
 import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.context.integration.serde.ISerde;
+import de.invesdwin.context.integration.serde.SerdeBaseMethods;
+import de.invesdwin.util.lang.buffer.IByteBuffer;
 import de.invesdwin.util.math.Bytes;
 
 @Immutable
@@ -27,6 +29,16 @@ public final class SingleValueSerde implements ISerde<SingleValue> {
             return Bytes.EMPTY_ARRAY;
         }
         return obj.getBytes();
+    }
+
+    @Override
+    public SingleValue fromBuffer(final IByteBuffer buffer) {
+        return SerdeBaseMethods.fromBuffer(this, buffer);
+    }
+
+    @Override
+    public int toBuffer(final SingleValue obj, final IByteBuffer buffer) {
+        return SerdeBaseMethods.toBuffer(this, obj, buffer);
     }
 
 }
