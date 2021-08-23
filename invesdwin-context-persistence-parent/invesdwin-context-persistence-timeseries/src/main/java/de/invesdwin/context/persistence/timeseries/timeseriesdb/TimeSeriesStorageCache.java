@@ -22,7 +22,6 @@ import org.apache.commons.lang3.SerializationException;
 import org.apache.commons.lang3.mutable.MutableInt;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
-import de.invesdwin.context.integration.serde.ISerde;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable.DelegateTableIterator;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.ChunkValue;
@@ -53,6 +52,7 @@ import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.buffer.IByteBuffer;
 import de.invesdwin.util.lang.description.TextDescription;
+import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.time.date.FDate;
 import ezdb.TableRow;
 

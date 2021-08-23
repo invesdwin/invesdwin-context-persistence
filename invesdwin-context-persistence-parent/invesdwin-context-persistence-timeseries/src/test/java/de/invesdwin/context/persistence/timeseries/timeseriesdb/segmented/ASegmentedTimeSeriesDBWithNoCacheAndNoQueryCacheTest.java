@@ -15,7 +15,6 @@ import org.apache.commons.lang3.RandomUtils;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.integration.serde.ISerde;
 import de.invesdwin.context.integration.serde.TypeDelegateSerde;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.test.ATest;
@@ -35,6 +34,7 @@ import de.invesdwin.util.collections.loadingcache.historical.key.IHistoricalCach
 import de.invesdwin.util.collections.loadingcache.historical.query.internal.core.DefaultHistoricalCacheQueryCore;
 import de.invesdwin.util.collections.loadingcache.historical.query.internal.core.IHistoricalCacheQueryCore;
 import de.invesdwin.util.collections.loadingcache.historical.refresh.HistoricalCacheRefreshManager;
+import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.math.expression.lambda.IEvaluateGenericFDate;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;

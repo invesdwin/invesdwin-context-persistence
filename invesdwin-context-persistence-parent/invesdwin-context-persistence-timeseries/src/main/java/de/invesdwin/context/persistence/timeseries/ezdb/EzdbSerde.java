@@ -2,7 +2,7 @@ package de.invesdwin.context.persistence.timeseries.ezdb;
 
 import javax.annotation.concurrent.Immutable;
 
-import de.invesdwin.context.integration.serde.ISerde;
+import de.invesdwin.util.marshallers.serde.ISerde;
 
 @Immutable
 public class EzdbSerde<O> implements ezdb.serde.Serde<O> {

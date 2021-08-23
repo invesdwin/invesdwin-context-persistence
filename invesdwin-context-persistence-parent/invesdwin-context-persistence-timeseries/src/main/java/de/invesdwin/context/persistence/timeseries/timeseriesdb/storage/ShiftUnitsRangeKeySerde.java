@@ -2,11 +2,11 @@ package de.invesdwin.context.persistence.timeseries.timeseriesdb.storage;
 
 import javax.annotation.concurrent.Immutable;
 
-import de.invesdwin.context.integration.serde.ISerde;
-import de.invesdwin.context.integration.serde.SerdeBaseMethods;
 import de.invesdwin.util.lang.buffer.IByteBuffer;
+import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.marshallers.serde.SerdeBaseMethods;
+import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.time.date.FDate;
-import de.invesdwin.util.time.date.FDates;
 
 @Immutable
 public final class ShiftUnitsRangeKeySerde implements ISerde<ShiftUnitsRangeKey> {
@@ -36,14 +36,14 @@ public final class ShiftUnitsRangeKeySerde implements ISerde<ShiftUnitsRangeKey>
 
     @Override
     public ShiftUnitsRangeKey fromBuffer(final IByteBuffer buffer) {
-        final FDate rangeKey = FDates.extractFDate(buffer, TIME_INDEX);
+        final FDate rangeKey = FDateSerde.extractFDate(buffer, TIME_INDEX);
         final int shiftUnits = buffer.getInt(SHIFTUNITS_INDEX);
         return new ShiftUnitsRangeKey(rangeKey, shiftUnits);
     }
 
     @Override
     public int toBuffer(final ShiftUnitsRangeKey obj, final IByteBuffer buffer) {
-        FDates.putFDate(buffer, TIME_INDEX, obj.getRangeKey());
+        FDateSerde.putFDate(buffer, TIME_INDEX, obj.getRangeKey());
         buffer.putInt(SHIFTUNITS_INDEX, obj.getShiftUnits());
         return FIXED_LENGTH;
     }

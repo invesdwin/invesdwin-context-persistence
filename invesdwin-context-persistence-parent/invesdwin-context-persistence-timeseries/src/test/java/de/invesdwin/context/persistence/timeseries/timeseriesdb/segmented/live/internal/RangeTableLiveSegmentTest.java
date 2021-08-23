@@ -11,8 +11,6 @@ import org.assertj.core.api.Fail;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.integration.serde.ISerde;
-import de.invesdwin.context.integration.serde.basic.IntegerSerde;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB.HistoricalSegmentTable;
@@ -23,6 +21,8 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.lang.reflection.Reflections;
+import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.marshallers.serde.basic.IntegerSerde;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
 import de.invesdwin.util.time.range.TimeRange;

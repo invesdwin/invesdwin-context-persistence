@@ -11,8 +11,6 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.integration.serde.ISerde;
-import de.invesdwin.context.integration.serde.basic.FDateSerde;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.IncompleteUpdateFoundException;
@@ -22,6 +20,8 @@ import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.lang.ProcessedEventsRateString;
+import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.math.decimal.scaled.PercentScale;
 import de.invesdwin.util.time.Instant;

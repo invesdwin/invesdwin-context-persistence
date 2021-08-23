@@ -2,8 +2,8 @@ package de.invesdwin.context.persistence.timeseries.timeseriesdb.storage;
 
 import javax.annotation.concurrent.Immutable;
 
-import de.invesdwin.context.integration.serde.ISerde;
 import de.invesdwin.norva.marker.ISerializableValueObject;
+import de.invesdwin.util.marshallers.serde.ISerde;
 
 @Immutable
 public class ChunkValue implements ISerializableValueObject {

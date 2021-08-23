@@ -15,8 +15,6 @@ import org.iq80.leveldb.DBIterator;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
-import de.invesdwin.context.integration.serde.ISerde;
-import de.invesdwin.context.integration.serde.SerdeComparator;
 import de.invesdwin.context.integration.serde.TypeDelegateSerde;
 import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.timeseries.ezdb.db.IRangeTableDb;
@@ -35,6 +33,8 @@ import de.invesdwin.util.lang.Strings;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.lang.reflection.Reflections;
+import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.marshallers.serde.SerdeComparator;
 import de.invesdwin.util.shutdown.ShutdownHookManager;
 import de.invesdwin.util.time.date.FDate;
 import ezdb.RangeTable;

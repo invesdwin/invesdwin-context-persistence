@@ -2,9 +2,9 @@ package de.invesdwin.context.persistence.timeseries.timeseriesdb.storage;
 
 import javax.annotation.concurrent.Immutable;
 
-import de.invesdwin.context.integration.serde.ISerde;
-import de.invesdwin.context.integration.serde.SerdeBaseMethods;
 import de.invesdwin.util.lang.buffer.IByteBuffer;
+import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.marshallers.serde.SerdeBaseMethods;
 import de.invesdwin.util.math.Bytes;
 
 @Immutable

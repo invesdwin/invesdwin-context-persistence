@@ -30,12 +30,12 @@ import org.mapdb.serializer.GroupSerializer;
 import org.mapdb.serializer.GroupSerializerObjectArray;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.integration.serde.ISerde;
 import de.invesdwin.context.integration.serde.TypeDelegateSerde;
 import de.invesdwin.context.integration.streams.LZ4Streams;
 import de.invesdwin.util.lang.Closeables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.reflection.Reflections;
+import de.invesdwin.util.marshallers.serde.ISerde;
 
 /**
  * If you need to store large data on disk, it is better to use LevelDB only for an ordered index and store the actual

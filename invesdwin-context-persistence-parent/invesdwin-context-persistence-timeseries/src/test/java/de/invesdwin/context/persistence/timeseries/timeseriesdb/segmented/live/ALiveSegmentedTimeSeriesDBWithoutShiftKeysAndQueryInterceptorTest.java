@@ -14,7 +14,6 @@ import org.apache.commons.lang3.RandomUtils;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.integration.serde.ISerde;
 import de.invesdwin.context.integration.serde.TypeDelegateSerde;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.PeriodicalSegmentFinder;
@@ -37,6 +36,7 @@ import de.invesdwin.util.collections.loadingcache.historical.key.APullingHistori
 import de.invesdwin.util.collections.loadingcache.historical.key.APushingHistoricalCacheAdjustKeyProvider;
 import de.invesdwin.util.collections.loadingcache.historical.key.IHistoricalCacheAdjustKeyProvider;
 import de.invesdwin.util.collections.loadingcache.historical.refresh.HistoricalCacheRefreshManager;
+import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
 import de.invesdwin.util.time.date.FDates;

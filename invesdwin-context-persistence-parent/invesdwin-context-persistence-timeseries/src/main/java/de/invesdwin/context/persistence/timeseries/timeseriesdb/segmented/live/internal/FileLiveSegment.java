@@ -10,7 +10,6 @@ import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import de.invesdwin.context.integration.serde.ISerde;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.HeapSerializingCollection;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
@@ -26,6 +25,7 @@ import de.invesdwin.util.collections.iterable.buffer.IBufferingIterator;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
+import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe

@@ -7,9 +7,6 @@ import java.util.function.Function;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import de.invesdwin.context.integration.serde.ISerde;
-import de.invesdwin.context.integration.serde.basic.FDateSerde;
-import de.invesdwin.context.integration.serde.basic.VoidSerde;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.SegmentedKey;
@@ -21,6 +18,9 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.iterable.buffer.IBufferingIterator;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
+import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
+import de.invesdwin.util.marshallers.serde.basic.VoidSerde;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe

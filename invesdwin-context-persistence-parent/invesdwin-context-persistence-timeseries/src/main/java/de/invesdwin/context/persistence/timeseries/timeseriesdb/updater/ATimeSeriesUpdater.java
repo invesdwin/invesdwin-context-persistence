@@ -12,7 +12,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
-import de.invesdwin.context.integration.serde.ISerde;
 import de.invesdwin.context.integration.streams.LZ4Streams;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.IncompleteUpdateFoundException;
@@ -34,6 +33,7 @@ import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.buffer.IByteBuffer;
 import de.invesdwin.util.lang.description.TextDescription;
+import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 import net.jpountz.lz4.LZ4BlockOutputStream;

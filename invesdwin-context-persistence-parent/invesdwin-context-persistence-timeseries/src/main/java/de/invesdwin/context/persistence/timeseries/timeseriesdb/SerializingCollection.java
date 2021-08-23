@@ -22,7 +22,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.lang3.SerializationException;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.integration.serde.ISerde;
 import de.invesdwin.context.integration.serde.LocalFastSerializingSerde;
 import de.invesdwin.context.integration.streams.LZ4Streams;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
@@ -38,6 +37,7 @@ import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.UniqueNameGenerator;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
+import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.math.Bytes;
 
 @NotThreadSafe

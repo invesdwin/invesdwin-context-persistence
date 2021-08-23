@@ -9,7 +9,6 @@ import java.util.function.Function;
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
-import de.invesdwin.context.integration.serde.ISerde;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.TimeSeriesStorage;
@@ -27,6 +26,7 @@ import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
+import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.range.TimeRange;
 import net.jpountz.lz4.LZ4BlockOutputStream;
