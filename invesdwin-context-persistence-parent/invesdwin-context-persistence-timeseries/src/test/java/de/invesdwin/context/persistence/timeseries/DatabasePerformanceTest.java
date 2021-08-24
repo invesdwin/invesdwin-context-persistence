@@ -7,7 +7,6 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
@@ -37,7 +36,7 @@ import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.wire.DocumentContext;
 
 @NotThreadSafe
-@Ignore("manual test")
+//@Ignore("manual test")
 public class DatabasePerformanceTest extends ATest {
 
     //    static {
@@ -46,7 +45,7 @@ public class DatabasePerformanceTest extends ATest {
     //    }
 
     private static final int READS = 10;
-    private static final int VALUES = 1_000_000;
+    private static final int VALUES = 100_000_000;
     private static final String HASH_KEY = "HASH_KEY";
     private static final int FLUSH_INTERVAL = ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL;
 
@@ -234,6 +233,11 @@ public class DatabasePerformanceTest extends ATest {
             public Percent getProgress() {
                 return null;
             }
+
+            //            @Override
+            //            protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
+            //                return LZ4Streams.newFastLZ4OutputStream(out);
+            //            }
         };
         Assertions.checkTrue(updater.update());
 
