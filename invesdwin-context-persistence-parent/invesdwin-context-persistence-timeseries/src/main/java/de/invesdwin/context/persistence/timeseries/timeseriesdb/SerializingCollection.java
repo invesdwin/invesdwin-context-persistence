@@ -81,7 +81,6 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             this.size = READ_ONLY_FILE_SIZE;
             this.finalizer.closed = true;
         } else {
-            this.finalizer.writeBuffer = ByteBuffers.allocate(fixedLength);
             this.finalizer.register(this);
         }
     }
@@ -115,6 +114,17 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         return finalizer.fos;
     }
 
+    private IByteBuffer getWriteBuffer() {
+        if (finalizer.writeBuffer == null) {
+            //Lazy init to prevent too many open files Exceptions
+            if (finalizer.closed) {
+                throw new IllegalStateException("false expected");
+            }
+            finalizer.writeBuffer = ByteBuffers.allocate(fixedLength);
+        }
+        return finalizer.writeBuffer;
+    }
+
     @Override
     public boolean add(final E element) {
         if (this.size == READ_ONLY_FILE_SIZE) {
@@ -122,23 +132,22 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                     "File [" + file + "] is in read only mode since it contained data when it was opened!");
         }
         try {
-            final int length = serde.toBuffer(element, finalizer.writeBuffer);
+            final IByteBuffer writeBuffer = getWriteBuffer();
+            final int length = serde.toBuffer(element, writeBuffer);
             if (length == 0) {
                 throw new IllegalStateException("bytes should contain actual data: " + element);
             }
             final DataOutputStream fos = getFos();
             if (fixedLength == null) {
                 fos.writeInt(length);
-                finalizer.writeBuffer.getBytesTo(0, fos, length);
             } else {
                 if (length != fixedLength) {
                     throw new IllegalArgumentException(
                             "Serialized object [" + element + "] has unexpected byte length of [" + length
                                     + "] while fixed length [" + fixedLength + "] was expected!");
                 }
-                finalizer.writeBuffer.getBytesTo(0, fos, length);
             }
-
+            writeBuffer.getBytesTo(0, fos, length);
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
