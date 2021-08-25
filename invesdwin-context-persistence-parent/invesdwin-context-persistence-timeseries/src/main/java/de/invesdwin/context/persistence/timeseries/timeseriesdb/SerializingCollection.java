@@ -35,6 +35,8 @@ import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.lang.Closeables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.UniqueNameGenerator;
+import de.invesdwin.util.lang.buffer.ByteBuffers;
+import de.invesdwin.util.lang.buffer.IByteBuffer;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.marshallers.serde.ISerde;
@@ -79,6 +81,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             this.size = READ_ONLY_FILE_SIZE;
             this.finalizer.closed = true;
         } else {
+            this.finalizer.writeBuffer = ByteBuffers.allocate(fixedLength);
             this.finalizer.register(this);
         }
     }
@@ -119,21 +122,21 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                     "File [" + file + "] is in read only mode since it contained data when it was opened!");
         }
         try {
-            final byte[] bytes = serde.toBytes(element);
-            if (bytes == null || bytes.length == 0) {
+            final int length = serde.toBuffer(element, finalizer.writeBuffer);
+            if (length == 0) {
                 throw new IllegalStateException("bytes should contain actual data: " + element);
             }
             final DataOutputStream fos = getFos();
             if (fixedLength == null) {
-                fos.writeInt(bytes.length);
-                fos.write(bytes);
+                fos.writeInt(length);
+                finalizer.writeBuffer.getBytesTo(0, fos, length);
             } else {
-                if (bytes.length != fixedLength) {
+                if (length != fixedLength) {
                     throw new IllegalArgumentException(
-                            "Serialized object [" + element + "] has unexpected byte length of [" + bytes.length
+                            "Serialized object [" + element + "] has unexpected byte length of [" + length
                                     + "] while fixed length [" + fixedLength + "] was expected!");
                 }
-                fos.write(bytes);
+                finalizer.writeBuffer.getBytesTo(0, fos, length);
             }
 
         } catch (final IOException e) {
@@ -234,7 +237,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     private ICloseableIterator<E> newIterator() {
         final ICloseableIterator<E> iterator;
         if (fixedLength != null) {
-            iterator = new FixedLengthDeserializingIterator();
+            iterator = new FixedLengthDeserializingIterator(fixedLength.intValue());
         } else {
             iterator = new DynamicLengthDeserializingIterator();
         }
@@ -317,6 +320,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             finalizer = new DynamicLengthDeserializingIteratorFinalizer<>();
             try {
                 finalizer.inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));
+                finalizer.readBuffer = ByteBuffers.allocateExpandable();
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
@@ -349,12 +353,11 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                     finalizer.close();
                     return null;
                 }
-                final byte[] bytes = new byte[size];
-                finalizer.inputStream.readFully(bytes);
-                if (bytes.length == 0) {
+                finalizer.readBuffer.putBytesTo(0, finalizer.inputStream, size);
+                if (size == 0) {
                     throw new IllegalStateException("empty encoded entries should have been filtered by add()");
                 }
-                return serde.fromBytes(bytes);
+                return serde.fromBuffer(finalizer.readBuffer);
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
@@ -387,6 +390,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         private DataInputStream inputStream;
         private boolean closed;
         private E cachedElement;
+        private IByteBuffer readBuffer;
 
         @Override
         protected void clean() {
@@ -398,6 +402,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             //free memory
             inputStream = null;
             cachedElement = null;
+            readBuffer = null;
             closed = true;
         }
 
@@ -416,14 +421,16 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     private final class FixedLengthDeserializingIterator extends ACloseableIterator<E> {
 
         private final FixedLengthDeserializingIteratorFinalizer<E> finalizer;
+        private final int fixedLength;
 
-        private FixedLengthDeserializingIterator() {
+        private FixedLengthDeserializingIterator(final int fixedLength) {
             super(new TextDescription("%s: %s.%s: %s", name, SerializingCollection.class.getSimpleName(),
                     FixedLengthDeserializingIterator.class.getSimpleName(), file));
+            this.fixedLength = fixedLength;
             this.finalizer = new FixedLengthDeserializingIteratorFinalizer<>();
             try {
-                this.finalizer.inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));
-                this.finalizer.byteBuffer = new byte[fixedLength];
+                this.finalizer.inputStream = newDecompressor(newFileInputStream(file));
+                this.finalizer.readBuffer = ByteBuffers.allocate(fixedLength);
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
@@ -449,12 +456,12 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                 return null;
             }
             try {
-                finalizer.inputStream.readFully(finalizer.byteBuffer);
-            } catch (final IOException e) {
+                finalizer.readBuffer.putBytesTo(0, finalizer.inputStream, fixedLength);
+            } catch (final Throwable e) {
                 finalizer.close();
                 return null;
             }
-            return serde.fromBytes(finalizer.byteBuffer);
+            return serde.fromBuffer(finalizer.readBuffer);
         }
 
         @SuppressWarnings("null")
@@ -481,8 +488,8 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     }
 
     private static final class FixedLengthDeserializingIteratorFinalizer<E> extends AFinalizer {
-        private DataInputStream inputStream;
-        private byte[] byteBuffer;
+        private InputStream inputStream;
+        private IByteBuffer readBuffer;
         private boolean cleaned;
 
         private E cachedElement;
@@ -496,7 +503,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             }
             //free memory
             inputStream = null;
-            byteBuffer = null;
+            readBuffer = null;
             cachedElement = null;
             cleaned = true;
         }
@@ -536,11 +543,13 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         private DataOutputStream fos;
         private boolean closed;
+        private IByteBuffer writeBuffer;
 
         @Override
         protected void clean() {
             Closeables.closeQuietly(fos);
             fos = null;
+            writeBuffer = null;
             closed = true;
         }
 
