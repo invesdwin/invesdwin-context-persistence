@@ -62,7 +62,6 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     private final ISerde<E> serde = (ISerde<E>) newSerde();
 
     public SerializingCollection(final TextDescription name, final String tempFileId) {
-        //        System.out.println("add effiient vs fast implementations");
         this.name = name;
         this.finalizer = new SerializingCollectionFinalizer();
         this.file = new File(getTempFolder(),
