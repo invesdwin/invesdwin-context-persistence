@@ -218,10 +218,10 @@ The `invesdwin-context-persistence-timeseries` module provides support for the p
 
 Old Benchmarks (2016, Core i7-4790K with SSD, LevelDB via JNI):
 ```
-      LevelDB     1,000,000    Writes:     100.68/ms  in   9,932 ms
-      LevelDB    10,000,000     Reads:     373.15/ms  in  26,799 ms
-ATimeSeriesDB     1,000,000    Writes:   3,344.48/ms  in     299 ms  =>  ~33 times faster
-ATimeSeriesDB    10,000,000     Reads:  14,204.55/ms  in     704 ms  =>  ~38 times faster
+      LevelDB           1,000,000    Writes:     100.68/ms  in   9,932 ms
+      LevelDB          10,000,000     Reads:     373.15/ms  in  26,799 ms
+ATimeSeriesDB (High)    1,000,000    Writes:   3,344.48/ms  in     299 ms  =>  ~33 times faster (with High Compression)
+ATimeSeriesDB (High)   10,000,000     Reads:  14,204.55/ms  in     704 ms  =>  ~38 times faster (with High Compression)
 ```
 New Benchmarks (2020, Core i9-9900k with SSD, LevelDB via Java Port, InfluxDB 1.x for reference):
 ```
