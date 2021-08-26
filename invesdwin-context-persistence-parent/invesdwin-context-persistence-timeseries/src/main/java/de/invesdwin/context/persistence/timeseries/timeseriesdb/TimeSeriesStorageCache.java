@@ -582,8 +582,8 @@ public class TimeSeriesStorageCache<K, V> {
                     }
 
                     @Override
-                    public V fromBuffer(final IByteBuffer buffer) {
-                        return valueSerde.fromBuffer(buffer);
+                    public V fromBuffer(final IByteBuffer buffer, final int length) {
+                        return valueSerde.fromBuffer(buffer, length);
                     }
 
                     @Override

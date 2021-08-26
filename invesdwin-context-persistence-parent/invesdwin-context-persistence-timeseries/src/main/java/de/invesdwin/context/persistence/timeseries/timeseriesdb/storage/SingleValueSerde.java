@@ -32,8 +32,8 @@ public final class SingleValueSerde implements ISerde<SingleValue> {
     }
 
     @Override
-    public SingleValue fromBuffer(final IByteBuffer buffer) {
-        return SerdeBaseMethods.fromBuffer(this, buffer);
+    public SingleValue fromBuffer(final IByteBuffer buffer, final int length) {
+        return SerdeBaseMethods.fromBuffer(this, buffer, length);
     }
 
     @Override

@@ -62,6 +62,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     private final ISerde<E> serde = (ISerde<E>) newSerde();
 
     public SerializingCollection(final TextDescription name, final String tempFileId) {
+        //        System.out.println("add effiient vs fast implementations");
         this.name = name;
         this.finalizer = new SerializingCollectionFinalizer();
         this.file = new File(getTempFolder(),
@@ -366,7 +367,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                 if (size == 0) {
                     throw new IllegalStateException("empty encoded entries should have been filtered by add()");
                 }
-                final E next = serde.fromBuffer(finalizer.readBuffer.slice(0, size));
+                final E next = serde.fromBuffer(finalizer.readBuffer.slice(0, size), size);
                 return next;
             } catch (final IOException e) {
                 throw new RuntimeException(e);
@@ -471,7 +472,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                 finalizer.close();
                 return null;
             }
-            final E next = serde.fromBuffer(finalizer.readBuffer);
+            final E next = serde.fromBuffer(finalizer.readBuffer, fixedLength);
             return next;
         }
 

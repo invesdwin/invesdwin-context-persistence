@@ -321,7 +321,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                         }
 
                         @Override
-                        public V fromBuffer(final IByteBuffer buffer) {
+                        public V fromBuffer(final IByteBuffer buffer, final int length) {
                             throw new UnsupportedOperationException();
                         }
 

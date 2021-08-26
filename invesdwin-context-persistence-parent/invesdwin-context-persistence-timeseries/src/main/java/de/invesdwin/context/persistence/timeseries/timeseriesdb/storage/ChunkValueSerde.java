@@ -59,7 +59,7 @@ public final class ChunkValueSerde implements ISerde<ChunkValue> {
     }
 
     @Override
-    public ChunkValue fromBuffer(final IByteBuffer buffer) {
+    public ChunkValue fromBuffer(final IByteBuffer buffer, final int length) {
         final int count = buffer.getInt(COUNT_INDEX);
         if (valueFixedLength != null) {
             final byte[] firstValue = new byte[valueFixedLength];
