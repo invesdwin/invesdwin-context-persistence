@@ -223,7 +223,7 @@ Old Benchmarks (2016, Core i7-4790K with SSD, LevelDB via JNI):
 ATimeSeriesDB (High)    1,000,000    Writes:   3,344.48/ms  in     299 ms  =>  ~33 times faster (with High Compression)
 ATimeSeriesDB (High)   10,000,000     Reads:  14,204.55/ms  in     704 ms  =>  ~38 times faster (with High Compression)
 ```
-New Benchmarks (2020, Core i9-9900k with SSD, LevelDB via Java Port, InfluxDB 1.x for reference):
+New Benchmarks (2021, Core i9-9900k with SSD, LevelDB via Java Port, InfluxDB 1.x for reference):
 ```
        LevelDB          1,000,000    Writes:     155.80/ms
        LevelDB         10,000,000     Reads:   1,228.70/ms
