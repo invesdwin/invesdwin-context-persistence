@@ -358,11 +358,11 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                 final int size;
                 try {
                     size = finalizer.inputStream.readInt();
+                    finalizer.readBuffer.putBytesTo(0, finalizer.inputStream, size);
                 } catch (final EOFException e) {
                     finalizer.close();
                     return null;
                 }
-                finalizer.readBuffer.putBytesTo(0, finalizer.inputStream, size);
                 if (size == 0) {
                     throw new IllegalStateException("empty encoded entries should have been filtered by add()");
                 }
