@@ -36,7 +36,7 @@ public final class ShiftUnitsRangeKeySerde implements ISerde<ShiftUnitsRangeKey>
 
     @Override
     public ShiftUnitsRangeKey fromBuffer(final IByteBuffer buffer) {
-        final FDate rangeKey = FDateSerde.extractFDate(buffer, TIME_INDEX);
+        final FDate rangeKey = FDateSerde.getFDate(buffer, TIME_INDEX);
         final int shiftUnits = buffer.getInt(SHIFTUNITS_INDEX);
         return new ShiftUnitsRangeKey(rangeKey, shiftUnits);
     }
