@@ -43,10 +43,10 @@ public class BufferSerializingCollection<E> extends SerializingCollection<E> {
 
     public byte[] getBytes() {
         if (out == null) {
-            return buffer.asByteArrayCopy();
+            return buffer.asByteArray();
         } else {
             flush();
-            return buffer.asByteArrayCopyTo(out.getCount());
+            return buffer.asByteArrayTo(out.getCount());
         }
     }
 
