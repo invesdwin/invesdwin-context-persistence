@@ -439,7 +439,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             this.fixedLength = fixedLength;
             this.finalizer = new FixedLengthDeserializingIteratorFinalizer<>();
             try {
-                this.finalizer.inputStream = newDecompressor(newFileInputStream(file));
+                this.finalizer.inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));
                 this.finalizer.readBuffer = ByteBuffers.allocate(fixedLength);
             } catch (final IOException e) {
                 throw new RuntimeException(e);
@@ -499,7 +499,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     }
 
     private static final class FixedLengthDeserializingIteratorFinalizer<E> extends AFinalizer {
-        private InputStream inputStream;
+        private DataInputStream inputStream;
         private IByteBuffer readBuffer;
         private boolean cleaned;
 
