@@ -359,7 +359,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                 try {
                     size = finalizer.inputStream.readInt();
                     finalizer.readBuffer.putBytesTo(0, finalizer.inputStream, size);
-                } catch (final EOFException | IndexOutOfBoundsException e) {
+                } catch (final EOFException e) {
                     finalizer.close();
                     return null;
                 }
@@ -467,7 +467,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             }
             try {
                 finalizer.readBuffer.putBytesTo(0, finalizer.inputStream, fixedLength);
-            } catch (final IOException | IndexOutOfBoundsException e) {
+            } catch (final IOException e) {
                 //LZ4 can throw ArrayIndexOutOfBounds
                 finalizer.close();
                 return null;

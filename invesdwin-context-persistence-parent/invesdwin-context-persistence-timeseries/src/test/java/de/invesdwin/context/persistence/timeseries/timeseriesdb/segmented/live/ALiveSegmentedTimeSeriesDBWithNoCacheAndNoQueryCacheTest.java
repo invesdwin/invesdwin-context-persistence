@@ -102,7 +102,7 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends AT
                 final FDate key = pKey.asFDate();
                 final TimeRange value = calculation.getSegment(key);
                 final TimeRange upperTimeRange = new TimeRange(value.getFrom().addYears(1), value.getTo().addYears(1));
-                if (upperTimeRange.contains(key)) {
+                if (upperTimeRange.containsInclusive(key)) {
                     return upperTimeRange;
                 } else {
                     return new TimeRange(value.getFrom().addYears(-1), value.getTo().addYears(-1));
