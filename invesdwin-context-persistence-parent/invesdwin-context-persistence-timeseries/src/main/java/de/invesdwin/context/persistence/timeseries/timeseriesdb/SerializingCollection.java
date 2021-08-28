@@ -133,7 +133,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         }
         try {
             final IByteBuffer writeBuffer = getWriteBuffer();
-            final int length = serde.toBuffer(element, writeBuffer);
+            final int length = serde.toBuffer(writeBuffer, element);
             if (length == 0) {
                 throw new IllegalStateException("bytes should contain actual data: " + element);
             }

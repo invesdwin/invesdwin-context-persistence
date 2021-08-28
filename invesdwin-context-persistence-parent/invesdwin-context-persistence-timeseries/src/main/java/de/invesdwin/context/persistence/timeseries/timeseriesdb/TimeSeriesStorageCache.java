@@ -587,7 +587,7 @@ public class TimeSeriesStorageCache<K, V> {
                     }
 
                     @Override
-                    public int toBuffer(final V obj, final IByteBuffer buffer) {
+                    public int toBuffer(final IByteBuffer buffer, final V obj) {
                         throw new UnsupportedOperationException();
                     }
 

@@ -42,7 +42,7 @@ public final class ShiftUnitsRangeKeySerde implements ISerde<ShiftUnitsRangeKey>
     }
 
     @Override
-    public int toBuffer(final ShiftUnitsRangeKey obj, final IByteBuffer buffer) {
+    public int toBuffer(final IByteBuffer buffer, final ShiftUnitsRangeKey obj) {
         FDateSerde.putFDate(buffer, TIME_INDEX, obj.getRangeKey());
         buffer.putInt(SHIFTUNITS_INDEX, obj.getShiftUnits());
         return FIXED_LENGTH;

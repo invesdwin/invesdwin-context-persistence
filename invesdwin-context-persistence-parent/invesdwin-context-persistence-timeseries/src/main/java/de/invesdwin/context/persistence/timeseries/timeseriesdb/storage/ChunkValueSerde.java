@@ -79,7 +79,7 @@ public final class ChunkValueSerde implements ISerde<ChunkValue> {
     }
 
     @Override
-    public int toBuffer(final ChunkValue obj, final IByteBuffer buffer) {
+    public int toBuffer(final IByteBuffer buffer, final ChunkValue obj) {
         final int count = obj.getCount();
         final byte[] firstValue = obj.getFirstValue();
         final byte[] lastValue = obj.getLastValue();

@@ -326,8 +326,8 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                         }
 
                         @Override
-                        public int toBuffer(final V obj, final IByteBuffer buffer) {
-                            return valueSerde.toBuffer(obj, buffer);
+                        public int toBuffer(final IByteBuffer buffer, final V obj) {
+                            return valueSerde.toBuffer(buffer, obj);
                         }
                     };
                 }
