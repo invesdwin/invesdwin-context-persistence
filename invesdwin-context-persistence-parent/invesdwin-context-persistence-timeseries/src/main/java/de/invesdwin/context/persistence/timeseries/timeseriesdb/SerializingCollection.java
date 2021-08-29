@@ -1,7 +1,5 @@
 package de.invesdwin.context.persistence.timeseries.timeseriesdb;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.Closeable;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -312,11 +310,11 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     }
 
     protected InputStream newFileInputStream(final File file) throws IOException {
-        return new BufferedInputStream(new FileInputStream(file));
+        return new FileInputStream(file);
     }
 
     protected OutputStream newFileOutputStream(final File file) throws IOException {
-        return new BufferedOutputStream(new FileOutputStream(file));
+        return new FileOutputStream(file);
     }
 
     @NotThreadSafe
