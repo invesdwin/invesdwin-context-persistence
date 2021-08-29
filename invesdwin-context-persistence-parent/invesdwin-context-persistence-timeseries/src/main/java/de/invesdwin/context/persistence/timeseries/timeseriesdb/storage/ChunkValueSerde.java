@@ -2,9 +2,9 @@ package de.invesdwin.context.persistence.timeseries.timeseriesdb.storage;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import de.invesdwin.util.lang.buffer.IByteBuffer;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.SerdeBaseMethods;
+import de.invesdwin.util.streams.buffer.IByteBuffer;
 
 @NotThreadSafe
 public final class ChunkValueSerde implements ISerde<ChunkValue> {

@@ -8,8 +8,8 @@ import java.io.OutputStream;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.norva.beanpath.CountingOutputStream;
-import de.invesdwin.util.lang.buffer.IByteBuffer;
 import de.invesdwin.util.lang.description.TextDescription;
+import de.invesdwin.util.streams.buffer.IByteBuffer;
 
 @NotThreadSafe
 public class BufferSerializingCollection<E> extends SerializingCollection<E> {
