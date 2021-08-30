@@ -256,7 +256,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
 
     protected abstract void onFlush(int flushIndex, Instant flushStart, UpdateProgress updateProgress);
 
-    protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
+    protected OutputStream newCompressor(final OutputStream out) {
         return newDefaultCompressor(out);
     }
 
