@@ -231,6 +231,8 @@ New Benchmarks (2021, Core i9-9900k with SSD, LevelDB via Java Port, InfluxDB 1.
       InfluxDB         10,000,000     Reads:     649.31/ms  => ~2 times slower than LevelDB
 ChronicleQueue          1,000,000    Writes:     442.48/ms  => ~2.8 times faster than LevelDB
 ChronicleQueue         10,000,000     Reads:  16,583.75/ms  => ~13.5 times faster than LevelDB
+ ATimeSeriesDB (None)   1,000,000    Writes:   1,033.68/ms  => ~6.6 times faster than LevelDB (with Disabled Compression)
+ ATimeSeriesDB (None)  10,000,000     Reads:  19,638.26/ms  => ~16 times faster than LevelDB (with Disabled Compression)
  ATimeSeriesDB (High)   1,000,000    Writes:   5,639.84/ms  => ~36.2 times faster than LevelDB (with High Compression)
  ATimeSeriesDB (High)  10,000,000     Reads:  32,089.34/ms  => ~26.1 times faster than LevelDB (with High Compression)
  ATimeSeriesDB (Fast)   1,000,000    Writes:  16,837.85/ms  => ~108 times faster than LevelDB (with Fast Compression)
