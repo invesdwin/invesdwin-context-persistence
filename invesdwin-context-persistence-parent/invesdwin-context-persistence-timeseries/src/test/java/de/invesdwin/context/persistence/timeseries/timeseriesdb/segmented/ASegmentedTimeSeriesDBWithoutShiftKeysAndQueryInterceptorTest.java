@@ -88,7 +88,7 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
             }
 
             @Override
-            protected Integer newFixedLength() {
+            protected Integer newValueFixedLength() {
                 return null;
             }
 

@@ -31,7 +31,7 @@ import org.mapdb.serializer.GroupSerializerObjectArray;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.serde.TypeDelegateSerde;
-import de.invesdwin.context.integration.streams.LZ4Streams;
+import de.invesdwin.context.integration.streams.compressor.lz4.LZ4Streams;
 import de.invesdwin.util.lang.Closeables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.reflection.Reflections;

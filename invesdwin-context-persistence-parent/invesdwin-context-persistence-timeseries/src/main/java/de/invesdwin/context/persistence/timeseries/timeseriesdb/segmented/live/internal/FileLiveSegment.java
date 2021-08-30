@@ -3,6 +3,7 @@ package de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.NoSuchElementException;
 import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
@@ -10,6 +11,7 @@ import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 
+import de.invesdwin.context.integration.streams.compressor.ICompressorFactory;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.HeapSerializingCollection;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
@@ -31,8 +33,10 @@ import de.invesdwin.util.time.date.FDate;
 @NotThreadSafe
 public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
+    private static final boolean LARGE_COMPRESSOR = false;
     private final SegmentedKey<K> segmentedKey;
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
+    private final ICompressorFactory compressorFactory;
     private SerializingCollection<V> values;
     @GuardedBy("this")
     private boolean needsFlush;
@@ -46,6 +50,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable) {
         this.segmentedKey = segmentedKey;
         this.historicalSegmentTable = historicalSegmentTable;
+        this.compressorFactory = historicalSegmentTable.getStorage().getCompressorFactory();
     }
 
     private SerializingCollection<V> newSerializingCollection() {
@@ -66,7 +71,17 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
             @Override
             protected Integer getFixedLength() {
-                return historicalSegmentTable.newFixedLength();
+                return historicalSegmentTable.newValueFixedLength();
+            }
+
+            @Override
+            protected OutputStream newCompressor(final OutputStream out) {
+                return compressorFactory.newCompressor(out, LARGE_COMPRESSOR);
+            }
+
+            @Override
+            protected InputStream newDecompressor(final InputStream inputStream) {
+                return compressorFactory.newDecompressor(inputStream);
             }
 
             @Override
@@ -314,7 +329,17 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
                 @Override
                 protected Integer getFixedLength() {
-                    return historicalSegmentTable.newFixedLength();
+                    return historicalSegmentTable.newValueFixedLength();
+                }
+
+                @Override
+                protected OutputStream newCompressor(final OutputStream out) {
+                    return compressorFactory.newCompressor(out, LARGE_COMPRESSOR);
+                }
+
+                @Override
+                protected InputStream newDecompressor(final InputStream inputStream) {
+                    return compressorFactory.newDecompressor(inputStream);
                 }
             };
         } catch (final IOException e) {

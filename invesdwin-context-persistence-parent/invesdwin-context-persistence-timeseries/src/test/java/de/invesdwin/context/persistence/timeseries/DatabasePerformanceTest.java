@@ -199,6 +199,12 @@ public class DatabasePerformanceTest extends ATest {
             protected FDate extractEndTime(final FDate value) {
                 return value;
             }
+
+            //            @Override
+            //            protected ICompressorFactory newCompressorFactory() {
+            //                return FastLZ4CompressorFactory.INSTANCE;
+            //            }
+
         };
 
         final Instant writesStart = new Instant();
@@ -233,11 +239,6 @@ public class DatabasePerformanceTest extends ATest {
             public Percent getProgress() {
                 return null;
             }
-
-            //            @Override
-            //            protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
-            //                return LZ4Streams.newFastLZ4OutputStream(out);
-            //            }
         };
         Assertions.checkTrue(updater.update());
 

@@ -21,7 +21,7 @@ import org.apache.commons.lang3.SerializationException;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.serde.LocalFastSerializingSerde;
-import de.invesdwin.context.integration.streams.LZ4Streams;
+import de.invesdwin.context.integration.streams.compressor.lz4.LZ4Streams;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;

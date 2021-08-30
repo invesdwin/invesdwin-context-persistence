@@ -4,6 +4,7 @@ import java.io.File;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import de.invesdwin.context.integration.streams.compressor.ICompressorFactory;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseries.ezdb.RangeTablePersistenceMode;
 import de.invesdwin.util.marshallers.serde.ISerde;
@@ -13,13 +14,16 @@ import de.invesdwin.util.time.date.FDate;
 public class TimeSeriesStorage {
 
     private final File directory;
+    private final ICompressorFactory compressorFactory;
     private final ADelegateRangeTable<String, FDate, ChunkValue> fileLookupTable;
     private final ADelegateRangeTable<String, FDate, SingleValue> latestValueLookupTable;
     private final ADelegateRangeTable<String, ShiftUnitsRangeKey, SingleValue> previousValueLookupTable;
     private final ADelegateRangeTable<String, ShiftUnitsRangeKey, SingleValue> nextValueLookupTable;
 
-    public TimeSeriesStorage(final File directory, final Integer valueFixedLength) {
+    public TimeSeriesStorage(final File directory, final Integer valueFixedLength,
+            final ICompressorFactory compressorFactory) {
         this.directory = directory;
+        this.compressorFactory = compressorFactory;
         this.fileLookupTable = new ADelegateRangeTable<String, FDate, ChunkValue>("fileLookupTable") {
 
             @Override
@@ -117,6 +121,10 @@ public class TimeSeriesStorage {
 
     public File getDirectory() {
         return directory;
+    }
+
+    public ICompressorFactory getCompressorFactory() {
+        return compressorFactory;
     }
 
     public ADelegateRangeTable<String, FDate, ChunkValue> getFileLookupTable() {

@@ -86,7 +86,7 @@ public class ASegmentedTimeSeriesDBWithCacheTest extends ATest {
             }
 
             @Override
-            protected Integer newFixedLength() {
+            protected Integer newValueFixedLength() {
                 return null;
             }
 

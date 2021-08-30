@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.timeseries.timeseriesdb.updater;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -12,7 +13,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
-import de.invesdwin.context.integration.streams.LZ4Streams;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.SerializingCollection;
@@ -36,7 +36,6 @@ import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.streams.buffer.IByteBuffer;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
-import net.jpountz.lz4.LZ4BlockOutputStream;
 
 @NotThreadSafe
 public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, V> {
@@ -45,6 +44,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     public static final int BATCH_FLUSH_INTERVAL = 10_000;
     public static final int BATCH_QUEUE_SIZE = 500_000 / BATCH_FLUSH_INTERVAL;
     public static final int BATCH_WRITER_THREADS = Executors.getCpuThreadPoolCount();
+    public static final boolean LARGE_COMPRESSOR = true;
 
     private final ISerde<V> valueSerde;
     private final ATimeSeriesDB<K, V> table;
@@ -256,14 +256,6 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
 
     protected abstract void onFlush(int flushIndex, Instant flushStart, UpdateProgress updateProgress);
 
-    protected OutputStream newCompressor(final OutputStream out) {
-        return newDefaultCompressor(out);
-    }
-
-    public static LZ4BlockOutputStream newDefaultCompressor(final OutputStream out) {
-        return LZ4Streams.newLargeHighLZ4OutputStream(out);
-    }
-
     public class UpdateProgress {
 
         private final List<V> batch = new ArrayList<V>(BATCH_FLUSH_INTERVAL);
@@ -334,12 +326,17 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
 
                 @Override
                 protected OutputStream newCompressor(final OutputStream out) {
-                    return ATimeSeriesUpdater.this.newCompressor(out);
+                    return table.getCompressorFactory().newCompressor(out, LARGE_COMPRESSOR);
+                }
+
+                @Override
+                protected InputStream newDecompressor(final InputStream inputStream) {
+                    return table.getCompressorFactory().newDecompressor(inputStream);
                 }
 
                 @Override
                 protected Integer getFixedLength() {
-                    return table.getFixedLength();
+                    return table.getValueFixedLength();
                 }
 
             };

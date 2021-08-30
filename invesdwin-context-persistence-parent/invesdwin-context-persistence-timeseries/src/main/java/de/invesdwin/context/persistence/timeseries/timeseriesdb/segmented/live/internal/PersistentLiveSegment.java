@@ -1,6 +1,5 @@
 package de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.live.internal;
 
-import java.io.OutputStream;
 import java.util.concurrent.locks.Lock;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -23,7 +22,6 @@ import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.range.TimeRange;
-import net.jpountz.lz4.LZ4BlockOutputStream;
 
 @NotThreadSafe
 public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
@@ -31,8 +29,8 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
     private final SegmentedKey<K> segmentedKey;
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
     private final ASegmentedTimeSeriesDB<K, V>.SegmentedTable table;
-    private boolean empty = true;
     private final String hashKey;
+    private boolean empty = true;
 
     public PersistentLiveSegment(final SegmentedKey<K> segmentedKey,
             final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable) {
@@ -180,11 +178,6 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
             @Override
             protected boolean shouldWriteInParallel() {
                 return ATimeSeriesUpdater.DEFAULT_SHOULD_WRITE_IN_PARALLEL;
-            }
-
-            @Override
-            protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
-                return historicalSegmentTable.newCompressor(out);
             }
 
             @Override

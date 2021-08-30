@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented;
 
 import java.io.Closeable;
-import java.io.OutputStream;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
@@ -60,7 +59,6 @@ import de.invesdwin.util.time.date.FDates;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.range.TimeRange;
 import ezdb.TableRow;
-import net.jpountz.lz4.LZ4BlockOutputStream;
 
 @NotThreadSafe
 public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeable {
@@ -621,11 +619,6 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 }
 
                 @Override
-                protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
-                    return ASegmentedTimeSeriesStorageCache.this.newCompressor(out);
-                }
-
-                @Override
                 public Percent getProgress() {
                     final FDate estimatedTo = segmentedKey.getSegment().getTo();
                     final FDate from = getMinTime();
@@ -651,8 +644,6 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source);
 
     protected abstract String getElementsName();
-
-    protected abstract LZ4BlockOutputStream newCompressor(OutputStream out);
 
     protected abstract ICloseableIterable<? extends V> downloadSegmentElements(SegmentedKey<K> segmentedKey);
 

@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented;
 
 import java.io.File;
-import java.io.OutputStream;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
@@ -9,10 +8,10 @@ import java.util.function.Function;
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
+import de.invesdwin.context.integration.streams.compressor.ICompressorFactory;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.TimeSeriesStorage;
-import de.invesdwin.context.persistence.timeseries.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.updater.ITimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
@@ -29,7 +28,6 @@ import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.range.TimeRange;
-import net.jpountz.lz4.LZ4BlockOutputStream;
 
 @ThreadSafe
 public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
@@ -79,11 +77,6 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
                     }
 
                     @Override
-                    protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
-                        return ASegmentedTimeSeriesDB.this.newCompressor(out);
-                    }
-
-                    @Override
                     protected String getElementsName() {
                         return ASegmentedTimeSeriesDB.this.getElementsName();
                     }
@@ -125,14 +118,11 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
     protected abstract String getElementsName();
 
-    protected LZ4BlockOutputStream newCompressor(final OutputStream out) {
-        return ATimeSeriesUpdater.newDefaultCompressor(out);
-    }
-
     protected abstract ICloseableIterable<? extends V> downloadSegmentElements(SegmentedKey<K> segmentedKey);
 
-    protected SegmentedTimeSeriesStorage newStorage(final File directory, final Integer valueFixedLength) {
-        return new SegmentedTimeSeriesStorage(directory, valueFixedLength);
+    protected SegmentedTimeSeriesStorage newStorage(final File directory, final Integer valueFixedLength,
+            final ICompressorFactory compressorFactory) {
+        return new SegmentedTimeSeriesStorage(directory, valueFixedLength, compressorFactory);
     }
 
     protected SegmentedTable getSegmentedTable() {
@@ -149,9 +139,13 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         return (SegmentedTimeSeriesStorage) segmentedTable.getStorage();
     }
 
-    protected abstract Integer newFixedLength();
+    protected abstract Integer newValueFixedLength();
 
     protected abstract ISerde<V> newValueSerde();
+
+    protected ICompressorFactory newCompressorFactory() {
+        return ATimeSeriesDB.newDefaultCompressorFactory();
+    }
 
     protected abstract FDate extractEndTime(V value);
 
@@ -456,18 +450,13 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         }
 
         @Override
-        public ISerde<V> getValueSerde() {
-            return super.getValueSerde();
-        }
-
-        @Override
         protected Integer newValueFixedLength() {
-            return ASegmentedTimeSeriesDB.this.newFixedLength();
+            return ASegmentedTimeSeriesDB.this.newValueFixedLength();
         }
 
         @Override
-        public Integer getFixedLength() {
-            return super.getFixedLength();
+        protected ICompressorFactory newCompressorFactory() {
+            return ASegmentedTimeSeriesDB.this.newCompressorFactory();
         }
 
         @Override
@@ -486,8 +475,9 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         }
 
         @Override
-        protected TimeSeriesStorage newStorage(final File directory, final Integer valueFixedLength) {
-            return ASegmentedTimeSeriesDB.this.newStorage(directory, valueFixedLength);
+        protected TimeSeriesStorage newStorage(final File directory, final Integer valueFixedLength,
+                final ICompressorFactory compressorFactory) {
+            return ASegmentedTimeSeriesDB.this.newStorage(directory, valueFixedLength, compressorFactory);
         }
 
         @Override
@@ -496,17 +486,8 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         }
 
         @Override
-        public TimeSeriesStorage getStorage() {
-            return super.getStorage();
-        }
-
-        @Override
         protected File getBaseDirectory() {
             return ASegmentedTimeSeriesDB.this.getBaseDirectory();
-        }
-
-        public LZ4BlockOutputStream newCompressor(final OutputStream out) {
-            return ASegmentedTimeSeriesDB.this.newCompressor(out);
         }
 
     }
