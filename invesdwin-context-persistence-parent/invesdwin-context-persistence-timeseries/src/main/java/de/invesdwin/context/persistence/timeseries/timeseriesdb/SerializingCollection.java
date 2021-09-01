@@ -112,7 +112,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         return finalizer.fos;
     }
 
-    private IByteBuffer getWriteBuffer() {
+    public IByteBuffer getWriteBuffer() {
         if (finalizer.writeBuffer == null) {
             //Lazy init to prevent too many open files Exceptions
             if (finalizer.closed) {

@@ -2,7 +2,6 @@ package de.invesdwin.context.persistence.timeseries;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -154,7 +153,7 @@ public class DatabasePerformanceTest extends ATest {
             FDate prevValue = null;
             int count = 0;
             try (ExcerptTailer tailer = queue.createTailer()) {
-                final net.openhft.chronicle.bytes.Bytes<ByteBuffer> bytes = net.openhft.chronicle.bytes.Bytes
+                final net.openhft.chronicle.bytes.Bytes<java.nio.ByteBuffer> bytes = net.openhft.chronicle.bytes.Bytes
                         .elasticByteBuffer();
                 while (tailer.readBytes(bytes)) {
                     final FDate value = FDate.valueOf(bytes.readLong());
