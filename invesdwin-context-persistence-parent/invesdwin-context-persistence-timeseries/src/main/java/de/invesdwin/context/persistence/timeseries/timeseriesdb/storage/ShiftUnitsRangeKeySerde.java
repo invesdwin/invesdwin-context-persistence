@@ -31,7 +31,7 @@ public final class ShiftUnitsRangeKeySerde implements ISerde<ShiftUnitsRangeKey>
 
     @Override
     public byte[] toBytes(final ShiftUnitsRangeKey obj) {
-        return SerdeBaseMethods.toBytes(this, obj, FIXED_LENGTH);
+        return SerdeBaseMethods.toBytes(this, obj);
     }
 
     @Override

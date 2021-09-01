@@ -55,7 +55,7 @@ public final class ChunkValueSerde implements ISerde<ChunkValue> {
 
     @Override
     public byte[] toBytes(final ChunkValue obj) {
-        return SerdeBaseMethods.toBytes(this, obj, allocateFixedLength);
+        return SerdeBaseMethods.toBytes(this, obj);
     }
 
     @Override
