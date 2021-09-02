@@ -4,6 +4,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.SerdeBaseMethods;
+import de.invesdwin.util.streams.buffer.ByteBuffers;
 import de.invesdwin.util.streams.buffer.IByteBuffer;
 
 @NotThreadSafe
@@ -62,17 +63,17 @@ public final class ChunkValueSerde implements ISerde<ChunkValue> {
     public ChunkValue fromBuffer(final IByteBuffer buffer, final int length) {
         final int count = buffer.getInt(COUNT_INDEX);
         if (valueFixedLength != null) {
-            final byte[] firstValue = new byte[valueFixedLength];
+            final byte[] firstValue = ByteBuffers.allocateByteArray(valueFixedLength);
             buffer.getBytes(firstValueIndex, firstValue);
-            final byte[] lastValue = new byte[valueFixedLength];
+            final byte[] lastValue = ByteBuffers.allocateByteArray(valueFixedLength);
             buffer.getBytes(lastValueIndex, lastValue);
             return new ChunkValue(firstValue, lastValue, count);
         } else {
             final int firstValueLength = buffer.getInt(firstValueLengthIndex);
             final int lastValueLength = buffer.getInt(lastValueLengthIndex);
-            final byte[] firstValue = new byte[firstValueLength];
+            final byte[] firstValue = ByteBuffers.allocateByteArray(firstValueLength);
             buffer.getBytes(firstValueIndex, firstValue);
-            final byte[] lastValue = new byte[lastValueLength];
+            final byte[] lastValue = ByteBuffers.allocateByteArray(lastValueLength);
             buffer.getBytes(firstValueIndex + firstValueLength, lastValue);
             return new ChunkValue(firstValue, lastValue, count);
         }
