@@ -225,18 +225,18 @@ ATimeSeriesDB (High)   10,000,000     Reads:  14,204.55/ms  in     704 ms  =>  ~
 ```
 New Benchmarks (2021, Core i9-9900k with SSD, LevelDB via Java Port, InfluxDB 1.x for reference):
 ```
-       LevelDB          1,000,000    Writes:     155.80/ms
-       LevelDB         10,000,000     Reads:   1,228.70/ms
-      InfluxDB          1,000,000    Writes:     252.08/ms  => ~60% faster than LevelDB
-      InfluxDB         10,000,000     Reads:     649.31/ms  => ~2 times slower than LevelDB
-ChronicleQueue          1,000,000    Writes:     442.48/ms  => ~2.8 times faster than LevelDB
-ChronicleQueue         10,000,000     Reads:  16,583.75/ms  => ~13.5 times faster than LevelDB
- ATimeSeriesDB (None)   1,000,000    Writes:   1,033.68/ms  => ~6.6 times faster than LevelDB (with Disabled Compression)
- ATimeSeriesDB (None)  10,000,000     Reads:  19,638.26/ms  => ~16 times faster than LevelDB (with Disabled Compression)
- ATimeSeriesDB (High)   1,000,000    Writes:   5,639.84/ms  => ~36.2 times faster than LevelDB (with High Compression)
- ATimeSeriesDB (High)  10,000,000     Reads:  32,089.34/ms  => ~26.1 times faster than LevelDB (with High Compression)
- ATimeSeriesDB (Fast)   1,000,000    Writes:  16,837.85/ms  => ~108 times faster than LevelDB (with Fast Compression)
- ATimeSeriesDB (Fast)  10,000,000     Reads:  32,124.39/ms  => ~26.1 times faster than LevelDB (with Fast Compression)
+       LevelDB             Writes:     155.80/ms
+       LevelDB              Reads:   1,228.70/ms
+      InfluxDB             Writes:     252.08/ms  => ~60% faster than LevelDB
+      InfluxDB              Reads:     649.31/ms  => ~2 times slower than LevelDB
+ChronicleQueue             Writes:     442.48/ms  => ~2.8 times faster than LevelDB
+ChronicleQueue              Reads:  16,583.75/ms  => ~13.5 times faster than LevelDB
+ ATimeSeriesDB (None)      Writes:   1,033.68/ms  => ~6.6 times faster than LevelDB (with Disabled Compression)
+ ATimeSeriesDB (None)       Reads:  19,638.26/ms  => ~16 times faster than LevelDB (with Disabled Compression)
+ ATimeSeriesDB (High)      Writes:    5,819.1/ms  => ~37.3 times faster than LevelDB (with High Compression)
+ ATimeSeriesDB (High)       Reads:  32,089.34/ms  => ~26.1 times faster than LevelDB (with High Compression)
+ ATimeSeriesDB (Fast)      Writes:  21,095.74/ms  => ~135.4 times faster than LevelDB (with Fast Compression)
+ ATimeSeriesDB (Fast)       Reads:  32,124.39/ms  => ~26.1 times faster than LevelDB (with Fast Compression)
 ```
 - **ATimeSeriesUpdater**: this is a helper class with which one can handle large inserts/updates into an instance of `ATimeSeriesDB`. This handles the creation of separate chunk files and writing them to disk in the most efficient way.
 - **SerializingCollection**: this collection implementation is used to store and retrieve each file chunk. It supports two modes of serialization. The default and slower one supports variable length objects by Base64 encoding the serialized bytes and putting a delimiter between each element. The second and faster approach can be enabled by overriding `getFixedLength()` which allows the collection to skip the Base64 encoding and instead just count the bytes to separate each element. Though as this suggests, it only works with fixed length serialization/deserialization which you can provide by overriding the `toBytes`/`fromBytes()` callback methods (which use FST per default). You can also deviate from the default LZ4 high compression algorithm by overriding the `newCompressor`/`newDecompressor` callback methods. Despite efficiently storing financial data, this collection can be used to move any kind of data out of memory into a file to preserve precious memory instead of wasting it on metadata that is only rarely used (e.g. during a backtests we can record all sorts of information in a serialized fashion and load it back from file when generating our reports once. This allows us to run more backtests in parallel which would otherwise be limited by tight memory).
