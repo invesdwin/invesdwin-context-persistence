@@ -118,7 +118,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             if (finalizer.closed) {
                 throw new IllegalStateException("false expected");
             }
-            finalizer.writeBuffer = ByteBuffers.allocate(fixedLength);
+            finalizer.writeBuffer = ByteBuffers.EXPANDABLE_POOL.borrowObject();
         }
         return finalizer.writeBuffer;
     }
@@ -327,7 +327,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             finalizer = new DynamicLengthDeserializingIteratorFinalizer<>();
             try {
                 finalizer.inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));
-                finalizer.readBuffer = ByteBuffers.allocateExpandable();
+                finalizer.readBuffer = ByteBuffers.EXPANDABLE_POOL.borrowObject();
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
@@ -410,6 +410,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             //free memory
             inputStream = null;
             cachedElement = null;
+            ByteBuffers.EXPANDABLE_POOL.returnObject(readBuffer);
             readBuffer = null;
             closed = true;
         }
@@ -438,7 +439,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             this.finalizer = new FixedLengthDeserializingIteratorFinalizer<>();
             try {
                 this.finalizer.inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));
-                this.finalizer.readBuffer = ByteBuffers.allocate(fixedLength);
+                this.finalizer.readBuffer = ByteBuffers.EXPANDABLE_POOL.borrowObject();
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
@@ -513,6 +514,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             }
             //free memory
             inputStream = null;
+            ByteBuffers.EXPANDABLE_POOL.returnObject(readBuffer);
             readBuffer = null;
             cachedElement = null;
             cleaned = true;
@@ -559,6 +561,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         protected void clean() {
             Closeables.closeQuietly(fos);
             fos = null;
+            ByteBuffers.EXPANDABLE_POOL.returnObject(writeBuffer);
             writeBuffer = null;
             closed = true;
         }
