@@ -326,12 +326,12 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
 
                 @Override
                 protected OutputStream newCompressor(final OutputStream out) {
-                    return table.getCompressorFactory().newCompressor(out, LARGE_COMPRESSOR);
+                    return table.getCompressionFactory().newCompressor(out, LARGE_COMPRESSOR);
                 }
 
                 @Override
                 protected InputStream newDecompressor(final InputStream inputStream) {
-                    return table.getCompressorFactory().newDecompressor(inputStream);
+                    return table.getCompressionFactory().newDecompressor(inputStream);
                 }
 
                 @Override

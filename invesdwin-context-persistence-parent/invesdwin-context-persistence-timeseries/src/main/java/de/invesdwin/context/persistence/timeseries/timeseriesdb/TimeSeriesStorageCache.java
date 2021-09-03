@@ -625,12 +625,12 @@ public class TimeSeriesStorageCache<K, V> {
 
             @Override
             protected OutputStream newCompressor(final OutputStream out) {
-                return storage.getCompressorFactory().newCompressor(out, ATimeSeriesUpdater.LARGE_COMPRESSOR);
+                return storage.getCompressionFactory().newCompressor(out, ATimeSeriesUpdater.LARGE_COMPRESSOR);
             }
 
             @Override
             protected InputStream newDecompressor(final InputStream inputStream) {
-                return storage.getCompressorFactory().newDecompressor(inputStream);
+                return storage.getCompressionFactory().newDecompressor(inputStream);
             }
         };
     }

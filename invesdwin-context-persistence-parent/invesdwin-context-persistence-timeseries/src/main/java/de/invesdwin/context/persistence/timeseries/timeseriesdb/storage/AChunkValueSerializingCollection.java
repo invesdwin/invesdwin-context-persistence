@@ -6,7 +6,7 @@ import java.io.OutputStream;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import de.invesdwin.context.integration.streams.compressor.ICompressorFactory;
+import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.lang.description.TextDescription;
@@ -26,15 +26,15 @@ public abstract class AChunkValueSerializingCollection extends SerializingCollec
         return newSerde().getFixedLength();
     }
 
-    protected abstract ICompressorFactory getCompressorFactory();
+    protected abstract ICompressionFactory getCompressionFactory();
 
     @Override
     protected OutputStream newCompressor(final OutputStream out) {
-        return getCompressorFactory().newCompressor(out, ATimeSeriesUpdater.LARGE_COMPRESSOR);
+        return getCompressionFactory().newCompressor(out, ATimeSeriesUpdater.LARGE_COMPRESSOR);
     }
 
     @Override
     protected InputStream newDecompressor(final InputStream inputStream) {
-        return getCompressorFactory().newDecompressor(inputStream);
+        return getCompressionFactory().newDecompressor(inputStream);
     }
 }

@@ -11,7 +11,7 @@ import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import de.invesdwin.context.integration.streams.compressor.ICompressorFactory;
+import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.HeapSerializingCollection;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
@@ -36,7 +36,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     private static final boolean LARGE_COMPRESSOR = false;
     private final SegmentedKey<K> segmentedKey;
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
-    private final ICompressorFactory compressorFactory;
+    private final ICompressionFactory compressionFactory;
     private SerializingCollection<V> values;
     @GuardedBy("this")
     private boolean needsFlush;
@@ -50,7 +50,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable) {
         this.segmentedKey = segmentedKey;
         this.historicalSegmentTable = historicalSegmentTable;
-        this.compressorFactory = historicalSegmentTable.getStorage().getCompressorFactory();
+        this.compressionFactory = historicalSegmentTable.getStorage().getCompressionFactory();
     }
 
     private SerializingCollection<V> newSerializingCollection() {
@@ -76,12 +76,12 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
             @Override
             protected OutputStream newCompressor(final OutputStream out) {
-                return compressorFactory.newCompressor(out, LARGE_COMPRESSOR);
+                return compressionFactory.newCompressor(out, LARGE_COMPRESSOR);
             }
 
             @Override
             protected InputStream newDecompressor(final InputStream inputStream) {
-                return compressorFactory.newDecompressor(inputStream);
+                return compressionFactory.newDecompressor(inputStream);
             }
 
             @Override
@@ -334,12 +334,12 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
                 @Override
                 protected OutputStream newCompressor(final OutputStream out) {
-                    return compressorFactory.newCompressor(out, LARGE_COMPRESSOR);
+                    return compressionFactory.newCompressor(out, LARGE_COMPRESSOR);
                 }
 
                 @Override
                 protected InputStream newDecompressor(final InputStream inputStream) {
-                    return compressorFactory.newDecompressor(inputStream);
+                    return compressionFactory.newDecompressor(inputStream);
                 }
             };
         } catch (final IOException e) {

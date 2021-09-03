@@ -26,7 +26,8 @@ import org.mapdb.DataOutput2;
 import org.mapdb.Serializer;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.integration.streams.compressor.lz4.LZ4Streams;
+import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
+import de.invesdwin.context.integration.streams.compressor.lz4.HighLZ4CompressionFactory;
 import de.invesdwin.util.lang.Closeables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.reflection.Reflections;
@@ -147,12 +148,8 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
         };
     }
 
-    protected InputStream newDecompressor(final InputStream in) {
-        return LZ4Streams.newDefaultLZ4InputStream(in);
-    }
-
-    protected OutputStream newCompressor(final OutputStream out) {
-        return LZ4Streams.newDefaultLZ4OutputStream(out);
+    protected ICompressionFactory getCompressionFactory() {
+        return HighLZ4CompressionFactory.INSTANCE;
     }
 
     protected ISerde<K> newKeySerde() {

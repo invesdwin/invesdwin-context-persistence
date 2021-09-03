@@ -200,8 +200,8 @@ public class DatabasePerformanceTest extends ATest {
             }
 
             //            @Override
-            //            protected ICompressorFactory newCompressorFactory() {
-            //                return FastLZ4CompressorFactory.INSTANCE;
+            //            protected ICompressionFactory newCompressionFactory() {
+            //                return FastLZ4CompressionFactory.INSTANCE;
             //            }
 
         };

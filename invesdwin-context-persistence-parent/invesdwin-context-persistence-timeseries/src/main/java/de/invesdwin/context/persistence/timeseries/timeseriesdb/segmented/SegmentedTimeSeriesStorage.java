@@ -4,7 +4,7 @@ import java.io.File;
 
 import javax.annotation.concurrent.ThreadSafe;
 
-import de.invesdwin.context.integration.streams.compressor.ICompressorFactory;
+import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseries.ezdb.RangeTablePersistenceMode;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.CorruptedTimeSeriesStorageException;
@@ -17,8 +17,8 @@ public class SegmentedTimeSeriesStorage extends TimeSeriesStorage {
     private final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable;
 
     public SegmentedTimeSeriesStorage(final File directory, final Integer valueFixedLength,
-            final ICompressorFactory compressorFactory) {
-        super(directory, valueFixedLength, compressorFactory);
+            final ICompressionFactory compressionFactory) {
+        super(directory, valueFixedLength, compressionFactory);
         segmentStatusTable = new ADelegateRangeTable<String, TimeRange, SegmentStatus>("segmentStatusTable") {
             @Override
             protected boolean allowHasNext() {

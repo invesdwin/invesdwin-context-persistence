@@ -8,7 +8,7 @@ import java.util.function.Function;
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
-import de.invesdwin.context.integration.streams.compressor.ICompressorFactory;
+import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.TimeSeriesStorage;
@@ -121,8 +121,8 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
     protected abstract ICloseableIterable<? extends V> downloadSegmentElements(SegmentedKey<K> segmentedKey);
 
     protected SegmentedTimeSeriesStorage newStorage(final File directory, final Integer valueFixedLength,
-            final ICompressorFactory compressorFactory) {
-        return new SegmentedTimeSeriesStorage(directory, valueFixedLength, compressorFactory);
+            final ICompressionFactory compressionFactory) {
+        return new SegmentedTimeSeriesStorage(directory, valueFixedLength, compressionFactory);
     }
 
     protected SegmentedTable getSegmentedTable() {
@@ -143,8 +143,8 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
     protected abstract ISerde<V> newValueSerde();
 
-    protected ICompressorFactory newCompressorFactory() {
-        return ATimeSeriesDB.newDefaultCompressorFactory();
+    protected ICompressionFactory newCompressionFactory() {
+        return ATimeSeriesDB.newDefaultCompressionFactory();
     }
 
     protected abstract FDate extractEndTime(V value);
@@ -455,8 +455,8 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         }
 
         @Override
-        protected ICompressorFactory newCompressorFactory() {
-            return ASegmentedTimeSeriesDB.this.newCompressorFactory();
+        protected ICompressionFactory newCompressionFactory() {
+            return ASegmentedTimeSeriesDB.this.newCompressionFactory();
         }
 
         @Override
@@ -476,8 +476,8 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
         @Override
         protected TimeSeriesStorage newStorage(final File directory, final Integer valueFixedLength,
-                final ICompressorFactory compressorFactory) {
-            return ASegmentedTimeSeriesDB.this.newStorage(directory, valueFixedLength, compressorFactory);
+                final ICompressionFactory compressionFactory) {
+            return ASegmentedTimeSeriesDB.this.newStorage(directory, valueFixedLength, compressionFactory);
         }
 
         @Override

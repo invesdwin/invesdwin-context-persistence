@@ -11,8 +11,8 @@ import javax.annotation.concurrent.ThreadSafe;
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.retry.Retry;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
-import de.invesdwin.context.integration.streams.compressor.ICompressorFactory;
-import de.invesdwin.context.integration.streams.compressor.lz4.HighLZ4CompressorFactory;
+import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
+import de.invesdwin.context.integration.streams.compressor.lz4.HighLZ4CompressionFactory;
 import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.CorruptedTimeSeriesStorageException;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.TimeSeriesStorage;
@@ -38,7 +38,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
     private final String name;
     private final ISerde<V> valueSerde;
     private final Integer valueFixedLength;
-    private final ICompressorFactory compressorFactory;
+    private final ICompressionFactory compressionFactory;
     private final File directory;
     private final ALoadingCache<K, TimeSeriesStorageCache<K, V>> key_lookupTableCache;
     private final ALoadingCache<K, IReadWriteLock> key_tableLock = new ALoadingCache<K, IReadWriteLock>() {
@@ -61,7 +61,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         this.name = name;
         this.valueSerde = newValueSerde();
         this.valueFixedLength = newValueFixedLength();
-        this.compressorFactory = newCompressorFactory();
+        this.compressionFactory = newCompressionFactory();
         final File baseDirectory = getBaseDirectory();
         if (Objects.equals(baseDirectory.getAbsolutePath(), new File(".").getAbsolutePath())) {
             throw new IllegalStateException(
@@ -101,13 +101,13 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
     private TimeSeriesStorage corruptionHandlingNewStorage() {
         try {
-            return newStorage(directory, valueFixedLength, compressorFactory);
+            return newStorage(directory, valueFixedLength, compressionFactory);
         } catch (final Throwable t) {
             if (Throwables.isCausedByType(t, CorruptedTimeSeriesStorageException.class)) {
                 Err.process(new RuntimeException("Resetting " + ATimeSeriesDB.class.getSimpleName() + " ["
                         + getDirectory() + "] because the storage has been corrupted"));
                 deleteCorruptedStorage(directory);
-                return newStorage(directory, valueFixedLength, compressorFactory);
+                return newStorage(directory, valueFixedLength, compressionFactory);
             } else {
                 throw Throwables.propagate(t);
             }
@@ -128,8 +128,8 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
     }
 
     protected TimeSeriesStorage newStorage(final File directory, final Integer valueFixedLength,
-            final ICompressorFactory compressorFactory) {
-        return new TimeSeriesStorage(directory, valueFixedLength, compressorFactory);
+            final ICompressionFactory compressionFactory) {
+        return new TimeSeriesStorage(directory, valueFixedLength, compressionFactory);
     }
 
     protected File getBaseDirectory() {
@@ -153,12 +153,12 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
     protected abstract ISerde<V> newValueSerde();
 
-    protected ICompressorFactory newCompressorFactory() {
-        return newDefaultCompressorFactory();
+    protected ICompressionFactory newCompressionFactory() {
+        return newDefaultCompressionFactory();
     }
 
-    public static HighLZ4CompressorFactory newDefaultCompressorFactory() {
-        return HighLZ4CompressorFactory.INSTANCE;
+    public static HighLZ4CompressionFactory newDefaultCompressionFactory() {
+        return HighLZ4CompressionFactory.INSTANCE;
     }
 
     protected abstract FDate extractEndTime(V value);
@@ -297,8 +297,8 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         return valueSerde;
     }
 
-    public ICompressorFactory getCompressorFactory() {
-        return compressorFactory;
+    public ICompressionFactory getCompressionFactory() {
+        return compressionFactory;
     }
 
     public final String hashKeyToString(final K key) {
