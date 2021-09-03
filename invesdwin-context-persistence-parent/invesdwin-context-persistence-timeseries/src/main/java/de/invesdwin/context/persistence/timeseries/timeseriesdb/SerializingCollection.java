@@ -1,8 +1,6 @@
 package de.invesdwin.context.persistence.timeseries.timeseriesdb;
 
 import java.io.Closeable;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
@@ -37,6 +35,8 @@ import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.LocalFastSerializingSerde;
 import de.invesdwin.util.math.Bytes;
+import de.invesdwin.util.streams.InputStreams;
+import de.invesdwin.util.streams.OutputStreams;
 import de.invesdwin.util.streams.buffer.ByteBuffers;
 import de.invesdwin.util.streams.buffer.IByteBuffer;
 
@@ -97,14 +97,14 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         return tempFolder;
     }
 
-    private DataOutputStream getFos() {
+    private OutputStream getFos() {
         if (finalizer.fos == null) {
             //Lazy init to prevent too many open files Exceptions
             if (finalizer.closed) {
                 throw new IllegalStateException("false expected");
             }
             try {
-                finalizer.fos = new DataOutputStream(newCompressor(newFileOutputStream(file)));
+                finalizer.fos = newCompressor(newFileOutputStream(file));
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
@@ -135,9 +135,9 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             if (length == 0) {
                 throw new IllegalStateException("bytes should contain actual data: " + element);
             }
-            final DataOutputStream fos = getFos();
+            final OutputStream fos = getFos();
             if (fixedLength == null) {
-                fos.writeInt(length);
+                OutputStreams.writeInt(fos, length);
             } else {
                 if (length != fixedLength) {
                     throw new IllegalArgumentException(
@@ -326,7 +326,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                     DynamicLengthDeserializingIteratorFinalizer.class.getSimpleName(), file));
             finalizer = new DynamicLengthDeserializingIteratorFinalizer<>();
             try {
-                finalizer.inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));
+                finalizer.inputStream = newDecompressor(newFileInputStream(file));
                 finalizer.readBuffer = ByteBuffers.EXPANDABLE_POOL.borrowObject();
             } catch (final IOException e) {
                 throw new RuntimeException(e);
@@ -355,7 +355,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                 }
                 final int size;
                 try {
-                    size = finalizer.inputStream.readInt();
+                    size = InputStreams.readInt(finalizer.inputStream);
                     finalizer.readBuffer.putBytesTo(0, finalizer.inputStream, size);
                 } catch (final EOFException e) {
                     finalizer.close();
@@ -395,7 +395,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     }
 
     private static final class DynamicLengthDeserializingIteratorFinalizer<E> extends AFinalizer {
-        private DataInputStream inputStream;
+        private InputStream inputStream;
         private boolean closed;
         private E cachedElement;
         private IByteBuffer readBuffer;
@@ -438,7 +438,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             this.fixedLength = fixedLength;
             this.finalizer = new FixedLengthDeserializingIteratorFinalizer<>();
             try {
-                this.finalizer.inputStream = new DataInputStream(newDecompressor(newFileInputStream(file)));
+                this.finalizer.inputStream = newDecompressor(newFileInputStream(file));
                 this.finalizer.readBuffer = ByteBuffers.EXPANDABLE_POOL.borrowObject();
             } catch (final IOException e) {
                 throw new RuntimeException(e);
@@ -499,7 +499,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     }
 
     private static final class FixedLengthDeserializingIteratorFinalizer<E> extends AFinalizer {
-        private DataInputStream inputStream;
+        private InputStream inputStream;
         private IByteBuffer readBuffer;
         private boolean cleaned;
 
@@ -553,7 +553,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
     private static final class SerializingCollectionFinalizer extends AFinalizer {
 
-        private DataOutputStream fos;
+        private OutputStream fos;
         private boolean closed;
         private IByteBuffer writeBuffer;
 
