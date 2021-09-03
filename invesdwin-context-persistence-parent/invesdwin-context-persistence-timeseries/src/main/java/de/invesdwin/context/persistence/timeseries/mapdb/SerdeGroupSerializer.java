@@ -53,7 +53,7 @@ public final class SerdeGroupSerializer<T> extends GroupSerializerObjectArray<T>
         final java.nio.ByteBuffer internalByteBuffer = input.internalByteBuffer();
         if (internalByteBuffer != null) {
             final int positionBefore = input.getPos();
-            final IByteBuffer buffer = ByteBuffers.wrap(internalByteArray, positionBefore, valueLength);
+            final IByteBuffer buffer = ByteBuffers.wrap(internalByteBuffer, positionBefore, valueLength);
             input.setPos(positionBefore + valueLength);
             return serde.fromBuffer(buffer, valueLength);
         }
