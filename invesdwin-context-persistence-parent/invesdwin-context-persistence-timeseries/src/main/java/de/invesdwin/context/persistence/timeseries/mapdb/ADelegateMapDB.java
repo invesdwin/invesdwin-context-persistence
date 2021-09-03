@@ -3,8 +3,6 @@ package de.invesdwin.context.persistence.timeseries.mapdb;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -15,20 +13,16 @@ import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.mapdb.DB;
 import org.mapdb.DB.HashMapMaker;
 import org.mapdb.DBMaker;
 import org.mapdb.DBMaker.Maker;
-import org.mapdb.DataInput2;
-import org.mapdb.DataOutput2;
 import org.mapdb.Serializer;
+import org.mapdb.serializer.GroupSerializer;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
-import de.invesdwin.context.integration.streams.compressor.lz4.HighLZ4CompressionFactory;
-import de.invesdwin.util.lang.Closeables;
+import de.invesdwin.context.integration.streams.compressor.lz4.LZ4Streams;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.marshallers.serde.ISerde;
@@ -96,60 +90,12 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
         return newSerializer(newKeySerde());
     }
 
-    private <T> Serializer<T> newSerializer(final ISerde<T> serde) {
-        return new Serializer<T>() {
-
-            @Override
-            public void serialize(final DataOutput2 out, final T value) throws IOException {
-                final byte[] entry;
-                entry = serde.toBytes(value);
-                final OutputStream compressor = newCompressor(out);
-                if (compressor == out) {
-                    BYTE_ARRAY.serialize(out, entry);
-                } else {
-                    try {
-                        IOUtils.write(entry, compressor);
-                    } catch (final IOException e) {
-                        throw new RuntimeException(e);
-                    } finally {
-                        Closeables.closeQuietly(compressor);
-                    }
-                }
-            }
-
-            @Override
-            public T deserialize(final DataInput2 input, final int available) throws IOException {
-                final InputStream bis = new DataInput2.DataInputToStream(input);
-                final InputStream decompressor = newDecompressor(bis);
-                if (decompressor == bis) {
-                    final byte[] bytes = BYTE_ARRAY.deserialize(input, -1);
-                    return serde.fromBytes(bytes);
-                } else {
-                    try {
-                        final ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                        try {
-                            IOUtils.copy(decompressor, bos);
-                        } catch (final IOException e) {
-                            //ignore, end reached
-                        }
-                        final byte[] bytes = bos.toByteArray();
-                        return serde.fromBytes(bytes);
-                    } finally {
-                        Closeables.closeQuietly(decompressor);
-                    }
-                }
-            }
-
-            @Override
-            public boolean isTrusted() {
-                return true;
-            }
-
-        };
+    private <T> GroupSerializer<T> newSerializer(final ISerde<T> serde) {
+        return new SerdeGroupSerializer<T>(serde, getCompressionFactory());
     }
 
     protected ICompressionFactory getCompressionFactory() {
-        return HighLZ4CompressionFactory.INSTANCE;
+        return LZ4Streams.getDefaultCompressionFactory();
     }
 
     protected ISerde<K> newKeySerde() {

@@ -9,6 +9,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
+import de.invesdwin.context.integration.streams.compressor.lz4.LZ4Streams;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.segmented.ASegmentedTimeSeriesDB;
@@ -98,7 +99,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
     protected abstract ISerde<V> newValueSerde();
 
     protected ICompressionFactory newCompressionFactory() {
-        return ATimeSeriesDB.newDefaultCompressionFactory();
+        return LZ4Streams.getDefaultCompressionFactory();
     }
 
     protected abstract FDate extractEndTime(V value);

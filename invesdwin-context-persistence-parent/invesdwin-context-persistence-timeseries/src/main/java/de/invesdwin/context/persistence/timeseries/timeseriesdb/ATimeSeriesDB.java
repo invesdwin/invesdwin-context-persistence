@@ -12,7 +12,7 @@ import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.retry.Retry;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
-import de.invesdwin.context.integration.streams.compressor.lz4.HighLZ4CompressionFactory;
+import de.invesdwin.context.integration.streams.compressor.lz4.LZ4Streams;
 import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.CorruptedTimeSeriesStorageException;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.storage.TimeSeriesStorage;
@@ -154,11 +154,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
     protected abstract ISerde<V> newValueSerde();
 
     protected ICompressionFactory newCompressionFactory() {
-        return newDefaultCompressionFactory();
-    }
-
-    public static HighLZ4CompressionFactory newDefaultCompressionFactory() {
-        return HighLZ4CompressionFactory.INSTANCE;
+        return LZ4Streams.getDefaultCompressionFactory();
     }
 
     protected abstract FDate extractEndTime(V value);
