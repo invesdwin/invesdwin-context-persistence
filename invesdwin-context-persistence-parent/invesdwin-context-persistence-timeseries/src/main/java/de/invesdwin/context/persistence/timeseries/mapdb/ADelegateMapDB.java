@@ -83,15 +83,15 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
     }
 
     private Serializer<V> newValueSerializer() {
-        return newSerializer(newValueSerde());
+        return newSerializer(newValueSerde(), getCompressionFactory());
     }
 
     private Serializer<K> newKeySerializier() {
-        return newSerializer(newKeySerde());
+        return newSerializer(newKeySerde(), getCompressionFactory());
     }
 
-    private <T> GroupSerializer<T> newSerializer(final ISerde<T> serde) {
-        return new SerdeGroupSerializer<T>(serde, getCompressionFactory());
+    private <T> GroupSerializer<T> newSerializer(final ISerde<T> serde, final ICompressionFactory compressionFactory) {
+        return new SerdeGroupSerializer<T>(serde, compressionFactory);
     }
 
     protected ICompressionFactory getCompressionFactory() {

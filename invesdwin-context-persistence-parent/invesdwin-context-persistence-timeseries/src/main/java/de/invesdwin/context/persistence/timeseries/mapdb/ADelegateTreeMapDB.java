@@ -85,15 +85,15 @@ public abstract class ADelegateTreeMapDB<K, V> implements ConcurrentNavigableMap
     }
 
     private GroupSerializer<V> newValueSerializer() {
-        return newSerializer(newValueSerde());
+        return newSerializer(newValueSerde(), getCompressionFactory());
     }
 
     private GroupSerializer<K> newKeySerializier() {
-        return newSerializer(newKeySerde());
+        return newSerializer(newKeySerde(), getCompressionFactory());
     }
 
-    private <T> GroupSerializer<T> newSerializer(final ISerde<T> serde) {
-        return new SerdeGroupSerializer<T>(serde, getCompressionFactory());
+    private <T> GroupSerializer<T> newSerializer(final ISerde<T> serde, final ICompressionFactory compressionFactory) {
+        return new SerdeGroupSerializer<T>(serde, compressionFactory);
     }
 
     protected ISerde<K> newKeySerde() {
