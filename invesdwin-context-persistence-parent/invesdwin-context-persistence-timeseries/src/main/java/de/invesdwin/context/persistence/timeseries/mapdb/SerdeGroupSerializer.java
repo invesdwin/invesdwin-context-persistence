@@ -17,6 +17,11 @@ import de.invesdwin.util.streams.buffer.extend.ArrayExpandableByteBuffer;
 @Immutable
 public final class SerdeGroupSerializer<T> extends GroupSerializerObjectArray<T> {
 
+    private static final int SIZE_INDEX = 0;
+    private static final int SIZE_SIZE = Integer.BYTES;
+
+    private static final int VALUE_INDEX = SIZE_INDEX + SIZE_SIZE;
+
     private final ISerde<T> serde;
 
     public SerdeGroupSerializer(final ISerde<T> serde, final ICompressionFactory compressionFactory) {
@@ -27,32 +32,33 @@ public final class SerdeGroupSerializer<T> extends GroupSerializerObjectArray<T>
     public void serialize(final DataOutput2 out, final T value) throws IOException {
         final IByteBuffer buffer = new ArrayExpandableByteBuffer(out.buf);
         final int positionBefore = out.pos;
-        final IByteBuffer valueBuffer = buffer.sliceFrom(positionBefore);
+        final IByteBuffer valueBuffer = buffer.sliceFrom(positionBefore + VALUE_INDEX);
         final int valueLength = serde.toBuffer(valueBuffer, value);
+        buffer.putInt(positionBefore + SIZE_INDEX, valueLength);
         out.buf = buffer.byteArray();
-        out.pos = positionBefore + valueLength;
+        out.pos = positionBefore + VALUE_INDEX + valueLength;
         out.sizeMask = 0xFFFFFFFF - (out.buf.length - 1);
     }
 
     @Override
     public T deserialize(final DataInput2 input, final int available) throws IOException {
+        final int valueLength = input.readInt();
         final byte[] internalByteArray = input.internalByteArray();
         if (internalByteArray != null) {
             final int positionBefore = input.getPos();
-            final IByteBuffer buffer = ByteBuffers.wrapFrom(internalByteArray, positionBefore);
-            input.setPos(positionBefore + buffer.capacity());
-            return serde.fromBuffer(buffer, buffer.capacity());
+            final IByteBuffer buffer = ByteBuffers.wrap(internalByteArray, positionBefore, valueLength);
+            input.setPos(positionBefore + valueLength);
+            return serde.fromBuffer(buffer, valueLength);
         }
         final java.nio.ByteBuffer internalByteBuffer = input.internalByteBuffer();
         if (internalByteBuffer != null) {
             final int positionBefore = input.getPos();
-            final IByteBuffer buffer = ByteBuffers.wrapFrom(internalByteArray, positionBefore);
-            input.setPos(positionBefore + buffer.capacity());
-            return serde.fromBuffer(buffer, buffer.capacity());
+            final IByteBuffer buffer = ByteBuffers.wrap(internalByteArray, positionBefore, valueLength);
+            input.setPos(positionBefore + valueLength);
+            return serde.fromBuffer(buffer, valueLength);
         }
         final IByteBuffer buffer = ByteBuffers.EXPANDABLE_POOL.borrowObject();
         try {
-            final int valueLength = ByteBuffers.readExpandable(input, buffer, 0);
             buffer.putBytesTo(0, input, valueLength);
             return serde.fromBuffer(buffer, valueLength);
         } finally {

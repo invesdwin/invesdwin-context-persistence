@@ -9,6 +9,7 @@ import org.junit.Test;
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.error.Throwables;
 
 // CHECKSTYLE:OFF
 @NotThreadSafe
@@ -17,6 +18,7 @@ public class ADelegateMapDBTest extends ATest {
 
     @Test
     public void testItWorks() {
+        Throwables.setDebugStackTraceEnabled(true);
         final ADelegateMapDB<String, Integer> map = new ADelegateMapDB<String, Integer>("testItWorks") {
             @Override
             protected File getBaseDirectory() {
