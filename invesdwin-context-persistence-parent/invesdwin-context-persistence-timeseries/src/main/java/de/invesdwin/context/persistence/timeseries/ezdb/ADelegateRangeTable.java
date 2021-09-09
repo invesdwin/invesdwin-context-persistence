@@ -697,6 +697,20 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         return tableLock;
     }
 
+    public boolean isEmpty() {
+        final RangeTable<H, R, V> table = getTableWithReadLock(false);
+        try {
+            final TableIterator<H, R, V> range = table.range(null);
+            try {
+                return range.hasNext();
+            } finally {
+                range.close();
+            }
+        } finally {
+            getReadLock(true).unlock();
+        }
+    }
+
     public static class DelegateRangeBatch<H_, R_, V_> implements RangeBatch<H_, R_, V_> {
 
         private final RangeBatchFinalizer<H_, R_, V_> finalizer;
