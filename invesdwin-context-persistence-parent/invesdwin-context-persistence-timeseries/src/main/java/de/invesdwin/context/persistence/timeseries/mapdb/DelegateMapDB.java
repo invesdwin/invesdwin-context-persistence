@@ -34,13 +34,13 @@ import de.invesdwin.util.marshallers.serde.TypeDelegateSerde;
  * elements.
  */
 @ThreadSafe
-public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Closeable {
+public class DelegateMapDB<K, V> implements ConcurrentMap<K, V>, Closeable {
 
     private final String name;
     @GuardedBy("this")
     private ConcurrentMap<K, V> delegate;
 
-    public ADelegateMapDB(final String name) {
+    public DelegateMapDB(final String name) {
         this.name = name;
     }
 
@@ -111,7 +111,7 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
     }
 
     protected File getDirectory() {
-        return new File(getBaseDirectory(), ADelegateMapDB.class.getSimpleName());
+        return new File(getBaseDirectory(), DelegateMapDB.class.getSimpleName());
     }
 
     protected File getBaseDirectory() {
@@ -120,12 +120,12 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
 
     @SuppressWarnings("unchecked")
     private Class<K> getKeyType() {
-        return (Class<K>) Reflections.resolveTypeArguments(getClass(), ADelegateMapDB.class)[0];
+        return (Class<K>) Reflections.resolveTypeArguments(getClass(), DelegateMapDB.class)[0];
     }
 
     @SuppressWarnings("unchecked")
     private Class<V> getValueType() {
-        return (Class<V>) Reflections.resolveTypeArguments(getClass(), ADelegateMapDB.class)[1];
+        return (Class<V>) Reflections.resolveTypeArguments(getClass(), DelegateMapDB.class)[1];
     }
 
     @Override

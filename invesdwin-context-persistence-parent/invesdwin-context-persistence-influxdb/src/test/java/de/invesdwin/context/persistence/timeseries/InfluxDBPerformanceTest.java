@@ -40,7 +40,7 @@ import io.apisense.embed.influx.configuration.InfluxConfigurationWriter;
 
 @NotThreadSafe
 @Ignore("manual test")
-public class DatabasePerformanceTest extends ATest {
+public class InfluxDBPerformanceTest extends ATest {
 
     private static final int READS = 10;
     private static final int VALUES = 1_000_000;
@@ -184,32 +184,36 @@ public class DatabasePerformanceTest extends ATest {
             batch = null;
             printProgress("WritesFinished", writesStart, VALUES, VALUES);
 
-            final Instant readsStart = new Instant();
-            for (int reads = 1; reads <= READS; reads++) {
-                FDate prevValue = null;
-                final QueryResult queryResult = influxDB
-                        .query(new Query("Select value from " + measurementName + " where hashKey = '" + HASH_KEY + "'",
-                                dbname), TimeUnit.MILLISECONDS);
-
-                final List<Result> range = queryResult.getResults();
-                int count = 0;
-                final List<List<Object>> series = range.get(0).getSeries().get(0).getValues();
-                for (int result = 0; result < series.size(); result++) {
-                    final Double valueDouble = (Double) series.get(result).get(0);
-                    final FDate value = new FDate(valueDouble.longValue());
-                    if (prevValue != null) {
-                        Assertions.checkTrue(prevValue.isBefore(value));
-                    }
-                    prevValue = value;
-                    count++;
-                }
-                Assertions.checkEquals(count, VALUES);
-                printProgress("Reads", readsStart, VALUES * reads, VALUES * READS);
-            }
-            printProgress("ReadsFinished", readsStart, VALUES * READS, VALUES * READS);
+            readIterator(dbname, measurementName, influxDB);
         } finally {
             server.stop();
         }
+    }
+
+    private void readIterator(final String dbname, final String measurementName, final InfluxDB influxDB) {
+        final Instant readsStart = new Instant();
+        for (int reads = 1; reads <= READS; reads++) {
+            FDate prevValue = null;
+            final QueryResult queryResult = influxDB
+                    .query(new Query("Select value from " + measurementName + " where hashKey = '" + HASH_KEY + "'",
+                            dbname), TimeUnit.MILLISECONDS);
+
+            final List<Result> range = queryResult.getResults();
+            int count = 0;
+            final List<List<Object>> series = range.get(0).getSeries().get(0).getValues();
+            for (int result = 0; result < series.size(); result++) {
+                final Double valueDouble = (Double) series.get(result).get(0);
+                final FDate value = new FDate(valueDouble.longValue());
+                if (prevValue != null) {
+                    Assertions.checkTrue(prevValue.isBefore(value));
+                }
+                prevValue = value;
+                count++;
+            }
+            Assertions.checkEquals(count, VALUES);
+            printProgress("Reads", readsStart, VALUES * reads, VALUES * READS);
+        }
+        printProgress("ReadsFinished", readsStart, VALUES * READS, VALUES * READS);
     }
 
     private InfluxServer startInfluxDB(final int freeHttpPort, final int freeUdpPort) throws IOException {

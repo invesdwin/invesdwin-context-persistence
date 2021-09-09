@@ -13,13 +13,13 @@ import de.invesdwin.util.error.Throwables;
 
 // CHECKSTYLE:OFF
 @NotThreadSafe
-public class ADelegateMapDBTest extends ATest {
+public class DelegateMapDBTest extends ATest {
     //CHECKSTYLE:ON
 
     @Test
     public void testItWorks() {
         Throwables.setDebugStackTraceEnabled(true);
-        final ADelegateMapDB<String, Integer> map = new ADelegateMapDB<String, Integer>("testItWorks") {
+        final DelegateMapDB<String, Integer> map = new DelegateMapDB<String, Integer>("testItWorks") {
             @Override
             protected File getBaseDirectory() {
                 return ContextProperties.TEMP_DIRECTORY;
