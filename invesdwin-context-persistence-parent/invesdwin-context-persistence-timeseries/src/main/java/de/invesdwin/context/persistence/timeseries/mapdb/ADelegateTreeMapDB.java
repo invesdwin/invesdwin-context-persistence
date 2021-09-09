@@ -36,13 +36,13 @@ import de.invesdwin.util.marshallers.serde.TypeDelegateSerde;
  * elements.
  */
 @ThreadSafe
-public class DelegateTreeMapDB<K, V> implements ConcurrentNavigableMap<K, V>, Closeable {
+public abstract class ADelegateTreeMapDB<K, V> implements ConcurrentNavigableMap<K, V>, Closeable {
 
     private final String name;
     @GuardedBy("this")
     private BTreeMap<K, V> delegate;
 
-    public DelegateTreeMapDB(final String name) {
+    public ADelegateTreeMapDB(final String name) {
         this.name = name;
     }
 
@@ -113,7 +113,7 @@ public class DelegateTreeMapDB<K, V> implements ConcurrentNavigableMap<K, V>, Cl
     }
 
     protected File getDirectory() {
-        return new File(getBaseDirectory(), DelegateTreeMapDB.class.getSimpleName());
+        return new File(getBaseDirectory(), ADelegateTreeMapDB.class.getSimpleName());
     }
 
     protected File getBaseDirectory() {
@@ -122,12 +122,12 @@ public class DelegateTreeMapDB<K, V> implements ConcurrentNavigableMap<K, V>, Cl
 
     @SuppressWarnings("unchecked")
     private Class<K> getKeyType() {
-        return (Class<K>) Reflections.resolveTypeArguments(getClass(), DelegateTreeMapDB.class)[0];
+        return (Class<K>) Reflections.resolveTypeArguments(getClass(), ADelegateTreeMapDB.class)[0];
     }
 
     @SuppressWarnings("unchecked")
     private Class<V> getValueType() {
-        return (Class<V>) Reflections.resolveTypeArguments(getClass(), DelegateTreeMapDB.class)[1];
+        return (Class<V>) Reflections.resolveTypeArguments(getClass(), ADelegateTreeMapDB.class)[1];
     }
 
     @Override

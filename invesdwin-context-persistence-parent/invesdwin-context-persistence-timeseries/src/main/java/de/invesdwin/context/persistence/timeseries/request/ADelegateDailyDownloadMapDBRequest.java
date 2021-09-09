@@ -12,7 +12,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.io.IOUtils;
 
 import de.invesdwin.context.integration.network.DailyDownloadCache;
-import de.invesdwin.context.persistence.timeseries.mapdb.DelegateMapDB;
+import de.invesdwin.context.persistence.timeseries.mapdb.ADelegateMapDB;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.concurrent.reference.IReference;
 import de.invesdwin.util.error.Throwables;
@@ -22,7 +22,7 @@ import de.invesdwin.util.time.date.FDate;
 public abstract class ADelegateDailyDownloadMapDBRequest<K, V> implements IReference<Map<K, V>> {
 
     private final DailyDownloadCache dailyDownloadCache = newDailyDownloadCache();
-    private DelegateMapDB<K, V> map;
+    private ADelegateMapDB<K, V> map;
 
     @Override
     public Map<K, V> get() {
@@ -72,8 +72,8 @@ public abstract class ADelegateDailyDownloadMapDBRequest<K, V> implements IRefer
 
     protected abstract ICloseableIterator<V> newReader(InputStream content);
 
-    protected DelegateMapDB<K, V> newMap() {
-        return new DelegateMapDB<K, V>(getDownloadName());
+    protected ADelegateMapDB<K, V> newMap() {
+        return new ADelegateMapDB<K, V>(getDownloadName());
     }
 
     protected FDate getNow() {

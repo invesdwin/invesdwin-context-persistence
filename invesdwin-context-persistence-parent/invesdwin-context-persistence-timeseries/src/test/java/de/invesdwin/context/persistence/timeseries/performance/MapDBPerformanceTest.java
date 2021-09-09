@@ -11,7 +11,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.persistence.timeseries.mapdb.DelegateMapDB;
+import de.invesdwin.context.persistence.timeseries.mapdb.ADelegateMapDB;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.marshallers.serde.ISerde;
@@ -26,7 +26,7 @@ public class MapDBPerformanceTest extends ADatabasePerformanceTest {
     @Test
     public void testMapDbPerformance() {
         @SuppressWarnings("resource")
-        final DelegateMapDB<FDate, FDate> table = new DelegateMapDB<FDate, FDate>("testMapDbPerformance") {
+        final ADelegateMapDB<FDate, FDate> table = new ADelegateMapDB<FDate, FDate>("testMapDbPerformance") {
             @Override
             protected File getBaseDirectory() {
                 return ContextProperties.TEMP_DIRECTORY;
@@ -60,7 +60,7 @@ public class MapDBPerformanceTest extends ADatabasePerformanceTest {
         table.deleteTable();
     }
 
-    private void readIterator(final DelegateMapDB<FDate, FDate> table) {
+    private void readIterator(final ADelegateMapDB<FDate, FDate> table) {
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
             //            FDate prevValue = null;
@@ -84,7 +84,7 @@ public class MapDBPerformanceTest extends ADatabasePerformanceTest {
         printProgress("ReadsFinished", readsStart, VALUES * READS, VALUES * READS);
     }
 
-    private void readGet(final DelegateMapDB<FDate, FDate> table) {
+    private void readGet(final ADelegateMapDB<FDate, FDate> table) {
         final List<FDate> values = Lists.toList(newValues());
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {

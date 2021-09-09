@@ -12,7 +12,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.persistence.timeseries.mapdb.DelegateTreeMapDB;
+import de.invesdwin.context.persistence.timeseries.mapdb.ADelegateTreeMapDB;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.marshallers.serde.ISerde;
@@ -27,7 +27,7 @@ public class TreeMapDBPerformanceTest extends ADatabasePerformanceTest {
     @Test
     public void testTreeMapDbPerformance() {
         @SuppressWarnings("resource")
-        final DelegateTreeMapDB<FDate, FDate> table = new DelegateTreeMapDB<FDate, FDate>("testTreeMapDbPerformance") {
+        final ADelegateTreeMapDB<FDate, FDate> table = new ADelegateTreeMapDB<FDate, FDate>("testTreeMapDbPerformance") {
             @Override
             protected File getBaseDirectory() {
                 return ContextProperties.TEMP_DIRECTORY;
@@ -62,7 +62,7 @@ public class TreeMapDBPerformanceTest extends ADatabasePerformanceTest {
         table.deleteTable();
     }
 
-    private void readIterator(final DelegateTreeMapDB<FDate, FDate> table) {
+    private void readIterator(final ADelegateTreeMapDB<FDate, FDate> table) {
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
             FDate prevValue = null;
@@ -86,7 +86,7 @@ public class TreeMapDBPerformanceTest extends ADatabasePerformanceTest {
         printProgress("ReadsFinished", readsStart, VALUES * READS, VALUES * READS);
     }
 
-    private void readGet(final DelegateTreeMapDB<FDate, FDate> table) {
+    private void readGet(final ADelegateTreeMapDB<FDate, FDate> table) {
         final List<FDate> values = Lists.toList(newValues());
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
@@ -107,7 +107,7 @@ public class TreeMapDBPerformanceTest extends ADatabasePerformanceTest {
         printProgress("GetsFinished", readsStart, VALUES * READS, VALUES * READS);
     }
 
-    private void readGetLatest(final DelegateTreeMapDB<FDate, FDate> table) {
+    private void readGetLatest(final ADelegateTreeMapDB<FDate, FDate> table) {
         final List<FDate> values = Lists.toList(newValues());
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
