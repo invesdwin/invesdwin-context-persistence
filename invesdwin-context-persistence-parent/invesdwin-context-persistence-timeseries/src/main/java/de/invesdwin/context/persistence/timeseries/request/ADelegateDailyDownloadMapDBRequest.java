@@ -73,7 +73,8 @@ public abstract class ADelegateDailyDownloadMapDBRequest<K, V> implements IRefer
     protected abstract ICloseableIterator<V> newReader(InputStream content);
 
     protected ADelegateMapDB<K, V> newMap() {
-        return new ADelegateMapDB<K, V>(getDownloadName());
+        return new ADelegateMapDB<K, V>(getDownloadName()) {
+        };
     }
 
     protected FDate getNow() {
