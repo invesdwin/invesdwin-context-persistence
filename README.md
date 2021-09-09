@@ -238,6 +238,10 @@ ChronicleQueue             Writes (Append):        442.48/ms  => ~2.8 times fast
 	 MapDB              Reads (Get):           162.21/ms  => 45% slower than LevelDB
        LevelDB              Reads (Get):           292.99/ms  => using this as baseline
        
+     TreeMapDB              Reads (GetLatest):     104.06/ms  => ~48% slower than LevelDB
+ ATimeSeriesDB              Reads (GetLatest):     116.38/ms  => ~42% slower than LevelDB (after initialization, uses LevelDB as lazy index here)
+       LevelDB              Reads (GetLatest):     199.74/ms  => using this as baseline
+       
          MapDB              Reads (Iterator):      131.39/ms  => 89% slower than LevelDB (unordered)
       InfluxDB              Reads (Iterator):      649.31/ms  => ~2 times slower than LevelDB
        LevelDB              Reads (Iterator):    1,228.70/ms  => using this as baseline
@@ -246,10 +250,6 @@ ChronicleQueue              Reads (Iterator):   16,583.75/ms  => ~13.5 times fas
  ATimeSeriesDB (None)       Reads (Iterator):   19,638.26/ms  => ~16 times faster than LevelDB
  ATimeSeriesDB (High)       Reads (Iterator):   32,089.34/ms  => ~26.1 times faster than LevelDB
  ATimeSeriesDB (Fast)       Reads (Iterator):   32,124.39/ms  => ~26.1 times faster than LevelDB
-
-     TreeMapDB              Reads (GetLatest):     104.06/ms  => ~48% slower than LevelDB
- ATimeSeriesDB              Reads (GetLatest):     116.38/ms  => ~42% slower than LevelDB (after initialization, uses LevelDB as lazy index here)
-       LevelDB              Reads (GetLatest):     199.74/ms  => using this as baseline
 ```
 - **ATimeSeriesUpdater**: this is a helper class with which one can handle large inserts/updates into an instance of `ATimeSeriesDB`. This handles the creation of separate chunk files and writing them to disk in the most efficient way.
 - **SerializingCollection**: this collection implementation is used to store and retrieve each file chunk. It supports two modes of serialization. The default and slower one supports variable length objects by Base64 encoding the serialized bytes and putting a delimiter between each element. The second and faster approach can be enabled by overriding `getFixedLength()` which allows the collection to skip the Base64 encoding and instead just count the bytes to separate each element. Though as this suggests, it only works with fixed length serialization/deserialization which you can provide by overriding the `toBytes`/`fromBytes()` callback methods (which use FST per default). You can also deviate from the default LZ4 high compression algorithm by overriding the `newCompressor`/`newDecompressor` callback methods. Despite efficiently storing financial data, this collection can be used to move any kind of data out of memory into a file to preserve precious memory instead of wasting it on metadata that is only rarely used (e.g. during a backtests we can record all sorts of information in a serialized fashion and load it back from file when generating our reports once. This allows us to run more backtests in parallel which would otherwise be limited by tight memory).
