@@ -3,21 +3,19 @@ package de.invesdwin.context.persistence.timeseries.ezdb;
 import java.io.File;
 import java.io.IOException;
 import java.util.Comparator;
-import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 import java.util.function.Function;
 
 import javax.annotation.concurrent.ThreadSafe;
-
-import org.iq80.leveldb.CompressionType;
-import org.iq80.leveldb.DB;
-import org.iq80.leveldb.DBIterator;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.timeseries.ezdb.db.IRangeTableDb;
 import de.invesdwin.context.persistence.timeseries.ezdb.db.WriteThroughRangeTableDb;
+import de.invesdwin.context.persistence.timeseries.ezdb.db.type.LevelDBRangeTableDb;
+import de.invesdwin.context.persistence.timeseries.ezdb.db.type.RangeTableInternalMethods;
+import de.invesdwin.context.persistence.timeseries.ezdb.db.type.TreeMapRangeTableDb;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -25,7 +23,6 @@ import de.invesdwin.util.concurrent.future.Callables;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
-import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Strings;
@@ -38,33 +35,21 @@ import de.invesdwin.util.marshallers.serde.TypeDelegateSerde;
 import de.invesdwin.util.shutdown.ShutdownHookManager;
 import de.invesdwin.util.time.date.FDate;
 import ezdb.RangeTable;
-import ezdb.RawTableRow;
 import ezdb.TableIterator;
 import ezdb.TableRow;
 import ezdb.batch.Batch;
 import ezdb.batch.RangeBatch;
 import ezdb.comparator.ComparableComparator;
 import ezdb.comparator.LexicographicalComparator;
-import ezdb.leveldb.EzLevelDb;
-import ezdb.leveldb.EzLevelDbJavaFactory;
-import ezdb.treemap.object.EzObjectTreeMapDb;
 
 @ThreadSafe
 public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V> {
-
-    private final ISerde<H> hashKeySerde;
-    private final ISerde<R> rangeKeySerde;
-    private final ISerde<V> valueSerde;
-    private final Comparator<byte[]> hashKeyComparatorDisk;
-    private final Comparator<byte[]> rangeKeyComparatorDisk;
-    private final Comparator<Object> hashKeyComparatorMemory;
-    private final Comparator<Object> rangeKeyComparatorMemory;
 
     private final IRangeTableDb db;
     private final IReadWriteLock tableLock;
 
     private final String name;
-    private final File directory;
+    private final RangeTableInternalMethods internalMethods;
     private final File timestampFile;
     private final TableFinalizer<H, R, V> tableFinalizer;
     /**
@@ -74,16 +59,11 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
     public ADelegateRangeTable(final String name) {
         this.name = name;
-        this.directory = getDirectory();
-        this.timestampFile = new File(new File(directory, getName()), "createdTimestamp");
+        this.internalMethods = new RangeTableInternalMethods(newHashKeySerde(), newRangeKeySerde(), newValueSerde(),
+                newHashKeyComparatorDisk(), newRangeKeyComparatorDisk(), newHashKeyComparatorMemory(),
+                newRangeKeyComparatorMemory(), getDirectory());
+        this.timestampFile = new File(new File(internalMethods.getDirectory(), getName()), "createdTimestamp");
 
-        this.hashKeySerde = newHashKeySerde();
-        this.rangeKeySerde = newRangeKeySerde();
-        this.valueSerde = newValueSerde();
-        this.hashKeyComparatorDisk = newHashKeyComparatorDisk();
-        this.rangeKeyComparatorDisk = newRangeKeyComparatorDisk();
-        this.hashKeyComparatorMemory = newHashKeyComparatorMemory();
-        this.rangeKeyComparatorMemory = newRangeKeyComparatorMemory();
         this.tableLock = Locks
                 .newReentrantReadWriteLock(ADelegateRangeTable.class.getSimpleName() + "_" + getName() + "_tableLock");
         this.db = newDB();
@@ -111,7 +91,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     }
 
     protected Comparator<byte[]> newRangeKeyComparatorDisk() {
-        return new SerdeComparator<R>(rangeKeySerde);
+        return new SerdeComparator<R>(newRangeKeySerde());
     }
 
     protected Comparator<Object> newHashKeyComparatorMemory() {
@@ -177,89 +157,11 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     }
 
     protected IRangeTableDb newMemoryDb() {
-        return new IRangeTableDb() {
-
-            private final EzObjectTreeMapDb db = new EzObjectTreeMapDb();
-
-            @Override
-            public <_H, _R, _V> RangeTable<_H, _R, _V> getTable(final String tableName) {
-                return db.getTable(tableName, null, null, null, hashKeyComparatorMemory, rangeKeyComparatorMemory);
-            }
-
-            @Override
-            public void deleteTable(final String tableName) {
-                db.deleteTable(tableName);
-            }
-        };
-    }
-
-    protected CompressionType newCompressionType() {
-        return CompressionType.SNAPPY;
+        return new TreeMapRangeTableDb(internalMethods);
     }
 
     protected IRangeTableDb newDiskDb() {
-        return new IRangeTableDb() {
-            private final EzLevelDb db = new EzLevelDb(directory, new EzLevelDbJavaFactory() {
-                @Override
-                public DB open(final File path, final org.iq80.leveldb.Options options) throws IOException {
-                    options.paranoidChecks(false);
-                    //make sure snappy is enabled
-                    options.compressionType(newCompressionType());
-                    final DB open = super.open(path, options);
-                    try {
-                        //do some sanity checks just to be safe
-                        try (DBIterator iterator = open.iterator()) {
-                            iterator.seekToFirst();
-                            if (iterator.hasNext()) {
-                                final Entry<byte[], byte[]> next = iterator.next();
-                                validateRow(next);
-                            }
-                            iterator.seekToLast();
-                            if (iterator.hasPrev()) {
-                                final Entry<byte[], byte[]> prev = iterator.prev();
-                                validateRow(prev);
-                            }
-                        }
-                        return open;
-                    } catch (final Throwable t) {
-                        open.close();
-                        throw Throwables.propagate(t);
-                    }
-                }
-
-                private void validateRow(final Entry<byte[], byte[]> rawRow) {
-                    //fst library might have been updated, in that case deserialization might fail
-                    final RawTableRow<H, R, V> row = new RawTableRow<H, R, V>(rawRow, EzdbSerde.valueOf(hashKeySerde),
-                            EzdbSerde.valueOf(rangeKeySerde), EzdbSerde.valueOf(valueSerde));
-                    row.getHashKey();
-                    row.getRangeKey();
-                    row.getValue();
-                }
-            });
-
-            @SuppressWarnings("unchecked")
-            @Override
-            public <_H, _R, _V> RangeTable<_H, _R, _V> getTable(final String tableName) {
-                initDirectory();
-                final RangeTable<H, R, V> table = db.getTable(tableName, EzdbSerde.valueOf(hashKeySerde),
-                        EzdbSerde.valueOf(rangeKeySerde), EzdbSerde.valueOf(valueSerde), hashKeyComparatorDisk,
-                        rangeKeyComparatorDisk);
-                return (RangeTable<_H, _R, _V>) table;
-            }
-
-            @Override
-            public void deleteTable(final String tableName) {
-                db.deleteTable(tableName);
-            }
-        };
-    }
-
-    private void initDirectory() {
-        try {
-            Files.forceMkdir(directory);
-        } catch (final IOException e) {
-            throw Err.process(e);
-        }
+        return new LevelDBRangeTableDb(internalMethods);
     }
 
     private RangeTable<H, R, V> getTableWithReadLock(final boolean forUpdate) {
@@ -360,7 +262,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         db.deleteTable(name);
         if (getPersistenceMode().isDisk()) {
             Files.deleteQuietly(timestampFile);
-            final File tableDirectory = new File(directory, getName());
+            final File tableDirectory = new File(internalMethods.getDirectory(), getName());
             final String[] list = tableDirectory.list();
             if (list == null || list.length == 0) {
                 Files.deleteNative(tableDirectory);
