@@ -6,6 +6,7 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
@@ -25,7 +26,7 @@ import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
-//@Ignore("manual test")
+@Ignore("manual test")
 public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
