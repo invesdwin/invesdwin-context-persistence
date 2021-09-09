@@ -45,11 +45,11 @@ import ezdb.comparator.LexicographicalComparator;
 @ThreadSafe
 public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V> {
 
+    protected final RangeTableInternalMethods internalMethods;
     private final IRangeTableDb db;
     private final IReadWriteLock tableLock;
 
     private final String name;
-    private final RangeTableInternalMethods internalMethods;
     private final File timestampFile;
     private final TableFinalizer<H, R, V> tableFinalizer;
     /**
