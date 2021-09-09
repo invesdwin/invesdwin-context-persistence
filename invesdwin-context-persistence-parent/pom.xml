@@ -48,7 +48,7 @@
 		<version.eclipselink>2.7.4</version.eclipselink>
 
 		<version.kundera>3.13</version.kundera>
-		<version.ezdb>0.1.16</version.ezdb>
+		<version.ezdb>0.1.17</version.ezdb>
 		<version.leveldb>1.2</version.leveldb>
 		<version.snappy>0.4</version.snappy>
 		<version.mapdb>3.0.8</version.mapdb>
@@ -234,6 +234,21 @@
 			<dependency>
 				<groupId>com.github.criccomini</groupId>
 				<artifactId>ezdb-leveldb</artifactId>
+				<version>${version.ezdb}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.github.criccomini</groupId>
+				<artifactId>ezdb-leveldb-jni</artifactId>
+				<version>${version.ezdb}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.github.criccomini</groupId>
+				<artifactId>ezdb-lmdb-jnr</artifactId>
+				<version>${version.ezdb}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.github.criccomini</groupId>
+				<artifactId>ezdb-rocksdb-jni</artifactId>
 				<version>${version.ezdb}</version>
 			</dependency>
 			<dependency>

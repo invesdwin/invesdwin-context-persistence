@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseries.ezdb.db.type;
+package de.invesdwin.context.persistence.timeseries.ezdb.db.storage;
 
 import java.io.File;
 import java.io.IOException;

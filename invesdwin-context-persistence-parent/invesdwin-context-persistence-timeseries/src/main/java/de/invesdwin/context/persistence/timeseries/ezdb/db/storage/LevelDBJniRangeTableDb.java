@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseries.ezdb.db.type;
+package de.invesdwin.context.persistence.timeseries.ezdb.db.storage;
 
 import java.io.File;
 import java.io.IOException;
@@ -15,17 +15,17 @@ import de.invesdwin.context.persistence.timeseries.ezdb.db.IRangeTableDb;
 import de.invesdwin.util.error.Throwables;
 import ezdb.RangeTable;
 import ezdb.leveldb.EzLevelDb;
-import ezdb.leveldb.EzLevelDbJavaFactory;
+import ezdb.leveldb.EzLevelDbJniFactory;
 
 @NotThreadSafe
-public class LmdbRangeTableDb implements IRangeTableDb {
+public class LevelDBJniRangeTableDb implements IRangeTableDb {
 
     private final RangeTableInternalMethods internalMethods;
     private final EzLevelDb db;
 
-    public LmdbRangeTableDb(final RangeTableInternalMethods internalMethods) {
+    public LevelDBJniRangeTableDb(final RangeTableInternalMethods internalMethods) {
         this.internalMethods = internalMethods;
-        this.db = new EzLevelDb(internalMethods.getDirectory(), new EzLevelDbJavaFactory() {
+        this.db = new EzLevelDb(internalMethods.getDirectory(), new EzLevelDbJniFactory() {
             @Override
             public DB open(final File path, final org.iq80.leveldb.Options options) throws IOException {
                 options.paranoidChecks(false);
