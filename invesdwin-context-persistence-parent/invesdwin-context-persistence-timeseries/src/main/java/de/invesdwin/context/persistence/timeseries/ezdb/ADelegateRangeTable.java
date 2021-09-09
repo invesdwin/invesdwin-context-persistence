@@ -655,7 +655,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     }
 
     private static final class RangeBatchFinalizer<__H, __R, __V> extends AFinalizer {
-        private final RangeBatch<__H, __R, __V> delegate;
+        private RangeBatch<__H, __R, __V> delegate;
         private ILock tableReadLockDelegate;
 
         private RangeBatchFinalizer(final RangeBatch<__H, __R, __V> delegate, final ILock tableReadLockDelegate) {
@@ -668,6 +668,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
             try {
                 delegate.flush();
                 delegate.close();
+                delegate = null;
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             } finally {
@@ -678,7 +679,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
 
         @Override
         protected boolean isCleaned() {
-            return tableReadLockDelegate == null;
+            return delegate == null;
         }
 
         @Override
