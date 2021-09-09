@@ -247,7 +247,7 @@ ChronicleQueue             Writes (Append):        442.48/ms  => ~2.3 times fast
    LevelDB-JNI              Reads (GetLatest):      45.56/ms  => ~61.9% slower than LevelDB-Java
    RocksDB-JNI              Reads (GetLatest):      45.98/ms  => ~61.5% slower than LevelDB-Java
      TreeMapDB              Reads (GetLatest):      85.47/ms  => ~28% slower than LevelDB-Java
- ATimeSeriesDB              Reads (GetLatest):     116.38/ms  => ~3% slower than LevelDB-Java (after initialization, uses LevelDB-Java as lazy index here)
+ ATimeSeriesDB              Reads (GetLatest):     116.38/ms  => ~3% slower than LevelDB-Java (after initialization, uses LevelDB-Java as lazy index)
   LevelDB-Java              Reads (GetLatest):     119.50/ms  => using this as baseline
       LMDB-JNR              Reads (GetLatest):     147.06/ms  => ~23% faster than LevelDB-Java
        
