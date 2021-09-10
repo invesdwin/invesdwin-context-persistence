@@ -41,13 +41,13 @@ public class RocksDBRangeTableDb implements IRangeTableDb {
                         if (iterator.isValid()) {
                             final byte[] key = iterator.key();
                             final byte[] value = iterator.value();
-                            internalMethods.validateRow(ImmutableEntry.of(key, value));
+                            internalMethods.validateRowBytes(ImmutableEntry.of(key, value));
                         }
                         iterator.seekToLast();
                         if (iterator.isValid()) {
                             final byte[] key = iterator.key();
                             final byte[] value = iterator.value();
-                            internalMethods.validateRow(ImmutableEntry.of(key, value));
+                            internalMethods.validateRowBytes(ImmutableEntry.of(key, value));
                         }
                     }
                     return open;

@@ -41,6 +41,7 @@ import ezdb.batch.Batch;
 import ezdb.batch.RangeBatch;
 import ezdb.comparator.ComparableComparator;
 import ezdb.comparator.LexicographicalComparator;
+import io.netty.buffer.ByteBuf;
 
 @ThreadSafe
 public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V> {
@@ -85,12 +86,12 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         return false;
     }
 
-    protected Comparator<byte[]> newHashKeyComparatorDisk() {
+    protected Comparator<ByteBuf> newHashKeyComparatorDisk() {
         //order is not so important on the hashkey, so use bytes only
         return new LexicographicalComparator();
     }
 
-    protected Comparator<byte[]> newRangeKeyComparatorDisk() {
+    protected Comparator<ByteBuf> newRangeKeyComparatorDisk() {
         return new SerdeComparator<R>(newRangeKeySerde());
     }
 

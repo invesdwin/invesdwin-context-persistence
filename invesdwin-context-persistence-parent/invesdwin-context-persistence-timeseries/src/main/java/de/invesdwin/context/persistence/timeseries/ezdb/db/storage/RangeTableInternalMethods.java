@@ -12,6 +12,7 @@ import de.invesdwin.context.persistence.timeseries.ezdb.EzdbSerde;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import ezdb.RawTableRow;
+import io.netty.buffer.ByteBuf;
 
 @SuppressWarnings({ "rawtypes", "unchecked" })
 @Immutable
@@ -20,14 +21,14 @@ public class RangeTableInternalMethods {
     private final ISerde hashKeySerde;
     private final ISerde rangeKeySerde;
     private final ISerde valueSerde;
-    private final Comparator<byte[]> hashKeyComparatorDisk;
-    private final Comparator<byte[]> rangeKeyComparatorDisk;
+    private final Comparator<ByteBuf> hashKeyComparatorDisk;
+    private final Comparator<ByteBuf> rangeKeyComparatorDisk;
     private final Comparator<Object> hashKeyComparatorMemory;
     private final Comparator<Object> rangeKeyComparatorMemory;
     private final File directory;
 
     public RangeTableInternalMethods(final ISerde hashKeySerde, final ISerde rangeKeySerde, final ISerde valueSerde,
-            final Comparator<byte[]> hashKeyComparatorDisk, final Comparator<byte[]> rangeKeyComparatorDisk,
+            final Comparator<ByteBuf> hashKeyComparatorDisk, final Comparator<ByteBuf> rangeKeyComparatorDisk,
             final Comparator<Object> hashKeyComparatorMemory, final Comparator<Object> rangeKeyComparatorMemory,
             final File directory) {
         this.hashKeySerde = hashKeySerde;
@@ -52,11 +53,11 @@ public class RangeTableInternalMethods {
         return valueSerde;
     }
 
-    public Comparator<byte[]> getHashKeyComparatorDisk() {
+    public Comparator<ByteBuf> getHashKeyComparatorDisk() {
         return hashKeyComparatorDisk;
     }
 
-    public Comparator<byte[]> getRangeKeyComparatorDisk() {
+    public Comparator<ByteBuf> getRangeKeyComparatorDisk() {
         return rangeKeyComparatorDisk;
     }
 
@@ -72,9 +73,18 @@ public class RangeTableInternalMethods {
         return directory;
     }
 
-    public void validateRow(final Entry<byte[], byte[]> rawRow) {
+    public void validateRowBuf(final Entry<ByteBuf, ByteBuf> rawRow) {
         //fst library might have been updated, in that case deserialization might fail
-        final RawTableRow row = new RawTableRow(rawRow, EzdbSerde.valueOf(hashKeySerde),
+        final RawTableRow row = RawTableRow.valueOfBuf(rawRow, EzdbSerde.valueOf(hashKeySerde),
+                EzdbSerde.valueOf(rangeKeySerde), EzdbSerde.valueOf(valueSerde));
+        row.getHashKey();
+        row.getRangeKey();
+        row.getValue();
+    }
+
+    public void validateRowBytes(final Entry<byte[], byte[]> rawRow) {
+        //fst library might have been updated, in that case deserialization might fail
+        final RawTableRow row = RawTableRow.valueOfBytes(rawRow, EzdbSerde.valueOf(hashKeySerde),
                 EzdbSerde.valueOf(rangeKeySerde), EzdbSerde.valueOf(valueSerde));
         row.getHashKey();
         row.getRangeKey();

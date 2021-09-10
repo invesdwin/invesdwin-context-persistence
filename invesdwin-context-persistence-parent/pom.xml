@@ -48,7 +48,7 @@
 		<version.eclipselink>2.7.4</version.eclipselink>
 
 		<version.kundera>3.13</version.kundera>
-		<version.ezdb>0.1.17</version.ezdb>
+		<version.ezdb>0.1.18-SNAPSHOT</version.ezdb>
 		<version.leveldb>1.2</version.leveldb>
 		<version.snappy>0.4</version.snappy>
 		<version.mapdb>3.0.8</version.mapdb>

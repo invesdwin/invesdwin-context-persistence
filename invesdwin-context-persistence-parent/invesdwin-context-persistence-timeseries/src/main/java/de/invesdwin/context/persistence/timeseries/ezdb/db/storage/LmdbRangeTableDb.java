@@ -18,6 +18,7 @@ import ezdb.lmdb.EzLmDb;
 import ezdb.lmdb.EzLmDbComparator;
 import ezdb.lmdb.EzLmDbJnrFactory;
 import ezdb.lmdb.util.LmDBJnrDBIterator;
+import io.netty.buffer.ByteBuf;
 
 @NotThreadSafe
 public class LmdbRangeTableDb implements IRangeTableDb {
@@ -38,13 +39,13 @@ public class LmdbRangeTableDb implements IRangeTableDb {
                         try (LmDBJnrDBIterator iterator = new LmDBJnrDBIterator(env, dbi)) {
                             iterator.seekToFirst();
                             if (iterator.hasNext()) {
-                                final Entry<byte[], byte[]> next = iterator.next();
-                                internalMethods.validateRow(next);
+                                final Entry<ByteBuf, ByteBuf> next = iterator.next();
+                                internalMethods.validateRowBuf(next);
                             }
                             iterator.seekToLast();
                             if (iterator.hasPrev()) {
-                                final Entry<byte[], byte[]> prev = iterator.prev();
-                                internalMethods.validateRow(prev);
+                                final Entry<ByteBuf, ByteBuf> prev = iterator.prev();
+                                internalMethods.validateRowBuf(prev);
                             }
                         }
                     }

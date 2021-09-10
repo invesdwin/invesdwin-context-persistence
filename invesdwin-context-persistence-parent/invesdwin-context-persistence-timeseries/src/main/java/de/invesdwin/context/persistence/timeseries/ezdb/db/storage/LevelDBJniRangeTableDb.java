@@ -38,12 +38,12 @@ public class LevelDBJniRangeTableDb implements IRangeTableDb {
                         iterator.seekToFirst();
                         if (iterator.hasNext()) {
                             final Entry<byte[], byte[]> next = iterator.next();
-                            internalMethods.validateRow(next);
+                            internalMethods.validateRowBytes(next);
                         }
                         iterator.seekToLast();
                         if (iterator.hasPrev()) {
                             final Entry<byte[], byte[]> prev = iterator.prev();
-                            internalMethods.validateRow(prev);
+                            internalMethods.validateRowBytes(prev);
                         }
                     }
                     return open;
