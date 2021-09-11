@@ -24,7 +24,7 @@ public class EzdbSerde<O> implements ezdb.serde.Serde<O> {
     public O fromBuffer(final ByteBuf buffer) {
         final int position = buffer.readerIndex();
         final int length = buffer.readableBytes();
-        final O obj = delegate.fromBuffer(new NettyDelegateByteBuffer(buffer).sliceFrom(position), length);
+        final O obj = delegate.fromBuffer(new NettyDelegateByteBuffer(buffer).newSliceFrom(position), length);
         buffer.readerIndex(length);
         return obj;
     }
@@ -37,7 +37,7 @@ public class EzdbSerde<O> implements ezdb.serde.Serde<O> {
     @Override
     public void toBuffer(final ByteBuf buffer, final O obj) {
         final int position = buffer.writerIndex();
-        final int length = delegate.toBuffer(new NettyDelegateByteBuffer(buffer).sliceFrom(position), obj);
+        final int length = delegate.toBuffer(new NettyDelegateByteBuffer(buffer).newSliceFrom(position), obj);
         buffer.writerIndex(position + length);
     }
 
