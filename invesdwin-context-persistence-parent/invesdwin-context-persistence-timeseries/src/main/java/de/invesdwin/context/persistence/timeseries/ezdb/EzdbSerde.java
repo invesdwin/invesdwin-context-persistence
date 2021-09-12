@@ -3,6 +3,7 @@ package de.invesdwin.context.persistence.timeseries.ezdb;
 import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.streams.buffer.delegate.JavaDelegateByteBuffer;
 import de.invesdwin.util.streams.buffer.delegate.NettyDelegateByteBuffer;
 import io.netty.buffer.ByteBuf;
 
@@ -30,6 +31,14 @@ public class EzdbSerde<O> implements ezdb.serde.Serde<O> {
     }
 
     @Override
+    public O fromBuffer(final java.nio.ByteBuffer buffer) {
+        final int position = buffer.position();
+        final int length = buffer.remaining();
+        final O obj = delegate.fromBuffer(new JavaDelegateByteBuffer(buffer).newSliceFrom(position), length);
+        return obj;
+    }
+
+    @Override
     public byte[] toBytes(final O obj) {
         return delegate.toBytes(obj);
     }
@@ -39,6 +48,13 @@ public class EzdbSerde<O> implements ezdb.serde.Serde<O> {
         final int position = buffer.writerIndex();
         final int length = delegate.toBuffer(new NettyDelegateByteBuffer(buffer).newSliceFrom(position), obj);
         buffer.writerIndex(position + length);
+    }
+
+    @Override
+    public void toBuffer(final java.nio.ByteBuffer buffer, final O obj) {
+        final int position = buffer.position();
+        final int length = delegate.toBuffer(new JavaDelegateByteBuffer(buffer).newSliceFrom(position), obj);
+        buffer.limit(position + length);
     }
 
     @SuppressWarnings("unchecked")

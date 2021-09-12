@@ -12,7 +12,6 @@ import de.invesdwin.context.persistence.timeseries.ezdb.EzdbSerde;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import ezdb.RawTableRow;
-import io.netty.buffer.ByteBuf;
 
 @SuppressWarnings({ "rawtypes", "unchecked" })
 @Immutable
@@ -21,14 +20,15 @@ public class RangeTableInternalMethods {
     private final ISerde hashKeySerde;
     private final ISerde rangeKeySerde;
     private final ISerde valueSerde;
-    private final Comparator<ByteBuf> hashKeyComparatorDisk;
-    private final Comparator<ByteBuf> rangeKeyComparatorDisk;
+    private final Comparator<java.nio.ByteBuffer> hashKeyComparatorDisk;
+    private final Comparator<java.nio.ByteBuffer> rangeKeyComparatorDisk;
     private final Comparator<Object> hashKeyComparatorMemory;
     private final Comparator<Object> rangeKeyComparatorMemory;
     private final File directory;
 
     public RangeTableInternalMethods(final ISerde hashKeySerde, final ISerde rangeKeySerde, final ISerde valueSerde,
-            final Comparator<ByteBuf> hashKeyComparatorDisk, final Comparator<ByteBuf> rangeKeyComparatorDisk,
+            final Comparator<java.nio.ByteBuffer> hashKeyComparatorDisk,
+            final Comparator<java.nio.ByteBuffer> rangeKeyComparatorDisk,
             final Comparator<Object> hashKeyComparatorMemory, final Comparator<Object> rangeKeyComparatorMemory,
             final File directory) {
         this.hashKeySerde = hashKeySerde;
@@ -53,11 +53,11 @@ public class RangeTableInternalMethods {
         return valueSerde;
     }
 
-    public Comparator<ByteBuf> getHashKeyComparatorDisk() {
+    public Comparator<java.nio.ByteBuffer> getHashKeyComparatorDisk() {
         return hashKeyComparatorDisk;
     }
 
-    public Comparator<ByteBuf> getRangeKeyComparatorDisk() {
+    public Comparator<java.nio.ByteBuffer> getRangeKeyComparatorDisk() {
         return rangeKeyComparatorDisk;
     }
 
@@ -73,9 +73,9 @@ public class RangeTableInternalMethods {
         return directory;
     }
 
-    public void validateRowBuf(final Entry<ByteBuf, ByteBuf> rawRow) {
+    public void validateRowBuffer(final Entry<java.nio.ByteBuffer, java.nio.ByteBuffer> rawRow) {
         //fst library might have been updated, in that case deserialization might fail
-        final RawTableRow row = RawTableRow.valueOfBuf(rawRow, EzdbSerde.valueOf(hashKeySerde),
+        final RawTableRow row = RawTableRow.valueOfBuffer(rawRow, EzdbSerde.valueOf(hashKeySerde),
                 EzdbSerde.valueOf(rangeKeySerde), EzdbSerde.valueOf(valueSerde));
         row.getHashKey();
         row.getRangeKey();
