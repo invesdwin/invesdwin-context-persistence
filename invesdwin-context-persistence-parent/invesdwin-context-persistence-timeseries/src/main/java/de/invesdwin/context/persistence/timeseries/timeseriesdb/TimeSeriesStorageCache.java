@@ -1,7 +1,5 @@
 package de.invesdwin.context.persistence.timeseries.timeseriesdb;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -54,6 +52,7 @@ import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.streams.buffer.IByteBuffer;
+import de.invesdwin.util.streams.pool.PooledFastByteArrayOutputStream;
 import de.invesdwin.util.time.date.FDate;
 import ezdb.TableRow;
 
@@ -604,11 +603,9 @@ public class TimeSeriesStorageCache<K, V> {
                 //keep file input stream open as shorty as possible to prevent too many open files error
                 readLock.lock();
                 try (InputStream fis = super.newFileInputStream(file)) {
-                    System.out.println("reuse");
-                    final ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                    IOUtils.copy(fis, bos);
-                    System.out.println("don't copy");
-                    return new ByteArrayInputStream(bos.toByteArray());
+                    final PooledFastByteArrayOutputStream bos = PooledFastByteArrayOutputStream.newInstance();
+                    IOUtils.copy(fis, bos.asNonClosing());
+                    return bos.asInputStream();
                 } catch (final FileNotFoundException e) {
                     //maybe retry because of this in the outer iterator?
                     throw new RetryLaterRuntimeException(

@@ -1,10 +1,9 @@
 package de.invesdwin.context.persistence.timeseries.request;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.List;
 import java.util.concurrent.Callable;
 
@@ -18,7 +17,9 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Strings;
+import de.invesdwin.util.streams.pool.PooledFastByteArrayOutputStream;
 import de.invesdwin.util.time.date.FDate;
+import it.unimi.dsi.fastutil.io.FastByteArrayInputStream;
 
 @NotThreadSafe
 public abstract class ADelegateDailyDownloadListRequest<E> implements Callable<List<E>> {
@@ -30,9 +31,10 @@ public abstract class ADelegateDailyDownloadListRequest<E> implements Callable<L
                     new Callable<String>() {
                         @Override
                         public String call() throws Exception {
-                            final ByteArrayOutputStream out = new ByteArrayOutputStream();
-                            try (IBeanTableWriter<E> writer = newWriter(out)) {
-                                writer.write(download());
+                            try (PooledFastByteArrayOutputStream out = PooledFastByteArrayOutputStream.newInstance()) {
+                                try (IBeanTableWriter<E> writer = newWriter(out.asNonClosing())) {
+                                    writer.write(download());
+                                }
                                 return new String(out.toByteArray());
                             }
                         }
@@ -40,7 +42,7 @@ public abstract class ADelegateDailyDownloadListRequest<E> implements Callable<L
             if (Strings.isBlank(content)) {
                 throw new RetryLaterRuntimeException("Empty result for request: " + getDownloadFileName());
             }
-            final ICloseableIterator<E> reader = newReader(new ByteArrayInputStream(content.getBytes()));
+            final ICloseableIterator<E> reader = newReader(new FastByteArrayInputStream(content.getBytes()));
             final List<E> list = Lists.toListWithoutHasNext(reader);
             Assertions.checkNotEmpty(list, "%s", getDownloadFileName());
             return list;
@@ -66,7 +68,7 @@ public abstract class ADelegateDailyDownloadListRequest<E> implements Callable<L
         return DailyDownloadCache.newFile(getDownloadFileName());
     }
 
-    protected abstract IBeanTableWriter<E> newWriter(ByteArrayOutputStream out) throws IOException;
+    protected abstract IBeanTableWriter<E> newWriter(OutputStream out) throws IOException;
 
     protected abstract ICloseableIterator<E> newReader(InputStream in);
 

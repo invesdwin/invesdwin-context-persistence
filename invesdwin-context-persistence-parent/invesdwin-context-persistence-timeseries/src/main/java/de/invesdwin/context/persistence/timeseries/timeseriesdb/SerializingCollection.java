@@ -61,7 +61,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
     public SerializingCollection(final TextDescription name, final String tempFileId) {
         this.name = name;
-        this.finalizer = new SerializingCollectionFinalizer();
+        this.finalizer = newFinalizer();
         this.file = new File(getTempFolder(),
                 Files.normalizePath(UNIQUE_NAME_GENERATOR.get(Files.normalizePath(tempFileId) + ".data")));
         if (file.exists()) {
@@ -72,7 +72,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
     public SerializingCollection(final TextDescription name, final File file, final boolean readOnly) {
         this.name = name;
-        this.finalizer = new SerializingCollectionFinalizer();
+        this.finalizer = newFinalizer();
         this.file = file;
         if (readOnly) {
             //allow deserializing only if file contains data already
@@ -81,6 +81,14 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         } else {
             this.finalizer.register(this);
         }
+    }
+
+    protected SerializingCollectionFinalizer newFinalizer() {
+        return new SerializingCollectionFinalizer();
+    }
+
+    protected SerializingCollectionFinalizer getFinalizer() {
+        return finalizer;
     }
 
     public File getFile() {
@@ -551,7 +559,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         }
     }
 
-    private static final class SerializingCollectionFinalizer extends AFinalizer {
+    protected static class SerializingCollectionFinalizer extends AFinalizer {
 
         private OutputStream fos;
         private boolean closed;
