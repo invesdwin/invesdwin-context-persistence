@@ -77,15 +77,17 @@ public class RangeTableInternalMethods {
         //fst library might have been updated, in that case deserialization might fail
         final RawTableRow row = RawTableRow.valueOfBuffer(rawRow, EzdbSerde.valueOf(hashKeySerde),
                 EzdbSerde.valueOf(rangeKeySerde), EzdbSerde.valueOf(valueSerde));
-        row.getHashKey();
-        row.getRangeKey();
-        row.getValue();
+        validateRow(row);
     }
 
     public void validateRowBytes(final Entry<byte[], byte[]> rawRow) {
         //fst library might have been updated, in that case deserialization might fail
         final RawTableRow row = RawTableRow.valueOfBytes(rawRow, EzdbSerde.valueOf(hashKeySerde),
                 EzdbSerde.valueOf(rangeKeySerde), EzdbSerde.valueOf(valueSerde));
+        validateRow(row);
+    }
+
+    public void validateRow(final RawTableRow row) {
         row.getHashKey();
         row.getRangeKey();
         row.getValue();
