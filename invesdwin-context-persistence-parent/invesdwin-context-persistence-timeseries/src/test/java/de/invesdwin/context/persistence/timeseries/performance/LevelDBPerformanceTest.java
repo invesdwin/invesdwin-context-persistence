@@ -11,8 +11,6 @@ import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
-import de.invesdwin.context.persistence.timeseries.ezdb.db.IRangeTableDb;
-import de.invesdwin.context.persistence.timeseries.ezdb.db.storage.LmdbRangeTableDb;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.list.Lists;
@@ -45,10 +43,10 @@ public class LevelDBPerformanceTest extends ADatabasePerformanceTest {
                 return FDateSerde.GET;
             }
 
-            @Override
-            protected IRangeTableDb newDiskDb() {
-                return new LmdbRangeTableDb(internalMethods);
-            }
+            //            @Override
+            //            protected IRangeTableDb newDiskDb() {
+            //                return new LmdbRangeTableDb(internalMethods);
+            //            }
 
         };
 

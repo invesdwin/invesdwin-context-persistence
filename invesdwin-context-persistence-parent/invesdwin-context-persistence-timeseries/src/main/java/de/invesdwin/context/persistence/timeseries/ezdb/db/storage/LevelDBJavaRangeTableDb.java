@@ -7,31 +7,31 @@ import java.util.Map.Entry;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.iq80.leveldb.CompressionType;
-import org.iq80.leveldb.DB;
 import org.iq80.leveldb.DBIterator;
+import org.iq80.leveldb.impl.ExtendedDbImpl;
 
 import de.invesdwin.context.persistence.timeseries.ezdb.EzdbSerde;
 import de.invesdwin.context.persistence.timeseries.ezdb.db.IRangeTableDb;
 import de.invesdwin.util.error.Throwables;
 import ezdb.RangeTable;
-import ezdb.leveldb.EzLevelDb;
+import ezdb.leveldb.EzLevelDbJava;
 import ezdb.leveldb.EzLevelDbJavaFactory;
 
 @NotThreadSafe
-public class LevelDBRangeTableDb implements IRangeTableDb {
+public class LevelDBJavaRangeTableDb implements IRangeTableDb {
 
     private final RangeTableInternalMethods internalMethods;
-    private final EzLevelDb db;
+    private final EzLevelDbJava db;
 
-    public LevelDBRangeTableDb(final RangeTableInternalMethods internalMethods) {
+    public LevelDBJavaRangeTableDb(final RangeTableInternalMethods internalMethods) {
         this.internalMethods = internalMethods;
-        this.db = new EzLevelDb(internalMethods.getDirectory(), new EzLevelDbJavaFactory() {
+        this.db = new EzLevelDbJava(internalMethods.getDirectory(), new EzLevelDbJavaFactory() {
             @Override
-            public DB open(final File path, final org.iq80.leveldb.Options options) throws IOException {
+            public ExtendedDbImpl open(final File path, final org.iq80.leveldb.Options options) throws IOException {
                 options.paranoidChecks(false);
                 //make sure snappy is enabled
                 options.compressionType(newCompressionType());
-                final DB open = super.open(path, options);
+                final ExtendedDbImpl open = super.open(path, options);
                 try {
                     //do some sanity checks just to be safe
                     try (DBIterator iterator = open.iterator()) {
@@ -53,7 +53,17 @@ public class LevelDBRangeTableDb implements IRangeTableDb {
                 }
             }
 
+            @Override
+            public boolean isVerifyChecksums() {
+                return LevelDBJavaRangeTableDb.this.isVerifyChecksums();
+            }
+
         });
+    }
+
+    protected boolean isVerifyChecksums() {
+        //improves performance a bit
+        return false;
     }
 
     protected CompressionType newCompressionType() {

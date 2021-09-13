@@ -13,7 +13,7 @@ import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.timeseries.ezdb.db.IRangeTableDb;
 import de.invesdwin.context.persistence.timeseries.ezdb.db.WriteThroughRangeTableDb;
-import de.invesdwin.context.persistence.timeseries.ezdb.db.storage.LevelDBRangeTableDb;
+import de.invesdwin.context.persistence.timeseries.ezdb.db.storage.LevelDBJavaRangeTableDb;
 import de.invesdwin.context.persistence.timeseries.ezdb.db.storage.RangeTableInternalMethods;
 import de.invesdwin.context.persistence.timeseries.ezdb.db.storage.TreeMapRangeTableDb;
 import de.invesdwin.util.bean.tuple.Pair;
@@ -161,7 +161,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
     }
 
     protected IRangeTableDb newDiskDb() {
-        return new LevelDBRangeTableDb(internalMethods);
+        return new LevelDBJavaRangeTableDb(internalMethods);
     }
 
     private RangeTable<H, R, V> getTableWithReadLock(final boolean forUpdate) {

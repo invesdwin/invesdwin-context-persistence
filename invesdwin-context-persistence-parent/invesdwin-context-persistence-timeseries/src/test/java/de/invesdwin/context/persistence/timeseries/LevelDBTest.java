@@ -19,7 +19,7 @@ import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
 import ezdb.Db;
 import ezdb.Table;
-import ezdb.leveldb.EzLevelDb;
+import ezdb.leveldb.EzLevelDbJava;
 import ezdb.leveldb.EzLevelDbJavaFactory;
 
 @ThreadSafe
@@ -30,7 +30,7 @@ public class LevelDBTest extends ATest {
     @Test
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testLevelDB() {
-        final Db db = new EzLevelDb(ContextProperties.TEMP_DIRECTORY, new EzLevelDbJavaFactory());
+        final Db db = new EzLevelDbJava(ContextProperties.TEMP_DIRECTORY, new EzLevelDbJavaFactory());
         final Table<String, String> table = db.getTable("testLevelDB", ezdb.serde.StringSerde.get,
                 ezdb.serde.StringSerde.get);
         table.put(HASHKEY, "value");
