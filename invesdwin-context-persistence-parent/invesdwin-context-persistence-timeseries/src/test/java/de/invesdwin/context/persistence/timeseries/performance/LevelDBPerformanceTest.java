@@ -14,10 +14,12 @@ import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.list.Lists;
+import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.duration.Duration;
 import ezdb.batch.RangeBatch;
 
 @NotThreadSafe
@@ -50,6 +52,7 @@ public class LevelDBPerformanceTest extends ADatabasePerformanceTest {
 
         };
 
+        final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         RangeBatch<String, FDate, FDate> batch = table.newRangeBatch();
         final Instant writesStart = new Instant();
         int i = 0;
@@ -57,7 +60,13 @@ public class LevelDBPerformanceTest extends ADatabasePerformanceTest {
             batch.put(HASH_KEY, date, date);
             i++;
             if (i % FLUSH_INTERVAL == 0) {
-                printProgress("Writes", writesStart, i, VALUES);
+                try {
+                    if (loopCheck.check()) {
+                        printProgress("Writes", writesStart, i, VALUES);
+                    }
+                } catch (final InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
                 try {
                     batch.flush();
                     batch.close();

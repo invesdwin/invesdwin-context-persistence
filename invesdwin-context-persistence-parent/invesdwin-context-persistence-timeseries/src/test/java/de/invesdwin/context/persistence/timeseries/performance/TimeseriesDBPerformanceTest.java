@@ -16,11 +16,13 @@ import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.list.Lists;
+import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.duration.Duration;
 
 @NotThreadSafe
 //@Ignore("manual test")
@@ -62,6 +64,7 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
 
         };
 
+        final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final Instant writesStart = new Instant();
         final ATimeSeriesUpdater<String, FDate> updater = new ATimeSeriesUpdater<String, FDate>(HASH_KEY, table) {
 
@@ -87,7 +90,13 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
             @Override
             protected void onFlush(final int flushIndex, final Instant flushStart,
                     final ATimeSeriesUpdater<String, FDate>.UpdateProgress updateProgress) {
-                //                printProgress("Writes", writesStart, updateProgress.getCount() * flushIndex, VALUES);
+                try {
+                    if (loopCheck.check()) {
+                        printProgress("Writes", writesStart, updateProgress.getCount() * flushIndex, VALUES);
+                    }
+                } catch (final InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
             }
 
             @Override
