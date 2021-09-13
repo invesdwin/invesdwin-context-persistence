@@ -233,7 +233,9 @@ New Benchmarks (2021, Core i9-9900k with SSD, Java 16):
   LevelDB-Java             Writes (PutBatch):      228.07/ms  => using this as baseline
   InfluxDB-1.x             Writes (PutBatch):      252.08/ms  => ~10% faster than LevelDB-Java
 ChronicleQueue             Writes (Append):        442.48/ms  => ~1.9 times faster than LevelDB-Java
-       TreeMap (Heap)      Writes (Put):         2,358.21/ms  => ~10.3 times faster than LevelDB-Java
+      BTreeMap             Writes (Put):         1,048.22/ms  => ~4.6 times faster than LevelDB-Java
+       TreeMap             Writes (Put):         1,902.77/ms  => ~8.3 times faster than LevelDB-Java
+ConcurrentSkipListMap      Writes (Put):         2,358.21/ms  => ~10.3 times faster than LevelDB-Java
  ATimeSeriesDB (High)      Writes (Append):      6,449.49/ms  => ~28.3 times faster than LevelDB-Java (with High Compression)
  ATimeSeriesDB (Fast)      Writes (Append):     26,080.38/ms  => ~114.3 times faster than LevelDB-Java (with Fast Compression)
  ATimeSeriesDB (None)      Writes (Append):     34,069.23/ms  => ~149.4 times faster than LevelDB-Java (with Disabled Compression)
@@ -244,7 +246,9 @@ ChronicleQueue             Writes (Append):        442.48/ms  => ~1.9 times fast
 	 MapDB              Reads (Get):           158.73/ms  => ~35% slower than LevelDB-Java
       LMDB-JNR              Reads (Get):           186.07/ms  => ~24% slower than LevelDB-Java
   LevelDB-Java              Reads (Get):           244.29/ms  => using this as baseline
-       TreeMap (Heap)       Reads (Get):         2,695.42/ms  => ~11 times faster than LevelDB-Java
+ConcurrentSkipListMap       Reads (Get):         2,695.42/ms  => ~11 times faster than LevelDB-Java
+      BTreeMap              Reads (Get):         2,908.67/ms  => ~11.9 times faster than LevelDB-Java
+       TreeMap              Reads (Get):         4,875.67/ms  => ~20 times faster than LevelDB-Java
        
    RocksDB-JNI              Reads (GetLatest):      56.12/ms  => ~66.5% slower than LevelDB-Java
    LevelDB-JNI              Reads (GetLatest):      72.34/ms  => ~57% slower than LevelDB-Java
@@ -252,7 +256,9 @@ ChronicleQueue             Writes (Append):        442.48/ms  => ~1.9 times fast
  ATimeSeriesDB              Reads (GetLatest):     112.04/ms  => ~33% slower than LevelDB-Java (after initialization, uses LevelDB-Java as lazy index)
       LMDB-JNR              Reads (GetLatest):     150.01/ms  => ~10% slower than LevelDB-Java
   LevelDB-Java              Reads (GetLatest):     167.48/ms  => using this as baseline
-       TreeMap (Heap)       Reads (GetLatest):     985.03/ms  => 5.9 times faster than LevelDB-Java
+ConcurrentSkipListMap       Reads (GetLatest):     985.03/ms  => 5.9 times faster than LevelDB-Java
+      BTreeMap              Reads (GetLatest):   2,783.96/ms  => ~16.6 times faster than LevelDB-Java
+       TreeMap              Reads (GetLatest):   3,235.20/ms  => ~19.3 times faster than LevelDB-Java
        
          MapDB              Reads (Iterator):      134.86/ms  => ~93.7% slower than LevelDB-Java (unordered)
    LevelDB-JNI              Reads (Iterator):      327.20/ms  => ~84.6% slower than LevelDB-Java
@@ -262,9 +268,11 @@ ChronicleQueue             Writes (Append):        442.48/ms  => ~1.9 times fast
      TreeMapDB              Reads (Iterator):    5,656.11/ms  => ~2.66 times faster than LevelDB-Java
       LMDB-JNR              Reads (Iterator):    9,330.80/ms  => ~4.4 times faster than LevelDB-Java
 ChronicleQueue              Reads (Iterator):   16,583.75/ms  => ~7.8 times faster than LevelDB-Java
+       TreeMap              Reads (Iterator):   27,463.10/ms  => ~12.9 times faster than LevelDB-Java
+      BTreeMap              Reads (Iterator):   30,313.13/ms  => ~14.3 times faster than LevelDB-Java
  ATimeSeriesDB (Fast)       Reads (Iterator):   31,920.33/ms  => ~15 times faster than LevelDB-Java
  ATimeSeriesDB (High)       Reads (Iterator):   32,148.14/ms  => ~15.1 times faster than LevelDB-Java
-       TreeMap (Heap)       Reads (Iterator):   32,629.62/ms  => ~15.35 times faster than LevelDB-Java
+ConcurrentSkipListMap       Reads (Iterator):   32,629.62/ms  => ~15.35 times faster than LevelDB-Java
  ATimeSeriesDB (None)       Reads (Iterator):   34,727.05/ms  => ~16.3 times faster than LevelDB-Java
 ```
 - **ATimeSeriesUpdater**: this is a helper class with which one can handle large inserts/updates into an instance of `ATimeSeriesDB`. This handles the creation of separate chunk files and writing them to disk in the most efficient way.
