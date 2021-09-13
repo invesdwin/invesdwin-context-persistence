@@ -78,6 +78,7 @@ public class LevelDBPerformanceTest extends ADatabasePerformanceTest {
         readIterator(table);
         readGet(table);
         readGetLatest(table);
+        System.out.println("eliminate entry wrappers in lmdb and leveldbjava, rocksdb");
     }
 
     private void readIterator(final ADelegateRangeTable<String, FDate, FDate> table) {

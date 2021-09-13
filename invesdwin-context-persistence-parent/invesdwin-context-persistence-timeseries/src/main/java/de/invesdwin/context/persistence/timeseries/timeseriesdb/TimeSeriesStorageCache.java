@@ -604,8 +604,10 @@ public class TimeSeriesStorageCache<K, V> {
                 //keep file input stream open as shorty as possible to prevent too many open files error
                 readLock.lock();
                 try (InputStream fis = super.newFileInputStream(file)) {
+                    System.out.println("reuse");
                     final ByteArrayOutputStream bos = new ByteArrayOutputStream();
                     IOUtils.copy(fis, bos);
+                    System.out.println("don't copy");
                     return new ByteArrayInputStream(bos.toByteArray());
                 } catch (final FileNotFoundException e) {
                     //maybe retry because of this in the outer iterator?

@@ -19,6 +19,7 @@ public class HeapSerializingCollection<E> extends SerializingCollection<E> {
 
     public HeapSerializingCollection(final TextDescription name) {
         super(name, null, false);
+        System.out.println("reuse");
         this.bos = new ByteArrayOutputStream();
         this.bytes = null;
     }
@@ -43,6 +44,7 @@ public class HeapSerializingCollection<E> extends SerializingCollection<E> {
             return bytes;
         } else {
             flush();
+            System.out.println("don't copy");
             return bos.toByteArray();
         }
     }
