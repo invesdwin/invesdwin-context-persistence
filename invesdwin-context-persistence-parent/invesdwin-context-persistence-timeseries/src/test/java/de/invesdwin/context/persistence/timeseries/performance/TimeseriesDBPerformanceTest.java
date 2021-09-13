@@ -6,12 +6,11 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.integration.streams.compressor.DisabledCompressionFactory;
 import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
+import de.invesdwin.context.integration.streams.compressor.lz4.FastLZ4CompressionFactory;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.updater.ATimeSeriesUpdater;
@@ -60,10 +59,10 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
                 return value;
             }
 
-            @Override
-            protected ICompressionFactory newCompressionFactory() {
-                return DisabledCompressionFactory.INSTANCE;
-            }
+//            @Override
+//            protected ICompressionFactory newCompressionFactory() {
+//                return FastLZ4CompressionFactory.INSTANCE;
+//            }
 
         };
 
