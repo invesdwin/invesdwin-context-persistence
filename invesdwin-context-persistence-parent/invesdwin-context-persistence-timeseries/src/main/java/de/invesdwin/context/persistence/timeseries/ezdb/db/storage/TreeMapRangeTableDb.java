@@ -14,7 +14,11 @@ public class TreeMapRangeTableDb implements IRangeTableDb {
 
     public TreeMapRangeTableDb(final RangeTableInternalMethods internalMethods) {
         this.internalMethods = internalMethods;
-        this.db = new EzObjectTreeMapDb();
+        this.db = newDb();
+    }
+
+    protected EzObjectTreeMapDb newDb() {
+        return new EzObjectTreeMapDb();
     }
 
     @Override
