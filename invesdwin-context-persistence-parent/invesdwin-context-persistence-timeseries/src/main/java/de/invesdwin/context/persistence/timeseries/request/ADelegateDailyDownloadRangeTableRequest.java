@@ -11,6 +11,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.io.IOUtils;
 
 import de.invesdwin.context.integration.network.DailyDownloadCache;
+import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -18,12 +19,15 @@ import de.invesdwin.util.concurrent.reference.IReference;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.VoidSerde;
+import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 import ezdb.batch.Batch;
 
 @NotThreadSafe
 public abstract class ADelegateDailyDownloadRangeTableRequest<K, V>
         implements IReference<ADelegateRangeTable<K, Void, V>> {
+
+    private final Log log = new Log(this);
 
     private final DailyDownloadCache dailyDownloadCache = newDailyDownloadCache();
     private ADelegateRangeTable<K, Void, V> table;
@@ -44,18 +48,9 @@ public abstract class ADelegateDailyDownloadRangeTableRequest<K, V>
                 if (!empty) {
                     table.deleteTable();
                 }
-                final InputStream content = dailyDownloadCache.downloadStream(getDownloadFileName(),
-                        new Consumer<OutputStream>() {
-                            @Override
-                            public void accept(final OutputStream t) {
-                                try (InputStream in = download()) {
-                                    IOUtils.copy(in, t);
-                                } catch (final Exception e) {
-                                    throw new RuntimeException(e);
-                                }
-                            }
-                        }, getNow());
-                final ICloseableIterator<V> reader = newReader(content);
+                final ICloseableIterator<V> reader = getIterator();
+                final Instant start = new Instant();
+                log.info("Starting indexing [%s] ...", getDownloadFileName());
                 try (Batch<K, V> batch = table.newBatch()) {
                     int count = 0;
                     try {
@@ -75,6 +70,7 @@ public abstract class ADelegateDailyDownloadRangeTableRequest<K, V>
                         batch.flush();
                     }
                 }
+                log.info("Finished indexing [%s] after: %s", getDownloadFileName(), start);
             }
         } catch (final Throwable t) {
             DailyDownloadCache.delete(getDownloadFileName());
@@ -117,5 +113,28 @@ public abstract class ADelegateDailyDownloadRangeTableRequest<K, V>
     protected abstract String getDownloadName();
 
     protected abstract InputStream download() throws Exception;
+
+    public ICloseableIterator<V> getIterator() {
+        try {
+            final Instant start = new Instant();
+            log.info("Starting download [%s] ...", getDownloadFileName());
+            final InputStream content = dailyDownloadCache.downloadStream(getDownloadFileName(),
+                    new Consumer<OutputStream>() {
+                        @Override
+                        public void accept(final OutputStream t) {
+                            try (InputStream in = download()) {
+                                IOUtils.copy(in, t);
+                            } catch (final Exception e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                    }, getNow());
+            final ICloseableIterator<V> reader = newReader(content);
+            log.info("Finished download [%s] after: %s", getDownloadFileName(), start);
+            return reader;
+        } catch (final Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
 }

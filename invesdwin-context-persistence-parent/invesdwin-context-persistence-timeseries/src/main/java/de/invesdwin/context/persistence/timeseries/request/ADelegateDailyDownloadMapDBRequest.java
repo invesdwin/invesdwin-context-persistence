@@ -12,14 +12,18 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.io.IOUtils;
 
 import de.invesdwin.context.integration.network.DailyDownloadCache;
+import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseries.mapdb.ADelegateMapDB;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.concurrent.reference.IReference;
 import de.invesdwin.util.error.Throwables;
+import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
 public abstract class ADelegateDailyDownloadMapDBRequest<K, V> implements IReference<Map<K, V>> {
+
+    private final Log log = new Log(this);
 
     private final DailyDownloadCache dailyDownloadCache = newDailyDownloadCache();
     private ADelegateMapDB<K, V> map;
@@ -39,18 +43,10 @@ public abstract class ADelegateDailyDownloadMapDBRequest<K, V> implements IRefer
                 if (!map.isEmpty()) {
                     map.deleteTable();
                 }
-                final InputStream content = dailyDownloadCache.downloadStream(getDownloadFileName(),
-                        new Consumer<OutputStream>() {
-                            @Override
-                            public void accept(final OutputStream t) {
-                                try (InputStream in = download()) {
-                                    IOUtils.copy(in, t);
-                                } catch (final Exception e) {
-                                    throw new RuntimeException(e);
-                                }
-                            }
-                        }, getNow());
-                final ICloseableIterator<V> reader = newReader(content);
+
+                final ICloseableIterator<V> reader = getIterator();
+                final Instant start = new Instant();
+                log.info("Starting indexing [%s] ...", getDownloadFileName());
                 try {
                     while (true) {
                         final V value = reader.next();
@@ -60,6 +56,7 @@ public abstract class ADelegateDailyDownloadMapDBRequest<K, V> implements IRefer
                 } catch (final NoSuchElementException e) {
                     //end reached
                 }
+                log.info("Finished indexing [%s] after: %s", getDownloadFileName(), start);
             }
         } catch (final Throwable t) {
             DailyDownloadCache.delete(getDownloadFileName());
@@ -96,5 +93,28 @@ public abstract class ADelegateDailyDownloadMapDBRequest<K, V> implements IRefer
     protected abstract String getDownloadName();
 
     protected abstract InputStream download() throws Exception;
+
+    public ICloseableIterator<V> getIterator() {
+        try {
+            final Instant start = new Instant();
+            log.info("Starting download [%s] ...", getDownloadFileName());
+            final InputStream content = dailyDownloadCache.downloadStream(getDownloadFileName(),
+                    new Consumer<OutputStream>() {
+                        @Override
+                        public void accept(final OutputStream t) {
+                            try (InputStream in = download()) {
+                                IOUtils.copy(in, t);
+                            } catch (final Exception e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                    }, getNow());
+            final ICloseableIterator<V> reader = newReader(content);
+            log.info("Finished download [%s] after: %s", getDownloadFileName(), start);
+            return reader;
+        } catch (final Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
 }
