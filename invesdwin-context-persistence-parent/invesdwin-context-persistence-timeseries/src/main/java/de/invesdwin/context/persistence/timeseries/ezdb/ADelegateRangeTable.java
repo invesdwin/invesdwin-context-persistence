@@ -604,7 +604,8 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         try {
             final TableIterator<H, R, V> range = table.range(null);
             try {
-                return range.hasNext();
+                final boolean hasNext = range.hasNext();
+                return !hasNext;
             } finally {
                 range.close();
             }
