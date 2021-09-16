@@ -25,8 +25,8 @@
 			<artifactId>ezdb-treemap</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>org.iq80.snappy</groupId>
-			<artifactId>snappy</artifactId>
+			<groupId>org.xerial.snappy</groupId>
+			<artifactId>snappy-java</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>com.github.criccomini</groupId>
