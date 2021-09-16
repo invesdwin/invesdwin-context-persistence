@@ -15,10 +15,13 @@ import de.invesdwin.context.integration.network.DailyDownloadCache;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseries.mapdb.ADelegateMapDB;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
 import de.invesdwin.util.concurrent.reference.IReference;
 import de.invesdwin.util.error.Throwables;
+import de.invesdwin.util.lang.ProcessedEventsRateString;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.duration.Duration;
 
 @NotThreadSafe
 public abstract class ADelegateDailyDownloadMapDBRequest<K, V> implements IReference<Map<K, V>> {
@@ -30,39 +33,65 @@ public abstract class ADelegateDailyDownloadMapDBRequest<K, V> implements IRefer
 
     @Override
     public Map<K, V> get() {
-        if (map == null) {
-            map = newMap();
-        }
         maybeUpdate();
         return map;
     }
 
-    private void maybeUpdate() {
-        try {
-            if (map.isEmpty() || dailyDownloadCache.shouldUpdate(getDownloadFileName(), getNow())) {
-                if (!map.isEmpty()) {
-                    map.deleteTable();
-                }
-
-                final ICloseableIterator<V> reader = getIterator();
-                final Instant start = new Instant();
-                log.info("Starting indexing [%s] ...", getDownloadFileName());
+    protected void maybeUpdate() {
+        if (shouldUpdate()) {
+            synchronized (this) {
                 try {
-                    while (true) {
-                        final V value = reader.next();
-                        final K key = extractKey(value);
-                        map.put(key, value);
+                    if (shouldUpdate()) {
+                        beforeUpdate();
+                        final ICloseableIterator<V> reader = getIterator();
+                        final Instant start = new Instant();
+                        log.info("Starting indexing [%s] ...", getDownloadFileName());
+                        final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
+                        try {
+                            int count = 0;
+                            while (true) {
+                                final V value = reader.next();
+                                final K key = extractKey(value);
+                                map.put(key, value);
+                                count++;
+                                if (loopCheck.check()) {
+                                    printProgress("Processing indexing [" + getDownloadFileName() + "]", start, count);
+                                }
+                            }
+                        } catch (final NoSuchElementException e) {
+                            //end reached
+                        }
+                        afterUpdate();
+                        log.info("Finished indexing [%s] after: %s", getDownloadFileName(), start);
                     }
-                } catch (final NoSuchElementException e) {
-                    //end reached
+                } catch (final Throwable t) {
+                    DailyDownloadCache.delete(getDownloadFileName());
+                    map.deleteTable();
+                    throw Throwables.propagate(t);
                 }
-                log.info("Finished indexing [%s] after: %s", getDownloadFileName(), start);
             }
-        } catch (final Throwable t) {
-            DailyDownloadCache.delete(getDownloadFileName());
-            map.deleteTable();
-            throw Throwables.propagate(t);
         }
+    }
+
+    protected void printProgress(final String action, final Instant start, final int count) {
+        final Duration duration = start.toDuration();
+        log.info("%s: %s %s during %s", action, count, new ProcessedEventsRateString(count, duration), duration);
+    }
+
+    protected boolean shouldUpdate() {
+        if (map == null) {
+            map = newMap();
+        }
+        return map.isEmpty() || dailyDownloadCache.shouldUpdate(getDownloadFileName(), getNow());
+    }
+
+    protected void beforeUpdate() {
+        if (!map.isEmpty()) {
+            map.deleteTable();
+        }
+    }
+
+    protected void afterUpdate() {
     }
 
     protected abstract K extractKey(V value);

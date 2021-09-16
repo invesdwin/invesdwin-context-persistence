@@ -15,12 +15,15 @@ import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseries.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseries.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
 import de.invesdwin.util.concurrent.reference.IReference;
 import de.invesdwin.util.error.Throwables;
+import de.invesdwin.util.lang.ProcessedEventsRateString;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.VoidSerde;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.duration.Duration;
 import ezdb.batch.Batch;
 
 @NotThreadSafe
@@ -34,49 +37,74 @@ public abstract class ADelegateDailyDownloadRangeTableRequest<K, V>
 
     @Override
     public ADelegateRangeTable<K, Void, V> get() {
-        if (table == null) {
-            table = newTable();
-        }
         maybeUpdate();
         return table;
     }
 
-    private void maybeUpdate() {
-        try {
-            final boolean empty = table.isEmpty();
-            if (empty || dailyDownloadCache.shouldUpdate(getDownloadFileName(), getNow())) {
-                if (!empty) {
-                    table.deleteTable();
-                }
-                final ICloseableIterator<V> reader = getIterator();
-                final Instant start = new Instant();
-                log.info("Starting indexing [%s] ...", getDownloadFileName());
-                try (Batch<K, V> batch = table.newBatch()) {
-                    int count = 0;
-                    try {
-                        while (true) {
-                            final V value = reader.next();
-                            final K key = extractKey(value);
-                            batch.put(key, value);
-                            count++;
-                            if (count >= ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
+    protected void maybeUpdate() {
+        if (shouldUpdate()) {
+            synchronized (this) {
+                try {
+                    if (shouldUpdate()) {
+                        beforeUpdate();
+                        final ICloseableIterator<V> reader = getIterator();
+                        final Instant start = new Instant();
+                        log.info("Starting indexing [%s] ...", getDownloadFileName());
+                        final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
+                        try (Batch<K, V> batch = table.newBatch()) {
+                            int count = 0;
+                            try {
+                                while (true) {
+                                    final V value = reader.next();
+                                    final K key = extractKey(value);
+                                    batch.put(key, value);
+                                    count++;
+                                    if (count >= ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
+                                        batch.flush();
+                                        if (loopCheck.check()) {
+                                            printProgress("Processing indexing [" + getDownloadFileName() + "]", start,
+                                                    count);
+                                        }
+                                    }
+                                }
+                            } catch (final NoSuchElementException e) {
+                                //end reached
+                            }
+                            if (count > 0) {
                                 batch.flush();
                             }
                         }
-                    } catch (final NoSuchElementException e) {
-                        //end reached
+                        afterUpdate();
+                        log.info("Finished indexing [%s] after: %s", getDownloadFileName(), start);
                     }
-                    if (count > 0) {
-                        batch.flush();
-                    }
+                } catch (final Throwable t) {
+                    DailyDownloadCache.delete(getDownloadFileName());
+                    table.deleteTable();
+                    throw Throwables.propagate(t);
                 }
-                log.info("Finished indexing [%s] after: %s", getDownloadFileName(), start);
             }
-        } catch (final Throwable t) {
-            DailyDownloadCache.delete(getDownloadFileName());
-            table.deleteTable();
-            throw Throwables.propagate(t);
         }
+    }
+
+    protected void printProgress(final String action, final Instant start, final int count) {
+        final Duration duration = start.toDuration();
+        log.info("%s: %s %s during %s", action, count, new ProcessedEventsRateString(count, duration), duration);
+    }
+
+    protected boolean shouldUpdate() {
+        if (table == null) {
+            table = newTable();
+        }
+        return table.isEmpty() || dailyDownloadCache.shouldUpdate(getDownloadFileName(), getNow());
+    }
+
+    protected void beforeUpdate() {
+        if (!table.isEmpty()) {
+            table.deleteTable();
+        }
+    }
+
+    protected void afterUpdate() {
     }
 
     protected abstract K extractKey(V value);

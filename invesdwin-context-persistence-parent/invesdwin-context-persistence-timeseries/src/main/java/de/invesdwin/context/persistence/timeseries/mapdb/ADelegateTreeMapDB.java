@@ -25,6 +25,7 @@ import org.mapdb.serializer.GroupSerializer;
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
 import de.invesdwin.context.integration.streams.compressor.lz4.LZ4Streams;
+import de.invesdwin.context.log.error.Err;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.marshallers.serde.ISerde;
@@ -59,9 +60,16 @@ public abstract class ADelegateTreeMapDB<K, V> implements ConcurrentNavigableMap
 
     protected BTreeMap<K, V> newDelegate() {
         final Maker fileDB = createDB();
-        final DB db = configureDB(fileDB).make();
-        final TreeMapMaker<K, V> maker = db.treeMap(name, newKeySerializier(), newValueSerializer());
-        return configureHashMap(maker).createOrOpen();
+        try {
+            final DB db = configureDB(fileDB).make();
+            final TreeMapMaker<K, V> maker = db.treeMap(name, newKeySerializier(), newValueSerializer());
+            return configureHashMap(maker).createOrOpen();
+        } catch (final Throwable e) {
+            Err.process(new RuntimeException("Table data for [" + getDirectory() + "/" + getName()
+                    + "] is inconsistent. Resetting data and trying again.", e));
+            deleteTable();
+            return newDelegate();
+        }
     }
 
     protected Maker createDB() {
