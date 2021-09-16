@@ -81,9 +81,7 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
     }
 
     protected Maker configureDB(final Maker maker) {
-        //        return maker.fileMmapEnable().fileMmapPreclearDisable().cleanerHackEnable();
-        //file channel supports parallel writes
-        return maker.fileChannelEnable();
+        return maker.fileMmapEnable().fileMmapPreclearDisable().cleanerHackEnable().closeOnJvmShutdownWeakReference();
     }
 
     protected HashMapMaker<K, V> configureHashMap(final HashMapMaker<K, V> maker) {

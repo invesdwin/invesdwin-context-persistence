@@ -10,6 +10,7 @@ import java.util.function.Consumer;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.io.IOUtils;
+import org.mapdb.DBMaker.Maker;
 
 import de.invesdwin.context.integration.network.DailyDownloadCache;
 import de.invesdwin.context.log.Log;
@@ -30,6 +31,8 @@ public abstract class ADelegateDailyDownloadMapDBRequest<K, V> implements IRefer
 
     private final DailyDownloadCache dailyDownloadCache = newDailyDownloadCache();
     private ADelegateMapDB<K, V> map;
+
+    private boolean firstOpen;
 
     @Override
     public Map<K, V> get() {
@@ -80,7 +83,15 @@ public abstract class ADelegateDailyDownloadMapDBRequest<K, V> implements IRefer
 
     protected boolean shouldUpdate() {
         if (map == null) {
-            map = newMap();
+            try {
+                map = newMap(false);
+                if (map.isEmpty()) {
+                    return true;
+                }
+            } finally {
+                map.close();
+                map = newMap(true);
+            }
         }
         return map.isEmpty() || dailyDownloadCache.shouldUpdate(getDownloadFileName(), getNow());
     }
@@ -89,17 +100,31 @@ public abstract class ADelegateDailyDownloadMapDBRequest<K, V> implements IRefer
         if (!map.isEmpty()) {
             map.deleteTable();
         }
+        map.close();
+        map = newMap(false);
     }
 
     protected void afterUpdate() {
+        //prevent checksum errors
+        map.close();
+        map = newMap(true);
     }
 
     protected abstract K extractKey(V value);
 
     protected abstract ICloseableIterator<V> newReader(InputStream content);
 
-    protected ADelegateMapDB<K, V> newMap() {
+    protected ADelegateMapDB<K, V> newMap(final boolean readOnly) {
         return new ADelegateMapDB<K, V>(getDownloadName()) {
+
+            @Override
+            protected Maker configureDB(final Maker maker) {
+                Maker parent = super.configureDB(maker);
+                if (readOnly) {
+                    parent = parent.readOnly();
+                }
+                return parent;
+            }
         };
     }
 

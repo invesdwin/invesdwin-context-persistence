@@ -83,9 +83,7 @@ public abstract class ADelegateTreeMapDB<K, V> implements ConcurrentNavigableMap
     }
 
     protected Maker configureDB(final Maker maker) {
-        //        return maker.fileMmapEnable().fileMmapPreclearDisable().cleanerHackEnable();
-        //file channel supports parallel writes
-        return maker.fileChannelEnable();
+        return maker.fileMmapEnable().fileMmapPreclearDisable().cleanerHackEnable().closeOnJvmShutdownWeakReference();
     }
 
     protected TreeMapMaker<K, V> configureHashMap(final TreeMapMaker<K, V> maker) {
