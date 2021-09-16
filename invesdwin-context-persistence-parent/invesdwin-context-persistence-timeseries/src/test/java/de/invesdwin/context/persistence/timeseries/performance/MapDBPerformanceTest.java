@@ -14,17 +14,19 @@ import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseries.mapdb.ADelegateMapDB;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.list.Lists;
+import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.duration.Duration;
 
 @NotThreadSafe
 @Ignore("manual test")
 public class MapDBPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
-    public void testMapDbPerformance() {
+    public void testMapDbPerformance() throws InterruptedException {
         @SuppressWarnings("resource")
         final ADelegateMapDB<FDate, FDate> table = new ADelegateMapDB<FDate, FDate>("testMapDbPerformance") {
             @Override
@@ -44,13 +46,16 @@ public class MapDBPerformanceTest extends ADatabasePerformanceTest {
 
         };
 
+        final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final Instant writesStart = new Instant();
         int i = 0;
         for (final FDate date : newValues()) {
             table.put(date, date);
             i++;
             if (i % FLUSH_INTERVAL == 0) {
-                printProgress("Writes", writesStart, i, VALUES);
+                if (loopCheck.check()) {
+                    printProgress("Writes", writesStart, i, VALUES);
+                }
             }
         }
         printProgress("WritesFinished", writesStart, VALUES, VALUES);

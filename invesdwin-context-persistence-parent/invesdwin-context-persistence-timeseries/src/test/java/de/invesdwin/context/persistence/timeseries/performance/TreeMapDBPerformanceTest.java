@@ -8,26 +8,28 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseries.mapdb.ADelegateTreeMapDB;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.list.Lists;
+import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.duration.Duration;
 
 @NotThreadSafe
 @Ignore("manual test")
 public class TreeMapDBPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
-    public void testTreeMapDbPerformance() {
+    public void testTreeMapDbPerformance() throws InterruptedException {
         @SuppressWarnings("resource")
-        final ADelegateTreeMapDB<FDate, FDate> table = new ADelegateTreeMapDB<FDate, FDate>("testTreeMapDbPerformance") {
+        final ADelegateTreeMapDB<FDate, FDate> table = new ADelegateTreeMapDB<FDate, FDate>(
+                "testTreeMapDbPerformance") {
             @Override
             protected File getBaseDirectory() {
                 return ContextProperties.TEMP_DIRECTORY;
@@ -62,7 +64,8 @@ public class TreeMapDBPerformanceTest extends ADatabasePerformanceTest {
         table.deleteTable();
     }
 
-    private void readIterator(final ADelegateTreeMapDB<FDate, FDate> table) {
+    private void readIterator(final ADelegateTreeMapDB<FDate, FDate> table) throws InterruptedException {
+        final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
             FDate prevValue = null;
@@ -81,12 +84,15 @@ public class TreeMapDBPerformanceTest extends ADatabasePerformanceTest {
                 }
             }
             Assertions.checkEquals(count, VALUES);
-            printProgress("Reads", readsStart, VALUES * reads, VALUES * READS);
+            if (loopCheck.check()) {
+                printProgress("Reads", readsStart, VALUES * reads, VALUES * READS);
+            }
         }
         printProgress("ReadsFinished", readsStart, VALUES * READS, VALUES * READS);
     }
 
-    private void readGet(final ADelegateTreeMapDB<FDate, FDate> table) {
+    private void readGet(final ADelegateTreeMapDB<FDate, FDate> table) throws InterruptedException {
+        final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final List<FDate> values = Lists.toList(newValues());
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
@@ -102,12 +108,15 @@ public class TreeMapDBPerformanceTest extends ADatabasePerformanceTest {
                     break;
                 }
             }
-            printProgress("Gets", readsStart, VALUES * reads, VALUES * READS);
+            if (loopCheck.check()) {
+                printProgress("Gets", readsStart, VALUES * reads, VALUES * READS);
+            }
         }
         printProgress("GetsFinished", readsStart, VALUES * READS, VALUES * READS);
     }
 
-    private void readGetLatest(final ADelegateTreeMapDB<FDate, FDate> table) {
+    private void readGetLatest(final ADelegateTreeMapDB<FDate, FDate> table) throws InterruptedException {
+        final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final List<FDate> values = Lists.toList(newValues());
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
@@ -124,7 +133,9 @@ public class TreeMapDBPerformanceTest extends ADatabasePerformanceTest {
                     break;
                 }
             }
-            printProgress("GetLatests", readsStart, VALUES * reads, VALUES * READS);
+            if (loopCheck.check()) {
+                printProgress("GetLatests", readsStart, VALUES * reads, VALUES * READS);
+            }
         }
         printProgress("GetLatestsFinished", readsStart, VALUES * READS, VALUES * READS);
     }
