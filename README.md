@@ -225,10 +225,10 @@ ATimeSeriesDB (High)   10,000,000     Reads:  14,204.55/ms  in     704 ms  =>  ~
 ```
 New Benchmarks (2021, Core i9-9900k with SSD, Java 16):
 ```
-     TreeMapDB             Writes (Put):             3.45/ms  => ~98% slower
-         MapDB             Writes (Put):            23.52/ms  => ~90% slower (should be better than LevelDB for large values)
+     TreeMapDB             Writes (Put):             3.85/ms  => ~98% slower
    RocksDB-JNI             Writes (PutBatch):       44.86/ms  => ~80% slower
    LevelDB-JNI             Writes (PutBatch):       63.33/ms  => ~72% slower
+         MapDB             Writes (Put):            69.61/ms  => ~70% slower (better than LevelDB for large values due to no relocation)
       LMDB-JNR             Writes (PutBatch):      152.05/ms  => ~33% slower
   LevelDB-Java             Writes (PutBatch):      228.07/ms  => using this as baseline
   InfluxDB-1.x             Writes (PutBatch):      252.08/ms  => ~10% faster
@@ -241,32 +241,32 @@ ConcurrentSkipListMap      Writes (Put):         2,358.21/ms  => ~10.3 times fas
  ATimeSeriesDB (None)      Writes (Append):     34,069.23/ms  => ~149.4 times faster (with Disabled Compression)
 
    RocksDB-JNI              Reads (Get):            58.71/ms  => ~76% slower
-     TreeMapDB              Reads (Get):            75.59/ms  => ~69% slower
    LevelDB-JNI              Reads (Get):            81.00/ms  => ~67% slower
-	 MapDB              Reads (Get):           158.73/ms  => ~35% slower
+     TreeMapDB              Reads (Get):           143.66/ms  => ~41% slower
       LMDB-JNR              Reads (Get):           186.07/ms  => ~24% slower
   LevelDB-Java              Reads (Get):           244.29/ms  => using this as baseline
+	 MapDB              Reads (Get):         1,142.33/ms  => ~4.7 times faster
 ConcurrentSkipListMap       Reads (Get):         2,695.42/ms  => ~11 times faster
       BTreeMap              Reads (Get):         2,908.67/ms  => ~11.9 times faster
        TreeMap              Reads (Get):         4,875.67/ms  => ~20 times faster
        
    RocksDB-JNI              Reads (GetLatest):      56.12/ms  => ~66.5% slower
    LevelDB-JNI              Reads (GetLatest):      72.34/ms  => ~57% slower
-     TreeMapDB              Reads (GetLatest):      85.47/ms  => ~49% slower
  ATimeSeriesDB              Reads (GetLatest):     112.04/ms  => ~33% slower (after initialization, uses LevelDB-Java as lazy index)
       LMDB-JNR              Reads (GetLatest):     150.01/ms  => ~10% slower
+     TreeMapDB              Reads (GetLatest):     154.46/ms  => ~8% slower
   LevelDB-Java              Reads (GetLatest):     167.48/ms  => using this as baseline
 ConcurrentSkipListMap       Reads (GetLatest):     985.03/ms  => 5.9 times faster
       BTreeMap              Reads (GetLatest):   2,783.96/ms  => ~16.6 times faster
        TreeMap              Reads (GetLatest):   3,235.20/ms  => ~19.3 times faster
        
-         MapDB              Reads (Iterator):      134.86/ms  => ~93.7% slower (unordered)
    LevelDB-JNI              Reads (Iterator):      327.20/ms  => ~84.6% slower
+         MapDB              Reads (Iterator):      549.45/ms  => ~74.1% slower (unordered)
   InfluxDB-1.x              Reads (Iterator):      649.31/ms  => ~69.4% slower
    RocksDB-JNI              Reads (Iterator):      672.35/ms  => ~68.7% slower
   LevelDB-Java              Reads (Iterator):    2,125.29/ms  => using this as baseline
-     TreeMapDB              Reads (Iterator):    5,656.11/ms  => ~2.66 times faster
       LMDB-JNR              Reads (Iterator):    9,330.80/ms  => ~4.4 times faster
+     TreeMapDB              Reads (Iterator):   10,261.67/ms  => ~4.8 times faster
 ChronicleQueue              Reads (Iterator):   16,583.75/ms  => ~7.8 times faster
        TreeMap              Reads (Iterator):   27,463.10/ms  => ~12.9 times faster
       BTreeMap              Reads (Iterator):   30,313.13/ms  => ~14.3 times faster
