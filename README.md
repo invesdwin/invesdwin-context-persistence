@@ -238,8 +238,8 @@ ChronicleQueue             Writes (Append):        442.48/ms  => ~1.9 times fast
 ConcurrentSkipListMap      Writes (Put):         2,358.21/ms  => ~10.3 times faster
  ATimeSeriesDB (High)      Writes (Append):      6,449.49/ms  => ~28.3 times faster (with High Compression)
  ATimeSeriesDB (Fast)      Writes (Append):     26,080.38/ms  => ~114.3 times faster (with Fast Compression)
- ATimeSeriesDB (None)      Writes (Append):     34,069.23/ms  => ~149.4 times faster (with Disabled Compression)
-       QuestDB             Writes (Append):     36,191.23/ms  => ~158.7 times faster (only supports up to Java 11)
+ ATimeSeriesDB (None)      Writes (Append):     34,069.23/ms  => ~149.4 times faster (with Disabled Compression; 2x Size of ATimeSeriesDB with Compression)
+       QuestDB             Writes (Append):     36,191.23/ms  => ~158.7 times faster (only supports up to Java 11; 4x Size of ATimeSeriesDB with Compression)
 
    RocksDB-JNI              Reads (Get):            58.71/ms  => ~76% slower
    LevelDB-JNI              Reads (Get):            81.00/ms  => ~67% slower
