@@ -16,6 +16,10 @@
 			<artifactId>invesdwin-context-integration</artifactId>
 		</dependency>
 
+		<dependency>
+			<groupId>com.googlecode.cqengine</groupId>
+			<artifactId>cqengine</artifactId>
+		</dependency>
 	</dependencies>
 
 </project>
