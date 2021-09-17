@@ -253,7 +253,7 @@ ConcurrentSkipListMap       Reads (Get):         2,695.42/ms  => ~11 times faste
        TreeMap              Reads (Get):         4,875.67/ms  => ~20 times faster
        TreeMap              Reads (Get):         4,875.67/ms  => ~20 times faster
        
-       QuestDB              Reads (GetLatest):      23.63/ms  => ~86% slower
+       QuestDB              Reads (GetLatest):      23.63/ms  => ~86% slower (using "SELECT max(key)"; "ORDER BY key DESC" results in ~91/s which is 99.95% slower)
    RocksDB-JNI              Reads (GetLatest):      56.12/ms  => ~66.5% slower
    LevelDB-JNI              Reads (GetLatest):      72.34/ms  => ~57% slower
  ATimeSeriesDB              Reads (GetLatest):     112.04/ms  => ~33% slower (after initialization, uses LevelDB-Java as lazy index)
