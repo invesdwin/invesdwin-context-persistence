@@ -239,6 +239,7 @@ ConcurrentSkipListMap      Writes (Put):         2,358.21/ms  => ~10.3 times fas
  ATimeSeriesDB (High)      Writes (Append):      6,449.49/ms  => ~28.3 times faster (with High Compression)
  ATimeSeriesDB (Fast)      Writes (Append):     26,080.38/ms  => ~114.3 times faster (with Fast Compression)
  ATimeSeriesDB (None)      Writes (Append):     34,069.23/ms  => ~149.4 times faster (with Disabled Compression)
+       QuestDB             Writes (Append):     36,191.23/ms  => ~158.7 times faster (only supports up to Java 11)
 
    RocksDB-JNI              Reads (Get):            58.71/ms  => ~76% slower
    LevelDB-JNI              Reads (Get):            81.00/ms  => ~67% slower
@@ -274,6 +275,7 @@ ChronicleQueue              Reads (Iterator):   16,583.75/ms  => ~7.8 times fast
  ATimeSeriesDB (High)       Reads (Iterator):   32,148.14/ms  => ~15.1 times faster
 ConcurrentSkipListMap       Reads (Iterator):   32,629.62/ms  => ~15.35 times faster
  ATimeSeriesDB (None)       Reads (Iterator):   34,727.05/ms  => ~16.3 times faster
+       QuestDB              Reads (Iterator):  132,910.54/ms  => ~62.5 times faster
 ```
 - **ATimeSeriesUpdater**: this is a helper class with which one can handle large inserts/updates into an instance of `ATimeSeriesDB`. This handles the creation of separate chunk files and writing them to disk in the most efficient way.
 - **SerializingCollection**: this collection implementation is used to store and retrieve each file chunk. It supports two modes of serialization. The default and slower one supports variable length objects by Base64 encoding the serialized bytes and putting a delimiter between each element. The second and faster approach can be enabled by overriding `getFixedLength()` which allows the collection to skip the Base64 encoding and instead just count the bytes to separate each element. Though as this suggests, it only works with fixed length serialization/deserialization which you can provide by overriding the `toBytes`/`fromBytes()` callback methods (which use FST per default). You can also deviate from the default LZ4 high compression algorithm by overriding the `newCompressor`/`newDecompressor` callback methods. Despite efficiently storing financial data, this collection can be used to move any kind of data out of memory into a file to preserve precious memory instead of wasting it on metadata that is only rarely used (e.g. during a backtests we can record all sorts of information in a serialized fashion and load it back from file when generating our reports once. This allows us to run more backtests in parallel which would otherwise be limited by tight memory).
