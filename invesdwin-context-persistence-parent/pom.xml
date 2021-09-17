@@ -27,8 +27,13 @@
 		<module>invesdwin-context-persistence-jpa-datanucleus</module>
 		<module>invesdwin-context-persistence-jpa-kundera</module>
 		<module>invesdwin-context-persistence-jpa-kundera-rdbms</module>
-		<module>invesdwin-context-persistence-timeseries</module>
+		<module>invesdwin-context-persistence-timeseriesdb</module>
+		<module>invesdwin-context-persistence-ezdb</module>
+		<module>invesdwin-context-persistence-mapdb</module>
+		<module>invesdwin-context-persistence-cqengine</module>
 		<module>invesdwin-context-persistence-influxdb</module>
+		<module>invesdwin-context-persistence-chronicle</module>
+		<module>invesdwin-context-persistence-questdb</module>
 	</modules>
 
 	<properties>
@@ -105,7 +110,32 @@
 			</dependency>
 			<dependency>
 				<groupId>de.invesdwin</groupId>
-				<artifactId>invesdwin-context-persistence-timeseries</artifactId>
+				<artifactId>invesdwin-context-persistence-timeseriesdb</artifactId>
+				<version>${project.version.invesdwin-context-persistence}</version>
+			</dependency>
+			<dependency>
+				<groupId>de.invesdwin</groupId>
+				<artifactId>invesdwin-context-persistence-ezdb</artifactId>
+				<version>${project.version.invesdwin-context-persistence}</version>
+			</dependency>
+			<dependency>
+				<groupId>de.invesdwin</groupId>
+				<artifactId>invesdwin-context-persistence-mapdb</artifactId>
+				<version>${project.version.invesdwin-context-persistence}</version>
+			</dependency>
+			<dependency>
+				<groupId>de.invesdwin</groupId>
+				<artifactId>invesdwin-context-persistence-cqengine</artifactId>
+				<version>${project.version.invesdwin-context-persistence}</version>
+			</dependency>
+			<dependency>
+				<groupId>de.invesdwin</groupId>
+				<artifactId>invesdwin-context-persistence-chronicle</artifactId>
+				<version>${project.version.invesdwin-context-persistence}</version>
+			</dependency>
+			<dependency>
+				<groupId>de.invesdwin</groupId>
+				<artifactId>invesdwin-context-persistence-questdb</artifactId>
 				<version>${project.version.invesdwin-context-persistence}</version>
 			</dependency>
 
