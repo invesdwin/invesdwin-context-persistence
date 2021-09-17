@@ -239,8 +239,9 @@ ConcurrentSkipListMap      Writes (Put):         2,358.21/ms  => ~10.3 times fas
  ATimeSeriesDB (High)      Writes (Append):      6,449.49/ms  => ~28.3 times faster (with High Compression)
  ATimeSeriesDB (Fast)      Writes (Append):     26,080.38/ms  => ~114.3 times faster (with Fast Compression)
  ATimeSeriesDB (None)      Writes (Append):     34,069.23/ms  => ~149.4 times faster (with Disabled Compression; 2x Size of ATimeSeriesDB with Compression)
-       QuestDB             Writes (Append):     36,191.23/ms  => ~158.7 times faster (only supports up to Java 11; 4x Size of ATimeSeriesDB with Compression)
+       QuestDB             Writes (Append):     36,191.23/ms  => ~158.7 times faster (tested on Java 11; 4x Size of ATimeSeriesDB with Compression)
 
+       QuestDB              Reads (Get):            49.64/ms  => ~80% slower
    RocksDB-JNI              Reads (Get):            58.71/ms  => ~76% slower
    LevelDB-JNI              Reads (Get):            81.00/ms  => ~67% slower
      TreeMapDB              Reads (Get):           143.66/ms  => ~41% slower
@@ -250,7 +251,9 @@ ConcurrentSkipListMap      Writes (Put):         2,358.21/ms  => ~10.3 times fas
 ConcurrentSkipListMap       Reads (Get):         2,695.42/ms  => ~11 times faster
       BTreeMap              Reads (Get):         2,908.67/ms  => ~11.9 times faster
        TreeMap              Reads (Get):         4,875.67/ms  => ~20 times faster
+       TreeMap              Reads (Get):         4,875.67/ms  => ~20 times faster
        
+       QuestDB              Reads (GetLatest):      23.63/ms  => ~86% slower
    RocksDB-JNI              Reads (GetLatest):      56.12/ms  => ~66.5% slower
    LevelDB-JNI              Reads (GetLatest):      72.34/ms  => ~57% slower
  ATimeSeriesDB              Reads (GetLatest):     112.04/ms  => ~33% slower (after initialization, uses LevelDB-Java as lazy index)
