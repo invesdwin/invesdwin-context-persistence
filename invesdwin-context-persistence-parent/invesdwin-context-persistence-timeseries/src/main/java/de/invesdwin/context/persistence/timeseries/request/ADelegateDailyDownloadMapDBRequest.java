@@ -14,8 +14,10 @@ import org.mapdb.DBMaker.Maker;
 
 import de.invesdwin.context.integration.network.DailyDownloadCache;
 import de.invesdwin.context.log.Log;
+import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.timeseries.mapdb.ADelegateMapDB;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.concurrent.Threads;
 import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
 import de.invesdwin.util.concurrent.reference.IReference;
 import de.invesdwin.util.error.Throwables;
@@ -82,18 +84,26 @@ public abstract class ADelegateDailyDownloadMapDBRequest<K, V> implements IRefer
     }
 
     protected boolean shouldUpdate() {
-        if (map == null) {
-            try {
-                map = newMap(false);
-                if (map.isEmpty()) {
-                    return true;
-                }
-            } finally {
-                map.close();
-                map = newMap(true);
-            }
+        if (Threads.isInterrupted()) {
+            return false;
         }
-        return map.isEmpty() || dailyDownloadCache.shouldUpdate(getDownloadFileName(), getNow());
+        try {
+            if (map == null) {
+                try {
+                    map = newMap(false);
+                    if (map.isEmpty()) {
+                        return true;
+                    }
+                } finally {
+                    map.close();
+                    map = newMap(true);
+                }
+            }
+            return map.isEmpty() || dailyDownloadCache.shouldUpdate(getDownloadFileName(), getNow());
+        } catch (final Throwable t) {
+            Err.process(new RuntimeException("Forcing update due to exception", t));
+            return true;
+        }
     }
 
     protected void beforeUpdate() {
