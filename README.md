@@ -270,7 +270,7 @@ ezdb-ConcurrentSkipListMap       Reads (Get):         2,695.42/ms  => ~11 times 
            CQEngine (OnHeap)     Reads (Get):         5,732.63/ms  => ~23.5 times faster
            CQEngine (OffHeap)    Reads (Get):         5,813.95/ms  => ~23.8 times faster
        
-           CQEngine (Disk)       Reads (GetLatest):    5,590.06/s  => ~96.7% slower (using NavigableIndex directly; query with "ORDER BY key DESC" results in 2,728.81/ms which is ~16.3 times faster)
+           CQEngine (Disk)       Reads (GetLatest):       5.59/ms  => ~96.7% slower (using NavigableIndex directly; query with "ORDER BY key DESC" results in 2,728.81/ms which is ~16.3 times faster)
             QuestDB              Reads (GetLatest):      23.63/ms  => ~86% slower (using "SELECT max(key)"; "ORDER BY key DESC" results in ~91/s which is 99.95% slower)
    ezdb-RocksDB-JNI              Reads (GetLatest):      56.12/ms  => ~66.5% slower
    ezdb-LevelDB-JNI              Reads (GetLatest):      72.34/ms  => ~57% slower
