@@ -12,8 +12,8 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
-import de.invesdwin.context.persistence.timeseriesdb.HeapSerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
+import de.invesdwin.context.persistence.timeseriesdb.buffer.FileBufferCache;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
@@ -34,6 +34,7 @@ import de.invesdwin.util.time.date.FDate;
 public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     private static final boolean LARGE_COMPRESSOR = false;
+    private final String hashKey;
     private final SegmentedKey<K> segmentedKey;
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
     private final ICompressionFactory compressionFactory;
@@ -48,6 +49,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     public FileLiveSegment(final SegmentedKey<K> segmentedKey,
             final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable) {
+        this.hashKey = historicalSegmentTable.hashKeyToString(segmentedKey);
         this.segmentedKey = segmentedKey;
         this.historicalSegmentTable = historicalSegmentTable;
         this.compressionFactory = historicalSegmentTable.getStorage().getCompressionFactory();
@@ -310,41 +312,46 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
     }
 
-    private HeapSerializingCollection<V> getFlushedValues() {
+    private SerializingCollection<V> getFlushedValues() {
         synchronized (this) {
             if (needsFlush) {
                 values.flush();
                 needsFlush = false;
             }
         }
-        try {
-            final TextDescription name = new TextDescription("%s[%s]: getFlushedValues()",
-                    FileLiveSegment.class.getSimpleName(), segmentedKey);
-            final byte[] bytes = Files.readFileToByteArray(values.getFile());
-            return new HeapSerializingCollection<V>(name, bytes) {
-                @Override
-                protected ISerde<V> newSerde() {
-                    return historicalSegmentTable.newValueSerde();
-                }
+        final TextDescription name = new TextDescription("%s[%s]: getFlushedValues()",
+                FileLiveSegment.class.getSimpleName(), segmentedKey);
+        return new SerializingCollection<V>(name, values.getFile(), true) {
+            @Override
+            protected ISerde<V> newSerde() {
+                return historicalSegmentTable.newValueSerde();
+            }
 
-                @Override
-                protected Integer getFixedLength() {
-                    return historicalSegmentTable.newValueFixedLength();
-                }
+            @Override
+            protected Integer getFixedLength() {
+                return historicalSegmentTable.newValueFixedLength();
+            }
 
-                @Override
-                protected OutputStream newCompressor(final OutputStream out) {
-                    return compressionFactory.newCompressor(out, LARGE_COMPRESSOR);
-                }
+            @Override
+            protected OutputStream newCompressor(final OutputStream out) {
+                return compressionFactory.newCompressor(out, LARGE_COMPRESSOR);
+            }
 
-                @Override
-                protected InputStream newDecompressor(final InputStream inputStream) {
-                    return compressionFactory.newDecompressor(inputStream);
-                }
-            };
-        } catch (final IOException e) {
-            throw new RuntimeException(e);
-        }
+            @Override
+            protected InputStream newDecompressor(final InputStream inputStream) {
+                return inputStream;
+            }
+
+            @Override
+            protected InputStream newFileInputStream(final File file) throws IOException {
+                //keep file input stream open as shorty as possible to prevent too many open files error
+                return FileBufferCache.getInputStream(hashKey, file, this::newFileInputStreamDecompressed);
+            }
+
+            private InputStream newFileInputStreamDecompressed(final File file) throws IOException {
+                return compressionFactory.newDecompressor(super.newFileInputStream(file));
+            }
+        };
     }
 
     @Override

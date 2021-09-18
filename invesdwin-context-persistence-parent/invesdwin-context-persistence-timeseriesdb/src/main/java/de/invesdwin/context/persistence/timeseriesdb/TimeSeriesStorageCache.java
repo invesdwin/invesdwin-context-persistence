@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -16,13 +15,12 @@ import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.SerializationException;
 import org.apache.commons.lang3.mutable.MutableInt;
 
-import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable.DelegateTableIterator;
+import de.invesdwin.context.persistence.timeseriesdb.buffer.FileBufferCache;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ChunkValue;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ShiftUnitsRangeKey;
@@ -52,7 +50,6 @@ import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.streams.buffer.IByteBuffer;
-import de.invesdwin.util.streams.pool.PooledFastByteArrayOutputStream;
 import de.invesdwin.util.time.date.FDate;
 import ezdb.TableRow;
 
@@ -602,19 +599,15 @@ public class TimeSeriesStorageCache<K, V> {
             protected InputStream newFileInputStream(final File file) throws IOException {
                 //keep file input stream open as shorty as possible to prevent too many open files error
                 readLock.lock();
-                try (InputStream fis = super.newFileInputStream(file)) {
-                    final PooledFastByteArrayOutputStream bos = PooledFastByteArrayOutputStream.newInstance();
-                    IOUtils.copy(fis, bos.asNonClosing());
-                    return bos.asInputStream();
-                } catch (final FileNotFoundException e) {
-                    //maybe retry because of this in the outer iterator?
-                    throw new RetryLaterRuntimeException(
-                            "File might have been deleted in the mean time between read locks: "
-                                    + file.getAbsolutePath(),
-                            e);
+                try {
+                    return FileBufferCache.getInputStream(hashKey, file, this::newFileInputStreamDecompressed);
                 } finally {
                     readLock.unlock();
                 }
+            }
+
+            private InputStream newFileInputStreamDecompressed(final File file) throws IOException {
+                return storage.getCompressionFactory().newDecompressor(super.newFileInputStream(file));
             }
 
             @Override
@@ -629,7 +622,7 @@ public class TimeSeriesStorageCache<K, V> {
 
             @Override
             protected InputStream newDecompressor(final InputStream inputStream) {
-                return storage.getCompressionFactory().newDecompressor(inputStream);
+                return inputStream;
             }
         };
     }
@@ -681,6 +674,7 @@ public class TimeSeriesStorageCache<K, V> {
         cachedAllRangeKeysReverse = null;
         cachedFirstValue = null;
         cachedLastValue = null;
+        FileBufferCache.remove(hashKey);
     }
 
     public V getLatestValue(final FDate date) {
