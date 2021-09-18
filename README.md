@@ -301,7 +301,7 @@ ezdb-ConcurrentSkipListMap       Reads (GetLatest):     985.03/ms  => 5.9 times 
       ATimeSeriesDB (High)       Reads (Iterator):   32,148.14/ms  => ~15.1 times faster
 ezdb-ConcurrentSkipListMap       Reads (Iterator):   32,629.62/ms  => ~15.35 times faster
       ATimeSeriesDB (None)       Reads (Iterator):   34,727.05/ms  => ~16.3 times faster
-      ATimeSeriesDB (Cached)     Reads (Iterator):   93,153.82/ms  => ~43.8 times faster (internal FileBufferCache keeps hot segments in memory)
+      ATimeSeriesDB (Cached)     Reads (Iterator):   97,484.89/ms  => ~45.9 times faster (internal FileBufferCache keeps hot segments in memory)
             QuestDB              Reads (Iterator):  132,910.54/ms  => ~62.5 times faster (nice! cached buffers with flyweight pattern)
 ```
 - **ATimeSeriesUpdater**: this is a helper class with which one can handle large inserts/updates into an instance of `ATimeSeriesDB`. This handles the creation of separate chunk files and writing them to disk in the most efficient way.
