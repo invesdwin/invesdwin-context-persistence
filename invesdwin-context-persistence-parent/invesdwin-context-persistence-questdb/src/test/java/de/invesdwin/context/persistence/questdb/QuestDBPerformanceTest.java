@@ -93,7 +93,7 @@ public class QuestDBPerformanceTest extends ADatabasePerformanceTest {
                     try (RecordCursor cursor = factory.getCursor(ctx)) {
                         final io.questdb.cairo.sql.Record record = cursor.getRecord();
                         while (cursor.hasNext()) {
-                            final FDate value = new FDate(cursor.getRecord().getLong(0));
+                            final FDate value = new FDate(record.getLong(0));
                             if (prevValue != null) {
                                 Assertions.checkTrue(prevValue.isBefore(value));
                             }
@@ -128,7 +128,7 @@ public class QuestDBPerformanceTest extends ADatabasePerformanceTest {
                         try (RecordCursor cursor = factory.getCursor(ctx)) {
                             final io.questdb.cairo.sql.Record record = cursor.getRecord();
                             Assertions.checkTrue(cursor.hasNext());
-                            final FDate value = new FDate(cursor.getRecord().getLong(0));
+                            final FDate value = new FDate(record.getLong(0));
                             if (prevValue != null) {
                                 Assertions.checkTrue(prevValue.isBefore(value));
                             }
@@ -162,7 +162,7 @@ public class QuestDBPerformanceTest extends ADatabasePerformanceTest {
                         try (RecordCursor cursor = factory.getCursor(ctx)) {
                             final io.questdb.cairo.sql.Record record = cursor.getRecord();
                             Assertions.checkTrue(cursor.hasNext());
-                            final FDate value = new FDate(cursor.getRecord().getLong(0));
+                            final FDate value = new FDate(record.getLong(0));
                             if (prevValue != null) {
                                 Assertions.checkTrue(prevValue.isBefore(value));
                             }
