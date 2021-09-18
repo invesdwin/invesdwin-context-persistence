@@ -53,7 +53,7 @@ public final class FileBufferCache {
 
     private static void onRemoval(final FileBufferKey key, final RefCountReverseCloseableIterable value,
             final RemovalCause cause) {
-        if (value.getRefCount().get() == 0) {
+        if (value.isUsed() && value.getRefCount().get() == 0) {
             final ArrayListCloseableIterable delegate = (ArrayListCloseableIterable) value.getDelegate();
             final ArrayList arrayList = delegate.getArrayList();
             arrayList.clear();
