@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -11,9 +12,11 @@ import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.apache.commons.io.IOUtils;
+
+import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
-import de.invesdwin.context.persistence.timeseriesdb.buffer.FileBufferCache;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
@@ -28,6 +31,7 @@ import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.streams.pool.PooledFastByteArrayOutputStream;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
@@ -339,17 +343,23 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
             @Override
             protected InputStream newDecompressor(final InputStream inputStream) {
-                return inputStream;
+                return compressionFactory.newDecompressor(inputStream);
             }
 
             @Override
             protected InputStream newFileInputStream(final File file) throws IOException {
                 //keep file input stream open as shorty as possible to prevent too many open files error
-                return FileBufferCache.getInputStream(hashKey, file, this::newFileInputStreamDecompressed);
-            }
-
-            private InputStream newFileInputStreamDecompressed(final File file) throws IOException {
-                return compressionFactory.newDecompressor(super.newFileInputStream(file));
+                try (InputStream fis = super.newFileInputStream(file)) {
+                    final PooledFastByteArrayOutputStream bos = PooledFastByteArrayOutputStream.newInstance();
+                    IOUtils.copy(fis, bos.asNonClosing());
+                    return bos.asInputStream();
+                } catch (final FileNotFoundException e) {
+                    //maybe retry because of this in the outer iterator?
+                    throw new RetryLaterRuntimeException(
+                            "File might have been deleted in the mean time between read locks: "
+                                    + file.getAbsolutePath(),
+                            e);
+                }
             }
         };
     }
