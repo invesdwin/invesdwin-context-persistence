@@ -29,7 +29,7 @@ import de.invesdwin.util.time.duration.Duration;
 public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
-    public void testTimeSeriesDbPerformance() throws IncompleteUpdateFoundException {
+    public void testTimeSeriesDbPerformance() throws IncompleteUpdateFoundException, InterruptedException {
         final ATimeSeriesDB<String, FDate> table = new ATimeSeriesDB<String, FDate>("testTimeSeriesDbPerformance") {
 
             @Override
@@ -106,14 +106,17 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
         };
         Assertions.checkTrue(updater.update());
 
-        readIterator(table);
+        readIterator(table, "Cold", 1);
+        readIterator(table, "Warm", READS);
         readGetLatest(table, "Cold", 1);
         readGetLatest(table, "Warm", READS);
     }
 
-    private void readIterator(final ATimeSeriesDB<String, FDate> table) {
+    private void readIterator(final ATimeSeriesDB<String, FDate> table, final String suffix, final long maxReads)
+            throws InterruptedException {
         final Instant readsStart = new Instant();
-        for (int reads = 1; reads <= READS; reads++) {
+        final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
+        for (long reads = 1; reads <= maxReads; reads++) {
             FDate prevValue = null;
             final ICloseableIterator<? extends FDate> range = table.rangeValues(HASH_KEY, null, null).iterator();
             int count = 0;
@@ -130,15 +133,17 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
                 }
             }
             Assertions.checkEquals(count, VALUES);
-            printProgress("Reads", readsStart, VALUES * reads, VALUES * READS);
+            if (loopCheck.check()) {
+                printProgress("Reads" + suffix, readsStart, VALUES * reads, VALUES * maxReads);
+            }
         }
-        printProgress("ReadsFinished", readsStart, VALUES * READS, VALUES * READS);
+        printProgress("ReadsFinished" + suffix, readsStart, VALUES * maxReads, VALUES * maxReads);
     }
 
-    private void readGetLatest(final ATimeSeriesDB<String, FDate> table, final String suffix, final int countReads) {
+    private void readGetLatest(final ATimeSeriesDB<String, FDate> table, final String suffix, final long countReads) {
         final List<FDate> values = Lists.toList(newValues());
         final Instant readsStart = new Instant();
-        for (int reads = 1; reads <= countReads; reads++) {
+        for (long reads = 1; reads <= countReads; reads++) {
             FDate prevValue = null;
             for (int i = 0; i < values.size(); i++) {
                 try {

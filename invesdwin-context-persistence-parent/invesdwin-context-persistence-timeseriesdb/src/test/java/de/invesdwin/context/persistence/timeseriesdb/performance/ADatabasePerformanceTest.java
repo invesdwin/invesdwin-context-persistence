@@ -22,12 +22,12 @@ public abstract class ADatabasePerformanceTest extends ATest {
     //        LZ4Streams.setAllowJniCompressor(true);
     //    }
 
-    protected static final int READS = 100;
-    protected static final int VALUES = 10_000_000;
+    protected static final long READS = 100;
+    protected static final long VALUES = 10_000_000;
     protected static final String HASH_KEY = "HASH_KEY";
     protected static final int FLUSH_INTERVAL = ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL;
 
-    protected void printProgress(final String action, final Instant start, final long count, final int maxCount) {
+    protected void printProgress(final String action, final Instant start, final long count, final long maxCount) {
         final Duration duration = start.toDuration();
         log.info("%s: %s/%s (%s) %s during %s", action, count, maxCount,
                 new Percent(count, maxCount).toString(PercentScale.PERCENT),

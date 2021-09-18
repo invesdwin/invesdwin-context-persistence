@@ -571,7 +571,7 @@ public class TimeSeriesStorageCache<K, V> {
 
     private IReverseCloseableIterable<V> newSerializingCollectionCached(final String method, final File file,
             final Lock readLock) {
-        return FileBufferCache.getIterable(method, file, () -> newSerializingCollection(method, file, readLock));
+        return FileBufferCache.getIterable(hashKey, file, () -> newSerializingCollection(method, file, readLock));
     }
 
     private SerializingCollection<V> newSerializingCollection(final String method, final File file,
