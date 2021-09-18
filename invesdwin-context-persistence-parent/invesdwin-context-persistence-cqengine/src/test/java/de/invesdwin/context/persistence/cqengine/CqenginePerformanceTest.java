@@ -9,6 +9,7 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.googlecode.cqengine.ConcurrentIndexedCollection;
@@ -20,7 +21,7 @@ import com.googlecode.cqengine.index.support.CloseableIterable;
 import com.googlecode.cqengine.index.support.CloseableIterator;
 import com.googlecode.cqengine.index.support.KeyValue;
 import com.googlecode.cqengine.index.unique.UniqueIndex;
-import com.googlecode.cqengine.persistence.onheap.OnHeapPersistence;
+import com.googlecode.cqengine.persistence.disk.DiskPersistence;
 import com.googlecode.cqengine.query.QueryFactory;
 import com.googlecode.cqengine.query.option.EngineThresholds;
 import com.googlecode.cqengine.query.option.QueryOptions;
@@ -36,7 +37,7 @@ import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.duration.Duration;
 
 @NotThreadSafe
-//@Ignore("manual test")
+@Ignore("manual test")
 public class CqenginePerformanceTest extends ADatabasePerformanceTest {
 
     @Test
@@ -56,9 +57,9 @@ public class CqenginePerformanceTest extends ADatabasePerformanceTest {
         Files.deleteNative(folder);
         Files.forceMkdir(folder);
 
-        //        final DiskPersistence<Content, Long> persistence = DiskPersistence.onPrimaryKeyInFile(Content.KEY, file);
+        final DiskPersistence<Content, Long> persistence = DiskPersistence.onPrimaryKeyInFile(Content.KEY, file);
         //        final OffHeapPersistence<Content, Long> persistence = OffHeapPersistence.onPrimaryKey(Content.KEY);
-        final OnHeapPersistence<Content, Long> persistence = OnHeapPersistence.onPrimaryKey(Content.KEY);
+        //        final OnHeapPersistence<Content, Long> persistence = OnHeapPersistence.onPrimaryKey(Content.KEY);
         final IndexedCollection<Content> table = new ConcurrentIndexedCollection<Content>(persistence);
         final NavigableIndex<Long, Content> navigableIndex = NavigableIndex.onAttribute(Content.KEY);
         //        NavigableIndex<Long, Content> navigableIndex = NavigableIndex.withQuantizerOnAttribute(LongQuantizer.withCompressionFactor(5), KeyValue.KEY);
@@ -83,7 +84,7 @@ public class CqenginePerformanceTest extends ADatabasePerformanceTest {
         if (!flushable.isEmpty()) {
             table.addAll(flushable);
         }
-        //        persistence.compact();
+        persistence.compact();
         printProgress("WritesFinished", writesStart, VALUES, VALUES);
 
         readIterator(table);
