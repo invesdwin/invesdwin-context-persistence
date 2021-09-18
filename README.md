@@ -297,10 +297,10 @@ ezdb-ConcurrentSkipListMap       Reads (GetLatest):     985.03/ms  => 5.9 times 
      ChronicleQueue              Reads (Iterator):   16,583.75/ms  => ~7.8 times faster
        ezdb-TreeMap              Reads (Iterator):   27,463.10/ms  => ~12.9 times faster
       ezdb-BTreeMap              Reads (Iterator):   30,313.13/ms  => ~14.3 times faster
-      ATimeSeriesDB (Fast)       Reads (Iterator):   31,920.33/ms  => ~15 times faster
-      ATimeSeriesDB (High)       Reads (Iterator):   32,148.14/ms  => ~15.1 times faster
+      ATimeSeriesDB (Fast)       Reads (Iterator):   31,920.33/ms  => ~15 times faster (no caching)
+      ATimeSeriesDB (High)       Reads (Iterator):   32,148.14/ms  => ~15.1 times faster (no caching)
 ezdb-ConcurrentSkipListMap       Reads (Iterator):   32,629.62/ms  => ~15.35 times faster
-      ATimeSeriesDB (None)       Reads (Iterator):   34,727.05/ms  => ~16.3 times faster
+      ATimeSeriesDB (None)       Reads (Iterator):   34,727.05/ms  => ~16.3 times faster (no caching)
       ATimeSeriesDB (Cached)     Reads (Iterator):   97,484.89/ms  => ~45.9 times faster (internal FileBufferCache keeps hot segments in memory)
             QuestDB              Reads (Iterator):  132,910.54/ms  => ~62.5 times faster (nice! cached buffers with flyweight pattern)
 ```
