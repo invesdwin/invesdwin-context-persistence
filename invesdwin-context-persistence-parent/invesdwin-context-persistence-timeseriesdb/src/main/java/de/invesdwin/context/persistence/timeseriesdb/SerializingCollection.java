@@ -35,6 +35,7 @@ import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.LocalFastSerializingSerde;
 import de.invesdwin.util.math.Bytes;
+import de.invesdwin.util.math.Integers;
 import de.invesdwin.util.streams.InputStreams;
 import de.invesdwin.util.streams.OutputStreams;
 import de.invesdwin.util.streams.buffer.ByteBuffers;
@@ -285,7 +286,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
     @Override
     public <T> T[] toArray(final T[] a) {
-        final List<E> list = new ArrayList<E>();
+        final List<E> list = new ArrayList<E>(Integers.max(10, a.length));
         for (final E e : this) {
             list.add(e);
         }
