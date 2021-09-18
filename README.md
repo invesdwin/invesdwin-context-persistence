@@ -239,15 +239,17 @@ New Benchmarks (2021, Core i9-9900k with SSD, Java 16):
 ```
      TreeMapDB             Writes (Put):             3.85/ms  => ~98% slower
    RocksDB-JNI             Writes (PutBatch):       44.86/ms  => ~80% slower
+      CQEngine (Disk)      Writes (PutBatch):       48.79/ms  => ~78.6% slower (uses SQLite internally; expensive I/O and huge size for large databases)
    LevelDB-JNI             Writes (PutBatch):       63.33/ms  => ~72% slower
+      CQEngine (OffHeap)   Writes (PutBatch):       65.97/ms  => ~71% slower (no persistence)
          MapDB             Writes (Put):            69.61/ms  => ~70% slower (better than LevelDB for large values due to no relocation)
       LMDB-JNR             Writes (PutBatch):      152.05/ms  => ~33% slower
   LevelDB-Java             Writes (PutBatch):      228.07/ms  => using this as baseline
   InfluxDB-1.x             Writes (PutBatch):      252.08/ms  => ~10% faster
 ChronicleQueue             Writes (Append):        442.48/ms  => ~1.9 times faster
-      BTreeMap             Writes (Put):         1,048.22/ms  => ~4.6 times faster
-       TreeMap             Writes (Put):         1,902.77/ms  => ~8.3 times faster
-ConcurrentSkipListMap      Writes (Put):         2,358.21/ms  => ~10.3 times faster
+      BTreeMap             Writes (Put):         1,048.22/ms  => ~4.6 times faster (no persistence)
+       TreeMap             Writes (Put):         1,902.77/ms  => ~8.3 times faster (no persistence)
+ConcurrentSkipListMap      Writes (Put):         2,358.21/ms  => ~10.3 times faster (no persistence)
  ATimeSeriesDB (High)      Writes (Append):      6,449.49/ms  => ~28.3 times faster (with High Compression)
  ATimeSeriesDB (Fast)      Writes (Append):     26,080.38/ms  => ~114.3 times faster (with Fast Compression)
  ATimeSeriesDB (None)      Writes (Append):     34,069.23/ms  => ~149.4 times faster (with Disabled Compression; 2x Size of ATimeSeriesDB with Compression)
@@ -264,6 +266,8 @@ ConcurrentSkipListMap       Reads (Get):         2,695.42/ms  => ~11 times faste
       BTreeMap              Reads (Get):         2,908.67/ms  => ~11.9 times faster
        TreeMap              Reads (Get):         4,875.67/ms  => ~20 times faster
        TreeMap              Reads (Get):         4,875.67/ms  => ~20 times faster
+      CQEngine (Disk)       Reads (Get):         5,656.11/ms  => ~23.15 times faster
+      CQEngine (OffHeap)    Reads (Get):         5,813.95/ms  => ~23.8 times faster
        
        QuestDB              Reads (GetLatest):      23.63/ms  => ~86% slower (using "SELECT max(key)"; "ORDER BY key DESC" results in ~91/s which is 99.95% slower)
    RocksDB-JNI              Reads (GetLatest):      56.12/ms  => ~66.5% slower
@@ -273,6 +277,8 @@ ConcurrentSkipListMap       Reads (Get):         2,695.42/ms  => ~11 times faste
      TreeMapDB              Reads (GetLatest):     154.46/ms  => ~8% slower
   LevelDB-Java              Reads (GetLatest):     167.48/ms  => using this as baseline
 ConcurrentSkipListMap       Reads (GetLatest):     985.03/ms  => 5.9 times faster
+      CQEngine (OffHeap)    Reads (GetLatest):   2,649.71/ms  => ~15.8 times faster (using NavigableIndex directly; query with "ORDER BY key DESC" results in 300.70/ms which is ~1.8 times faster)
+      CQEngine (Disk)       Reads (GetLatest):   2,728.81/ms  => ~16.3 times faster (using NavigableIndex directly; query with "ORDER BY key DESC" results in 5590.06/s which is ~96.7% slower)
       BTreeMap              Reads (GetLatest):   2,783.96/ms  => ~16.6 times faster
        TreeMap              Reads (GetLatest):   3,235.20/ms  => ~19.3 times faster
        
@@ -281,6 +287,8 @@ ConcurrentSkipListMap       Reads (GetLatest):     985.03/ms  => 5.9 times faste
   InfluxDB-1.x              Reads (Iterator):      649.31/ms  => ~69.4% slower
    RocksDB-JNI              Reads (Iterator):      672.35/ms  => ~68.7% slower
   LevelDB-Java              Reads (Iterator):    2,125.29/ms  => using this as baseline
+      CQEngine (OffHeap)    Reads (Iterator):    7,669.30/ms  => ~3.6 times faster (using NavigableIndex directly; query "all" results in 230.05/ms which is ~89.2% slower)
+      CQEngine (Disk)       Reads (Iterator):    7,939.03/ms  => ~3.7 times faster (using NavigableIndex directly; query "all" results in 224.01/ms which is ~89.5% slower)
       LMDB-JNR              Reads (Iterator):    9,330.80/ms  => ~4.4 times faster
      TreeMapDB              Reads (Iterator):   10,261.67/ms  => ~4.8 times faster
 ChronicleQueue              Reads (Iterator):   16,583.75/ms  => ~7.8 times faster
