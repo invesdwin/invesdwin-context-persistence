@@ -2,12 +2,12 @@ package de.invesdwin.context.persistence.timeseriesdb.filebuffer;
 
 import java.io.IOException;
 
-import de.invesdwin.util.collections.iterable.ICloseableIterable;
+import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
 
 @FunctionalInterface
 public interface IFileBufferSource {
 
     @SuppressWarnings("rawtypes")
-    ICloseableIterable getSource() throws IOException;
+    IReverseCloseableIterable getSource() throws IOException;
 
 }

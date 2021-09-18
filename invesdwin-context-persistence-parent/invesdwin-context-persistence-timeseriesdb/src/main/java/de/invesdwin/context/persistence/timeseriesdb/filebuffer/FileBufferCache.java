@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.timeseriesdb.filebuffer;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Map.Entry;
@@ -34,13 +35,13 @@ public final class FileBufferCache {
 
     private static final IObjectPool<ArrayList> LIST_POOL = new AgronaObjectPool<ArrayList>(
             () -> new ArrayList<>(ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL),
-            TimeseriesProperties.FILE_BUFFER_CACHE_MAX_ENTRIES);
+            TimeseriesProperties.FILE_BUFFER_CACHE_MAX_COUNT);
 
     static {
         CACHE = Caffeine.newBuilder()
-                .maximumSize(TimeseriesProperties.FILE_BUFFER_CACHE_MAX_ENTRIES)
+                .maximumSize(TimeseriesProperties.FILE_BUFFER_CACHE_MAX_COUNT)
                 .expireAfterAccess(
-                        TimeseriesProperties.FILE_BUFFER_CACHE_ENTRY_TIMEOUT.longValue(FTimeUnit.MILLISECONDS),
+                        TimeseriesProperties.FILE_BUFFER_CACHE_EVICTION_TIMEOUT.longValue(FTimeUnit.MILLISECONDS),
                         TimeUnit.MILLISECONDS)
                 .softValues()
                 .removalListener(FileBufferCache::onRemoval)
@@ -92,9 +93,17 @@ public final class FileBufferCache {
 
     public static <T> IReverseCloseableIterable<T> getIterable(final String hashKey, final File file,
             final IFileBufferSource source) {
-        final FileBufferKey key = new FileBufferKey(hashKey, file, source);
-        final RefCountReverseCloseableIterable value = CACHE.get(key);
-        return value;
+        if (TimeseriesProperties.FILE_BUFFER_CACHE_MAX_COUNT <= 0) {
+            try {
+                return source.getSource();
+            } catch (final IOException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            final FileBufferKey key = new FileBufferKey(hashKey, file, source);
+            final RefCountReverseCloseableIterable value = CACHE.get(key);
+            return value;
+        }
     }
 
     private static final class FileBufferKey {
