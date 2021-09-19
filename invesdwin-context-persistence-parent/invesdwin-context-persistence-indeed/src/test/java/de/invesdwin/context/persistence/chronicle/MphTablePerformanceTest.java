@@ -46,6 +46,7 @@ public class MphTablePerformanceTest extends ADatabasePerformanceTest {
                 return com.indeed.util.core.Pair.of(value.millisValue(), value.millisValue());
             }
         };
+        //can not append to an existing table
         TableWriter.write(file, config, entries);
         printProgress("WritesFinished", writesStart, VALUES, VALUES);
 
