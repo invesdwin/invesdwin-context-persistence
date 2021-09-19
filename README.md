@@ -253,6 +253,7 @@ New Benchmarks (2021, Core i9-9900k with SSD, Java 16):
        ezdb-TreeMap             Writes (Put):         1,902.77/ms  => ~8.3 times faster (no persistence)
        ChronicleMap (Disk)      Writes (Put):         2,275.73/ms  => ~10 times faster (slower if entries are estimated wrong)
 ezdb-ConcurrentSkipListMap      Writes (Put):         2,358.21/ms  => ~10.3 times faster (no persistence)
+Indeed-BasicRecordFile          Writes (Append):      2,565.42/ms  => ~11.25 times faster
        ChronicleMap (Memory)    Writes (Put):         2,940.31/ms  => ~12.9 times faster (no persistence; slower if entries are estimated wrong)
       ATimeSeriesDB (High)      Writes (Append):      6,449.49/ms  => ~28.3 times faster (High Compression)
       ATimeSeriesDB (Fast)      Writes (Append):     26,080.38/ms  => ~114.3 times faster (Fast Compression)
@@ -298,6 +299,7 @@ ezdb-ConcurrentSkipListMap       Reads (GetLatest):     985.03/ms  => 5.9 times 
    ezdb-RocksDB-JNI              Reads (Iterator):      672.35/ms  => ~68.7% slowe    
   ezdb-LevelDB-Java              Reads (Iterator):    2,125.29/ms  => using this as baseline
            CQEngine (OnHeap)     Reads (Iterator):    3,345.38/ms  => ~1.6 times faster (using "Query All"; using NavigableIndex directly results in 5,732.63/ms which is ~2.7 times faster)
+Indeed-BasicRecordFile           Reads (Iterator):    7,051.29/ms  => ~3.3 times faster
       ezdb-LMDB-JNR              Reads (Iterator):    9,330.80/ms  => ~4.4 times faster
           TreeMapDB              Reads (Iterator):   10,261.67/ms  => ~4.8 times faster
        ChronicleMap (Disk)       Reads (Iterator):   12,472.56/ms  => ~5.9 times faster (unordered)
