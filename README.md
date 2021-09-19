@@ -247,7 +247,7 @@ New Benchmarks (2021, Core i9-9900k with SSD, Java 16):
   ezdb-LevelDB-Java             Writes (PutBatch):      228.07/ms  => using this as baseline
        InfluxDB-1.x             Writes (PutBatch):      252.08/ms  => ~10% faster
      ChronicleQueue             Writes (Append):        442.48/ms  => ~1.9 times faster
-     Indeed-MphTable            Writes (WriteAll):      491.50/ms  => ~2.15 times faster (immutable after creation)
+    Indeed-MphTable             Writes (WriteAll):      491.50/ms  => ~2.15 times faster (immutable after creation)
       ezdb-BTreeMap             Writes (Put):         1,048.22/ms  => ~4.6 times faster (no persistence)
            CQEngine (OnHeap)    Writes (PutBatch):    1,083.07/ms  => ~4.7 times faster (no persistence)
        ezdb-TreeMap             Writes (Put):         1,902.77/ms  => ~8.3 times faster (no persistence)
