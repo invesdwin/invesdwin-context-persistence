@@ -244,6 +244,7 @@ New Benchmarks (2021, Core i9-9900k with SSD, Java 16):
            CQEngine (OffHeap)   Writes (PutBatch):       65.97/ms  => ~71% slower (no persistence)
               MapDB             Writes (Put):            69.61/ms  => ~70% slower (better than LevelDB for large values due to no relocation)
       ezdb-LMDB-JNR             Writes (PutBatch):      152.05/ms  => ~33% slower
+Indeed-RecordLogDirectory       Writes (Append):        199.19/ms  => ~13% slower
   ezdb-LevelDB-Java             Writes (PutBatch):      228.07/ms  => using this as baseline
        InfluxDB-1.x             Writes (PutBatch):      252.08/ms  => ~10% faster
      ChronicleQueue             Writes (Append):        442.48/ms  => ~90% faster
@@ -301,6 +302,7 @@ ezdb-ConcurrentSkipListMap       Reads (GetLatest):     985.03/ms  => ~5.9 times
   ezdb-LevelDB-Java              Reads (Iterator):    2,125.29/ms  => using this as baseline
            CQEngine (OnHeap)     Reads (Iterator):    3,345.38/ms  => ~60% faster (using "Query All"; using NavigableIndex directly results in 5,732.63/ms which is ~2.7 times faster)
 Indeed-BasicRecordFile           Reads (Iterator):    4,735.45/ms  => ~2.2 times as fast
+Indeed-RecordLogDirectory        Reads (Iterator):    8,701.71/ms  => ~4.1 times as fast
 Indeed-BlockCompRecordFile       Reads (Iterator):    9,285.14/ms  => ~4.37 times as fast
       ezdb-LMDB-JNR              Reads (Iterator):    9,330.80/ms  => ~4.4 times as fast
           TreeMapDB              Reads (Iterator):   10,261.67/ms  => ~4.8 times as fast
