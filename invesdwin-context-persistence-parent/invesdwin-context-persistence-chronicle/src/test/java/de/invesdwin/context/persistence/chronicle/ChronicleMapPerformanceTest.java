@@ -37,9 +37,9 @@ public class ChronicleMapPerformanceTest extends ADatabasePerformanceTest {
                 .name("testChronicleMapPerformance")
                 .constantKeySizeBySample(FDate.MAX_DATE.millisValue())
                 .constantValueSizeBySample(FDate.MAX_DATE.millisValue())
-                .maxBloatFactor(1_000)
-                .entries(10_000_000);
-        //                .entries(VALUES);
+                //                .maxBloatFactor(1_000)
+                //                .entries(10_000_000);
+                .entries(VALUES);
         //        final ChronicleMap<Long, Long> map = mapBuilder.create();
         final ChronicleMap<Long, Long> map = mapBuilder
                 .createPersistedTo(new File(directory, "testChronicleMapPerformance"));
