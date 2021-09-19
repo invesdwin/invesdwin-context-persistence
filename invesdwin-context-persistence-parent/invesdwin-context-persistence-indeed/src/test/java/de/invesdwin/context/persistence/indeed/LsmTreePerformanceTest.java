@@ -39,10 +39,7 @@ public class LsmTreePerformanceTest extends ADatabasePerformanceTest {
 
         final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final Instant writesStart = new Instant();
-        final Store<FDate, FDate> store = new StoreBuilder<FDate, FDate>(file, IndeedSerializer.valueOf(FDateSerde.GET),
-                IndeedSerializer.valueOf(FDateSerde.GET)).setStorageType(StorageType.BLOCK_COMPRESSED)
-                        .setCodec(new SnappyCodec())
-                        .build();
+        Store<FDate, FDate> store = newStore(file);
         int i = 0;
         for (final FDate date : newValues()) {
             store.put(date, date);
@@ -55,11 +52,21 @@ public class LsmTreePerformanceTest extends ADatabasePerformanceTest {
         }
         //        store.waitForCompactions();
         printProgress("WritesFinished", writesStart, VALUES, VALUES);
+        store.close();
+        store = newStore(file);
 
         readIterator(store);
         readGet(store);
         readGetLatest(store);
         store.close();
+    }
+
+    private Store<FDate, FDate> newStore(final File file) throws IOException {
+        return new StoreBuilder<FDate, FDate>(file, IndeedSerializer.valueOf(FDateSerde.GET),
+                IndeedSerializer.valueOf(FDateSerde.GET)).setStorageType(StorageType.BLOCK_COMPRESSED)
+                        .setCodec(new SnappyCodec())
+                        .setMaxVolatileGenerationSize(1000000)
+                        .build();
     }
 
     private void readIterator(final Store<FDate, FDate> table) throws InterruptedException, IOException {

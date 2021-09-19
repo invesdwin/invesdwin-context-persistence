@@ -68,4 +68,16 @@ public class EzdbSerde<O> implements ezdb.serde.Serde<O> {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    @Override
+    public <T> T unwrap(final Class<T> type) {
+        if (type.isAssignableFrom(getClass())) {
+            return (T) this;
+        } else if (type.isAssignableFrom(delegate.getClass())) {
+            return (T) delegate;
+        } else {
+            return null;
+        }
+    }
+
 }
