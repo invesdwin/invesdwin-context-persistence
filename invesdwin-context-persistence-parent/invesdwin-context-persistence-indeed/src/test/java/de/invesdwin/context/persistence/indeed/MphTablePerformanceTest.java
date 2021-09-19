@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.chronicle;
+package de.invesdwin.context.persistence.indeed;
 
 import java.io.File;
 import java.io.IOException;
