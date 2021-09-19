@@ -25,9 +25,9 @@ public final class IndeedSerializer<E> implements Serializer<E> {
     public void write(final E t, final DataOutput out) throws IOException {
         final IByteBuffer buffer = ByteBuffers.EXPANDABLE_POOL.borrowObject();
         try {
-            final int length = serde.toBuffer(buffer.sliceFrom(Integer.BYTES), t);
-            buffer.putInt(0, length);
-            buffer.getBytesTo(0, out, Integer.BYTES + length);
+            final int length = serde.toBuffer(buffer, t);
+            out.writeInt(length);
+            buffer.getBytesTo(0, out, length);
         } finally {
             ByteBuffers.EXPANDABLE_POOL.returnObject(buffer);
         }
