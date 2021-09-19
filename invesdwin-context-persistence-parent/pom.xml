@@ -34,6 +34,7 @@
 		<module>invesdwin-context-persistence-influxdb</module>
 		<module>invesdwin-context-persistence-chronicle</module>
 		<module>invesdwin-context-persistence-questdb</module>
+		<module>invesdwin-context-persistence-indeed</module>
 	</modules>
 
 	<properties>
@@ -63,6 +64,13 @@
 
 		<version.embed-influxdb>1.2.1</version.embed-influxdb>
 		<version.influxdb-java>2.20</version.influxdb-java>
+
+		<version.util-mmap>1.0.36</version.util-mmap>
+		<version.mph-table>1.0.5</version.mph-table>
+		<version.lsmtree>1.0.7</version.lsmtree>
+
+		<version.chronicle-queue>5.21.89</version.chronicle-queue>
+		<version.chronicle-map>3.21.86</version.chronicle-map>
 	</properties>
 
 	<dependencyManagement>
@@ -138,6 +146,11 @@
 			<dependency>
 				<groupId>de.invesdwin</groupId>
 				<artifactId>invesdwin-context-persistence-questdb</artifactId>
+				<version>${project.version.invesdwin-context-persistence}</version>
+			</dependency>
+			<dependency>
+				<groupId>de.invesdwin</groupId>
+				<artifactId>invesdwin-context-persistence-indeed</artifactId>
 				<version>${project.version.invesdwin-context-persistence}</version>
 			</dependency>
 
@@ -359,6 +372,21 @@
 					</exclusion>
 				</exclusions>
 			</dependency>
+			<dependency>
+				<groupId>com.indeed</groupId>
+				<artifactId>util-mmap</artifactId>
+				<version>${version.util-mmap}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.indeed</groupId>
+				<artifactId>mph-table</artifactId>
+				<version>${version.mph-table}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.indeed</groupId>
+				<artifactId>lsmtree-recordcache</artifactId>
+				<version>${version.lsmtree}</version>
+			</dependency>
 
 
 			<dependency>
@@ -414,6 +442,17 @@
 				<groupId>org.influxdb</groupId>
 				<artifactId>influxdb-java</artifactId>
 				<version>${version.influxdb-java}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>net.openhft</groupId>
+				<artifactId>chronicle-queue</artifactId>
+				<version>${version.chronicle-queue}</version>
+			</dependency>
+			<dependency>
+				<groupId>net.openhft</groupId>
+				<artifactId>chronicle-map</artifactId>
+				<version>${version.chronicle-map}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
