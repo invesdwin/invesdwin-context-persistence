@@ -310,6 +310,12 @@
 				<groupId>com.github.criccomini</groupId>
 				<artifactId>ezdb-lsmtree</artifactId>
 				<version>${version.ezdb}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>log4j</groupId>
+						<artifactId>log4j</artifactId>
+					</exclusion>
+				</exclusions>
 			</dependency>
 			<dependency>
 				<groupId>io.github.pcmind</groupId>
