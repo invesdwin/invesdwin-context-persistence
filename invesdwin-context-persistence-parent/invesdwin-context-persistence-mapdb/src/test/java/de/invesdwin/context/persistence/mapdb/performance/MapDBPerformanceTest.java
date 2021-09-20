@@ -10,8 +10,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
-import de.invesdwin.context.integration.streams.compressor.lz4.HighLZ4CompressionFactory;
 import de.invesdwin.context.persistence.mapdb.ADelegateMapDB;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.list.Lists;
@@ -44,12 +42,6 @@ public class MapDBPerformanceTest extends ADatabasePerformanceTest {
             protected ISerde<FDate> newValueSerde() {
                 return FDateSerde.GET;
             }
-
-            @Override
-            protected ICompressionFactory getCompressionFactory() {
-                return HighLZ4CompressionFactory.INSTANCE;
-            }
-
         };
 
         final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);

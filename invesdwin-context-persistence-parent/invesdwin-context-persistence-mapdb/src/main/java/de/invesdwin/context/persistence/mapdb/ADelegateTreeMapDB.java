@@ -90,16 +90,12 @@ public abstract class ADelegateTreeMapDB<K, V> implements ConcurrentNavigableMap
         return maker.counterEnable();
     }
 
-    private GroupSerializer<V> newValueSerializer() {
-        return newSerializer(newValueSerde(), getCompressionFactory());
-    }
-
     private GroupSerializer<K> newKeySerializier() {
-        return newSerializer(newKeySerde(), getCompressionFactory());
+        return new SerdeGroupSerializer<K>(newKeySerde());
     }
 
-    private <T> GroupSerializer<T> newSerializer(final ISerde<T> serde, final ICompressionFactory compressionFactory) {
-        return new SerdeGroupSerializer<T>(serde, compressionFactory);
+    private GroupSerializer<V> newValueSerializer() {
+        return new SerdeGroupSerializer<V>(newValueSerde());
     }
 
     protected ISerde<K> newKeySerde() {

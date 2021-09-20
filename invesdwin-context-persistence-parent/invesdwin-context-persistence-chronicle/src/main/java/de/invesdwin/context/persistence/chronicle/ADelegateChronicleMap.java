@@ -14,8 +14,6 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
-import de.invesdwin.context.integration.streams.compressor.lz4.LZ4Streams;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.marshallers.serde.ISerde;
@@ -78,21 +76,12 @@ public abstract class ADelegateChronicleMap<K, V> implements ConcurrentMap<K, V>
         return builder.averageKeySize(20).averageValueSize(100);
     }
 
-    private ChronicleMarshaller<V> newValueMarshaller() {
-        return newMarshaller(newValueSerde(), getCompressionFactory());
-    }
-
     private ChronicleMarshaller<K> newKeyMarshaller() {
-        return newMarshaller(newKeySerde(), getCompressionFactory());
+        return new ChronicleMarshaller<K>(newKeySerde());
     }
 
-    private <T> ChronicleMarshaller<T> newMarshaller(final ISerde<T> serde,
-            final ICompressionFactory compressionFactory) {
-        return new ChronicleMarshaller<T>(serde, compressionFactory);
-    }
-
-    protected ICompressionFactory getCompressionFactory() {
-        return LZ4Streams.getDefaultCompressionFactory();
+    private ChronicleMarshaller<V> newValueMarshaller() {
+        return new ChronicleMarshaller<V>(newValueSerde());
     }
 
     protected ISerde<K> newKeySerde() {

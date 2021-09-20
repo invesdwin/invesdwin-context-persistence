@@ -18,11 +18,8 @@ import org.mapdb.DB.HashMapMaker;
 import org.mapdb.DBMaker;
 import org.mapdb.DBMaker.Maker;
 import org.mapdb.Serializer;
-import org.mapdb.serializer.GroupSerializer;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
-import de.invesdwin.context.integration.streams.compressor.lz4.LZ4Streams;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.marshallers.serde.ISerde;
@@ -80,20 +77,12 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
         return maker.counterEnable();
     }
 
-    private Serializer<V> newValueSerializer() {
-        return newSerializer(newValueSerde(), getCompressionFactory());
-    }
-
     private Serializer<K> newKeySerializier() {
-        return newSerializer(newKeySerde(), getCompressionFactory());
+        return new SerdeGroupSerializer<K>(newKeySerde());
     }
 
-    private <T> GroupSerializer<T> newSerializer(final ISerde<T> serde, final ICompressionFactory compressionFactory) {
-        return new SerdeGroupSerializer<T>(serde, compressionFactory);
-    }
-
-    protected ICompressionFactory getCompressionFactory() {
-        return LZ4Streams.getDefaultCompressionFactory();
+    private Serializer<V> newValueSerializer() {
+        return new SerdeGroupSerializer<V>(newValueSerde());
     }
 
     protected ISerde<K> newKeySerde() {

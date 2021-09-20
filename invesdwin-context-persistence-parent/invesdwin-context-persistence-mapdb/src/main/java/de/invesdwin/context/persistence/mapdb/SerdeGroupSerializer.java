@@ -8,7 +8,6 @@ import org.mapdb.DataInput2;
 import org.mapdb.DataOutput2;
 import org.mapdb.serializer.GroupSerializerObjectArray;
 
-import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.streams.buffer.ByteBuffers;
 import de.invesdwin.util.streams.buffer.IByteBuffer;
@@ -24,8 +23,8 @@ public final class SerdeGroupSerializer<T> extends GroupSerializerObjectArray<T>
 
     private final ISerde<T> serde;
 
-    public SerdeGroupSerializer(final ISerde<T> serde, final ICompressionFactory compressionFactory) {
-        this.serde = compressionFactory.maybeWrap(serde);
+    public SerdeGroupSerializer(final ISerde<T> serde) {
+        this.serde = serde;
     }
 
     @Override

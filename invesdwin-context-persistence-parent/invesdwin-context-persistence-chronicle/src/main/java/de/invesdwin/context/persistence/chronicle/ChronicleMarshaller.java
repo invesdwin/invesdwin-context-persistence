@@ -2,7 +2,6 @@ package de.invesdwin.context.persistence.chronicle;
 
 import javax.annotation.concurrent.Immutable;
 
-import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.streams.buffer.delegate.ChronicleDelegateByteBuffer;
 import net.openhft.chronicle.hash.serialization.BytesReader;
@@ -18,8 +17,8 @@ public class ChronicleMarshaller<T> implements BytesReader<T>, BytesWriter<T> {
 
     private final ISerde<T> serde;
 
-    public ChronicleMarshaller(final ISerde<T> serde, final ICompressionFactory compressionFactory) {
-        this.serde = compressionFactory.maybeWrap(serde);
+    public ChronicleMarshaller(final ISerde<T> serde) {
+        this.serde = serde;
     }
 
     @SuppressWarnings("rawtypes")
