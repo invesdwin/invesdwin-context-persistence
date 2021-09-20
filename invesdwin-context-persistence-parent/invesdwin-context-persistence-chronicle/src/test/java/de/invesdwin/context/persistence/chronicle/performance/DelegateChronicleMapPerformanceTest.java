@@ -1,7 +1,6 @@
-package de.invesdwin.context.persistence.chronicle;
+package de.invesdwin.context.persistence.chronicle.performance;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -11,42 +10,53 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
+import de.invesdwin.context.persistence.chronicle.ADelegateChronicleMap;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
-import de.invesdwin.util.lang.Files;
+import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.duration.Duration;
-import net.openhft.chronicle.map.ChronicleMap;
 import net.openhft.chronicle.map.ChronicleMapBuilder;
 
 @NotThreadSafe
 //@Ignore("manual test")
-public class ChronicleMapPerformanceTest extends ADatabasePerformanceTest {
+public class DelegateChronicleMapPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
-    public void testChronicleMapPerformance() throws IOException, InterruptedException {
-        final File directory = new File(ContextProperties.getCacheDirectory(),
-                ChronicleMapPerformanceTest.class.getSimpleName());
-        Files.deleteNative(directory);
-        Files.forceMkdir(directory);
+    public void testChronicleMapPerformance() throws InterruptedException {
+        @SuppressWarnings("resource")
+        final ADelegateChronicleMap<FDate, FDate> table = new ADelegateChronicleMap<FDate, FDate>(
+                "testChronicleMapPerformance") {
+            @Override
+            protected File getBaseDirectory() {
+                return ContextProperties.TEMP_DIRECTORY;
+            }
 
-        final Instant writesStart = new Instant();
-        final ChronicleMapBuilder<Long, Long> mapBuilder = ChronicleMapBuilder.of(Long.class, Long.class)
-                .name("testChronicleMapPerformance")
-                .constantKeySizeBySample(FDate.MAX_DATE.millisValue())
-                .constantValueSizeBySample(FDate.MAX_DATE.millisValue())
-                //                .maxBloatFactor(1_000)
-                //                .entries(10_000_000);
-                .entries(VALUES);
-        //        final ChronicleMap<Long, Long> map = mapBuilder.create();
-        final ChronicleMap<Long, Long> map = mapBuilder
-                .createPersistedTo(new File(directory, "testChronicleMapPerformance"));
+            @SuppressWarnings("rawtypes")
+            @Override
+            protected ChronicleMapBuilder configureMap(final ChronicleMapBuilder builder) {
+                return builder.averageKeySize(FDate.BYTES).averageValueSize(FDate.BYTES);
+            }
+
+            @Override
+            protected ISerde<FDate> newKeySerde() {
+                return FDateSerde.GET;
+            }
+
+            @Override
+            protected ISerde<FDate> newValueSerde() {
+                return FDateSerde.GET;
+            }
+        };
+
         final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
+        final Instant writesStart = new Instant();
         int i = 0;
         for (final FDate date : newValues()) {
-            map.put(date.millisValue(), date.millisValue());
+            table.put(date, date);
             i++;
             if (i % FLUSH_INTERVAL == 0) {
                 if (loopCheck.check()) {
@@ -56,20 +66,20 @@ public class ChronicleMapPerformanceTest extends ADatabasePerformanceTest {
         }
         printProgress("WritesFinished", writesStart, VALUES, VALUES);
 
-        readIterator(map);
-        readGet(map);
+        readIterator(table);
+        readGet(table);
+        table.deleteTable();
     }
 
-    private void readIterator(final ChronicleMap<Long, Long> table) throws InterruptedException {
-        final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
+    private void readIterator(final ADelegateChronicleMap<FDate, FDate> table) {
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
             //            FDate prevValue = null;
-            final Iterator<Long> range = table.values().iterator();
+            final Iterator<FDate> range = table.values().iterator();
             int count = 0;
             while (true) {
                 try {
-                    final FDate value = new FDate(range.next());
+                    final FDate value = range.next();
                     //                    if (prevValue != null) {
                     //                        Assertions.checkTrue(prevValue.isBefore(value));
                     //                    }
@@ -80,22 +90,19 @@ public class ChronicleMapPerformanceTest extends ADatabasePerformanceTest {
                 }
             }
             Assertions.checkEquals(count, VALUES);
-            if (loopCheck.check()) {
-                printProgress("Reads", readsStart, VALUES * reads, VALUES * READS);
-            }
+            printProgress("Reads", readsStart, VALUES * reads, VALUES * READS);
         }
         printProgress("ReadsFinished", readsStart, VALUES * READS, VALUES * READS);
     }
 
-    private void readGet(final ChronicleMap<Long, Long> table) throws InterruptedException {
-        final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
+    private void readGet(final ADelegateChronicleMap<FDate, FDate> table) {
         final List<FDate> values = Lists.toList(newValues());
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
             FDate prevValue = null;
             for (int i = 0; i < values.size(); i++) {
                 try {
-                    final FDate value = new FDate(table.get(values.get(i).millisValue()));
+                    final FDate value = table.get(values.get(i));
                     if (prevValue != null) {
                         Assertions.checkTrue(prevValue.isBefore(value));
                     }
@@ -104,9 +111,7 @@ public class ChronicleMapPerformanceTest extends ADatabasePerformanceTest {
                     break;
                 }
             }
-            if (loopCheck.check()) {
-                printProgress("Gets", readsStart, VALUES * reads, VALUES * READS);
-            }
+            printProgress("Gets", readsStart, VALUES * reads, VALUES * READS);
         }
         printProgress("GetsFinished", readsStart, VALUES * READS, VALUES * READS);
     }

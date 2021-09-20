@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.mapdb;
+package de.invesdwin.context.persistence.chronicle;
 
 import java.io.Closeable;
 import java.io.File;
@@ -13,13 +13,6 @@ import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.mapdb.DB;
-import org.mapdb.DB.HashMapMaker;
-import org.mapdb.DBMaker;
-import org.mapdb.DBMaker.Maker;
-import org.mapdb.Serializer;
-import org.mapdb.serializer.GroupSerializer;
-
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
 import de.invesdwin.context.integration.streams.compressor.lz4.LZ4Streams;
@@ -27,6 +20,8 @@ import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.TypeDelegateSerde;
+import net.openhft.chronicle.map.ChronicleMap;
+import net.openhft.chronicle.map.ChronicleMapBuilder;
 
 /**
  * If you need to store large data on disk, it is better to use LevelDB only for an ordered index and store the actual
@@ -34,13 +29,13 @@ import de.invesdwin.util.marshallers.serde.TypeDelegateSerde;
  * elements.
  */
 @ThreadSafe
-public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Closeable {
+public abstract class ADelegateChronicleMap<K, V> implements ConcurrentMap<K, V>, Closeable {
 
     private final String name;
     @GuardedBy("this")
-    private ConcurrentMap<K, V> delegate;
+    private ChronicleMap<K, V> delegate;
 
-    public ADelegateMapDB(final String name) {
+    public ADelegateChronicleMap(final String name) {
         this.name = name;
     }
 
@@ -55,41 +50,45 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
         return delegate;
     }
 
-    protected ConcurrentMap<K, V> newDelegate() {
-        final Maker fileDB = createDB();
-        final DB db = configureDB(fileDB).make();
-        final HashMapMaker<K, V> maker = db.hashMap(name, newKeySerializier(), newValueSerializer());
-        return configureHashMap(maker).createOrOpen();
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    protected ChronicleMap<K, V> newDelegate() {
+        ChronicleMapBuilder builder = ChronicleMapBuilder.of(Object.class, Object.class);
+        builder.name(name)
+                .keyMarshaller(newKeyMarshaller())
+                .valueMarshaller(newValueMarshaller())
+                .maxBloatFactor(1_000)
+                .entries(1_000_000);
+        builder = configureMap(builder);
+        return createDb(builder);
     }
 
-    protected Maker createDB() {
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    protected ChronicleMap<K, V> createDb(final ChronicleMapBuilder mapBuilder) {
         final File file = getFile();
         try {
             Files.forceMkdirParent(file);
+            return mapBuilder.createOrRecoverPersistedTo(file);
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
-        return DBMaker.fileDB(file);
     }
 
-    protected Maker configureDB(final Maker maker) {
-        return maker.fileMmapEnable().fileMmapPreclearDisable().cleanerHackEnable().closeOnJvmShutdownWeakReference();
+    @SuppressWarnings("rawtypes")
+    protected ChronicleMapBuilder configureMap(final ChronicleMapBuilder builder) {
+        return builder.averageKeySize(20).averageValueSize(100);
     }
 
-    protected HashMapMaker<K, V> configureHashMap(final HashMapMaker<K, V> maker) {
-        return maker.counterEnable();
+    private ChronicleMarshaller<V> newValueMarshaller() {
+        return newMarshaller(newValueSerde(), getCompressionFactory());
     }
 
-    private Serializer<V> newValueSerializer() {
-        return newSerializer(newValueSerde(), getCompressionFactory());
+    private ChronicleMarshaller<K> newKeyMarshaller() {
+        return newMarshaller(newKeySerde(), getCompressionFactory());
     }
 
-    private Serializer<K> newKeySerializier() {
-        return newSerializer(newKeySerde(), getCompressionFactory());
-    }
-
-    private <T> GroupSerializer<T> newSerializer(final ISerde<T> serde, final ICompressionFactory compressionFactory) {
-        return new SerdeGroupSerializer<T>(serde, compressionFactory);
+    private <T> ChronicleMarshaller<T> newMarshaller(final ISerde<T> serde,
+            final ICompressionFactory compressionFactory) {
+        return new ChronicleMarshaller<T>(serde, compressionFactory);
     }
 
     protected ICompressionFactory getCompressionFactory() {
@@ -109,7 +108,7 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
     }
 
     protected File getDirectory() {
-        return new File(getBaseDirectory(), ADelegateMapDB.class.getSimpleName());
+        return new File(getBaseDirectory(), ADelegateChronicleMap.class.getSimpleName());
     }
 
     protected File getBaseDirectory() {
@@ -118,12 +117,12 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
 
     @SuppressWarnings("unchecked")
     private Class<K> getKeyType() {
-        return (Class<K>) Reflections.resolveTypeArguments(getClass(), ADelegateMapDB.class)[0];
+        return (Class<K>) Reflections.resolveTypeArguments(getClass(), ADelegateChronicleMap.class)[0];
     }
 
     @SuppressWarnings("unchecked")
     private Class<V> getValueType() {
-        return (Class<V>) Reflections.resolveTypeArguments(getClass(), ADelegateMapDB.class)[1];
+        return (Class<V>) Reflections.resolveTypeArguments(getClass(), ADelegateChronicleMap.class)[1];
     }
 
     @Override
@@ -224,7 +223,7 @@ public abstract class ADelegateMapDB<K, V> implements ConcurrentMap<K, V>, Close
     @Override
     public synchronized void close() {
         if (delegate != null) {
-            final Closeable cDelegate = (Closeable) delegate;
+            final Closeable cDelegate = delegate;
             try {
                 cDelegate.close();
             } catch (final IOException e) {

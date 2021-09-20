@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.chronicle;
+package de.invesdwin.context.persistence.chronicle.performance;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -21,7 +21,7 @@ public abstract class ADatabasePerformanceTest extends ATest {
     //        LZ4Streams.setAllowJniCompressor(true);
     //    }
 
-    protected static final int READS = 100;
+    protected static final int READS = 10;
     protected static final int VALUES = 10_000_000;
     protected static final String HASH_KEY = "HASH_KEY";
     protected static final int FLUSH_INTERVAL = 10_000;

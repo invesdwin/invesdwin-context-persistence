@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.chronicle;
+package de.invesdwin.context.persistence.chronicle.performance;
 
 import java.io.File;
 
