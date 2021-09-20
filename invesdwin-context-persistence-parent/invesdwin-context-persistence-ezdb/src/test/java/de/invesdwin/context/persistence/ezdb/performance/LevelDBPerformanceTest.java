@@ -7,11 +7,12 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable;
+import de.invesdwin.context.persistence.ezdb.db.IRangeTableDb;
+import de.invesdwin.context.persistence.ezdb.db.storage.LsmTreeRangeTableDb;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.list.Lists;
@@ -24,7 +25,7 @@ import de.invesdwin.util.time.duration.Duration;
 import ezdb.batch.RangeBatch;
 
 @NotThreadSafe
-@Ignore("manual test")
+//@Ignore("manual test")
 public class LevelDBPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
@@ -46,10 +47,10 @@ public class LevelDBPerformanceTest extends ADatabasePerformanceTest {
                 return FDateSerde.GET;
             }
 
-            //            @Override
-            //            protected IRangeTableDb newDiskDb() {
-            //                return new LmdbRangeTableDb(internalMethods);
-            //            }
+            @Override
+            protected IRangeTableDb newDiskDb() {
+                return new LsmTreeRangeTableDb(internalMethods);
+            }
 
         };
 
