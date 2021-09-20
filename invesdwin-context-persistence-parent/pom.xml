@@ -395,6 +395,11 @@
 			</dependency>
 			<dependency>
 				<groupId>com.indeed</groupId>
+				<artifactId>util-serialization</artifactId>
+				<version>${version.indeed-util}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.indeed</groupId>
 				<artifactId>mph-table</artifactId>
 				<version>${version.mph-table}</version>
 			</dependency>
