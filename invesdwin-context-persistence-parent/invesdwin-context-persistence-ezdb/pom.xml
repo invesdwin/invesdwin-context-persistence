@@ -25,6 +25,10 @@
 			<artifactId>ezdb-treemap</artifactId>
 		</dependency>
 		<dependency>
+			<groupId>com.github.criccomini</groupId>
+			<artifactId>ezdb-lsmtree</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>org.xerial.snappy</groupId>
 			<artifactId>snappy-java</artifactId>
 			<scope>provided</scope>

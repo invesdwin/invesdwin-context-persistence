@@ -307,6 +307,11 @@
 				<version>${version.ezdb}</version>
 			</dependency>
 			<dependency>
+				<groupId>com.github.criccomini</groupId>
+				<artifactId>ezdb-lsmtree</artifactId>
+				<version>${version.ezdb}</version>
+			</dependency>
+			<dependency>
 				<groupId>io.github.pcmind</groupId>
 				<artifactId>leveldb</artifactId>
 				<version>${version.leveldb}</version>
