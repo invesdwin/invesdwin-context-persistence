@@ -387,41 +387,89 @@
 				<groupId>com.indeed</groupId>
 				<artifactId>util-mmap</artifactId>
 				<version>${version.indeed-util}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>log4j</groupId>
+						<artifactId>log4j</artifactId>
+					</exclusion>
+				</exclusions>
 			</dependency>
 			<dependency>
 				<groupId>com.indeed</groupId>
 				<artifactId>util-io</artifactId>
 				<version>${version.indeed-util}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>log4j</groupId>
+						<artifactId>log4j</artifactId>
+					</exclusion>
+				</exclusions>
 			</dependency>
 			<dependency>
 				<groupId>com.indeed</groupId>
 				<artifactId>util-serialization</artifactId>
 				<version>${version.indeed-util}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>log4j</groupId>
+						<artifactId>log4j</artifactId>
+					</exclusion>
+				</exclusions>
 			</dependency>
 			<dependency>
 				<groupId>com.indeed</groupId>
 				<artifactId>util-core</artifactId>
 				<version>${version.indeed-util}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>log4j</groupId>
+						<artifactId>log4j</artifactId>
+					</exclusion>
+				</exclusions>
 			</dependency>
 			<dependency>
 				<groupId>com.indeed</groupId>
 				<artifactId>util-varexport</artifactId>
 				<version>${version.indeed-util}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>log4j</groupId>
+						<artifactId>log4j</artifactId>
+					</exclusion>
+				</exclusions>
 			</dependency>
 			<dependency>
 				<groupId>com.indeed</groupId>
 				<artifactId>util-compress</artifactId>
 				<version>${version.indeed-util}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>log4j</groupId>
+						<artifactId>log4j</artifactId>
+					</exclusion>
+				</exclusions>
 			</dependency>
 			<dependency>
 				<groupId>com.indeed</groupId>
 				<artifactId>mph-table</artifactId>
 				<version>${version.mph-table}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>log4j</groupId>
+						<artifactId>log4j</artifactId>
+					</exclusion>
+				</exclusions>
 			</dependency>
 			<dependency>
 				<groupId>com.indeed</groupId>
 				<artifactId>lsmtree-recordcache</artifactId>
 				<version>${version.lsmtree}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>log4j</groupId>
+						<artifactId>log4j</artifactId>
+					</exclusion>
+				</exclusions>
 			</dependency>
 
 
