@@ -29,7 +29,7 @@ import ezdb.batch.RangeBatch;
 public class LevelDBPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
-    public void testLevelDbPerformance() {
+    public void testLevelDbPerformance() throws InterruptedException {
         final ADelegateRangeTable<String, FDate, FDate> table = new ADelegateRangeTable<String, FDate, FDate>(
                 "testLevelDbPerformance") {
             @Override
@@ -47,10 +47,10 @@ public class LevelDBPerformanceTest extends ADatabasePerformanceTest {
                 return FDateSerde.GET;
             }
 
-            @Override
-            protected IRangeTableDb newDiskDb() {
-                return new LsmTreeRangeTableDb(internalMethods);
-            }
+//            @Override
+//            protected IRangeTableDb newDiskDb() {
+//                return new LsmTreeRangeTableDb(internalMethods);
+//            }
 
         };
 
@@ -91,7 +91,8 @@ public class LevelDBPerformanceTest extends ADatabasePerformanceTest {
         readGetLatest(table);
     }
 
-    private void readIterator(final ADelegateRangeTable<String, FDate, FDate> table) {
+    private void readIterator(final ADelegateRangeTable<String, FDate, FDate> table) throws InterruptedException {
+        final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
             FDate prevValue = null;
@@ -110,12 +111,15 @@ public class LevelDBPerformanceTest extends ADatabasePerformanceTest {
                 }
             }
             Assertions.checkEquals(count, VALUES);
-            printProgress("Reads", readsStart, VALUES * reads, VALUES * READS);
+            if (loopCheck.check()) {
+                printProgress("Reads", readsStart, VALUES * reads, VALUES * READS);
+            }
         }
         printProgress("ReadsFinished", readsStart, VALUES * READS, VALUES * READS);
     }
 
-    private void readGet(final ADelegateRangeTable<String, FDate, FDate> table) {
+    private void readGet(final ADelegateRangeTable<String, FDate, FDate> table) throws InterruptedException {
+        final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final List<FDate> values = Lists.toList(newValues());
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
@@ -131,12 +135,15 @@ public class LevelDBPerformanceTest extends ADatabasePerformanceTest {
                     break;
                 }
             }
-            printProgress("Gets", readsStart, VALUES * reads, VALUES * READS);
+            if (loopCheck.check()) {
+                printProgress("Gets", readsStart, VALUES * reads, VALUES * READS);
+            }
         }
         printProgress("GetsFinished", readsStart, VALUES * READS, VALUES * READS);
     }
 
-    private void readGetLatest(final ADelegateRangeTable<String, FDate, FDate> table) {
+    private void readGetLatest(final ADelegateRangeTable<String, FDate, FDate> table) throws InterruptedException {
+        final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final List<FDate> values = Lists.toList(newValues());
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
@@ -152,7 +159,9 @@ public class LevelDBPerformanceTest extends ADatabasePerformanceTest {
                     break;
                 }
             }
-            printProgress("GetLatests", readsStart, VALUES * reads, VALUES * READS);
+            if (loopCheck.check()) {
+                printProgress("GetLatests", readsStart, VALUES * reads, VALUES * READS);
+            }
         }
         printProgress("GetLatestsFinished", readsStart, VALUES * READS, VALUES * READS);
     }
