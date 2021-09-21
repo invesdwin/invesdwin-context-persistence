@@ -40,13 +40,13 @@ public class ChroniclePersistentMapFactory<K, V> implements IPersistentMapFactor
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    protected <K, V> ChronicleMap<K, V> createChronicleMap(final APersistentMapConfig<K, V> config,
+    protected ChronicleMap<K, V> createChronicleMap(final APersistentMapConfig<K, V> config,
             final ChronicleMapBuilder mapBuilder) {
         if (config.isDiskPersistence()) {
             final File file = config.getFile();
             try {
                 Files.forceMkdirParent(file);
-                return mapBuilder.createOrRecoverPersistedTo(file);
+                return mapBuilder.createPersistedTo(file);
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
