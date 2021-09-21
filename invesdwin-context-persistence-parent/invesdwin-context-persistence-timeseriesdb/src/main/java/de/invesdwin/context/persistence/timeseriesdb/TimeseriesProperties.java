@@ -2,6 +2,10 @@ package de.invesdwin.context.persistence.timeseriesdb;
 
 import javax.annotation.concurrent.Immutable;
 
+import org.checkerframework.checker.units.qual.K;
+
+import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
+import de.invesdwin.context.persistence.chronicle.PersistentChronicleMapFactory;
 import de.invesdwin.context.system.properties.SystemProperties;
 import de.invesdwin.util.time.duration.Duration;
 
@@ -20,6 +24,10 @@ public final class TimeseriesProperties {
     }
 
     private TimeseriesProperties() {
+    }
+
+    public static <K, V> IPersistentMapFactory<K, V> newPersistentMapFactory() {
+        return new PersistentChronicleMapFactory<K, V>();
     }
 
 }

@@ -96,7 +96,7 @@ public class FileLiveSegmentTest extends ATest {
                 .ofType(HistoricalSegmentTable.class)
                 .in(timeSeriesDB)
                 .get();
-        final RangeTableLiveSegment<FDate, Integer> rangeTable = new RangeTableLiveSegment<FDate, Integer>(segmentedKey,
+        final FileLiveSegment<FDate, Integer> rangeTable = new FileLiveSegment<FDate, Integer>(segmentedKey,
                 historicalSegmentTable);
         final FDate now = FDateBuilder.newDate(2000);
         final FDate oneDate = now.addDays(1);

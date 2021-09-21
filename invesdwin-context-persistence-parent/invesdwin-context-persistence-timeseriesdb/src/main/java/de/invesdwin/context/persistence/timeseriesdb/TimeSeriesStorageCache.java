@@ -26,7 +26,7 @@ import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable.DelegateTableIt
 import de.invesdwin.context.persistence.timeseriesdb.filebuffer.FileBufferCache;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ChunkValue;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
-import de.invesdwin.context.persistence.timeseriesdb.storage.ShiftUnitsRangeKey;
+import de.invesdwin.context.persistence.timeseriesdb.storage.ShiftUnitsHashKey;
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
@@ -81,7 +81,7 @@ public class TimeSeriesStorageCache<K, V> {
         @Override
         protected V loadValue(final FDate key) {
             final SingleValue value = storage.getLatestValueLookupTable()
-                    .getOrLoad(hashKey, key, new Function<Pair<String, FDate>, SingleValue>() {
+                    .computeIfAbsent(Pair.of(hashKey, key), new Function<Pair<String, FDate>, SingleValue>() {
 
                         @Override
                         public SingleValue apply(final Pair<String, FDate> input) {
@@ -139,37 +139,30 @@ public class TimeSeriesStorageCache<K, V> {
             final FDate date = key.getFirst();
             final int shiftBackUnits = key.getSecond();
             final SingleValue value = storage.getPreviousValueLookupTable()
-                    .getOrLoad(hashKey, new ShiftUnitsRangeKey(date, shiftBackUnits),
-                            new Function<Pair<String, ShiftUnitsRangeKey>, SingleValue>() {
-
-                                @Override
-                                public SingleValue apply(final Pair<String, ShiftUnitsRangeKey> input) {
-                                    final FDate date = key.getFirst();
-                                    final int shiftBackUnits = key.getSecond();
-                                    final MutableReference<V> previousValue = new MutableReference<>();
-                                    final MutableInt shiftBackRemaining = new MutableInt(shiftBackUnits);
-                                    try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null,
-                                            DisabledLock.INSTANCE, new ISkipFileFunction() {
-                                                @Override
-                                                public boolean skipFile(final ChunkValue file) {
-                                                    final boolean skip = previousValue.get() != null
-                                                            && file.getCount() < shiftBackRemaining.intValue();
-                                                    if (skip) {
-                                                        shiftBackRemaining.subtract(file.getCount());
-                                                    }
-                                                    return skip;
-                                                }
-                                            })) {
-                                        while (shiftBackRemaining.intValue() >= 0) {
-                                            previousValue.set(rangeValuesReverse.next());
-                                            shiftBackRemaining.decrement();
+                    .computeIfAbsent(new ShiftUnitsHashKey(hashKey, date, shiftBackUnits), (k) -> {
+                        final MutableReference<V> previousValue = new MutableReference<>();
+                        final MutableInt shiftBackRemaining = new MutableInt(shiftBackUnits);
+                        try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null,
+                                DisabledLock.INSTANCE, new ISkipFileFunction() {
+                                    @Override
+                                    public boolean skipFile(final ChunkValue file) {
+                                        final boolean skip = previousValue.get() != null
+                                                && file.getCount() < shiftBackRemaining.intValue();
+                                        if (skip) {
+                                            shiftBackRemaining.subtract(file.getCount());
                                         }
-                                    } catch (final NoSuchElementException e) {
-                                        //ignore
+                                        return skip;
                                     }
-                                    return new SingleValue(valueSerde, previousValue.get());
-                                }
-                            });
+                                })) {
+                            while (shiftBackRemaining.intValue() >= 0) {
+                                previousValue.set(rangeValuesReverse.next());
+                                shiftBackRemaining.decrement();
+                            }
+                        } catch (final NoSuchElementException e) {
+                            //ignore
+                        }
+                        return new SingleValue(valueSerde, previousValue.get());
+                    });
             return value.getValue(valueSerde);
         }
     };
@@ -190,37 +183,30 @@ public class TimeSeriesStorageCache<K, V> {
             final FDate date = key.getFirst();
             final int shiftForwardUnits = key.getSecond();
             final SingleValue value = storage.getNextValueLookupTable()
-                    .getOrLoad(hashKey, new ShiftUnitsRangeKey(date, shiftForwardUnits),
-                            new Function<Pair<String, ShiftUnitsRangeKey>, SingleValue>() {
-
-                                @Override
-                                public SingleValue apply(final Pair<String, ShiftUnitsRangeKey> input) {
-                                    final FDate date = key.getFirst();
-                                    final int shiftForwardUnits = key.getSecond();
-                                    final MutableReference<V> nextValue = new MutableReference<>();
-                                    final MutableInt shiftForwardRemaining = new MutableInt(shiftForwardUnits);
-                                    try (ICloseableIterator<V> rangeValues = readRangeValues(date, null,
-                                            DisabledLock.INSTANCE, new ISkipFileFunction() {
-                                                @Override
-                                                public boolean skipFile(final ChunkValue file) {
-                                                    final boolean skip = nextValue.get() != null
-                                                            && file.getCount() < shiftForwardRemaining.intValue();
-                                                    if (skip) {
-                                                        shiftForwardRemaining.subtract(file.getCount());
-                                                    }
-                                                    return skip;
-                                                }
-                                            })) {
-                                        while (shiftForwardRemaining.intValue() >= 0) {
-                                            nextValue.set(rangeValues.next());
-                                            shiftForwardRemaining.decrement();
+                    .computeIfAbsent(new ShiftUnitsHashKey(hashKey, date, shiftForwardUnits), (k) -> {
+                        final MutableReference<V> nextValue = new MutableReference<>();
+                        final MutableInt shiftForwardRemaining = new MutableInt(shiftForwardUnits);
+                        try (ICloseableIterator<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,
+                                new ISkipFileFunction() {
+                                    @Override
+                                    public boolean skipFile(final ChunkValue file) {
+                                        final boolean skip = nextValue.get() != null
+                                                && file.getCount() < shiftForwardRemaining.intValue();
+                                        if (skip) {
+                                            shiftForwardRemaining.subtract(file.getCount());
                                         }
-                                    } catch (final NoSuchElementException e) {
-                                        //ignore
+                                        return skip;
                                     }
-                                    return new SingleValue(valueSerde, nextValue.get());
-                                }
-                            });
+                                })) {
+                            while (shiftForwardRemaining.intValue() >= 0) {
+                                nextValue.set(rangeValues.next());
+                                shiftForwardRemaining.decrement();
+                            }
+                        } catch (final NoSuchElementException e) {
+                            //ignore
+                        }
+                        return new SingleValue(valueSerde, nextValue.get());
+                    });
             return value.getValue(valueSerde);
         }
     };
@@ -671,9 +657,13 @@ public class TimeSeriesStorageCache<K, V> {
 
     public synchronized void deleteAll() {
         storage.getFileLookupTable().deleteRange(hashKey);
-        storage.getLatestValueLookupTable().deleteRange(hashKey);
-        storage.getNextValueLookupTable().deleteRange(hashKey);
-        storage.getPreviousValueLookupTable().deleteRange(hashKey);
+        /*
+         * I guess deleting the complete table is faster than iterating through every entry, even though if we
+         * invalidate other instruments as well with this
+         */
+        storage.getLatestValueLookupTable().deleteTable();
+        storage.getNextValueLookupTable().deleteTable();
+        storage.getPreviousValueLookupTable().deleteTable();
         clearCaches();
         Files.deleteNative(newDataDirectory());
         dataDirectory = null;
@@ -777,9 +767,13 @@ public class TimeSeriesStorageCache<K, V> {
                 latestRangeKey = latestRangeKey.addMilliseconds(1);
             }
             storage.getFileLookupTable().deleteRange(hashKey, latestRangeKey);
-            storage.getLatestValueLookupTable().deleteRange(hashKey, latestRangeKey);
-            storage.getNextValueLookupTable().deleteRange(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
-            storage.getPreviousValueLookupTable().deleteRange(hashKey, new ShiftUnitsRangeKey(latestRangeKey, 0));
+            /*
+             * I guess deleting the complete table is faster than iterating through every entry, even though if we
+             * invalidate other instruments as well with this
+             */
+            storage.getLatestValueLookupTable().deleteTable();
+            storage.getNextValueLookupTable().deleteTable();
+            storage.getPreviousValueLookupTable().deleteTable();
         }
         clearCaches();
         return Pair.of(updateFrom, lastValues);

@@ -4,10 +4,16 @@ import java.io.File;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import de.invesdwin.context.integration.persistentmap.APersistentMap;
+import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
 import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
+import de.invesdwin.context.integration.streams.compressor.lz4.FastLZ4CompressionFactory;
 import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.ezdb.RangeTablePersistenceMode;
+import de.invesdwin.context.persistence.timeseriesdb.TimeseriesProperties;
+import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.marshallers.serde.RemoteFastSerializingSerde;
 import de.invesdwin.util.time.date.FDate;
 
 @ThreadSafe
@@ -16,9 +22,9 @@ public class TimeSeriesStorage {
     private final File directory;
     private final ICompressionFactory compressionFactory;
     private final ADelegateRangeTable<String, FDate, ChunkValue> fileLookupTable;
-    private final ADelegateRangeTable<String, FDate, SingleValue> latestValueLookupTable;
-    private final ADelegateRangeTable<String, ShiftUnitsRangeKey, SingleValue> previousValueLookupTable;
-    private final ADelegateRangeTable<String, ShiftUnitsRangeKey, SingleValue> nextValueLookupTable;
+    private final APersistentMap<Pair<String, FDate>, SingleValue> latestValueLookupTable;
+    private final APersistentMap<ShiftUnitsHashKey, SingleValue> previousValueLookupTable;
+    private final APersistentMap<ShiftUnitsHashKey, SingleValue> nextValueLookupTable;
 
     public TimeSeriesStorage(final File directory, final Integer valueFixedLength,
             final ICompressionFactory compressionFactory) {
@@ -52,63 +58,76 @@ public class TimeSeriesStorage {
             }
 
         };
-        this.latestValueLookupTable = new ADelegateRangeTable<String, FDate, SingleValue>("latestValueLookupTable") {
+        this.latestValueLookupTable = new APersistentMap<Pair<String, FDate>, SingleValue>("latestValueLookupTable") {
 
             @Override
-            protected File getDirectory() {
+            public File getDirectory() {
                 return directory;
             }
 
             @Override
-            protected ISerde<SingleValue> newValueSerde() {
-                return SingleValueSerde.GET;
+            public ISerde<SingleValue> newValueSerde() {
+                return FastLZ4CompressionFactory.INSTANCE.maybeWrap(SingleValueSerde.GET);
+            }
+
+            @Override
+            public ISerde<Pair<String, FDate>> newKeySerde() {
+                return new RemoteFastSerializingSerde<>(false, Pair.class, String.class, FDate.class);
             }
 
             @Override
             protected void onDeleteTableFinished() {
                 throw new CorruptedTimeSeriesStorageException(getName());
+            }
+
+            @Override
+            protected IPersistentMapFactory<Pair<String, FDate>, SingleValue> newFactory() {
+                return TimeseriesProperties.newPersistentMapFactory();
             }
 
         };
-        this.nextValueLookupTable = new ADelegateRangeTable<String, ShiftUnitsRangeKey, SingleValue>(
-                "nextValueLookupTable") {
+        this.nextValueLookupTable = new APersistentMap<ShiftUnitsHashKey, SingleValue>("nextValueLookupTable") {
 
             @Override
-            protected File getDirectory() {
+            public File getDirectory() {
                 return directory;
             }
 
             @Override
-            protected ISerde<ShiftUnitsRangeKey> newRangeKeySerde() {
-                return ShiftUnitsRangeKeySerde.GET;
+            public ISerde<ShiftUnitsHashKey> newKeySerde() {
+                return ShiftUnitsHashKeySerde.GET;
             }
 
             @Override
-            protected ISerde<SingleValue> newValueSerde() {
-                return SingleValueSerde.GET;
+            public ISerde<SingleValue> newValueSerde() {
+                return FastLZ4CompressionFactory.INSTANCE.maybeWrap(SingleValueSerde.GET);
             }
 
             @Override
             protected void onDeleteTableFinished() {
                 throw new CorruptedTimeSeriesStorageException(getName());
+            }
+
+            @Override
+            protected IPersistentMapFactory<ShiftUnitsHashKey, SingleValue> newFactory() {
+                return TimeseriesProperties.newPersistentMapFactory();
             }
         };
-        this.previousValueLookupTable = new ADelegateRangeTable<String, ShiftUnitsRangeKey, SingleValue>(
-                "previousValueLookupTable") {
+        this.previousValueLookupTable = new APersistentMap<ShiftUnitsHashKey, SingleValue>("previousValueLookupTable") {
 
             @Override
-            protected File getDirectory() {
+            public File getDirectory() {
                 return directory;
             }
 
             @Override
-            protected ISerde<ShiftUnitsRangeKey> newRangeKeySerde() {
-                return ShiftUnitsRangeKeySerde.GET;
+            public ISerde<ShiftUnitsHashKey> newKeySerde() {
+                return ShiftUnitsHashKeySerde.GET;
             }
 
             @Override
-            protected ISerde<SingleValue> newValueSerde() {
-                return SingleValueSerde.GET;
+            public ISerde<SingleValue> newValueSerde() {
+                return FastLZ4CompressionFactory.INSTANCE.maybeWrap(SingleValueSerde.GET);
             }
 
             @Override
@@ -116,6 +135,10 @@ public class TimeSeriesStorage {
                 throw new CorruptedTimeSeriesStorageException(getName());
             }
 
+            @Override
+            protected IPersistentMapFactory<ShiftUnitsHashKey, SingleValue> newFactory() {
+                return TimeseriesProperties.newPersistentMapFactory();
+            }
         };
     }
 
@@ -131,15 +154,15 @@ public class TimeSeriesStorage {
         return fileLookupTable;
     }
 
-    public ADelegateRangeTable<String, FDate, SingleValue> getLatestValueLookupTable() {
+    public APersistentMap<Pair<String, FDate>, SingleValue> getLatestValueLookupTable() {
         return latestValueLookupTable;
     }
 
-    public ADelegateRangeTable<String, ShiftUnitsRangeKey, SingleValue> getPreviousValueLookupTable() {
+    public APersistentMap<ShiftUnitsHashKey, SingleValue> getPreviousValueLookupTable() {
         return previousValueLookupTable;
     }
 
-    public ADelegateRangeTable<String, ShiftUnitsRangeKey, SingleValue> getNextValueLookupTable() {
+    public APersistentMap<ShiftUnitsHashKey, SingleValue> getNextValueLookupTable() {
         return nextValueLookupTable;
     }
 

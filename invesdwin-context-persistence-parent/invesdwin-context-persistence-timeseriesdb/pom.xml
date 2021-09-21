@@ -15,6 +15,10 @@
 			<groupId>de.invesdwin</groupId>
 			<artifactId>invesdwin-context-persistence-ezdb</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>de.invesdwin</groupId>
+			<artifactId>invesdwin-context-persistence-chronicle</artifactId>
+		</dependency>
 	</dependencies>
 
 </project>
