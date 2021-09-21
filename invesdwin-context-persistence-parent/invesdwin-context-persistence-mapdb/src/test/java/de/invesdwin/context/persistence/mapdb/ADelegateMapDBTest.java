@@ -7,6 +7,8 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
+import de.invesdwin.context.integration.persistentmap.APersistentMap;
+import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.error.Throwables;
@@ -19,10 +21,15 @@ public class ADelegateMapDBTest extends ATest {
     @Test
     public void testItWorks() {
         Throwables.setDebugStackTraceEnabled(true);
-        final ADelegateMapDB<String, Integer> map = new ADelegateMapDB<String, Integer>("testItWorks") {
+        final APersistentMap<String, Integer> map = new APersistentMap<String, Integer>("testItWorks") {
             @Override
-            protected File getBaseDirectory() {
+            public File getBaseDirectory() {
                 return ContextProperties.TEMP_DIRECTORY;
+            }
+
+            @Override
+            protected IPersistentMapFactory<String, Integer> newFactory() {
+                return new PersistentMapDBFactory<>();
             }
         };
         Assertions.assertThat(map).isEmpty();

@@ -13,7 +13,7 @@ import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.persistentmap.APersistentMap;
 import de.invesdwin.context.integration.persistentmap.APersistentMapConfig;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
-import de.invesdwin.context.persistence.chronicle.ChroniclePersistentMapFactory;
+import de.invesdwin.context.persistence.chronicle.PersistentChronicleMapFactory;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
@@ -49,7 +49,7 @@ public class DelegateChronicleMapPerformanceTest extends ADatabasePerformanceTes
 
             @Override
             protected IPersistentMapFactory<FDate, FDate> newFactory() {
-                return new ChroniclePersistentMapFactory<FDate, FDate>() {
+                return new PersistentChronicleMapFactory<FDate, FDate>() {
                     @SuppressWarnings("rawtypes")
                     @Override
                     protected ChronicleMapBuilder configureChronicleMap(final APersistentMapConfig<FDate, FDate> config,

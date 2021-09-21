@@ -18,7 +18,7 @@ import de.invesdwin.util.marshallers.serde.basic.StringUtf8Serde;
 
 // CHECKSTYLE:OFF
 @NotThreadSafe
-public class ChroniclePersistentMapFactoryTest extends ATest {
+public class PersistentChronicleMapFactoryTest extends ATest {
     //CHECKSTYLE:ON
 
     @Test
@@ -42,7 +42,7 @@ public class ChroniclePersistentMapFactoryTest extends ATest {
 
             @Override
             protected IPersistentMapFactory<String, Integer> newFactory() {
-                return new ChroniclePersistentMapFactory<>();
+                return new PersistentChronicleMapFactory<>();
             }
 
         };

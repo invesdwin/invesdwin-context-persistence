@@ -18,7 +18,7 @@ import net.openhft.chronicle.map.ChronicleMapBuilder;
  * elements.
  */
 @Immutable
-public class ChroniclePersistentMapFactory<K, V> implements IPersistentMapFactory<K, V> {
+public class PersistentChronicleMapFactory<K, V> implements IPersistentMapFactory<K, V> {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override

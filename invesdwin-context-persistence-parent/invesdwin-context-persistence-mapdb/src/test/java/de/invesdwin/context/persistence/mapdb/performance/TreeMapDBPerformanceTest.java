@@ -12,7 +12,9 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.persistence.mapdb.ADelegateTreeMapDB;
+import de.invesdwin.context.integration.persistentmap.navigable.APersistentNavigableMap;
+import de.invesdwin.context.integration.persistentmap.navigable.IPersistentNavigableMapFactory;
+import de.invesdwin.context.persistence.mapdb.PersistentTreeMapDBFactory;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
@@ -29,21 +31,26 @@ public class TreeMapDBPerformanceTest extends ADatabasePerformanceTest {
     @Test
     public void testTreeMapDbPerformance() throws InterruptedException {
         @SuppressWarnings("resource")
-        final ADelegateTreeMapDB<FDate, FDate> table = new ADelegateTreeMapDB<FDate, FDate>(
+        final APersistentNavigableMap<FDate, FDate> table = new APersistentNavigableMap<FDate, FDate>(
                 "testTreeMapDbPerformance") {
             @Override
-            protected File getBaseDirectory() {
+            public File getBaseDirectory() {
                 return ContextProperties.TEMP_DIRECTORY;
             }
 
             @Override
-            protected ISerde<FDate> newKeySerde() {
+            public ISerde<FDate> newKeySerde() {
                 return FDateSerde.GET;
             }
 
             @Override
-            protected ISerde<FDate> newValueSerde() {
+            public ISerde<FDate> newValueSerde() {
                 return FDateSerde.GET;
+            }
+
+            @Override
+            protected IPersistentNavigableMapFactory<FDate, FDate> newFactory() {
+                return new PersistentTreeMapDBFactory<>();
             }
 
         };
@@ -65,7 +72,7 @@ public class TreeMapDBPerformanceTest extends ADatabasePerformanceTest {
         table.deleteTable();
     }
 
-    private void readIterator(final ADelegateTreeMapDB<FDate, FDate> table) throws InterruptedException {
+    private void readIterator(final APersistentNavigableMap<FDate, FDate> table) throws InterruptedException {
         final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
@@ -92,7 +99,7 @@ public class TreeMapDBPerformanceTest extends ADatabasePerformanceTest {
         printProgress("ReadsFinished", readsStart, VALUES * READS, VALUES * READS);
     }
 
-    private void readGet(final ADelegateTreeMapDB<FDate, FDate> table) throws InterruptedException {
+    private void readGet(final APersistentNavigableMap<FDate, FDate> table) throws InterruptedException {
         final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final List<FDate> values = Lists.toList(newValues());
         final Instant readsStart = new Instant();
@@ -116,7 +123,7 @@ public class TreeMapDBPerformanceTest extends ADatabasePerformanceTest {
         printProgress("GetsFinished", readsStart, VALUES * READS, VALUES * READS);
     }
 
-    private void readGetLatest(final ADelegateTreeMapDB<FDate, FDate> table) throws InterruptedException {
+    private void readGetLatest(final APersistentNavigableMap<FDate, FDate> table) throws InterruptedException {
         final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final List<FDate> values = Lists.toList(newValues());
         final Instant readsStart = new Instant();
