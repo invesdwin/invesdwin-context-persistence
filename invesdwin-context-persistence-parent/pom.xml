@@ -361,11 +361,23 @@
 				<groupId>org.eclipse.collections</groupId>
 				<artifactId>eclipse-collections-forkjoin</artifactId>
 				<version>${version.eclipse-collections}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>net.jcip</groupId>
+						<artifactId>jcip-annotations</artifactId>
+					</exclusion>
+				</exclusions>
 			</dependency>
 			<dependency>
 				<groupId>org.eclipse.collections</groupId>
 				<artifactId>eclipse-collections-api</artifactId>
 				<version>${version.eclipse-collections}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>net.jcip</groupId>
+						<artifactId>jcip-annotations</artifactId>
+					</exclusion>
+				</exclusions>
 			</dependency>
 			<dependency>
 				<groupId>org.questdb</groupId>
