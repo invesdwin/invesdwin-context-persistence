@@ -75,10 +75,10 @@ public class TimeSeriesStorage {
                 return new RemoteFastSerializingSerde<>(false, Pair.class, String.class, FDate.class);
             }
 
-            @Override
-            protected void onDeleteTableFinished() {
-                throw new CorruptedTimeSeriesStorageException(getName());
-            }
+            //            @Override
+            //            protected void onDeleteTableFinished() {
+            //                throw new CorruptedTimeSeriesStorageException(getName());
+            //            }
 
             @Override
             protected IPersistentMapFactory<Pair<String, FDate>, SingleValue> newFactory() {
@@ -103,10 +103,10 @@ public class TimeSeriesStorage {
                 return FastLZ4CompressionFactory.INSTANCE.maybeWrap(SingleValueSerde.GET);
             }
 
-            @Override
-            protected void onDeleteTableFinished() {
-                throw new CorruptedTimeSeriesStorageException(getName());
-            }
+            //            @Override
+            //            protected void onDeleteTableFinished() {
+            //                throw new CorruptedTimeSeriesStorageException(getName());
+            //            }
 
             @Override
             protected IPersistentMapFactory<ShiftUnitsHashKey, SingleValue> newFactory() {
@@ -130,10 +130,10 @@ public class TimeSeriesStorage {
                 return FastLZ4CompressionFactory.INSTANCE.maybeWrap(SingleValueSerde.GET);
             }
 
-            @Override
-            protected void onDeleteTableFinished() {
-                throw new CorruptedTimeSeriesStorageException(getName());
-            }
+            //            @Override
+            //            protected void onDeleteTableFinished() {
+            //                throw new CorruptedTimeSeriesStorageException(getName());
+            //            }
 
             @Override
             protected IPersistentMapFactory<ShiftUnitsHashKey, SingleValue> newFactory() {
