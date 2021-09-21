@@ -10,7 +10,10 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.persistence.chronicle.ADelegateChronicleMap;
+import de.invesdwin.context.integration.persistentmap.APersistentMap;
+import de.invesdwin.context.integration.persistentmap.APersistentMapConfig;
+import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
+import de.invesdwin.context.persistence.chronicle.ChroniclePersistentMapFactory;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
@@ -28,27 +31,32 @@ public class DelegateChronicleMapPerformanceTest extends ADatabasePerformanceTes
     @Test
     public void testChronicleMapPerformance() throws InterruptedException {
         @SuppressWarnings("resource")
-        final ADelegateChronicleMap<FDate, FDate> table = new ADelegateChronicleMap<FDate, FDate>(
-                "testChronicleMapPerformance") {
+        final APersistentMap<FDate, FDate> table = new APersistentMap<FDate, FDate>("testChronicleMapPerformance") {
             @Override
-            protected File getBaseDirectory() {
+            public File getBaseDirectory() {
                 return ContextProperties.TEMP_DIRECTORY;
             }
 
-            @SuppressWarnings("rawtypes")
             @Override
-            protected ChronicleMapBuilder configureMap(final ChronicleMapBuilder builder) {
-                return builder.averageKeySize(FDate.BYTES).averageValueSize(FDate.BYTES);
-            }
-
-            @Override
-            protected ISerde<FDate> newKeySerde() {
+            public ISerde<FDate> newKeySerde() {
                 return FDateSerde.GET;
             }
 
             @Override
-            protected ISerde<FDate> newValueSerde() {
+            public ISerde<FDate> newValueSerde() {
                 return FDateSerde.GET;
+            }
+
+            @Override
+            protected IPersistentMapFactory<FDate, FDate> newFactory() {
+                return new ChroniclePersistentMapFactory<FDate, FDate>() {
+                    @SuppressWarnings("rawtypes")
+                    @Override
+                    protected ChronicleMapBuilder configureChronicleMap(final APersistentMapConfig<FDate, FDate> config,
+                            final ChronicleMapBuilder builder) {
+                        return builder.averageKeySize(FDate.BYTES).averageValueSize(FDate.BYTES);
+                    }
+                };
             }
         };
 
@@ -71,7 +79,7 @@ public class DelegateChronicleMapPerformanceTest extends ADatabasePerformanceTes
         table.deleteTable();
     }
 
-    private void readIterator(final ADelegateChronicleMap<FDate, FDate> table) {
+    private void readIterator(final APersistentMap<FDate, FDate> table) {
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
             //            FDate prevValue = null;
@@ -95,7 +103,7 @@ public class DelegateChronicleMapPerformanceTest extends ADatabasePerformanceTes
         printProgress("ReadsFinished", readsStart, VALUES * READS, VALUES * READS);
     }
 
-    private void readGet(final ADelegateChronicleMap<FDate, FDate> table) {
+    private void readGet(final APersistentMap<FDate, FDate> table) {
         final List<FDate> values = Lists.toList(newValues());
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
