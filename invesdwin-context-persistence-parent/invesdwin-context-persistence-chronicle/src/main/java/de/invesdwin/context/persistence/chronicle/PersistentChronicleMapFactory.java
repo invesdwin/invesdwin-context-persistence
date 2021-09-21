@@ -36,7 +36,7 @@ public class PersistentChronicleMapFactory<K, V> implements IPersistentMapFactor
     @SuppressWarnings("rawtypes")
     protected ChronicleMapBuilder configureChronicleMap(final APersistentMapConfig<K, V> config,
             final ChronicleMapBuilder builder) {
-        return builder.averageKeySize(20).averageValueSize(100);
+        return builder.averageKeySize(100).averageValueSize(200);
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

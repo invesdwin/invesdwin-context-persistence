@@ -82,7 +82,7 @@ public class TimeSeriesStorage {
 
             @Override
             protected IPersistentMapFactory<Pair<String, FDate>, SingleValue> newFactory() {
-                return TimeseriesProperties.newPersistentMapFactory();
+                return TimeseriesProperties.newPersistentMapFactory(false);
             }
 
         };
@@ -110,7 +110,7 @@ public class TimeSeriesStorage {
 
             @Override
             protected IPersistentMapFactory<ShiftUnitsHashKey, SingleValue> newFactory() {
-                return TimeseriesProperties.newPersistentMapFactory();
+                return TimeseriesProperties.newPersistentMapFactory(false);
             }
         };
         this.previousValueLookupTable = new APersistentMap<ShiftUnitsHashKey, SingleValue>("previousValueLookupTable") {
@@ -137,7 +137,7 @@ public class TimeSeriesStorage {
 
             @Override
             protected IPersistentMapFactory<ShiftUnitsHashKey, SingleValue> newFactory() {
-                return TimeseriesProperties.newPersistentMapFactory();
+                return TimeseriesProperties.newPersistentMapFactory(false);
             }
         };
     }
