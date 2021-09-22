@@ -3,6 +3,7 @@ package de.invesdwin.context.persistence.timeseriesdb;
 import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
+import de.invesdwin.context.persistence.chronicle.PersistentChronicleMapFactory;
 import de.invesdwin.context.persistence.mapdb.PersistentMapDBFactory;
 import de.invesdwin.context.system.properties.SystemProperties;
 import de.invesdwin.util.time.duration.Duration;
@@ -25,11 +26,11 @@ public final class TimeseriesProperties {
     }
 
     public static <K, V> IPersistentMapFactory<K, V> newPersistentMapFactory(final boolean large) {
-        //        if (large) {
-        return new PersistentMapDBFactory<K, V>();
-        //        } else {
-        //            return new PersistentChronicleMapFactory<>();
-        //        }
+        if (large) {
+            return new PersistentMapDBFactory<K, V>();
+        } else {
+            return new PersistentChronicleMapFactory<>();
+        }
     }
 
 }
