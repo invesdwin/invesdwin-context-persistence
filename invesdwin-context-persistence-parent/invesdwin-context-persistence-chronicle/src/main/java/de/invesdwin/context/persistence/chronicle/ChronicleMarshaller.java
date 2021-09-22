@@ -37,8 +37,11 @@ public class ChronicleMarshaller<T> implements BytesReader<T>, BytesWriter<T> {
         final ChronicleDelegateByteBuffer buffer = new ChronicleDelegateByteBuffer(in);
         final int positionBefore = (int) in.readPosition();
         final int length = buffer.getInt(positionBefore + SIZE_INDEX);
-        final T value = serde.fromBuffer(buffer.newSlice(positionBefore + VALUE_INDEX, length), length);
         in.readPosition(positionBefore + VALUE_INDEX + length);
+        if (length == 0) {
+            return null;
+        }
+        final T value = serde.fromBuffer(buffer.newSlice(positionBefore + VALUE_INDEX, length), length);
         return value;
     }
 
