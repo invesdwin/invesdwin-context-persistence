@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb.storage;
+package de.invesdwin.context.persistence.timeseriesdb.storage.key;
 
 import javax.annotation.concurrent.Immutable;
 
@@ -7,12 +7,12 @@ import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.time.date.FDate;
 
 @Immutable
-public class ShiftUnitsRangeKey extends AValueObject implements Comparable<Object> {
+public class RangeShiftUnitsKey extends AValueObject implements Comparable<Object> {
 
     private final int shiftUnits;
     private final FDate rangeKey;
 
-    public ShiftUnitsRangeKey(final FDate rangeKey, final int shiftUnits) {
+    public RangeShiftUnitsKey(final FDate rangeKey, final int shiftUnits) {
         this.rangeKey = rangeKey;
         this.shiftUnits = shiftUnits;
     }
@@ -27,8 +27,8 @@ public class ShiftUnitsRangeKey extends AValueObject implements Comparable<Objec
 
     @Override
     public boolean equals(final Object obj) {
-        if (obj instanceof ShiftUnitsRangeKey) {
-            final ShiftUnitsRangeKey cObj = (ShiftUnitsRangeKey) obj;
+        if (obj instanceof RangeShiftUnitsKey) {
+            final RangeShiftUnitsKey cObj = (RangeShiftUnitsKey) obj;
             return Objects.equals(rangeKey, cObj.rangeKey) && Objects.equals(shiftUnits, cObj.shiftUnits);
         }
         return false;
@@ -36,13 +36,13 @@ public class ShiftUnitsRangeKey extends AValueObject implements Comparable<Objec
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(ShiftUnitsRangeKey.class, shiftUnits, rangeKey);
+        return Objects.hashCode(RangeShiftUnitsKey.class, rangeKey, shiftUnits);
     }
 
     @Override
     public int compareTo(final Object o) {
-        if (o instanceof ShiftUnitsRangeKey) {
-            final ShiftUnitsRangeKey cO = (ShiftUnitsRangeKey) o;
+        if (o instanceof RangeShiftUnitsKey) {
+            final RangeShiftUnitsKey cO = (RangeShiftUnitsKey) o;
             int compare = rangeKey.compareToNotNullSafe(cO.rangeKey);
             if (compare != 0) {
                 return compare;

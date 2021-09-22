@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb.storage;
+package de.invesdwin.context.persistence.timeseriesdb.storage.key;
 
 import javax.annotation.concurrent.Immutable;
 
@@ -9,9 +9,9 @@ import de.invesdwin.util.streams.buffer.IByteBuffer;
 import de.invesdwin.util.time.date.FDate;
 
 @Immutable
-public final class ShiftUnitsHashKeySerde implements ISerde<ShiftUnitsHashKey> {
+public final class HashRangeShiftUnitsKeySerde implements ISerde<HashRangeShiftUnitsKey> {
 
-    public static final ShiftUnitsHashKeySerde GET = new ShiftUnitsHashKeySerde();
+    public static final HashRangeShiftUnitsKeySerde GET = new HashRangeShiftUnitsKeySerde();
 
     private static final int RANGEKEY_INDEX = 0;
     private static final int RANGEKEY_SIZE = FDate.BYTES;
@@ -21,29 +21,29 @@ public final class ShiftUnitsHashKeySerde implements ISerde<ShiftUnitsHashKey> {
 
     private static final int HASHKEY_INDEX = SHIFTUNITS_INDEX + SHIFTUNITS_SIZE;
 
-    private ShiftUnitsHashKeySerde() {
+    private HashRangeShiftUnitsKeySerde() {
     }
 
     @Override
-    public ShiftUnitsHashKey fromBytes(final byte[] bytes) {
+    public HashRangeShiftUnitsKey fromBytes(final byte[] bytes) {
         return SerdeBaseMethods.fromBytes(this, bytes);
     }
 
     @Override
-    public byte[] toBytes(final ShiftUnitsHashKey obj) {
+    public byte[] toBytes(final HashRangeShiftUnitsKey obj) {
         return SerdeBaseMethods.toBytes(this, obj);
     }
 
     @Override
-    public ShiftUnitsHashKey fromBuffer(final IByteBuffer buffer, final int length) {
+    public HashRangeShiftUnitsKey fromBuffer(final IByteBuffer buffer, final int length) {
         final FDate rangeKey = FDateSerde.getFDate(buffer, RANGEKEY_INDEX);
         final int shiftUnits = buffer.getInt(SHIFTUNITS_INDEX);
-        final String hashKey = buffer.getStringUtf8(shiftUnits, length - HASHKEY_INDEX);
-        return new ShiftUnitsHashKey(hashKey, rangeKey, shiftUnits);
+        final String hashKey = buffer.getStringUtf8(HASHKEY_INDEX, length - HASHKEY_INDEX);
+        return new HashRangeShiftUnitsKey(hashKey, rangeKey, shiftUnits);
     }
 
     @Override
-    public int toBuffer(final IByteBuffer buffer, final ShiftUnitsHashKey obj) {
+    public int toBuffer(final IByteBuffer buffer, final HashRangeShiftUnitsKey obj) {
         FDateSerde.putFDate(buffer, RANGEKEY_INDEX, obj.getRangeKey());
         buffer.putInt(SHIFTUNITS_INDEX, obj.getShiftUnits());
         final int length = buffer.putStringUtf8(HASHKEY_INDEX, obj.getHashKey());

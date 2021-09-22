@@ -26,9 +26,10 @@ import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable.DelegateTableIt
 import de.invesdwin.context.persistence.timeseriesdb.filebuffer.FileBufferCache;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ChunkValue;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
-import de.invesdwin.context.persistence.timeseriesdb.storage.ShiftUnitsRangeKey;
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
+import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeKey;
+import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeShiftUnitsKey;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.tuple.Pair;
@@ -80,36 +81,37 @@ public class TimeSeriesStorageCache<K, V> {
 
         @Override
         protected V loadValue(final FDate key) {
-            final SingleValue value = storage.getLatestValueLookupTable().getOrLoad(hashKey, key, (k) -> {
-                final FDate fileTime = storage.getFileLookupTable().getLatestRangeKey(hashKey, key);
-                if (fileTime == null) {
-                    return null;
-                }
-                final File file = newFile(fileTime);
-                final ICloseableIterable<V> serializingCollection = newSerializingCollectionCached(
-                        "latestValueLookupCache.loadValue", file, DisabledLock.INSTANCE);
-                V latestValue = null;
-                try (ICloseableIterator<V> it = serializingCollection.iterator()) {
-                    while (true) {
-                        final V newValue = it.next();
-                        final FDate newValueTime = extractEndTime.apply(newValue);
-                        if (newValueTime.isAfter(key)) {
-                            break;
-                        } else {
-                            latestValue = newValue;
+            final SingleValue value = storage.getLatestValueLookupTable()
+                    .computeIfAbsent(new HashRangeKey(hashKey, key), (k) -> {
+                        final FDate fileTime = storage.getFileLookupTable().getLatestRangeKey(hashKey, key);
+                        if (fileTime == null) {
+                            return null;
                         }
-                    }
-                } catch (final NoSuchElementException e) {
-                    //end reached
-                }
-                if (latestValue == null) {
-                    latestValue = getFirstValue();
-                }
-                if (latestValue == null) {
-                    return null;
-                }
-                return new SingleValue(valueSerde, latestValue);
-            });
+                        final File file = newFile(fileTime);
+                        final ICloseableIterable<V> serializingCollection = newSerializingCollectionCached(
+                                "latestValueLookupCache.loadValue", file, DisabledLock.INSTANCE);
+                        V latestValue = null;
+                        try (ICloseableIterator<V> it = serializingCollection.iterator()) {
+                            while (true) {
+                                final V newValue = it.next();
+                                final FDate newValueTime = extractEndTime.apply(newValue);
+                                if (newValueTime.isAfter(key)) {
+                                    break;
+                                } else {
+                                    latestValue = newValue;
+                                }
+                            }
+                        } catch (final NoSuchElementException e) {
+                            //end reached
+                        }
+                        if (latestValue == null) {
+                            latestValue = getFirstValue();
+                        }
+                        if (latestValue == null) {
+                            return null;
+                        }
+                        return new SingleValue(valueSerde, latestValue);
+                    });
             if (value == null) {
                 return null;
             }
@@ -133,7 +135,7 @@ public class TimeSeriesStorageCache<K, V> {
             final FDate date = key.getFirst();
             final int shiftBackUnits = key.getSecond();
             final SingleValue value = storage.getPreviousValueLookupTable()
-                    .getOrLoad(hashKey, new ShiftUnitsRangeKey(date, shiftBackUnits), (k) -> {
+                    .computeIfAbsent(new HashRangeShiftUnitsKey(hashKey, date, shiftBackUnits), (k) -> {
                         final MutableReference<V> previousValue = new MutableReference<>();
                         final MutableInt shiftBackRemaining = new MutableInt(shiftBackUnits);
                         try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null,
@@ -177,7 +179,7 @@ public class TimeSeriesStorageCache<K, V> {
             final FDate date = key.getFirst();
             final int shiftForwardUnits = key.getSecond();
             final SingleValue value = storage.getNextValueLookupTable()
-                    .getOrLoad(hashKey, new ShiftUnitsRangeKey(date, shiftForwardUnits), (k) -> {
+                    .computeIfAbsent(new HashRangeShiftUnitsKey(hashKey, date, shiftForwardUnits), (k) -> {
                         final MutableReference<V> nextValue = new MutableReference<>();
                         final MutableInt shiftForwardRemaining = new MutableInt(shiftForwardUnits);
                         try (ICloseableIterator<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,
@@ -651,9 +653,12 @@ public class TimeSeriesStorageCache<K, V> {
 
     public synchronized void deleteAll() {
         storage.getFileLookupTable().deleteRange(hashKey);
-        storage.getLatestValueLookupTable().deleteRange(hashKey);
-        storage.getNextValueLookupTable().deleteRange(hashKey);
-        storage.getPreviousValueLookupTable().deleteRange(hashKey);
+        //        storage.getLatestValueLookupTable().deleteRange(hashKey);
+        //        storage.getNextValueLookupTable().deleteRange(hashKey);
+        //        storage.getPreviousValueLookupTable().deleteRange(hashKey);
+        storage.getLatestValueLookupTable().deleteTable();
+        storage.getNextValueLookupTable().deleteTable();
+        storage.getPreviousValueLookupTable().deleteTable();
         clearCaches();
         Files.deleteNative(newDataDirectory());
         dataDirectory = null;
@@ -757,9 +762,12 @@ public class TimeSeriesStorageCache<K, V> {
                 latestRangeKey = latestRangeKey.addMilliseconds(1);
             }
             storage.getFileLookupTable().deleteRange(hashKey, latestRangeKey);
-            storage.getLatestValueLookupTable().deleteRange(hashKey, latestRangeKey);
-            storage.getNextValueLookupTable().deleteRange(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
-            storage.getPreviousValueLookupTable().deleteRange(hashKey, new ShiftUnitsRangeKey(latestRangeKey, 0));
+            //            storage.getLatestValueLookupTable().deleteRange(hashKey, latestRangeKey);
+            //            storage.getNextValueLookupTable().deleteRange(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
+            //            storage.getPreviousValueLookupTable().deleteRange(hashKey, new RangeShiftUnitsKey(latestRangeKey, 0));
+            storage.getLatestValueLookupTable().deleteTable();
+            storage.getNextValueLookupTable().deleteTable();
+            storage.getPreviousValueLookupTable().deleteTable();
         }
         clearCaches();
         return Pair.of(updateFrom, lastValues);

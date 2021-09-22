@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb.storage;
+package de.invesdwin.context.persistence.timeseriesdb.storage.key;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -13,17 +13,17 @@ import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.time.date.FDateBuilder;
 
 @NotThreadSafe
-public class ShiftUnitsHashKeyTest extends ATest {
+public class HashRangeShiftUnitsKeyTest extends ATest {
 
     @Test
     public void testCompare() {
-        final List<ShiftUnitsHashKey> sortedKeys = new ArrayList<>();
-        sortedKeys.add(new ShiftUnitsHashKey("1", FDateBuilder.newDate(1900), Integer.MAX_VALUE)); //0
-        sortedKeys.add(new ShiftUnitsHashKey("1", FDateBuilder.newDate(2000), 1)); //1
-        sortedKeys.add(new ShiftUnitsHashKey("1", FDateBuilder.newDate(2000), 2)); //2
-        sortedKeys.add(new ShiftUnitsHashKey("1", FDateBuilder.newDate(2001), 2)); //3
+        final List<HashRangeShiftUnitsKey> sortedKeys = new ArrayList<>();
+        sortedKeys.add(new HashRangeShiftUnitsKey("1", FDateBuilder.newDate(1900), Integer.MAX_VALUE)); //0
+        sortedKeys.add(new HashRangeShiftUnitsKey("1", FDateBuilder.newDate(2000), 1)); //1
+        sortedKeys.add(new HashRangeShiftUnitsKey("1", FDateBuilder.newDate(2000), 2)); //2
+        sortedKeys.add(new HashRangeShiftUnitsKey("1", FDateBuilder.newDate(2001), 2)); //3
 
-        final List<ShiftUnitsHashKey> randomKeys = new ArrayList<>();
+        final List<HashRangeShiftUnitsKey> randomKeys = new ArrayList<>();
         randomKeys.add(sortedKeys.get(2));
         randomKeys.add(sortedKeys.get(3));
         randomKeys.add(sortedKeys.get(1));

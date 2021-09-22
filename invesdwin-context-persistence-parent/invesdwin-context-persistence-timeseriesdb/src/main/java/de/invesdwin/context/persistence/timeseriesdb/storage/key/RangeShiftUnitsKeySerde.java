@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb.storage;
+package de.invesdwin.context.persistence.timeseriesdb.storage.key;
 
 import javax.annotation.concurrent.Immutable;
 
@@ -9,9 +9,9 @@ import de.invesdwin.util.streams.buffer.IByteBuffer;
 import de.invesdwin.util.time.date.FDate;
 
 @Immutable
-public final class ShiftUnitsRangeKeySerde implements ISerde<ShiftUnitsRangeKey> {
+public final class RangeShiftUnitsKeySerde implements ISerde<RangeShiftUnitsKey> {
 
-    public static final ShiftUnitsRangeKeySerde GET = new ShiftUnitsRangeKeySerde();
+    public static final RangeShiftUnitsKeySerde GET = new RangeShiftUnitsKeySerde();
 
     public static final int TIME_INDEX = 0;
     public static final int TIME_SIZE = FDate.BYTES;
@@ -21,28 +21,28 @@ public final class ShiftUnitsRangeKeySerde implements ISerde<ShiftUnitsRangeKey>
 
     public static final int FIXED_LENGTH = SHIFTUNITS_INDEX + SHIFTUNITS_SIZE;
 
-    private ShiftUnitsRangeKeySerde() {
+    private RangeShiftUnitsKeySerde() {
     }
 
     @Override
-    public ShiftUnitsRangeKey fromBytes(final byte[] bytes) {
+    public RangeShiftUnitsKey fromBytes(final byte[] bytes) {
         return SerdeBaseMethods.fromBytes(this, bytes);
     }
 
     @Override
-    public byte[] toBytes(final ShiftUnitsRangeKey obj) {
+    public byte[] toBytes(final RangeShiftUnitsKey obj) {
         return SerdeBaseMethods.toBytes(this, obj);
     }
 
     @Override
-    public ShiftUnitsRangeKey fromBuffer(final IByteBuffer buffer, final int length) {
+    public RangeShiftUnitsKey fromBuffer(final IByteBuffer buffer, final int length) {
         final FDate rangeKey = FDateSerde.getFDate(buffer, TIME_INDEX);
         final int shiftUnits = buffer.getInt(SHIFTUNITS_INDEX);
-        return new ShiftUnitsRangeKey(rangeKey, shiftUnits);
+        return new RangeShiftUnitsKey(rangeKey, shiftUnits);
     }
 
     @Override
-    public int toBuffer(final IByteBuffer buffer, final ShiftUnitsRangeKey obj) {
+    public int toBuffer(final IByteBuffer buffer, final RangeShiftUnitsKey obj) {
         FDateSerde.putFDate(buffer, TIME_INDEX, obj.getRangeKey());
         buffer.putInt(SHIFTUNITS_INDEX, obj.getShiftUnits());
         return FIXED_LENGTH;
