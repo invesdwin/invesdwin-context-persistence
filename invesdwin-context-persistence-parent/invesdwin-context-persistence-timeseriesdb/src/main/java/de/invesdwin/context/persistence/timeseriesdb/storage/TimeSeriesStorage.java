@@ -77,10 +77,10 @@ public class TimeSeriesStorage {
                 return HashRangeKeySerde.GET;
             }
 
-            @Override
-            protected void onDeleteTableFinished() {
-                throw new CorruptedTimeSeriesStorageException(getName());
-            }
+            //            @Override
+            //            protected void onDeleteTableFinished() {
+            //                throw new CorruptedTimeSeriesStorageException(getName());
+            //            }
 
             @Override
             protected IPersistentMapFactory<HashRangeKey, SingleValue> newFactory() {
@@ -105,10 +105,10 @@ public class TimeSeriesStorage {
                 return FastLZ4CompressionFactory.INSTANCE.maybeWrap(SingleValueSerde.GET);
             }
 
-            @Override
-            protected void onDeleteTableFinished() {
-                throw new CorruptedTimeSeriesStorageException(getName());
-            }
+            //            @Override
+            //            protected void onDeleteTableFinished() {
+            //                throw new CorruptedTimeSeriesStorageException(getName());
+            //            }
 
             @Override
             protected IPersistentMapFactory<HashRangeShiftUnitsKey, SingleValue> newFactory() {
@@ -133,10 +133,10 @@ public class TimeSeriesStorage {
                 return FastLZ4CompressionFactory.INSTANCE.maybeWrap(SingleValueSerde.GET);
             }
 
-            @Override
-            protected void onDeleteTableFinished() {
-                throw new CorruptedTimeSeriesStorageException(getName());
-            }
+            //            @Override
+            //            protected void onDeleteTableFinished() {
+            //                throw new CorruptedTimeSeriesStorageException(getName());
+            //            }
 
             @Override
             protected IPersistentMapFactory<HashRangeShiftUnitsKey, SingleValue> newFactory() {
