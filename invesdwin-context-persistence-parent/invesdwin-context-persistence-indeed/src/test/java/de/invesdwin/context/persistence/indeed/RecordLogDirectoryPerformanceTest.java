@@ -5,6 +5,7 @@ import java.io.IOException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.indeed.lsmtree.recordlog.RecordFile;
