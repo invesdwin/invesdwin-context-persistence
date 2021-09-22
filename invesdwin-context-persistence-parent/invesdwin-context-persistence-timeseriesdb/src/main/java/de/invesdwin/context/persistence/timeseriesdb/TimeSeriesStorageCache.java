@@ -80,42 +80,36 @@ public class TimeSeriesStorageCache<K, V> {
 
         @Override
         protected V loadValue(final FDate key) {
-            final SingleValue value = storage.getLatestValueLookupTable()
-                    .getOrLoad(hashKey, key, new Function<Pair<String, FDate>, SingleValue>() {
-
-                        @Override
-                        public SingleValue apply(final Pair<String, FDate> input) {
-                            final FDate fileTime = storage.getFileLookupTable()
-                                    .getLatestRangeKey(input.getFirst(), input.getSecond());
-                            if (fileTime == null) {
-                                return null;
-                            }
-                            final File file = newFile(fileTime);
-                            final ICloseableIterable<V> serializingCollection = newSerializingCollectionCached(
-                                    "latestValueLookupCache.loadValue", file, DisabledLock.INSTANCE);
-                            V latestValue = null;
-                            try (ICloseableIterator<V> it = serializingCollection.iterator()) {
-                                while (true) {
-                                    final V newValue = it.next();
-                                    final FDate newValueTime = extractEndTime.apply(newValue);
-                                    if (newValueTime.isAfter(key)) {
-                                        break;
-                                    } else {
-                                        latestValue = newValue;
-                                    }
-                                }
-                            } catch (final NoSuchElementException e) {
-                                //end reached
-                            }
-                            if (latestValue == null) {
-                                latestValue = getFirstValue();
-                            }
-                            if (latestValue == null) {
-                                return null;
-                            }
-                            return new SingleValue(valueSerde, latestValue);
+            final SingleValue value = storage.getLatestValueLookupTable().getOrLoad(hashKey, key, (k) -> {
+                final FDate fileTime = storage.getFileLookupTable().getLatestRangeKey(hashKey, key);
+                if (fileTime == null) {
+                    return null;
+                }
+                final File file = newFile(fileTime);
+                final ICloseableIterable<V> serializingCollection = newSerializingCollectionCached(
+                        "latestValueLookupCache.loadValue", file, DisabledLock.INSTANCE);
+                V latestValue = null;
+                try (ICloseableIterator<V> it = serializingCollection.iterator()) {
+                    while (true) {
+                        final V newValue = it.next();
+                        final FDate newValueTime = extractEndTime.apply(newValue);
+                        if (newValueTime.isAfter(key)) {
+                            break;
+                        } else {
+                            latestValue = newValue;
                         }
-                    });
+                    }
+                } catch (final NoSuchElementException e) {
+                    //end reached
+                }
+                if (latestValue == null) {
+                    latestValue = getFirstValue();
+                }
+                if (latestValue == null) {
+                    return null;
+                }
+                return new SingleValue(valueSerde, latestValue);
+            });
             if (value == null) {
                 return null;
             }
@@ -139,37 +133,30 @@ public class TimeSeriesStorageCache<K, V> {
             final FDate date = key.getFirst();
             final int shiftBackUnits = key.getSecond();
             final SingleValue value = storage.getPreviousValueLookupTable()
-                    .getOrLoad(hashKey, new ShiftUnitsRangeKey(date, shiftBackUnits),
-                            new Function<Pair<String, ShiftUnitsRangeKey>, SingleValue>() {
-
-                                @Override
-                                public SingleValue apply(final Pair<String, ShiftUnitsRangeKey> input) {
-                                    final FDate date = key.getFirst();
-                                    final int shiftBackUnits = key.getSecond();
-                                    final MutableReference<V> previousValue = new MutableReference<>();
-                                    final MutableInt shiftBackRemaining = new MutableInt(shiftBackUnits);
-                                    try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null,
-                                            DisabledLock.INSTANCE, new ISkipFileFunction() {
-                                                @Override
-                                                public boolean skipFile(final ChunkValue file) {
-                                                    final boolean skip = previousValue.get() != null
-                                                            && file.getCount() < shiftBackRemaining.intValue();
-                                                    if (skip) {
-                                                        shiftBackRemaining.subtract(file.getCount());
-                                                    }
-                                                    return skip;
-                                                }
-                                            })) {
-                                        while (shiftBackRemaining.intValue() >= 0) {
-                                            previousValue.set(rangeValuesReverse.next());
-                                            shiftBackRemaining.decrement();
+                    .getOrLoad(hashKey, new ShiftUnitsRangeKey(date, shiftBackUnits), (k) -> {
+                        final MutableReference<V> previousValue = new MutableReference<>();
+                        final MutableInt shiftBackRemaining = new MutableInt(shiftBackUnits);
+                        try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null,
+                                DisabledLock.INSTANCE, new ISkipFileFunction() {
+                                    @Override
+                                    public boolean skipFile(final ChunkValue file) {
+                                        final boolean skip = previousValue.get() != null
+                                                && file.getCount() < shiftBackRemaining.intValue();
+                                        if (skip) {
+                                            shiftBackRemaining.subtract(file.getCount());
                                         }
-                                    } catch (final NoSuchElementException e) {
-                                        //ignore
+                                        return skip;
                                     }
-                                    return new SingleValue(valueSerde, previousValue.get());
-                                }
-                            });
+                                })) {
+                            while (shiftBackRemaining.intValue() >= 0) {
+                                previousValue.set(rangeValuesReverse.next());
+                                shiftBackRemaining.decrement();
+                            }
+                        } catch (final NoSuchElementException e) {
+                            //ignore
+                        }
+                        return new SingleValue(valueSerde, previousValue.get());
+                    });
             return value.getValue(valueSerde);
         }
     };
@@ -190,37 +177,30 @@ public class TimeSeriesStorageCache<K, V> {
             final FDate date = key.getFirst();
             final int shiftForwardUnits = key.getSecond();
             final SingleValue value = storage.getNextValueLookupTable()
-                    .getOrLoad(hashKey, new ShiftUnitsRangeKey(date, shiftForwardUnits),
-                            new Function<Pair<String, ShiftUnitsRangeKey>, SingleValue>() {
-
-                                @Override
-                                public SingleValue apply(final Pair<String, ShiftUnitsRangeKey> input) {
-                                    final FDate date = key.getFirst();
-                                    final int shiftForwardUnits = key.getSecond();
-                                    final MutableReference<V> nextValue = new MutableReference<>();
-                                    final MutableInt shiftForwardRemaining = new MutableInt(shiftForwardUnits);
-                                    try (ICloseableIterator<V> rangeValues = readRangeValues(date, null,
-                                            DisabledLock.INSTANCE, new ISkipFileFunction() {
-                                                @Override
-                                                public boolean skipFile(final ChunkValue file) {
-                                                    final boolean skip = nextValue.get() != null
-                                                            && file.getCount() < shiftForwardRemaining.intValue();
-                                                    if (skip) {
-                                                        shiftForwardRemaining.subtract(file.getCount());
-                                                    }
-                                                    return skip;
-                                                }
-                                            })) {
-                                        while (shiftForwardRemaining.intValue() >= 0) {
-                                            nextValue.set(rangeValues.next());
-                                            shiftForwardRemaining.decrement();
+                    .getOrLoad(hashKey, new ShiftUnitsRangeKey(date, shiftForwardUnits), (k) -> {
+                        final MutableReference<V> nextValue = new MutableReference<>();
+                        final MutableInt shiftForwardRemaining = new MutableInt(shiftForwardUnits);
+                        try (ICloseableIterator<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,
+                                new ISkipFileFunction() {
+                                    @Override
+                                    public boolean skipFile(final ChunkValue file) {
+                                        final boolean skip = nextValue.get() != null
+                                                && file.getCount() < shiftForwardRemaining.intValue();
+                                        if (skip) {
+                                            shiftForwardRemaining.subtract(file.getCount());
                                         }
-                                    } catch (final NoSuchElementException e) {
-                                        //ignore
+                                        return skip;
                                     }
-                                    return new SingleValue(valueSerde, nextValue.get());
-                                }
-                            });
+                                })) {
+                            while (shiftForwardRemaining.intValue() >= 0) {
+                                nextValue.set(rangeValues.next());
+                                shiftForwardRemaining.decrement();
+                            }
+                        } catch (final NoSuchElementException e) {
+                            //ignore
+                        }
+                        return new SingleValue(valueSerde, nextValue.get());
+                    });
             return value.getValue(valueSerde);
         }
     };
