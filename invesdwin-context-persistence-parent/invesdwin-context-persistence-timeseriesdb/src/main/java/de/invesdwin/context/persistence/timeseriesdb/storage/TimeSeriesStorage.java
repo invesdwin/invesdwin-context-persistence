@@ -68,7 +68,7 @@ public class TimeSeriesStorage {
 
             @Override
             public ISerde<SingleValue> newValueSerde() {
-                return SingleValueSerde.GET;
+                return FastLZ4CompressionFactory.INSTANCE.maybeWrap(SingleValueSerde.GET);
             }
 
             @Override
@@ -101,7 +101,7 @@ public class TimeSeriesStorage {
 
             @Override
             public ISerde<SingleValue> newValueSerde() {
-                return SingleValueSerde.GET;
+                return FastLZ4CompressionFactory.INSTANCE.maybeWrap(SingleValueSerde.GET);
             }
 
             //            @Override
@@ -129,7 +129,7 @@ public class TimeSeriesStorage {
 
             @Override
             public ISerde<SingleValue> newValueSerde() {
-                return SingleValueSerde.GET;
+                return FastLZ4CompressionFactory.INSTANCE.maybeWrap(SingleValueSerde.GET);
             }
 
             //            @Override
