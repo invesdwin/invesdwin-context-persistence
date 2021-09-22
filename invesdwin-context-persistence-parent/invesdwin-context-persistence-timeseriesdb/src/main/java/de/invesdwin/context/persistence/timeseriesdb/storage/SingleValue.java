@@ -23,7 +23,8 @@ public class SingleValue {
     @SuppressWarnings("unchecked")
     public <V> V getValue(final ISerde<V> serde) {
         if (value == null) {
-            return serde.fromBytes(bytes);
+            final V newValue = serde.fromBytes(bytes);
+            return newValue;
         } else {
             return (V) value;
         }
