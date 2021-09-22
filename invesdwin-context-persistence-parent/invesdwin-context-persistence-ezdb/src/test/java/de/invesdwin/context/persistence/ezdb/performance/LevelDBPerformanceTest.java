@@ -23,7 +23,7 @@ import de.invesdwin.util.time.duration.Duration;
 import ezdb.batch.RangeBatch;
 
 @NotThreadSafe
-//@Ignore("manual test")
+@Ignore("manual test")
 public class LevelDBPerformanceTest extends ADatabasePerformanceTest {
 
     @Test

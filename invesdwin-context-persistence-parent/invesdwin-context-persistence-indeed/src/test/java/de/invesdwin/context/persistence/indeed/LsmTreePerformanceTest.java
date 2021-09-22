@@ -26,7 +26,7 @@ import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.duration.Duration;
 
 @NotThreadSafe
-//@Ignore("manual test")
+@Ignore("manual test")
 public class LsmTreePerformanceTest extends ADatabasePerformanceTest {
 
     @Test

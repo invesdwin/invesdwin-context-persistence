@@ -24,7 +24,7 @@ import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
-//@Ignore("manual test")
+@Ignore("manual test")
 public class MphTablePerformanceTest extends ADatabasePerformanceTest {
 
     @Test

@@ -8,6 +8,7 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
@@ -22,7 +23,7 @@ import net.openhft.chronicle.map.ChronicleMap;
 import net.openhft.chronicle.map.ChronicleMapBuilder;
 
 @NotThreadSafe
-//@Ignore("manual test")
+@Ignore("manual test")
 public class ChronicleMapPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
