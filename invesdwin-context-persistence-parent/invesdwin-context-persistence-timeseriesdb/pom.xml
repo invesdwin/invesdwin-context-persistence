@@ -19,10 +19,6 @@
 			<groupId>de.invesdwin</groupId>
 			<artifactId>invesdwin-context-persistence-chronicle</artifactId>
 		</dependency>
-		<dependency>
-			<groupId>de.invesdwin</groupId>
-			<artifactId>invesdwin-context-persistence-mapdb</artifactId>
-		</dependency>
 	</dependencies>
 
 </project>
