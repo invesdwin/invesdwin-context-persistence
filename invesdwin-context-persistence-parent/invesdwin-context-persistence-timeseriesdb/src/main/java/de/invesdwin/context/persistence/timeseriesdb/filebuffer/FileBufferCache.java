@@ -15,6 +15,8 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.github.benmanes.caffeine.cache.RemovalCause;
 
+import de.invesdwin.context.beans.hook.IReinitializationHook;
+import de.invesdwin.context.beans.hook.ReinitializationHookManager;
 import de.invesdwin.context.persistence.timeseriesdb.TimeseriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -46,6 +48,21 @@ public final class FileBufferCache {
                 .softValues()
                 .removalListener(FileBufferCache::onRemoval)
                 .<FileBufferKey, RefCountReverseCloseableIterable> build(FileBufferCache::load);
+        ReinitializationHookManager.register(new IReinitializationHook() {
+
+            @Override
+            public void reinitializationStarted() {
+                CACHE.asMap().clear();
+            }
+
+            @Override
+            public void reinitializationFinished() {
+            }
+
+            @Override
+            public void reinitializationFailed() {
+            }
+        });
     }
 
     private FileBufferCache() {
