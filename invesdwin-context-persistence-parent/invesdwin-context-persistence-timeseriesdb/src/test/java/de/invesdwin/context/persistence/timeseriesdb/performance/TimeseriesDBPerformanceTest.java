@@ -140,7 +140,9 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
         printProgress("ReadsFinished" + suffix, readsStart, VALUES * maxReads, VALUES * maxReads);
     }
 
-    private void readGetLatest(final ATimeSeriesDB<String, FDate> table, final String suffix, final long countReads) {
+    private void readGetLatest(final ATimeSeriesDB<String, FDate> table, final String suffix, final long countReads)
+            throws InterruptedException {
+        final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final List<FDate> values = Lists.toList(newValues());
         final Instant readsStart = new Instant();
         for (long reads = 1; reads <= countReads; reads++) {
@@ -156,9 +158,11 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
                     break;
                 }
             }
-            printProgress("Gets" + suffix, readsStart, VALUES * reads, VALUES * countReads);
+            if (loopCheck.check()) {
+                printProgress("GetLatests" + suffix, readsStart, VALUES * reads, VALUES * countReads);
+            }
         }
-        printProgress("Gets" + suffix + "Finished", readsStart, VALUES * countReads, VALUES * countReads);
+        printProgress("GetLatests" + suffix + "Finished", readsStart, VALUES * countReads, VALUES * countReads);
     }
 
 }
