@@ -46,7 +46,7 @@ public class PersistentChronicleMapFactory<K, V> implements IPersistentMapFactor
             final File file = config.getFile();
             try {
                 Files.forceMkdirParent(file);
-                return mapBuilder.createOrRecoverPersistedTo(file, true);
+                return mapBuilder.createPersistedTo(file);
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
