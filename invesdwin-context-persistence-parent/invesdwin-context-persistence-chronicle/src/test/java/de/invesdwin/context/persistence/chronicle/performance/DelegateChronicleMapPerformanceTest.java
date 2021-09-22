@@ -7,6 +7,7 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
@@ -25,7 +26,7 @@ import de.invesdwin.util.time.duration.Duration;
 import net.openhft.chronicle.map.ChronicleMapBuilder;
 
 @NotThreadSafe
-//@Ignore("manual test")
+@Ignore("manual test")
 public class DelegateChronicleMapPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
@@ -54,7 +55,7 @@ public class DelegateChronicleMapPerformanceTest extends ADatabasePerformanceTes
                     @Override
                     protected ChronicleMapBuilder configureChronicleMap(final APersistentMapConfig<FDate, FDate> config,
                             final ChronicleMapBuilder builder) {
-                        return builder.averageKeySize(FDate.BYTES).averageValueSize(FDate.BYTES);
+                        return builder.averageKeySize(FDate.BYTES).averageValueSize(FDate.BYTES).entries(VALUES);
                     }
                 };
             }

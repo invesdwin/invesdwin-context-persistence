@@ -7,6 +7,7 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
@@ -23,7 +24,7 @@ import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.duration.Duration;
 
 @NotThreadSafe
-//@Ignore("manual test")
+@Ignore("manual test")
 public class MapDBPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
@@ -70,7 +71,8 @@ public class MapDBPerformanceTest extends ADatabasePerformanceTest {
         table.deleteTable();
     }
 
-    private void readIterator(final APersistentMap<FDate, FDate> table) {
+    private void readIterator(final APersistentMap<FDate, FDate> table) throws InterruptedException {
+        final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
             //            FDate prevValue = null;
@@ -89,12 +91,15 @@ public class MapDBPerformanceTest extends ADatabasePerformanceTest {
                 }
             }
             Assertions.checkEquals(count, VALUES);
-            printProgress("Reads", readsStart, VALUES * reads, VALUES * READS);
+            if (loopCheck.check()) {
+                printProgress("Reads", readsStart, VALUES * reads, VALUES * READS);
+            }
         }
         printProgress("ReadsFinished", readsStart, VALUES * READS, VALUES * READS);
     }
 
-    private void readGet(final APersistentMap<FDate, FDate> table) {
+    private void readGet(final APersistentMap<FDate, FDate> table) throws InterruptedException {
+        final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final List<FDate> values = Lists.toList(newValues());
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
@@ -110,7 +115,9 @@ public class MapDBPerformanceTest extends ADatabasePerformanceTest {
                     break;
                 }
             }
-            printProgress("Gets", readsStart, VALUES * reads, VALUES * READS);
+            if (loopCheck.check()) {
+                printProgress("Gets", readsStart, VALUES * reads, VALUES * READS);
+            }
         }
         printProgress("GetsFinished", readsStart, VALUES * READS, VALUES * READS);
     }

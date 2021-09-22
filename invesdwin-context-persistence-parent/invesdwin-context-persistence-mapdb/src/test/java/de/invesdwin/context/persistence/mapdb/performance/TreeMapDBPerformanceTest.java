@@ -55,13 +55,16 @@ public class TreeMapDBPerformanceTest extends ADatabasePerformanceTest {
 
         };
 
+        final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final Instant writesStart = new Instant();
         int i = 0;
         for (final FDate date : newValues()) {
             table.put(date, date);
             i++;
             if (i % FLUSH_INTERVAL == 0) {
-                printProgress("Writes", writesStart, i, VALUES);
+                if (loopCheck.check()) {
+                    printProgress("Writes", writesStart, i, VALUES);
+                }
             }
         }
         printProgress("WritesFinished", writesStart, VALUES, VALUES);
