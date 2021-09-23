@@ -76,12 +76,16 @@ public abstract class ADelegateDailyDownloadRangeTableRequest<K, V>
                         log.info("Finished indexing [%s] after: %s", getDownloadFileName(), start);
                     }
                 } catch (final Throwable t) {
-                    DailyDownloadCache.delete(getDownloadFileName());
+                    deleteDownloadedFile();
                     table.deleteTable();
                     throw Throwables.propagate(t);
                 }
             }
         }
+    }
+
+    protected void deleteDownloadedFile() {
+        DailyDownloadCache.delete(getDownloadFileName());
     }
 
     protected void printProgress(final String action, final Instant start, final int count) {
