@@ -21,12 +21,12 @@ import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSer
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
-import de.invesdwin.util.collections.iterable.ATimeRangeSkippingIterable;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.iterable.buffer.IBufferingIterator;
+import de.invesdwin.util.collections.iterable.skip.ATimeRangeSkippingIterable;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
