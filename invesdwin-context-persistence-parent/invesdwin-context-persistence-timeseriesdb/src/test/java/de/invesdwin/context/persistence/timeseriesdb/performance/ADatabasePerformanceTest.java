@@ -22,8 +22,8 @@ public abstract class ADatabasePerformanceTest extends ATest {
     //        LZ4Streams.setAllowJniCompressor(true);
     //    }
 
-    protected static final long READS = 1000;
-    protected static final long VALUES = 100_000;
+    protected static final long READS = 100;
+    protected static final long VALUES = 10_000_000;
     protected static final String HASH_KEY = "HASH_KEY";
     protected static final int FLUSH_INTERVAL = ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL;
 

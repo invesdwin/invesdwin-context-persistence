@@ -133,7 +133,9 @@ public final class FileBufferCache {
 
     public static <T> void preloadResult(final String hashKey, final File file, final IFileBufferSource source) {
         if (PRELOAD_EXECUTOR != null) {
-            PRELOAD_EXECUTOR.execute(() -> getResult(hashKey, file, source));
+            if (PRELOAD_EXECUTOR.getPendingCount() <= 3) {
+                PRELOAD_EXECUTOR.execute(() -> getResult(hashKey, file, source));
+            }
         }
     }
 
