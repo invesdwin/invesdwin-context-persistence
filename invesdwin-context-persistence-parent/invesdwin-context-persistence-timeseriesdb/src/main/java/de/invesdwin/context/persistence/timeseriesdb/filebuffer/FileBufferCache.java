@@ -106,16 +106,16 @@ public final class FileBufferCache {
 
     public static <T> IFileBufferCacheResult<T> getIterable(final String hashKey, final File file,
             final IFileBufferSource source) {
-        if (TimeseriesProperties.FILE_BUFFER_CACHE_MAX_COUNT <= 0) {
+        if (TimeseriesProperties.FILE_BUFFER_CACHE_ENABLED) {
+            final FileBufferKey key = new FileBufferKey(hashKey, file, source);
+            final IFileBufferCacheResult value = CACHE.get(key);
+            return value;
+        } else {
             try {
                 return new IterableFileBufferCacheResult(source.getSource());
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
-        } else {
-            final FileBufferKey key = new FileBufferKey(hashKey, file, source);
-            final IFileBufferCacheResult value = CACHE.get(key);
-            return value;
         }
     }
 

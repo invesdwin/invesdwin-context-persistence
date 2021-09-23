@@ -5,11 +5,17 @@ import java.util.function.Supplier;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import de.invesdwin.context.integration.persistentmap.APersistentMap;
+import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
 import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
+import de.invesdwin.context.integration.streams.compressor.lz4.FastLZ4CompressionFactory;
 import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.ezdb.RangeTablePersistenceMode;
-import de.invesdwin.context.persistence.timeseriesdb.storage.key.RangeShiftUnitsKey;
-import de.invesdwin.context.persistence.timeseriesdb.storage.key.RangeShiftUnitsKeySerde;
+import de.invesdwin.context.persistence.timeseriesdb.TimeseriesProperties;
+import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeKey;
+import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeKeySerde;
+import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeShiftUnitsKey;
+import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeShiftUnitsKeySerde;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.time.date.FDate;
 
@@ -19,9 +25,9 @@ public class TimeSeriesStorage {
     private final File directory;
     private final ICompressionFactory compressionFactory;
     private final ADelegateRangeTable<String, FDate, ChunkValue> fileLookupTable;
-    private final ADelegateRangeTable<String, FDate, SingleValue> latestValueLookupTable;
-    private final ADelegateRangeTable<String, RangeShiftUnitsKey, SingleValue> previousValueLookupTable;
-    private final ADelegateRangeTable<String, RangeShiftUnitsKey, SingleValue> nextValueLookupTable;
+    private final APersistentMap<HashRangeKey, SingleValue> latestValueLookupTable;
+    private final APersistentMap<HashRangeShiftUnitsKey, SingleValue> previousValueLookupTable;
+    private final APersistentMap<HashRangeShiftUnitsKey, SingleValue> nextValueLookupTable;
 
     public TimeSeriesStorage(final File directory, final Integer valueFixedLength,
             final ICompressionFactory compressionFactory) {
@@ -55,68 +61,87 @@ public class TimeSeriesStorage {
             }
 
         };
-        this.latestValueLookupTable = new ADelegateRangeTable<String, FDate, SingleValue>("latestValueLookupTable") {
+        this.latestValueLookupTable = new APersistentMap<HashRangeKey, SingleValue>("latestValueLookupTable") {
 
             @Override
-            protected File getDirectory() {
+            public File getDirectory() {
                 return directory;
             }
 
             @Override
-            protected ISerde<SingleValue> newValueSerde() {
-                return SingleValueSerde.GET;
+            public ISerde<SingleValue> newValueSerde() {
+                return FastLZ4CompressionFactory.INSTANCE.maybeWrap(SingleValueSerde.GET);
             }
 
             @Override
-            protected void onDeleteTableFinished() {
-                throw new CorruptedTimeSeriesStorageException(getName());
+            public ISerde<HashRangeKey> newKeySerde() {
+                return HashRangeKeySerde.GET;
+            }
+
+            //            @Override
+            //            protected void onDeleteTableFinished() {
+            //                throw new CorruptedTimeSeriesStorageException(getName());
+            //            }
+
+            @Override
+            protected IPersistentMapFactory<HashRangeKey, SingleValue> newFactory() {
+                return TimeseriesProperties.newPersistentMapFactory(false);
             }
 
         };
-        this.nextValueLookupTable = new ADelegateRangeTable<String, RangeShiftUnitsKey, SingleValue>(
-                "nextValueLookupTable") {
+        this.nextValueLookupTable = new APersistentMap<HashRangeShiftUnitsKey, SingleValue>("nextValueLookupTable") {
 
             @Override
-            protected File getDirectory() {
+            public File getDirectory() {
                 return directory;
             }
 
             @Override
-            protected ISerde<RangeShiftUnitsKey> newRangeKeySerde() {
-                return RangeShiftUnitsKeySerde.GET;
+            public ISerde<HashRangeShiftUnitsKey> newKeySerde() {
+                return HashRangeShiftUnitsKeySerde.GET;
             }
 
             @Override
-            protected ISerde<SingleValue> newValueSerde() {
-                return SingleValueSerde.GET;
+            public ISerde<SingleValue> newValueSerde() {
+                return FastLZ4CompressionFactory.INSTANCE.maybeWrap(SingleValueSerde.GET);
             }
 
+            //            @Override
+            //            protected void onDeleteTableFinished() {
+            //                throw new CorruptedTimeSeriesStorageException(getName());
+            //            }
+
             @Override
-            protected void onDeleteTableFinished() {
-                throw new CorruptedTimeSeriesStorageException(getName());
+            protected IPersistentMapFactory<HashRangeShiftUnitsKey, SingleValue> newFactory() {
+                return TimeseriesProperties.newPersistentMapFactory(false);
             }
         };
-        this.previousValueLookupTable = new ADelegateRangeTable<String, RangeShiftUnitsKey, SingleValue>(
+        this.previousValueLookupTable = new APersistentMap<HashRangeShiftUnitsKey, SingleValue>(
                 "previousValueLookupTable") {
 
             @Override
-            protected File getDirectory() {
+            public File getDirectory() {
                 return directory;
             }
 
             @Override
-            protected ISerde<RangeShiftUnitsKey> newRangeKeySerde() {
-                return RangeShiftUnitsKeySerde.GET;
+            public ISerde<HashRangeShiftUnitsKey> newKeySerde() {
+                return HashRangeShiftUnitsKeySerde.GET;
             }
 
             @Override
-            protected ISerde<SingleValue> newValueSerde() {
-                return SingleValueSerde.GET;
+            public ISerde<SingleValue> newValueSerde() {
+                return FastLZ4CompressionFactory.INSTANCE.maybeWrap(SingleValueSerde.GET);
             }
 
+            //            @Override
+            //            protected void onDeleteTableFinished() {
+            //                throw new CorruptedTimeSeriesStorageException(getName());
+            //            }
+
             @Override
-            protected void onDeleteTableFinished() {
-                throw new CorruptedTimeSeriesStorageException(getName());
+            protected IPersistentMapFactory<HashRangeShiftUnitsKey, SingleValue> newFactory() {
+                return TimeseriesProperties.newPersistentMapFactory(false);
             }
         };
     }
@@ -145,46 +170,56 @@ public class TimeSeriesStorage {
     }
 
     public void deleteRange_latestValueLookupTable(final String hashKey) {
-        latestValueLookupTable.deleteRange(hashKey);
+        latestValueLookupTable.removeAll((key) -> {
+            return hashKey.equals(key.getHashKey());
+        });
     }
 
     public void deleteRange_latestValueLookupTable(final String hashKey, final FDate above) {
         if (above == null) {
             deleteRange_latestValueLookupTable(hashKey);
         } else {
-            latestValueLookupTable.deleteRange(hashKey, above);
+            latestValueLookupTable.removeAll((key) -> {
+                return hashKey.equals(key.getHashKey()) && key.getRangeKey().isAfterOrEqualToNotNullSafe(above);
+            });
         }
     }
 
     public void deleteRange_nextValueLookupTable(final String hashKey) {
-        nextValueLookupTable.deleteRange(hashKey);
+        nextValueLookupTable.removeAll((key) -> {
+            return hashKey.equals(key.getHashKey());
+        });
     }
 
     public void deleteRange_previousValueLookupTable(final String hashKey) {
-        previousValueLookupTable.deleteRange(hashKey);
+        previousValueLookupTable.removeAll((key) -> {
+            return hashKey.equals(key.getHashKey());
+        });
     }
 
     public void deleteRange_previousValueLookupTable(final String hashKey, final FDate above) {
         if (above == null) {
             deleteRange_previousValueLookupTable(hashKey);
         } else {
-            previousValueLookupTable.deleteRange(hashKey, new RangeShiftUnitsKey(above, 0));
+            previousValueLookupTable.removeAll((key) -> {
+                return hashKey.equals(key.getHashKey()) && key.getRangeKey().isAfterOrEqualToNotNullSafe(above);
+            });
         }
     }
 
     public SingleValue getOrLoad_latestValueLookupTable(final String hashKey, final FDate key,
             final Supplier<SingleValue> loadable) {
-        return latestValueLookupTable.getOrLoad(hashKey, key, loadable);
+        return latestValueLookupTable.getOrLoad(new HashRangeKey(hashKey, key), loadable);
     }
 
     public SingleValue getOrLoad_nextValueLookupTable(final String hashKey, final FDate date,
             final int shiftForwardUnits, final Supplier<SingleValue> loadable) {
-        return nextValueLookupTable.getOrLoad(hashKey, new RangeShiftUnitsKey(date, shiftForwardUnits), loadable);
+        return nextValueLookupTable.getOrLoad(new HashRangeShiftUnitsKey(hashKey, date, shiftForwardUnits), loadable);
     }
 
     public SingleValue getOrLoad_previousValueLookupTable(final String hashKey, final FDate date,
             final int shiftBackUnits, final Supplier<SingleValue> loadable) {
-        return previousValueLookupTable.getOrLoad(hashKey, new RangeShiftUnitsKey(date, shiftBackUnits), loadable);
+        return previousValueLookupTable.getOrLoad(new HashRangeShiftUnitsKey(hashKey, date, shiftBackUnits), loadable);
     }
 
 }
