@@ -21,9 +21,6 @@ import de.invesdwin.context.persistence.timeseriesdb.TimeseriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
-import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
-import de.invesdwin.util.collections.iterable.collection.ArrayListCloseableIterable;
-import de.invesdwin.util.collections.iterable.refcount.RefCountReverseCloseableIterable;
 import de.invesdwin.util.concurrent.pool.AgronaObjectPool;
 import de.invesdwin.util.concurrent.pool.IObjectPool;
 import de.invesdwin.util.lang.Objects;
@@ -33,7 +30,7 @@ import de.invesdwin.util.time.date.FTimeUnit;
 @ThreadSafe
 public final class FileBufferCache {
 
-    private static final LoadingCache<FileBufferKey, RefCountReverseCloseableIterable> CACHE;
+    private static final LoadingCache<FileBufferKey, ArrayFileBufferCacheResult> CACHE;
 
     private static final IObjectPool<ArrayList> LIST_POOL = new AgronaObjectPool<ArrayList>(
             () -> new ArrayList<>(ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL),
@@ -47,7 +44,7 @@ public final class FileBufferCache {
                         TimeUnit.MILLISECONDS)
                 .softValues()
                 .removalListener(FileBufferCache::onRemoval)
-                .<FileBufferKey, RefCountReverseCloseableIterable> build(FileBufferCache::load);
+                .<FileBufferKey, ArrayFileBufferCacheResult> build(FileBufferCache::load);
         ReinitializationHookManager.register(new IReinitializationHook() {
 
             @Override
@@ -68,17 +65,16 @@ public final class FileBufferCache {
     private FileBufferCache() {
     }
 
-    private static void onRemoval(final FileBufferKey key, final RefCountReverseCloseableIterable value,
+    private static void onRemoval(final FileBufferKey key, final ArrayFileBufferCacheResult value,
             final RemovalCause cause) {
         if (value != null && value.isUsed() && value.getRefCount().get() == 0) {
-            final ArrayListCloseableIterable delegate = (ArrayListCloseableIterable) value.getDelegate();
-            final ArrayList arrayList = delegate.getArrayList();
+            final ArrayList arrayList = value.getList();
             arrayList.clear();
             LIST_POOL.returnObject(arrayList);
         }
     }
 
-    private static RefCountReverseCloseableIterable load(final FileBufferKey key) throws Exception {
+    private static ArrayFileBufferCacheResult load(final FileBufferKey key) throws Exception {
         //keep file input stream open as shorty as possible to prevent too many open files error
         final ICloseableIterable values = key.getSource().getSource();
         key.setSource(null);
@@ -90,15 +86,15 @@ public final class FileBufferCache {
         } catch (final NoSuchElementException e) {
             //end reached
         }
-        return new RefCountReverseCloseableIterable(new ArrayListCloseableIterable<>(list));
+        return new ArrayFileBufferCacheResult(list);
     }
 
     public static void remove(final String hashKey) {
-        final Set<Entry<FileBufferKey, RefCountReverseCloseableIterable>> entries = CACHE.asMap().entrySet();
-        final Iterator<Entry<FileBufferKey, RefCountReverseCloseableIterable>> iterator = entries.iterator();
+        final Set<Entry<FileBufferKey, ArrayFileBufferCacheResult>> entries = CACHE.asMap().entrySet();
+        final Iterator<Entry<FileBufferKey, ArrayFileBufferCacheResult>> iterator = entries.iterator();
         try {
             while (true) {
-                final Entry<FileBufferKey, RefCountReverseCloseableIterable> next = iterator.next();
+                final Entry<FileBufferKey, ArrayFileBufferCacheResult> next = iterator.next();
                 if (next.getKey().getHashKey().equals(hashKey)) {
                     iterator.remove();
                 }
@@ -108,17 +104,17 @@ public final class FileBufferCache {
         }
     }
 
-    public static <T> IReverseCloseableIterable<T> getIterable(final String hashKey, final File file,
+    public static <T> IFileBufferCacheResult<T> getIterable(final String hashKey, final File file,
             final IFileBufferSource source) {
         if (TimeseriesProperties.FILE_BUFFER_CACHE_MAX_COUNT <= 0) {
             try {
-                return source.getSource();
+                return new IterableFileBufferCacheResult(source.getSource());
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
         } else {
             final FileBufferKey key = new FileBufferKey(hashKey, file, source);
-            final RefCountReverseCloseableIterable value = CACHE.get(key);
+            final IFileBufferCacheResult value = CACHE.get(key);
             return value;
         }
     }

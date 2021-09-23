@@ -24,6 +24,7 @@ import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable.DelegateTableIterator;
 import de.invesdwin.context.persistence.timeseriesdb.filebuffer.FileBufferCache;
+import de.invesdwin.context.persistence.timeseriesdb.filebuffer.IFileBufferCacheResult;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ChunkValue;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
@@ -41,10 +42,8 @@ import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.FlatteningIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
-import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterator;
-import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
@@ -88,29 +87,17 @@ public class TimeSeriesStorageCache<K, V> {
                             return null;
                         }
                         final File file = newFile(fileTime);
-                        final ICloseableIterable<V> serializingCollection = newSerializingCollectionCached(
-                                "latestValueLookupCache.loadValue", file, DisabledLock.INSTANCE);
-                        V latestValue = null;
-                        try (ICloseableIterator<V> it = serializingCollection.iterator()) {
-                            while (true) {
-                                final V newValue = it.next();
-                                final FDate newValueTime = extractEndTime.apply(newValue);
-                                if (newValueTime.isAfter(key)) {
-                                    break;
-                                } else {
-                                    latestValue = newValue;
-                                }
+                        try (IFileBufferCacheResult<V> result = newSerializingCollectionCached(
+                                "latestValueLookupCache.loadValue", file, DisabledLock.INSTANCE)) {
+                            V latestValue = result.getLatestValue(extractEndTime, key);
+                            if (latestValue == null) {
+                                latestValue = getFirstValue();
                             }
-                        } catch (final NoSuchElementException e) {
-                            //end reached
+                            if (latestValue == null) {
+                                return null;
+                            }
+                            return new SingleValue(valueSerde, latestValue);
                         }
-                        if (latestValue == null) {
-                            latestValue = getFirstValue();
-                        }
-                        if (latestValue == null) {
-                            return null;
-                        }
-                        return new SingleValue(valueSerde, latestValue);
                     });
             if (value == null) {
                 return null;
@@ -492,23 +479,9 @@ public class TimeSeriesStorageCache<K, V> {
                 fileIterator) {
             @Override
             protected ICloseableIterator<V> transform(final File value) {
-                final ICloseableIterable<V> serializingCollection = newSerializingCollectionCached("readRangeValues",
-                        value, readLock);
-                if (from == null && to == null) {
-                    return serializingCollection.iterator();
-                } else {
-                    return new ASkippingIterator<V>(serializingCollection.iterator()) {
-                        @Override
-                        protected boolean skip(final V element) {
-                            final FDate time = extractEndTime.apply(element);
-                            if (time.isBefore(from)) {
-                                return true;
-                            } else if (time.isAfter(to)) {
-                                throw new FastNoSuchElementException("getRangeValues reached end");
-                            }
-                            return false;
-                        }
-                    };
+                try (IFileBufferCacheResult<V> serializingCollection = newSerializingCollectionCached("readRangeValues",
+                        value, readLock)) {
+                    return serializingCollection.iterator(extractEndTime, from, to);
                 }
             }
 
@@ -526,32 +499,19 @@ public class TimeSeriesStorageCache<K, V> {
                 fileIterator) {
             @Override
             protected ICloseableIterator<V> transform(final File value) {
-                final IReverseCloseableIterable<V> serializingCollection = newSerializingCollectionCached(
-                        "readRangeValuesReverse", value, readLock);
-                if (from == null && to == null) {
-                    return serializingCollection.reverseIterator();
-                } else {
-                    return new ASkippingIterator<V>(serializingCollection.reverseIterator()) {
-                        @Override
-                        protected boolean skip(final V element) {
-                            final FDate time = extractEndTime.apply(element);
-                            if (time.isAfter(from)) {
-                                return true;
-                            } else if (time.isBefore(to)) {
-                                throw new FastNoSuchElementException("getRangeValues reached end");
-                            }
-                            return false;
-                        }
-                    };
+                try (IFileBufferCacheResult<V> serializingCollection = newSerializingCollectionCached(
+                        "readRangeValuesReverse", value, readLock)) {
+                    return serializingCollection.reverseIterator(extractEndTime, from, to);
                 }
             }
 
         };
+
         final ICloseableIterator<V> rangeValuesReverse = new FlatteningIterator<V>(chunkIterator);
         return rangeValuesReverse;
     }
 
-    private IReverseCloseableIterable<V> newSerializingCollectionCached(final String method, final File file,
+    private IFileBufferCacheResult<V> newSerializingCollectionCached(final String method, final File file,
             final Lock readLock) {
         return FileBufferCache.getIterable(hashKey, file, () -> newSerializingCollection(method, file, readLock));
     }
@@ -751,9 +711,10 @@ public class TimeSeriesStorageCache<K, V> {
                     throw new IllegalStateException("redirectedFiles should be null when shouldRedoLastFile=true");
                 }
                 final File lastFile = newFile(latestRangeKey);
-                final ICloseableIterable<V> lastColl = newSerializingCollectionCached("prepareForUpdate", lastFile,
-                        DisabledLock.INSTANCE);
-                Lists.toListWithoutHasNext(lastColl, lastValues);
+                try (IFileBufferCacheResult<V> lastColl = newSerializingCollectionCached("prepareForUpdate", lastFile,
+                        DisabledLock.INSTANCE)) {
+                    lastColl.addToList(lastValues);
+                }
                 //remove last value because it might be an incomplete bar
                 final V lastValue = lastValues.remove(lastValues.size() - 1);
                 updateFrom = extractEndTime.apply(lastValue);
