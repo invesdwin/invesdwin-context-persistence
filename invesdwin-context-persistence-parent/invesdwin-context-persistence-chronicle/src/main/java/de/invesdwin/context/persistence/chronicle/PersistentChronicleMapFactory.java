@@ -7,6 +7,7 @@ import java.util.concurrent.ConcurrentMap;
 import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.context.integration.persistentmap.APersistentMapConfig;
+import de.invesdwin.context.integration.persistentmap.IKeyMatcher;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
 import de.invesdwin.util.lang.Files;
 import net.openhft.chronicle.map.ChronicleMap;
@@ -53,6 +54,17 @@ public class PersistentChronicleMapFactory<K, V> implements IPersistentMapFactor
         } else {
             return mapBuilder.create();
         }
+    }
+
+    @Override
+    public void removeAll(final ConcurrentMap<K, V> table, final IKeyMatcher<K> matcher) {
+        final ChronicleMap<K, V> cTable = (ChronicleMap<K, V>) table;
+        cTable.forEachEntry((entry) -> {
+            final K key = entry.key().get();
+            if (matcher.matches(key)) {
+                entry.doRemove();
+            }
+        });
     }
 
 }

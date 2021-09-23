@@ -613,12 +613,9 @@ public class TimeSeriesStorageCache<K, V> {
 
     public synchronized void deleteAll() {
         storage.getFileLookupTable().deleteRange(hashKey);
-        //        storage.getLatestValueLookupTable().deleteRange(hashKey);
-        //        storage.getNextValueLookupTable().deleteRange(hashKey);
-        //        storage.getPreviousValueLookupTable().deleteRange(hashKey);
-        storage.getLatestValueLookupTable().deleteTable();
-        storage.getNextValueLookupTable().deleteTable();
-        storage.getPreviousValueLookupTable().deleteTable();
+        storage.latestValueLookupTableDeleteRange(hashKey);
+        storage.nextValueLookupTableDeleteRange(hashKey);
+        storage.previousValueLookupTableDeleteRange(hashKey);
         clearCaches();
         Files.deleteNative(newDataDirectory());
         dataDirectory = null;
@@ -723,12 +720,9 @@ public class TimeSeriesStorageCache<K, V> {
                 latestRangeKey = latestRangeKey.addMilliseconds(1);
             }
             storage.getFileLookupTable().deleteRange(hashKey, latestRangeKey);
-            //            storage.getLatestValueLookupTable().deleteRange(hashKey, latestRangeKey);
-            //            storage.getNextValueLookupTable().deleteRange(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
-            //            storage.getPreviousValueLookupTable().deleteRange(hashKey, new RangeShiftUnitsKey(latestRangeKey, 0));
-            storage.getLatestValueLookupTable().deleteTable();
-            storage.getNextValueLookupTable().deleteTable();
-            storage.getPreviousValueLookupTable().deleteTable();
+            storage.latestValueLookupTableDeleteRange(hashKey, latestRangeKey);
+            storage.nextValueLookupTableDeleteRange(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
+            storage.previousValueLookupTableDeleteRange(hashKey, latestRangeKey);
         }
         clearCaches();
         return Pair.of(updateFrom, lastValues);

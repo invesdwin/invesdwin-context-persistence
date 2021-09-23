@@ -10,8 +10,10 @@ import org.mapdb.DB;
 import org.mapdb.DB.HashMapMaker;
 import org.mapdb.DBMaker;
 import org.mapdb.DBMaker.Maker;
+import org.mapdb.HTreeMap;
 
 import de.invesdwin.context.integration.persistentmap.APersistentMapConfig;
+import de.invesdwin.context.integration.persistentmap.IKeyMatcher;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
 import de.invesdwin.util.lang.Files;
 
@@ -49,6 +51,16 @@ public class PersistentMapDBFactory<K, V> implements IPersistentMapFactory<K, V>
     protected HashMapMaker<K, V> configureHashMap(final APersistentMapConfig<K, V> config,
             final HashMapMaker<K, V> maker) {
         return maker.counterEnable();
+    }
+
+    @Override
+    public void removeAll(final ConcurrentMap<K, V> table, final IKeyMatcher<K> matcher) {
+        final HTreeMap<K, V> cTable = (HTreeMap<K, V>) table;
+        for (final K key : cTable.keySet()) {
+            if (matcher.matches(key)) {
+                cTable.remove(key);
+            }
+        }
     }
 
 }

@@ -180,4 +180,42 @@ public class TimeSeriesStorage {
         return new File(getDirectory(), "storage/" + hashKey);
     }
 
+    public void latestValueLookupTableDeleteRange(final String hashKey) {
+        latestValueLookupTable.removeAll((key) -> {
+            return hashKey.equals(key.getHashKey());
+        });
+    }
+
+    public void latestValueLookupTableDeleteRange(final String hashKey, final FDate above) {
+        if (above == null) {
+            latestValueLookupTableDeleteRange(hashKey);
+        } else {
+            latestValueLookupTable.removeAll((key) -> {
+                return hashKey.equals(key.getHashKey()) && key.getRangeKey().isAfterOrEqualToNotNullSafe(above);
+            });
+        }
+    }
+
+    public void nextValueLookupTableDeleteRange(final String hashKey) {
+        nextValueLookupTable.removeAll((key) -> {
+            return hashKey.equals(key.getHashKey());
+        });
+    }
+
+    public void previousValueLookupTableDeleteRange(final String hashKey) {
+        previousValueLookupTable.removeAll((key) -> {
+            return hashKey.equals(key.getHashKey());
+        });
+    }
+
+    public void previousValueLookupTableDeleteRange(final String hashKey, final FDate above) {
+        if (above == null) {
+            previousValueLookupTableDeleteRange(hashKey);
+        } else {
+            previousValueLookupTable.removeAll((key) -> {
+                return hashKey.equals(key.getHashKey()) && key.getRangeKey().isAfterOrEqualToNotNullSafe(above);
+            });
+        }
+    }
+
 }

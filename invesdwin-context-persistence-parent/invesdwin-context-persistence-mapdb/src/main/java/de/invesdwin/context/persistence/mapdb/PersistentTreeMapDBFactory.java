@@ -2,16 +2,19 @@ package de.invesdwin.context.persistence.mapdb;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentNavigableMap;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.mapdb.BTreeMap;
 import org.mapdb.DB;
 import org.mapdb.DB.TreeMapMaker;
 import org.mapdb.DBMaker;
 import org.mapdb.DBMaker.Maker;
 
 import de.invesdwin.context.integration.persistentmap.APersistentMapConfig;
+import de.invesdwin.context.integration.persistentmap.IKeyMatcher;
 import de.invesdwin.context.integration.persistentmap.navigable.IPersistentNavigableMapFactory;
 import de.invesdwin.util.lang.Files;
 
@@ -49,6 +52,16 @@ public class PersistentTreeMapDBFactory<K, V> implements IPersistentNavigableMap
     protected TreeMapMaker<K, V> configureHashMap(final APersistentMapConfig<K, V> config,
             final TreeMapMaker<K, V> maker) {
         return maker.counterEnable();
+    }
+
+    @Override
+    public void removeAll(final ConcurrentMap<K, V> table, final IKeyMatcher<K> matcher) {
+        final BTreeMap<K, V> cTable = (BTreeMap<K, V>) table;
+        for (final K key : cTable.keySet()) {
+            if (matcher.matches(key)) {
+                cTable.remove(key);
+            }
+        }
     }
 
 }
