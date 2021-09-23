@@ -17,7 +17,7 @@ public final class TimeseriesProperties {
 
     static {
         final SystemProperties systemProperties = new SystemProperties(TimeseriesProperties.class);
-        FILE_BUFFER_CACHE_ENABLED = systemProperties.getBoolean("FILE_BUFFER_CACHE_ENABLED") && false;
+        FILE_BUFFER_CACHE_ENABLED = systemProperties.getBoolean("FILE_BUFFER_CACHE_ENABLED");
         FILE_BUFFER_CACHE_MAX_COUNT = systemProperties.getInteger("FILE_BUFFER_CACHE_MAX_COUNT");
         FILE_BUFFER_CACHE_EVICTION_TIMEOUT = systemProperties.getDuration("FILE_BUFFER_CACHE_EVICTION_TIMEOUT");
     }
