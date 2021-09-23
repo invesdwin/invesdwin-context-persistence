@@ -8,7 +8,9 @@ import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
 import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.ezdb.RangeTablePersistenceMode;
 import de.invesdwin.context.persistence.timeseriesdb.storage.CorruptedTimeSeriesStorageException;
+import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
+import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.range.TimeRange;
 
 @ThreadSafe
@@ -50,6 +52,11 @@ public class SegmentedTimeSeriesStorage extends TimeSeriesStorage {
     public void close() {
         super.close();
         segmentStatusTable.close();
+    }
+
+    public SingleValue getOrLoad_previousValueLookupTable(final String hashKey, final FDate date,
+            final int shiftBackUnits, final Object object) {
+        return null;
     }
 
 }

@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.timeseriesdb.storage;
 
 import java.io.File;
+import java.util.function.Supplier;
 
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -157,18 +158,6 @@ public class TimeSeriesStorage {
         return fileLookupTable;
     }
 
-    public APersistentMap<HashRangeKey, SingleValue> getLatestValueLookupTable() {
-        return latestValueLookupTable;
-    }
-
-    public APersistentMap<HashRangeShiftUnitsKey, SingleValue> getPreviousValueLookupTable() {
-        return previousValueLookupTable;
-    }
-
-    public APersistentMap<HashRangeShiftUnitsKey, SingleValue> getNextValueLookupTable() {
-        return nextValueLookupTable;
-    }
-
     public void close() {
         fileLookupTable.close();
         latestValueLookupTable.close();
@@ -216,6 +205,21 @@ public class TimeSeriesStorage {
                 return hashKey.equals(key.getHashKey()) && key.getRangeKey().isAfterOrEqualToNotNullSafe(above);
             });
         }
+    }
+
+    public SingleValue getOrLoad_latestValueLookupTable(final String hashKey, final FDate key,
+            final Supplier<SingleValue> loadable) {
+        return latestValueLookupTable.getOrLoad(new HashRangeKey(hashKey, key), loadable);
+    }
+
+    public SingleValue getOrLoad_nextValueLookupTable(final String hashKey, final FDate date,
+            final int shiftForwardUnits, final Supplier<SingleValue> loadable) {
+        return nextValueLookupTable.getOrLoad(new HashRangeShiftUnitsKey(hashKey, date, shiftForwardUnits), loadable);
+    }
+
+    public SingleValue getOrLoad_previousValueLookupTable(final String hashKey, final FDate date,
+            final int shiftBackUnits, final Supplier<SingleValue> loadable) {
+        return previousValueLookupTable.getOrLoad(new HashRangeShiftUnitsKey(hashKey, date, shiftBackUnits), loadable);
     }
 
 }
