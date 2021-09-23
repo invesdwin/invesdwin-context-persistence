@@ -751,12 +751,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             segmentedTable.deleteRange(new SegmentedKey<K>(key, rangeKey));
         }
         segmentStatusTable.deleteRange(hashKey);
-        //        storage.getLatestValueLookupTable().deleteRange(hashKey);
-        //        storage.getNextValueLookupTable().deleteRange(hashKey);
-        //        storage.getPreviousValueLookupTable().deleteRange(hashKey);
-        storage.getLatestValueLookupTable().deleteTable();
-        storage.getNextValueLookupTable().deleteTable();
-        storage.getPreviousValueLookupTable().deleteTable();
+        storage.latestValueLookupTableDeleteRange(hashKey);
+        storage.nextValueLookupTableDeleteRange(hashKey);
+        storage.previousValueLookupTableDeleteRange(hashKey);
         clearCaches();
     }
 
@@ -801,13 +798,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         final FDate prevLastAvailableSegmentTo = getPrevLastAvailableSegmentTo();
         if (isNewSegmentAtTheEnd(prevLastAvailableSegmentTo, segmentToBeInitialized)) {
             if (prevLastAvailableSegmentTo != null) {
-                //                storage.getLatestValueLookupTable().deleteRange(hashKey, prevLastAvailableSegmentTo);
-                //                storage.getNextValueLookupTable().deleteRange(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
-                //                storage.getPreviousValueLookupTable()
-                //                        .deleteRange(hashKey, new RangeShiftUnitsKey(prevLastAvailableSegmentTo, 0));
-                storage.getLatestValueLookupTable().deleteTable();
-                storage.getNextValueLookupTable().deleteTable();
-                storage.getPreviousValueLookupTable().deleteTable();
+                storage.latestValueLookupTableDeleteRange(hashKey, prevLastAvailableSegmentTo);
+                storage.nextValueLookupTableDeleteRange(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
+                storage.previousValueLookupTableDeleteRange(hashKey, prevLastAvailableSegmentTo);
             }
             clearCaches();
         }
