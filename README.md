@@ -263,7 +263,7 @@ Indeed-BlockCompRecordFile      Writes (Append):      4,273.32/ms  => ~18.7 time
       ATimeSeriesDB (High)      Writes (Append):      6,449.49/ms  => ~28.3 times as fast (High Compression)
   ConcurrentHashMap             Writes (put):        10,260.62/ms  => ~45 times as fast (no persistence)
            Caffeine             Writes (put):        10,378.83/ms  => ~45.5 times as fast (no persistence)
-SynchronizedHashMap             Writes (put):        14,695.08/ms  => ~64.4 times as fast (no persistence)
+            HashMap             Writes (put):        14,695.08/ms  => ~64.4 times as fast (no persistence)
       ATimeSeriesDB (Fast)      Writes (Append):     26,080.38/ms  => ~114.3 times as fast (Fast Compression)
       ATimeSeriesDB (None)      Writes (Append):     34,069.23/ms  => ~149.4 times as fast (Disabled Compression; 2x Size of ATimeSeriesDB with Compression)
             QuestDB             Writes (Append):     36,191.23/ms  => ~158.7 times as fast (tested on Java 11; 4x Size of ATimeSeriesDB with Compression)
@@ -287,7 +287,7 @@ ezdb-ConcurrentSkipListMap       Reads (Get):         2,695.42/ms  => ~11 times 
            CQEngine (OffHeap)    Reads (Get):         5,813.95/ms  => ~23.8 times as fast
       AgronaHashMap              Reads (Get):         7,019.02/ms  => ~28.7 times as fast
     FastUtilHashMap              Reads (Get):         7,517.95/ms  => ~30.8 times as fast
-SynchronizedHashMap              Reads (Get):        40,929.29/ms  => ~167.5 times as fast
+            HashMap              Reads (Get):        40,929.29/ms  => ~167.5 times as fast
   ConcurrentHashMap              Reads (Get):        57,822.57/ms  => ~236.7 times as fast
 	   Caffeine              Reads (Get):        58,897.77/ms  => ~241.1 times as fast
 	   
@@ -334,7 +334,7 @@ ezdb-ConcurrentSkipListMap       Reads (Iterator):   32,629.62/ms  => ~15.35 tim
            Caffeine              Reads (Iterator):   73,735.96/ms  => ~34.7 times as fast (unordered)
     FastUtilHashMap              Reads (Iterator):   90,854.03/ms  => ~42.7 times as fast (unordered)
       ATimeSeriesDB (Cached)     Reads (Iterator):   97,484.89/ms  => ~45.9 times as fast (internal FileBufferCache keeps hot segments in memory)
-SynchronizedHashMap              Reads (Iterator):  119,310.39/ms  => ~56.1 times as fast (unordered)
+            HashMap              Reads (Iterator):  119,310.39/ms  => ~56.1 times as fast (unordered)
   ConcurrentHashMap              Reads (Iterator):  128,915.82/ms  => ~60.7 times as fast (unordered)
             QuestDB              Reads (Iterator):  132,910.54/ms  => ~62.5 times as fast (nice! cached buffers with flyweight pattern)
 ```
