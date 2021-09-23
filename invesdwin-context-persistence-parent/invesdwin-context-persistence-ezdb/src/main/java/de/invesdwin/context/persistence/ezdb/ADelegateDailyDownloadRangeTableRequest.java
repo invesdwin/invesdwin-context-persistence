@@ -60,8 +60,7 @@ public abstract class ADelegateDailyDownloadRangeTableRequest<K, V>
                                     if (count >= ADelegateRangeTable.BATCH_FLUSH_INTERVAL) {
                                         batch.flush();
                                         if (loopCheck.check()) {
-                                            printProgress("Processing indexing [" + getDownloadFileName() + "]", start,
-                                                    count);
+                                            printProgress("Indexing [" + getDownloadFileName() + "]", start, count);
                                         }
                                     }
                                 }
