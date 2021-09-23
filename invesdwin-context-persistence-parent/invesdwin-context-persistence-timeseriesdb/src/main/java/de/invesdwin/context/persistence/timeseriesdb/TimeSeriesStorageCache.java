@@ -40,6 +40,7 @@ import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.FlatteningIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.collections.iterable.PeekingCloseableIterator;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
@@ -63,6 +64,8 @@ public class TimeSeriesStorageCache<K, V> {
     public static final Integer MAXIMUM_SIZE = 1_000;
     public static final EvictionMode EVICTION_MODE = AHistoricalCache.EVICTION_MODE;
 
+    private static final String READ_RANGE_VALUES = "readRangeValues";
+    private static final String READ_RANGE_VALUES_REVERSE = "readRangeValuesReverse";
     private final TimeSeriesStorage storage;
     private final ALoadingCache<FDate, TableRow<String, FDate, ChunkValue>> fileLookupTable_latestRangeKeyCache = new ALoadingCache<FDate, TableRow<String, FDate, ChunkValue>>() {
 
@@ -345,13 +348,21 @@ public class TimeSeriesStorageCache<K, V> {
 
     public ICloseableIterator<V> readRangeValues(final FDate from, final FDate to, final Lock readLock,
             final ISkipFileFunction skipFileFunction) {
-        final ICloseableIterator<File> fileIterator = readRangeFiles(from, to, readLock, skipFileFunction).iterator();
+        final PeekingCloseableIterator<File> fileIterator = new PeekingCloseableIterator<File>(
+                readRangeFiles(from, to, readLock, skipFileFunction).iterator());
         final ICloseableIterator<ICloseableIterator<V>> chunkIterator = new ATransformingIterator<File, ICloseableIterator<V>>(
                 fileIterator) {
             @Override
             protected ICloseableIterator<V> transform(final File value) {
-                try (IFileBufferCacheResult<V> serializingCollection = newSerializingCollectionCached("readRangeValues",
-                        value, readLock)) {
+                if (TimeseriesProperties.FILE_BUFFER_CACHE_PRELOAD_ENABLED) {
+                    try {
+                        preloadResultCached(READ_RANGE_VALUES, fileIterator.peek(), readLock);
+                    } catch (final NoSuchElementException e) {
+                        //end reached
+                    }
+                }
+                try (IFileBufferCacheResult<V> serializingCollection = getResultCached(READ_RANGE_VALUES, value,
+                        readLock)) {
                     return serializingCollection.iterator(extractEndTime, from, to);
                 }
             }
@@ -364,14 +375,21 @@ public class TimeSeriesStorageCache<K, V> {
 
     public ICloseableIterator<V> readRangeValuesReverse(final FDate from, final FDate to, final Lock readLock,
             final ISkipFileFunction skipFileFunction) {
-        final ICloseableIterator<File> fileIterator = readRangeFilesReverse(from, to, readLock, skipFileFunction)
-                .iterator();
+        final PeekingCloseableIterator<File> fileIterator = new PeekingCloseableIterator<File>(
+                readRangeFilesReverse(from, to, readLock, skipFileFunction).iterator());
         final ICloseableIterator<ICloseableIterator<V>> chunkIterator = new ATransformingIterator<File, ICloseableIterator<V>>(
                 fileIterator) {
             @Override
             protected ICloseableIterator<V> transform(final File value) {
-                try (IFileBufferCacheResult<V> serializingCollection = newSerializingCollectionCached(
-                        "readRangeValuesReverse", value, readLock)) {
+                if (TimeseriesProperties.FILE_BUFFER_CACHE_PRELOAD_ENABLED) {
+                    try {
+                        preloadResultCached(READ_RANGE_VALUES_REVERSE, fileIterator.peek(), readLock);
+                    } catch (final NoSuchElementException e) {
+                        //end reached
+                    }
+                }
+                try (IFileBufferCacheResult<V> serializingCollection = getResultCached(READ_RANGE_VALUES_REVERSE, value,
+                        readLock)) {
                     return serializingCollection.reverseIterator(extractEndTime, from, to);
                 }
             }
@@ -382,9 +400,12 @@ public class TimeSeriesStorageCache<K, V> {
         return rangeValuesReverse;
     }
 
-    private IFileBufferCacheResult<V> newSerializingCollectionCached(final String method, final File file,
-            final Lock readLock) {
+    private IFileBufferCacheResult<V> getResultCached(final String method, final File file, final Lock readLock) {
         return FileBufferCache.getResult(hashKey, file, () -> newSerializingCollection(method, file, readLock));
+    }
+
+    private void preloadResultCached(final String method, final File file, final Lock readLock) {
+        FileBufferCache.preloadResult(hashKey, file, () -> newSerializingCollection(method, file, readLock));
     }
 
     private SerializingCollection<V> newSerializingCollection(final String method, final File file,
@@ -508,8 +529,8 @@ public class TimeSeriesStorageCache<K, V> {
                 return null;
             }
             final File file = newFile(fileTime);
-            try (IFileBufferCacheResult<V> result = newSerializingCollectionCached("latestValueLookupCache.loadValue",
-                    file, DisabledLock.INSTANCE)) {
+            try (IFileBufferCacheResult<V> result = getResultCached("latestValueLookupCache.loadValue", file,
+                    DisabledLock.INSTANCE)) {
                 V latestValue = result.getLatestValue(extractEndTime, date);
                 if (latestValue == null) {
                     latestValue = getFirstValue();
@@ -646,7 +667,7 @@ public class TimeSeriesStorageCache<K, V> {
                     throw new IllegalStateException("redirectedFiles should be null when shouldRedoLastFile=true");
                 }
                 final File lastFile = newFile(latestRangeKey);
-                try (IFileBufferCacheResult<V> lastColl = newSerializingCollectionCached("prepareForUpdate", lastFile,
+                try (IFileBufferCacheResult<V> lastColl = getResultCached("prepareForUpdate", lastFile,
                         DisabledLock.INSTANCE)) {
                     lastColl.addToList(lastValues);
                 }

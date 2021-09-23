@@ -21,6 +21,8 @@ import de.invesdwin.context.persistence.timeseriesdb.TimeseriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.concurrent.Executors;
+import de.invesdwin.util.concurrent.WrappedExecutorService;
 import de.invesdwin.util.concurrent.pool.AgronaObjectPool;
 import de.invesdwin.util.concurrent.pool.IObjectPool;
 import de.invesdwin.util.lang.Objects;
@@ -29,6 +31,16 @@ import de.invesdwin.util.time.date.FTimeUnit;
 @SuppressWarnings({ "unchecked", "rawtypes" })
 @ThreadSafe
 public final class FileBufferCache {
+
+    private static final WrappedExecutorService PRELOAD_EXECUTOR;
+
+    static {
+        if (TimeseriesProperties.FILE_BUFFER_CACHE_ENABLED && TimeseriesProperties.FILE_BUFFER_CACHE_PRELOAD_ENABLED) {
+            PRELOAD_EXECUTOR = Executors.newFixedThreadPool(FileBufferCache.class.getSimpleName() + "_PRELOAD", 1);
+        } else {
+            PRELOAD_EXECUTOR = null;
+        }
+    }
 
     private static final LoadingCache<FileBufferKey, ArrayFileBufferCacheResult> CACHE;
 
@@ -116,6 +128,12 @@ public final class FileBufferCache {
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
+        }
+    }
+
+    public static <T> void preloadResult(final String hashKey, final File file, final IFileBufferSource source) {
+        if (PRELOAD_EXECUTOR != null) {
+            PRELOAD_EXECUTOR.execute(() -> getResult(hashKey, file, source));
         }
     }
 
