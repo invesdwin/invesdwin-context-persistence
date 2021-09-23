@@ -15,7 +15,7 @@ import de.invesdwin.util.error.Throwables;
 
 // CHECKSTYLE:OFF
 @NotThreadSafe
-public class ADelegateMapDBTest extends ATest {
+public class PersistentMapDBFactoryTest extends ATest {
     //CHECKSTYLE:ON
 
     @Test
