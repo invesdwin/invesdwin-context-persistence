@@ -287,12 +287,12 @@ ezdb-ConcurrentSkipListMap       Reads (Get):         2,695.42/ms  => ~11 times 
    ezdb-LevelDB-JNI              Reads (GetLatest):      72.34/ms  => ~57% slower
       ezdb-LMDB-JNR              Reads (GetLatest):     150.01/ms  => ~10% slower
   ezdb-LevelDB-Java              Reads (GetLatest):     167.48/ms  => using this as baseline
-      ATimeSeriesDB              Reads (GetLatest):     257.69/ms  => ~54% faster (after initialization, uses ChronicleMap as lazy index)
            CQEngine (OffHeap)    Reads (GetLatest):     300.70/ms  => ~80% faster (using "ORDER BY key DESC")
            CQEngine (OnHeap)     Reads (GetLatest):     314.20/ms  => ~90% faster (using "ORDER BY key DESC")
 	  TreeMapDB              Reads (GetLatest):     586.34/ms  => ~3.5 times as fast
 ezdb-ConcurrentSkipListMap       Reads (GetLatest):     985.03/ms  => ~5.9 times as fast
        ezdb-LsmTree              Reads (GetLatest):   1,202.41/ms  => ~7.2 times as fast
+      ATimeSeriesDB              Reads (GetLatest):   2,005.66/ms  => ~12 times as fast (after initialization, uses ChronicleMap as lazy index)
       ezdb-BTreeMap              Reads (GetLatest):   2,783.96/ms  => ~16.6 times as fast
        ezdb-TreeMap              Reads (GetLatest):   3,235.20/ms  => ~19.3 times as fast
        
