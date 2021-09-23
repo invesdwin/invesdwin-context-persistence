@@ -104,7 +104,7 @@ public final class FileBufferCache {
         }
     }
 
-    public static <T> IFileBufferCacheResult<T> getIterable(final String hashKey, final File file,
+    public static <T> IFileBufferCacheResult<T> getResult(final String hashKey, final File file,
             final IFileBufferSource source) {
         if (TimeseriesProperties.FILE_BUFFER_CACHE_ENABLED) {
             final FileBufferKey key = new FileBufferKey(hashKey, file, source);
