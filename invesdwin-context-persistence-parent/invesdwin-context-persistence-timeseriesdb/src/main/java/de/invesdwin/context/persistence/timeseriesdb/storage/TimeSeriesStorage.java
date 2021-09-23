@@ -180,15 +180,15 @@ public class TimeSeriesStorage {
         return new File(getDirectory(), "storage/" + hashKey);
     }
 
-    public void latestValueLookupTableDeleteRange(final String hashKey) {
+    public void deleteRange_latestValueLookupTable(final String hashKey) {
         latestValueLookupTable.removeAll((key) -> {
             return hashKey.equals(key.getHashKey());
         });
     }
 
-    public void latestValueLookupTableDeleteRange(final String hashKey, final FDate above) {
+    public void deleteRange_latestValueLookupTable(final String hashKey, final FDate above) {
         if (above == null) {
-            latestValueLookupTableDeleteRange(hashKey);
+            deleteRange_latestValueLookupTable(hashKey);
         } else {
             latestValueLookupTable.removeAll((key) -> {
                 return hashKey.equals(key.getHashKey()) && key.getRangeKey().isAfterOrEqualToNotNullSafe(above);
@@ -196,21 +196,21 @@ public class TimeSeriesStorage {
         }
     }
 
-    public void nextValueLookupTableDeleteRange(final String hashKey) {
+    public void deleteRange_nextValueLookupTable(final String hashKey) {
         nextValueLookupTable.removeAll((key) -> {
             return hashKey.equals(key.getHashKey());
         });
     }
 
-    public void previousValueLookupTableDeleteRange(final String hashKey) {
+    public void deleteRange_previousValueLookupTable(final String hashKey) {
         previousValueLookupTable.removeAll((key) -> {
             return hashKey.equals(key.getHashKey());
         });
     }
 
-    public void previousValueLookupTableDeleteRange(final String hashKey, final FDate above) {
+    public void deleteRange_previousValueLookupTable(final String hashKey, final FDate above) {
         if (above == null) {
-            previousValueLookupTableDeleteRange(hashKey);
+            deleteRange_previousValueLookupTable(hashKey);
         } else {
             previousValueLookupTable.removeAll((key) -> {
                 return hashKey.equals(key.getHashKey()) && key.getRangeKey().isAfterOrEqualToNotNullSafe(above);

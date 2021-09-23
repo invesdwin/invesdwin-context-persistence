@@ -751,9 +751,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             segmentedTable.deleteRange(new SegmentedKey<K>(key, rangeKey));
         }
         segmentStatusTable.deleteRange(hashKey);
-        storage.latestValueLookupTableDeleteRange(hashKey);
-        storage.nextValueLookupTableDeleteRange(hashKey);
-        storage.previousValueLookupTableDeleteRange(hashKey);
+        storage.deleteRange_latestValueLookupTable(hashKey);
+        storage.deleteRange_nextValueLookupTable(hashKey);
+        storage.deleteRange_previousValueLookupTable(hashKey);
         clearCaches();
     }
 
@@ -798,9 +798,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         final FDate prevLastAvailableSegmentTo = getPrevLastAvailableSegmentTo();
         if (isNewSegmentAtTheEnd(prevLastAvailableSegmentTo, segmentToBeInitialized)) {
             if (prevLastAvailableSegmentTo != null) {
-                storage.latestValueLookupTableDeleteRange(hashKey, prevLastAvailableSegmentTo);
-                storage.nextValueLookupTableDeleteRange(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
-                storage.previousValueLookupTableDeleteRange(hashKey, prevLastAvailableSegmentTo);
+                storage.deleteRange_latestValueLookupTable(hashKey, prevLastAvailableSegmentTo);
+                storage.deleteRange_nextValueLookupTable(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
+                storage.deleteRange_previousValueLookupTable(hashKey, prevLastAvailableSegmentTo);
             }
             clearCaches();
         }

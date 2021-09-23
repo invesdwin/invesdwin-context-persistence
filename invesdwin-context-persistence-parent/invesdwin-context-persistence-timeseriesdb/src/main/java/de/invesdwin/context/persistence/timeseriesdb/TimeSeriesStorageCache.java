@@ -613,9 +613,9 @@ public class TimeSeriesStorageCache<K, V> {
 
     public synchronized void deleteAll() {
         storage.getFileLookupTable().deleteRange(hashKey);
-        storage.latestValueLookupTableDeleteRange(hashKey);
-        storage.nextValueLookupTableDeleteRange(hashKey);
-        storage.previousValueLookupTableDeleteRange(hashKey);
+        storage.deleteRange_latestValueLookupTable(hashKey);
+        storage.deleteRange_nextValueLookupTable(hashKey);
+        storage.deleteRange_previousValueLookupTable(hashKey);
         clearCaches();
         Files.deleteNative(newDataDirectory());
         dataDirectory = null;
@@ -720,9 +720,9 @@ public class TimeSeriesStorageCache<K, V> {
                 latestRangeKey = latestRangeKey.addMilliseconds(1);
             }
             storage.getFileLookupTable().deleteRange(hashKey, latestRangeKey);
-            storage.latestValueLookupTableDeleteRange(hashKey, latestRangeKey);
-            storage.nextValueLookupTableDeleteRange(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
-            storage.previousValueLookupTableDeleteRange(hashKey, latestRangeKey);
+            storage.deleteRange_latestValueLookupTable(hashKey, latestRangeKey);
+            storage.deleteRange_nextValueLookupTable(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
+            storage.deleteRange_previousValueLookupTable(hashKey, latestRangeKey);
         }
         clearCaches();
         return Pair.of(updateFrom, lastValues);
