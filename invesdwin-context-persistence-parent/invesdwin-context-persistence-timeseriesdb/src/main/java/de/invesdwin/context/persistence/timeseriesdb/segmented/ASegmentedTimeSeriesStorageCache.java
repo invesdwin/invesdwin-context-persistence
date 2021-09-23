@@ -81,7 +81,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         @Override
         protected V loadValue(final FDate date) {
             final SingleValue value = storage.getLatestValueLookupTable()
-                    .computeIfAbsent(new HashRangeKey(hashKey, date), (k) -> {
+                    .getOrLoad(new HashRangeKey(hashKey, date), () -> {
                         final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
                         //already adjusted on the outside
                         final FDate adjFrom = date;
@@ -141,7 +141,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             final FDate date = loadKey.getFirst();
             final int shiftBackUnits = loadKey.getSecond();
             final SingleValue value = storage.getPreviousValueLookupTable()
-                    .computeIfAbsent(new HashRangeShiftUnitsKey(hashKey, date, shiftBackUnits), (k) -> {
+                    .getOrLoad(new HashRangeShiftUnitsKey(hashKey, date, shiftBackUnits), () -> {
                         final MutableReference<V> previousValue = new MutableReference<>();
                         final MutableInt shiftBackRemaining = new MutableInt(shiftBackUnits);
                         try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null,
@@ -185,7 +185,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             final FDate date = loadKey.getFirst();
             final int shiftForwardUnits = loadKey.getSecond();
             final SingleValue value = storage.getNextValueLookupTable()
-                    .computeIfAbsent(new HashRangeShiftUnitsKey(hashKey, date, shiftForwardUnits), (k) -> {
+                    .getOrLoad(new HashRangeShiftUnitsKey(hashKey, date, shiftForwardUnits), () -> {
                         final MutableReference<V> nextValue = new MutableReference<>();
                         final MutableInt shiftForwardRemaining = new MutableInt(shiftForwardUnits);
                         try (ICloseableIterator<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,

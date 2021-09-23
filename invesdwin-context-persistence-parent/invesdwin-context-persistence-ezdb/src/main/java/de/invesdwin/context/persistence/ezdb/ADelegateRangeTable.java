@@ -3,8 +3,8 @@ package de.invesdwin.context.persistence.ezdb;
 import java.io.File;
 import java.io.IOException;
 import java.util.Comparator;
-import java.util.concurrent.Callable;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -19,7 +19,6 @@ import de.invesdwin.context.persistence.ezdb.db.storage.TreeMapRangeTableDb;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
-import de.invesdwin.util.concurrent.future.Callables;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
@@ -399,11 +398,11 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         }
     }
 
-    public V getOrLoad(final H hashKey, final Callable<V> loadable) {
+    public V getOrLoad(final H hashKey, final Supplier<V> loadable) {
         final V cachedValue = get(hashKey);
         if (cachedValue == null) {
             //don't hold read lock while loading value
-            final V loadedValue = Callables.call(loadable);
+            final V loadedValue = loadable.get();
             //write lock is only for the actual table variable, not the table values, thus read lock is fine here
             put(hashKey, loadedValue);
             return loadedValue;
@@ -412,11 +411,11 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
         }
     }
 
-    public V getOrLoad(final H hashKey, final R rangeKey, final Callable<V> loadable) {
+    public V getOrLoad(final H hashKey, final R rangeKey, final Supplier<V> loadable) {
         final V cachedValue = get(hashKey, rangeKey);
         if (cachedValue == null) {
             //don't hold read lock while loading value
-            final V loadedValue = Callables.call(loadable);
+            final V loadedValue = loadable.get();
             //write lock is only for the actual table variable, not the table values, thus read lock is fine here
             put(hashKey, rangeKey, loadedValue);
             return loadedValue;

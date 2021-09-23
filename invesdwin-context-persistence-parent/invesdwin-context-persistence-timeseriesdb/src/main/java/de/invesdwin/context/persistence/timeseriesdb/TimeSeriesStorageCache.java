@@ -81,7 +81,7 @@ public class TimeSeriesStorageCache<K, V> {
         @Override
         protected V loadValue(final FDate key) {
             final SingleValue value = storage.getLatestValueLookupTable()
-                    .computeIfAbsent(new HashRangeKey(hashKey, key), (k) -> {
+                    .getOrLoad(new HashRangeKey(hashKey, key), () -> {
                         final FDate fileTime = storage.getFileLookupTable().getLatestRangeKey(hashKey, key);
                         if (fileTime == null) {
                             return null;
@@ -122,7 +122,7 @@ public class TimeSeriesStorageCache<K, V> {
             final FDate date = key.getFirst();
             final int shiftBackUnits = key.getSecond();
             final SingleValue value = storage.getPreviousValueLookupTable()
-                    .computeIfAbsent(new HashRangeShiftUnitsKey(hashKey, date, shiftBackUnits), (k) -> {
+                    .getOrLoad(new HashRangeShiftUnitsKey(hashKey, date, shiftBackUnits), () -> {
                         final MutableReference<V> previousValue = new MutableReference<>();
                         final MutableInt shiftBackRemaining = new MutableInt(shiftBackUnits);
                         try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null,
@@ -166,7 +166,7 @@ public class TimeSeriesStorageCache<K, V> {
             final FDate date = key.getFirst();
             final int shiftForwardUnits = key.getSecond();
             final SingleValue value = storage.getNextValueLookupTable()
-                    .computeIfAbsent(new HashRangeShiftUnitsKey(hashKey, date, shiftForwardUnits), (k) -> {
+                    .getOrLoad(new HashRangeShiftUnitsKey(hashKey, date, shiftForwardUnits), () -> {
                         final MutableReference<V> nextValue = new MutableReference<>();
                         final MutableInt shiftForwardRemaining = new MutableInt(shiftForwardUnits);
                         try (ICloseableIterator<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,
