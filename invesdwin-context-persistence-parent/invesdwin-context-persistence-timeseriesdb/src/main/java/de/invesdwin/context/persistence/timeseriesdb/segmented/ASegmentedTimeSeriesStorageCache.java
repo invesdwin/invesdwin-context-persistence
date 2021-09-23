@@ -14,7 +14,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.lang3.SerializationException;
 import org.apache.commons.lang3.mutable.MutableInt;
-import org.checkerframework.checker.units.qual.K;
 import org.springframework.retry.backoff.BackOffPolicy;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
@@ -25,6 +24,7 @@ import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.filebuffer.FileBufferCache;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ChunkValue;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
@@ -757,6 +757,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         latestValueLookupCache.clear();
         nextValueLookupCache.clear();
         previousValueLookupCache.clear();
+        FileBufferCache.remove(hashKey);
         cachedFirstValue = null;
         cachedLastValue = null;
         cachedPrevLastAvailableSegmentTo = null;

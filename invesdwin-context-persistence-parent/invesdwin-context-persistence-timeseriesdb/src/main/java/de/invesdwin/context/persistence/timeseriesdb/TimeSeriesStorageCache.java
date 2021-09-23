@@ -621,6 +621,7 @@ public class TimeSeriesStorageCache<K, V> {
         nextValueLookupCache.clear();
         previousValueLookupCache.clear();
         fileLookupTable_latestRangeKeyCache.clear();
+        FileBufferCache.remove(hashKey);
         cachedAllRangeKeys = null;
         cachedAllRangeKeysReverse = null;
         cachedFirstValue = null;
