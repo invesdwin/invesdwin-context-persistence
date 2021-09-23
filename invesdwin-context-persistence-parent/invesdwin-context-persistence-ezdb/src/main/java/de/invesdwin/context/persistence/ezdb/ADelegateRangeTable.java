@@ -378,7 +378,9 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
             //don't hold read lock while loading value
             final V loadedValue = loadable.apply(hashKey);
             //write lock is only for the actual table variable, not the table values, thus read lock is fine here
-            put(hashKey, loadedValue);
+            if (loadedValue != null) {
+                put(hashKey, loadedValue);
+            }
             return loadedValue;
         } else {
             return cachedValue;
@@ -391,7 +393,9 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
             //don't hold read lock while loading value
             final V loadedValue = loadable.apply(Pair.of(hashKey, rangeKey));
             //write lock is only for the actual table variable, not the table values, thus read lock is fine here
-            put(hashKey, rangeKey, loadedValue);
+            if (loadedValue != null) {
+                put(hashKey, rangeKey, loadedValue);
+            }
             return loadedValue;
         } else {
             return cachedValue;
@@ -404,7 +408,9 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
             //don't hold read lock while loading value
             final V loadedValue = loadable.get();
             //write lock is only for the actual table variable, not the table values, thus read lock is fine here
-            put(hashKey, loadedValue);
+            if (loadedValue != null) {
+                put(hashKey, loadedValue);
+            }
             return loadedValue;
         } else {
             return cachedValue;
@@ -417,7 +423,9 @@ public abstract class ADelegateRangeTable<H, R, V> implements RangeTable<H, R, V
             //don't hold read lock while loading value
             final V loadedValue = loadable.get();
             //write lock is only for the actual table variable, not the table values, thus read lock is fine here
-            put(hashKey, rangeKey, loadedValue);
+            if (loadedValue != null) {
+                put(hashKey, rangeKey, loadedValue);
+            }
             return loadedValue;
         } else {
             return cachedValue;
