@@ -257,8 +257,13 @@ Indeed-RecordLogDirectory       Writes (Append):        199.19/ms  => ~13% slowe
        ezdb-TreeMap             Writes (Put):         1,902.77/ms  => ~8.3 times as fast (no persistence)
 ezdb-ConcurrentSkipListMap      Writes (Put):         2,358.21/ms  => ~10.3 times as fast (no persistence)
 Indeed-BasicRecordFile          Writes (Append):      2,403.85/ms  => ~10.5 times as fast
+    FastUtilHashMap             Writes (put):         2,796.50/ms  => ~12.3 times as fast (no persistence)
+      AgronaHashMap             Writes (put):         3,088.23/ms  => ~13.5 times as fast (no persistence)
 Indeed-BlockCompRecordFile      Writes (Append):      4,273.32/ms  => ~18.7 times as fast
       ATimeSeriesDB (High)      Writes (Append):      6,449.49/ms  => ~28.3 times as fast (High Compression)
+  ConcurrentHashMap             Writes (put):        10,260.62/ms  => ~45 times as fast (no persistence)
+           Caffeine             Writes (put):        10,378.83/ms  => ~45.5 times as fast (no persistence)
+SynchronizedHashMap             Writes (put):        14,695.08/ms  => ~64.4 times as fast (no persistence)
       ATimeSeriesDB (Fast)      Writes (Append):     26,080.38/ms  => ~114.3 times as fast (Fast Compression)
       ATimeSeriesDB (None)      Writes (Append):     34,069.23/ms  => ~149.4 times as fast (Disabled Compression; 2x Size of ATimeSeriesDB with Compression)
             QuestDB             Writes (Append):     36,191.23/ms  => ~158.7 times as fast (tested on Java 11; 4x Size of ATimeSeriesDB with Compression)
@@ -280,7 +285,12 @@ ezdb-ConcurrentSkipListMap       Reads (Get):         2,695.42/ms  => ~11 times 
            CQEngine (Disk)       Reads (Get):         5,656.11/ms  => ~23.15 times as fast
            CQEngine (OnHeap)     Reads (Get):         5,732.63/ms  => ~23.5 times as fast
            CQEngine (OffHeap)    Reads (Get):         5,813.95/ms  => ~23.8 times as fast
-       
+      AgronaHashMap              Reads (Get):         7,019.02/ms  => ~28.7 times as fast
+    FastUtilHashMap              Reads (Get):         7,517.95/ms  => ~30.8 times as fast
+SynchronizedHashMap              Reads (Get):        40,929.29/ms  => ~167.5 times as fast
+  ConcurrentHashMap              Reads (Get):        57,822.57/ms  => ~236.7 times as fast
+	   Caffeine              Reads (Get):        58,897.77/ms  => ~241.1 times as fast
+	   
            CQEngine (Disk)       Reads (GetLatest):       5.59/ms  => ~96.7% slower (using "ORDER BY key DESC")
             QuestDB              Reads (GetLatest):      23.63/ms  => ~86% slower (using "SELECT max(key)"; "ORDER BY key DESC" results in ~91/s which is 99.95% slower)
    ezdb-RocksDB-JNI              Reads (GetLatest):      56.12/ms  => ~66.5% slower
@@ -320,7 +330,12 @@ Indeed-BlockCompRecordFile       Reads (Iterator):    9,285.14/ms  => ~4.37 time
 ezdb-ConcurrentSkipListMap       Reads (Iterator):   32,629.62/ms  => ~15.35 times as fast
     Indeed-MphTable              Reads (Iterator):   34,411.56/ms  => ~16.2 times as fast (unordered)
       ATimeSeriesDB (None)       Reads (Iterator):   34,727.05/ms  => ~16.3 times as fast (no caching)
+      AgronaHashMap              Reads (Iterator):   38,481.98/ms  => ~18.1 times as fast (unordered)
+           Caffeine              Reads (Iterator):   73,735.96/ms  => ~34.7 times as fast (unordered)
+    FastUtilHashMap              Reads (Iterator):   90,854.03/ms  => ~42.7 times as fast (unordered)
       ATimeSeriesDB (Cached)     Reads (Iterator):   97,484.89/ms  => ~45.9 times as fast (internal FileBufferCache keeps hot segments in memory)
+SynchronizedHashMap              Reads (Iterator):  119,310.39/ms  => ~56.1 times as fast (unordered)
+  ConcurrentHashMap              Reads (Iterator):  128,915.82/ms  => ~60.7 times as fast (unordered)
             QuestDB              Reads (Iterator):  132,910.54/ms  => ~62.5 times as fast (nice! cached buffers with flyweight pattern)
 ```
 - **ATimeSeriesUpdater**: this is a helper class with which one can handle large inserts/updates into an instance of `ATimeSeriesDB`. This handles the creation of separate chunk files and writing them to disk in the most efficient way.
