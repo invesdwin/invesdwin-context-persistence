@@ -9,9 +9,9 @@ import org.mapdb.DataOutput2;
 import org.mapdb.serializer.GroupSerializerObjectArray;
 
 import de.invesdwin.util.marshallers.serde.ISerde;
-import de.invesdwin.util.streams.buffer.ByteBuffers;
-import de.invesdwin.util.streams.buffer.IByteBuffer;
-import de.invesdwin.util.streams.buffer.extend.ArrayExpandableByteBuffer;
+import de.invesdwin.util.streams.buffer.bytes.ByteBuffers;
+import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
+import de.invesdwin.util.streams.buffer.bytes.extend.ArrayExpandableByteBuffer;
 
 @Immutable
 public final class SerdeGroupSerializer<T> extends GroupSerializerObjectArray<T> {

@@ -38,8 +38,8 @@ import de.invesdwin.util.math.Bytes;
 import de.invesdwin.util.math.Integers;
 import de.invesdwin.util.streams.InputStreams;
 import de.invesdwin.util.streams.OutputStreams;
-import de.invesdwin.util.streams.buffer.ByteBuffers;
-import de.invesdwin.util.streams.buffer.IByteBuffer;
+import de.invesdwin.util.streams.buffer.bytes.ByteBuffers;
+import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 
 @NotThreadSafe
 public class SerializingCollection<E> implements Collection<E>, IReverseCloseableIterable<E>, Closeable {
@@ -81,6 +81,9 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             this.finalizer.closed = true;
         } else {
             this.finalizer.register(this);
+            if (file.exists()) {
+                throw new IllegalStateException("File [" + file.getAbsolutePath() + "] already exists!");
+            }
         }
     }
 

@@ -9,8 +9,8 @@ import javax.annotation.concurrent.Immutable;
 import com.indeed.util.serialization.Serializer;
 
 import de.invesdwin.util.marshallers.serde.ISerde;
-import de.invesdwin.util.streams.buffer.ByteBuffers;
-import de.invesdwin.util.streams.buffer.IByteBuffer;
+import de.invesdwin.util.streams.buffer.bytes.ByteBuffers;
+import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 
 @Immutable
 public final class IndeedSerializer<E> implements Serializer<E> {

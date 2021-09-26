@@ -4,18 +4,27 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.SerdeBaseMethods;
-import de.invesdwin.util.streams.buffer.ByteBuffers;
-import de.invesdwin.util.streams.buffer.IByteBuffer;
+import de.invesdwin.util.streams.buffer.bytes.ByteBuffers;
+import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 
 @NotThreadSafe
 public final class ChunkValueSerde implements ISerde<ChunkValue> {
 
-    private static final int COUNT_INDEX = 0;
-    private static final int COUNT_SIZE = Integer.BYTES;
+    private static final int VALUECOUNT_INDEX = 0;
+    private static final int VALUECOUNT_SIZE = Integer.BYTES;
+
+    private static final int ADDRESSOFFSET_INDEX = VALUECOUNT_INDEX + VALUECOUNT_SIZE;
+    private static final int ADDRESSOFFSET_SIZE = Long.BYTES;
+
+    private static final int ADDRESSSIZE_INDEX = ADDRESSOFFSET_INDEX + ADDRESSOFFSET_SIZE;
+    private static final int ADDRESSSIZE_SIZE = Long.BYTES;
 
     private static final int VALUELENGTH_SIZE = Integer.BYTES;
 
-    private static final int NO_FIXED_LENGTH_OVERHEAD = Integer.BYTES + Integer.BYTES + Integer.BYTES;
+    private static final int FIXED_LENGTH_OVERHEAD = ADDRESSSIZE_INDEX + ADDRESSSIZE_SIZE;
+
+    private static final int NO_FIXED_LENGTH_OVERHEAD = ADDRESSSIZE_INDEX + ADDRESSSIZE_SIZE + VALUELENGTH_SIZE
+            + VALUELENGTH_SIZE;
 
     private final int firstValueLengthIndex;
     private final int lastValueLengthIndex;
@@ -31,12 +40,12 @@ public final class ChunkValueSerde implements ISerde<ChunkValue> {
         if (valueFixedLength != null) {
             firstValueLengthIndex = -1;
             lastValueLengthIndex = -1;
-            firstValueIndex = COUNT_INDEX + COUNT_SIZE;
+            firstValueIndex = ADDRESSSIZE_INDEX + ADDRESSSIZE_SIZE;
             lastValueIndex = firstValueIndex + valueFixedLength;
-            this.fixedLength = valueFixedLength * 2 + Integer.BYTES;
+            this.fixedLength = FIXED_LENGTH_OVERHEAD + valueFixedLength * 2;
             this.allocateFixedLength = fixedLength;
         } else {
-            firstValueLengthIndex = COUNT_INDEX + COUNT_SIZE;
+            firstValueLengthIndex = ADDRESSSIZE_INDEX + ADDRESSSIZE_SIZE;
             lastValueLengthIndex = firstValueLengthIndex + VALUELENGTH_SIZE;
             firstValueIndex = lastValueLengthIndex + VALUELENGTH_SIZE;
             lastValueIndex = -1;
@@ -61,13 +70,15 @@ public final class ChunkValueSerde implements ISerde<ChunkValue> {
 
     @Override
     public ChunkValue fromBuffer(final IByteBuffer buffer, final int length) {
-        final int count = buffer.getInt(COUNT_INDEX);
+        final int valueCount = buffer.getInt(VALUECOUNT_INDEX);
+        final long addressOffset = buffer.getLong(ADDRESSOFFSET_INDEX);
+        final long addressSize = buffer.getLong(ADDRESSSIZE_INDEX);
         if (valueFixedLength != null) {
             final byte[] firstValue = ByteBuffers.allocateByteArray(valueFixedLength);
             buffer.getBytes(firstValueIndex, firstValue);
             final byte[] lastValue = ByteBuffers.allocateByteArray(valueFixedLength);
             buffer.getBytes(lastValueIndex, lastValue);
-            return new ChunkValue(firstValue, lastValue, count);
+            return new ChunkValue(firstValue, lastValue, valueCount, addressOffset, addressSize);
         } else {
             final int firstValueLength = buffer.getInt(firstValueLengthIndex);
             final int lastValueLength = buffer.getInt(lastValueLengthIndex);
@@ -75,23 +86,26 @@ public final class ChunkValueSerde implements ISerde<ChunkValue> {
             buffer.getBytes(firstValueIndex, firstValue);
             final byte[] lastValue = ByteBuffers.allocateByteArray(lastValueLength);
             buffer.getBytes(firstValueIndex + firstValueLength, lastValue);
-            return new ChunkValue(firstValue, lastValue, count);
+            return new ChunkValue(firstValue, lastValue, valueCount, addressOffset, addressSize);
         }
     }
 
     @Override
     public int toBuffer(final IByteBuffer buffer, final ChunkValue obj) {
-        final int count = obj.getCount();
+        final int valueCount = obj.getValueCount();
+        final long addressOffset = obj.getAddressOffset();
+        final long addressSize = obj.getAddressSize();
         final byte[] firstValue = obj.getFirstValue();
         final byte[] lastValue = obj.getLastValue();
 
+        buffer.putInt(VALUECOUNT_INDEX, valueCount);
+        buffer.putLong(ADDRESSOFFSET_INDEX, addressOffset);
+        buffer.putLong(ADDRESSSIZE_INDEX, addressSize);
         if (valueFixedLength != null) {
-            buffer.putInt(COUNT_INDEX, count);
             buffer.putBytes(firstValueIndex, firstValue);
             buffer.putBytes(lastValueIndex, lastValue);
             return allocateFixedLength;
         } else {
-            buffer.putInt(COUNT_INDEX, count);
             buffer.putInt(firstValueLengthIndex, firstValue.length);
             buffer.putInt(lastValueLengthIndex, lastValue.length);
             buffer.putBytes(firstValueIndex, firstValue);

@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -23,15 +24,14 @@ import org.apache.commons.lang3.mutable.MutableInt;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable.DelegateTableIterator;
-import de.invesdwin.context.persistence.timeseriesdb.filebuffer.FileBufferCache;
-import de.invesdwin.context.persistence.timeseriesdb.filebuffer.IFileBufferCacheResult;
+import de.invesdwin.context.persistence.timeseriesdb.buffer.ISegmentBufferCacheResult;
+import de.invesdwin.context.persistence.timeseriesdb.buffer.SegmentBufferCache;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ChunkValue;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.eviction.EvictionMode;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
@@ -43,6 +43,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.PeekingCloseableIterator;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterator;
+import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
@@ -52,7 +53,7 @@ import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
-import de.invesdwin.util.streams.buffer.IByteBuffer;
+import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 import de.invesdwin.util.streams.pool.PooledFastByteArrayOutputStream;
 import de.invesdwin.util.time.date.FDate;
 import ezdb.TableRow;
@@ -153,8 +154,11 @@ public class TimeSeriesStorageCache<K, V> {
         Assertions.checkNull(redirectedFiles.put(time, redirect));
     }
 
-    public void finishFile(final FDate time, final V firstValue, final V lastValue, final int count) {
-        storage.getFileLookupTable().put(hashKey, time, new ChunkValue(valueSerde, firstValue, lastValue, count));
+    public void finishFile(final FDate time, final V firstValue, final V lastValue, final int valueCount,
+            final long addressOffset, final int addressSize) {
+        storage.getFileLookupTable()
+                .put(hashKey, time,
+                        new ChunkValue(valueSerde, firstValue, lastValue, valueCount, addressOffset, addressSize));
         clearCaches();
     }
 
@@ -361,7 +365,7 @@ public class TimeSeriesStorageCache<K, V> {
                         //end reached
                     }
                 }
-                try (IFileBufferCacheResult<V> serializingCollection = getResultCached(READ_RANGE_VALUES, value,
+                try (ISegmentBufferCacheResult<V> serializingCollection = getResultCached(READ_RANGE_VALUES, value,
                         readLock)) {
                     return serializingCollection.iterator(extractEndTime, from, to);
                 }
@@ -388,8 +392,8 @@ public class TimeSeriesStorageCache<K, V> {
                         //end reached
                     }
                 }
-                try (IFileBufferCacheResult<V> serializingCollection = getResultCached(READ_RANGE_VALUES_REVERSE, value,
-                        readLock)) {
+                try (ISegmentBufferCacheResult<V> serializingCollection = getResultCached(READ_RANGE_VALUES_REVERSE,
+                        value, readLock)) {
                     return serializingCollection.reverseIterator(extractEndTime, from, to);
                 }
             }
@@ -400,16 +404,15 @@ public class TimeSeriesStorageCache<K, V> {
         return rangeValuesReverse;
     }
 
-    private IFileBufferCacheResult<V> getResultCached(final String method, final File file, final Lock readLock) {
-        return FileBufferCache.getResult(hashKey, file, () -> newSerializingCollection(method, file, readLock));
+    private ISegmentBufferCacheResult<V> getResultCached(final String method, final File file, final Lock readLock) {
+        return SegmentBufferCache.getResult(hashKey, file, () -> newResult(method, file, readLock));
     }
 
     private void preloadResultCached(final String method, final File file, final Lock readLock) {
-        FileBufferCache.preloadResult(hashKey, file, () -> newSerializingCollection(method, file, readLock));
+        SegmentBufferCache.preloadResult(hashKey, file, () -> newResult(method, file, readLock));
     }
 
-    private SerializingCollection<V> newSerializingCollection(final String method, final File file,
-            final Lock readLock) {
+    private SerializingCollection<V> newResult(final String method, final File file, final Lock readLock) {
         final TextDescription name = new TextDescription("%s[%s]: %s(%s)", ATimeSeriesUpdater.class.getSimpleName(),
                 hashKey, method, file);
         return new SerializingCollection<V>(name, file, true) {
@@ -515,7 +518,7 @@ public class TimeSeriesStorageCache<K, V> {
 
     private void clearCaches() {
         fileLookupTable_latestRangeKeyCache.clear();
-        FileBufferCache.remove(hashKey);
+        SegmentBufferCache.remove(hashKey);
         cachedAllRangeKeys = null;
         cachedAllRangeKeysReverse = null;
         cachedFirstValue = null;
@@ -529,7 +532,7 @@ public class TimeSeriesStorageCache<K, V> {
                 return null;
             }
             final File file = newFile(fileTime);
-            try (IFileBufferCacheResult<V> result = getResultCached("latestValueLookupCache.loadValue", file,
+            try (ISegmentBufferCacheResult<V> result = getResultCached("latestValueLookupCache.loadValue", file,
                     DisabledLock.INSTANCE)) {
                 V latestValue = result.getLatestValue(extractEndTime, date);
                 if (latestValue == null) {
@@ -562,9 +565,9 @@ public class TimeSeriesStorageCache<K, V> {
                             @Override
                             public boolean skipFile(final ChunkValue file) {
                                 final boolean skip = previousValue.get() != null
-                                        && file.getCount() < shiftBackRemaining.intValue();
+                                        && file.getValueCount() < shiftBackRemaining.intValue();
                                 if (skip) {
-                                    shiftBackRemaining.subtract(file.getCount());
+                                    shiftBackRemaining.subtract(file.getValueCount());
                                 }
                                 return skip;
                             }
@@ -597,9 +600,9 @@ public class TimeSeriesStorageCache<K, V> {
                             @Override
                             public boolean skipFile(final ChunkValue file) {
                                 final boolean skip = nextValue.get() != null
-                                        && file.getCount() < shiftForwardRemaining.intValue();
+                                        && file.getValueCount() < shiftForwardRemaining.intValue();
                                 if (skip) {
-                                    shiftForwardRemaining.subtract(file.getCount());
+                                    shiftForwardRemaining.subtract(file.getValueCount());
                                 }
                                 return skip;
                             }
@@ -657,34 +660,46 @@ public class TimeSeriesStorageCache<K, V> {
      * When shouldRedoLastFile=true this deletes the last file in order to create a new updated one (so the files do not
      * get fragmented too much between updates
      */
-    public synchronized Pair<FDate, List<V>> prepareForUpdate(final boolean shouldRedoLastFile) {
-        FDate latestRangeKey = storage.getFileLookupTable().getLatestRangeKey(hashKey, FDate.MAX_DATE);
-        FDate updateFrom = latestRangeKey;
-        final List<V> lastValues = new ArrayList<V>();
-        if (latestRangeKey != null) {
-            if (shouldRedoLastFile) {
+    public synchronized PrepareForUpdateResult<V> prepareForUpdate(final boolean shouldRedoLastFile) {
+        final TableRow<String, FDate, ChunkValue> latestSegment = storage.getFileLookupTable()
+                .getLatest(hashKey, FDate.MAX_DATE);
+        final FDate updateFrom;
+        final List<V> lastValues;
+        final long addressOffset;
+        if (latestSegment != null) {
+            final FDate latestRangeKey = latestSegment.getRangeKey();
+            final ChunkValue latestValue = latestSegment.getValue();
+            if (shouldRedoLastFile && latestValue.getValueCount() < ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
+                lastValues = new ArrayList<V>();
                 if (redirectedFiles != null) {
                     throw new IllegalStateException("redirectedFiles should be null when shouldRedoLastFile=true");
                 }
                 final File lastFile = newFile(latestRangeKey);
-                try (IFileBufferCacheResult<V> lastColl = getResultCached("prepareForUpdate", lastFile,
-                        DisabledLock.INSTANCE)) {
-                    lastColl.addToList(lastValues);
+                try (ICloseableIterator<V> lastColl = newResult("prepareForUpdate", lastFile, DisabledLock.INSTANCE)
+                        .iterator()) {
+                    Lists.toListWithoutHasNext(lastColl, lastValues);
                 }
                 //remove last value because it might be an incomplete bar
                 final V lastValue = lastValues.remove(lastValues.size() - 1);
                 updateFrom = extractEndTime.apply(lastValue);
                 lastFile.delete();
+                addressOffset = latestValue.getAddressOffset();
             } else {
-                latestRangeKey = latestRangeKey.addMilliseconds(1);
+                lastValues = Collections.emptyList();
+                updateFrom = latestRangeKey.addMilliseconds(1);
+                addressOffset = latestValue.getAddressOffset() + latestValue.getAddressSize() + 1L;
             }
             storage.getFileLookupTable().deleteRange(hashKey, latestRangeKey);
             storage.deleteRange_latestValueLookupTable(hashKey, latestRangeKey);
             storage.deleteRange_nextValueLookupTable(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
             storage.deleteRange_previousValueLookupTable(hashKey, latestRangeKey);
+        } else {
+            updateFrom = null;
+            lastValues = Collections.emptyList();
+            addressOffset = 0L;
         }
         clearCaches();
-        return Pair.of(updateFrom, lastValues);
+        return new PrepareForUpdateResult<>(updateFrom, lastValues, addressOffset);
     }
 
     private void assertShiftUnitsPositiveNonZero(final int shiftUnits) {

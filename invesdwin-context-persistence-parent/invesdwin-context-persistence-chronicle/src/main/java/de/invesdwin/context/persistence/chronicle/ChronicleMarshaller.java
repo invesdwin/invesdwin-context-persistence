@@ -3,7 +3,7 @@ package de.invesdwin.context.persistence.chronicle;
 import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.util.marshallers.serde.ISerde;
-import de.invesdwin.util.streams.buffer.delegate.ChronicleDelegateByteBuffer;
+import de.invesdwin.util.streams.buffer.bytes.delegate.ChronicleDelegateByteBuffer;
 import net.openhft.chronicle.hash.serialization.BytesReader;
 import net.openhft.chronicle.hash.serialization.BytesWriter;
 

@@ -10,18 +10,26 @@ public class ChunkValue implements ISerializableValueObject {
 
     private final byte[] firstValue;
     private final byte[] lastValue;
-    private final int count;
+    private final int valueCount;
+    private final long addressOffset;
+    private final long addressSize;
 
-    public <V> ChunkValue(final byte[] firstValue, final byte[] lastValue, final int count) {
+    public <V> ChunkValue(final byte[] firstValue, final byte[] lastValue, final int valueCount,
+            final long addressOffset, final long addressSize) {
         this.firstValue = firstValue;
         this.lastValue = lastValue;
-        this.count = count;
+        this.valueCount = valueCount;
+        this.addressOffset = addressOffset;
+        this.addressSize = addressSize;
     }
 
-    public <V> ChunkValue(final ISerde<V> serde, final V firstValue, final V lastValue, final int count) {
+    public <V> ChunkValue(final ISerde<V> serde, final V firstValue, final V lastValue, final int valueCount,
+            final long addressOffset, final long addressSize) {
         this.firstValue = serde.toBytes(firstValue);
         this.lastValue = serde.toBytes(lastValue);
-        this.count = count;
+        this.valueCount = valueCount;
+        this.addressOffset = addressOffset;
+        this.addressSize = addressSize;
     }
 
     public <V> V getFirstValue(final ISerde<V> serde) {
@@ -40,7 +48,15 @@ public class ChunkValue implements ISerializableValueObject {
         return lastValue;
     }
 
-    public int getCount() {
-        return count;
+    public int getValueCount() {
+        return valueCount;
+    }
+
+    public long getAddressOffset() {
+        return addressOffset;
+    }
+
+    public long getAddressSize() {
+        return addressSize;
     }
 }

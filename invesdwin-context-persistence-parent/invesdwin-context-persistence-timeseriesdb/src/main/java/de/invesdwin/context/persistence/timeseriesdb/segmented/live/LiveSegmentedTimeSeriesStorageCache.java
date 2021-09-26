@@ -208,9 +208,9 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
                         @Override
                         public boolean skipFile(final ChunkValue file) {
                             final boolean skip = previousValue.get() != null
-                                    && file.getCount() < shiftBackRemaining.intValue();
+                                    && file.getValueCount() < shiftBackRemaining.intValue();
                             if (skip) {
-                                shiftBackRemaining.subtract(file.getCount());
+                                shiftBackRemaining.subtract(file.getValueCount());
                             }
                             return skip;
                         }
@@ -243,9 +243,9 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
                         @Override
                         public boolean skipFile(final ChunkValue file) {
                             final boolean skip = nextValue.get() != null
-                                    && file.getCount() < shiftForwardRemaining.intValue();
+                                    && file.getValueCount() < shiftForwardRemaining.intValue();
                             if (skip) {
-                                shiftForwardRemaining.subtract(file.getCount());
+                                shiftForwardRemaining.subtract(file.getValueCount());
                             }
                             return skip;
                         }

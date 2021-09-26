@@ -153,11 +153,6 @@ public abstract class ADataUpdater<K, V> implements IDataUpdater<K, V> {
                 }
 
                 @Override
-                protected boolean shouldWriteInParallel() {
-                    return ADataUpdater.this.shouldWriteInParallel();
-                }
-
-                @Override
                 public Percent getProgress() {
                     if (estimatedTo == null) {
                         return null;
@@ -203,10 +198,6 @@ public abstract class ADataUpdater<K, V> implements IDataUpdater<K, V> {
                 return updater.getProgress();
             }
         };
-    }
-
-    protected boolean shouldWriteInParallel() {
-        return ATimeSeriesUpdater.DEFAULT_SHOULD_WRITE_IN_PARALLEL;
     }
 
     protected abstract ATimeSeriesDB<K, V> getTable();

@@ -176,11 +176,6 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
 
             @Override
-            protected boolean shouldWriteInParallel() {
-                return ATimeSeriesUpdater.DEFAULT_SHOULD_WRITE_IN_PARALLEL;
-            }
-
-            @Override
             public Percent getProgress() {
                 return null;
             }

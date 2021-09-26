@@ -7,15 +7,15 @@ import java.io.OutputStream;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import de.invesdwin.norva.beanpath.CountingOutputStream;
+import de.invesdwin.norva.beanpath.IntCountingOutputStream;
 import de.invesdwin.util.lang.description.TextDescription;
-import de.invesdwin.util.streams.buffer.IByteBuffer;
+import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 
 @NotThreadSafe
 public class BufferSerializingCollection<E> extends SerializingCollection<E> {
 
     private final IByteBuffer buffer;
-    private final CountingOutputStream out;
+    private final IntCountingOutputStream out;
 
     public BufferSerializingCollection(final TextDescription name, final IByteBuffer buffer, final boolean readOnly) {
         super(name, null, false);
@@ -23,7 +23,7 @@ public class BufferSerializingCollection<E> extends SerializingCollection<E> {
         if (readOnly) {
             this.out = null;
         } else {
-            this.out = new CountingOutputStream(buffer.asOutputStream());
+            this.out = new IntCountingOutputStream(buffer.asOutputStream());
         }
     }
 

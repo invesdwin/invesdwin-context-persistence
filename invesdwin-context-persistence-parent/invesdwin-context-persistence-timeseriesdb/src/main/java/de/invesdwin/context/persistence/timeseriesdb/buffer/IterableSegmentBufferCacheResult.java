@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb.filebuffer;
+package de.invesdwin.context.persistence.timeseriesdb.buffer;
 
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -14,11 +14,11 @@ import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.time.date.FDate;
 
 @ThreadSafe
-public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<V> {
+public class IterableSegmentBufferCacheResult<V> implements ISegmentBufferCacheResult<V> {
 
     private final IReverseCloseableIterable<V> delegate;
 
-    public IterableFileBufferCacheResult(final IReverseCloseableIterable<V> delegate) {
+    public IterableSegmentBufferCacheResult(final IReverseCloseableIterable<V> delegate) {
         this.delegate = delegate;
     }
 

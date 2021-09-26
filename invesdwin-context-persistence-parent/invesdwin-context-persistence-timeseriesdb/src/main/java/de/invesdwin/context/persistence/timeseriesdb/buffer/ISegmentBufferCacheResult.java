@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb.filebuffer;
+package de.invesdwin.context.persistence.timeseriesdb.buffer;
 
 import java.io.Closeable;
 import java.util.List;
@@ -8,7 +8,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
 import de.invesdwin.util.time.date.FDate;
 
-public interface IFileBufferCacheResult<V> extends IReverseCloseableIterable<V>, Closeable {
+public interface ISegmentBufferCacheResult<V> extends IReverseCloseableIterable<V>, Closeable {
 
     V getLatestValue(Function<V, FDate> extractEndTime, FDate key);
 

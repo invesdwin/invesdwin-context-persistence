@@ -207,9 +207,9 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
                         @Override
                         public boolean skipFile(final ChunkValue file) {
                             final boolean skip = nextValue.get() != null
-                                    && file.getCount() < shiftForwardRemaining.intValue();
+                                    && file.getValueCount() < shiftForwardRemaining.intValue();
                             if (skip) {
-                                shiftForwardRemaining.subtract(file.getCount());
+                                shiftForwardRemaining.subtract(file.getValueCount());
                             }
                             return skip;
                         }

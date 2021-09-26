@@ -24,7 +24,7 @@ import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
-import de.invesdwin.context.persistence.timeseriesdb.filebuffer.FileBufferCache;
+import de.invesdwin.context.persistence.timeseriesdb.buffer.SegmentBufferCache;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ChunkValue;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
@@ -608,7 +608,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     }
 
     private void clearCaches() {
-        FileBufferCache.remove(hashKey);
+        SegmentBufferCache.remove(hashKey);
         cachedFirstValue = null;
         cachedLastValue = null;
         cachedPrevLastAvailableSegmentTo = null;
@@ -674,9 +674,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                             @Override
                             public boolean skipFile(final ChunkValue file) {
                                 final boolean skip = previousValue.get() != null
-                                        && file.getCount() < shiftBackRemaining.intValue();
+                                        && file.getValueCount() < shiftBackRemaining.intValue();
                                 if (skip) {
-                                    shiftBackRemaining.add(file.getCount());
+                                    shiftBackRemaining.add(file.getValueCount());
                                 }
                                 return skip;
                             }
@@ -709,9 +709,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                             @Override
                             public boolean skipFile(final ChunkValue file) {
                                 final boolean skip = nextValue.get() != null
-                                        && file.getCount() < shiftForwardRemaining.intValue();
+                                        && file.getValueCount() < shiftForwardRemaining.intValue();
                                 if (skip) {
-                                    shiftForwardRemaining.subtract(file.getCount());
+                                    shiftForwardRemaining.subtract(file.getValueCount());
                                 }
                                 return skip;
                             }

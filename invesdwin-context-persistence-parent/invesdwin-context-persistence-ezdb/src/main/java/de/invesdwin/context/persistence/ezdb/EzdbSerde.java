@@ -3,8 +3,8 @@ package de.invesdwin.context.persistence.ezdb;
 import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.util.marshallers.serde.ISerde;
-import de.invesdwin.util.streams.buffer.delegate.JavaDelegateByteBuffer;
-import de.invesdwin.util.streams.buffer.delegate.NettyDelegateByteBuffer;
+import de.invesdwin.util.streams.buffer.bytes.delegate.NioDelegateByteBuffer;
+import de.invesdwin.util.streams.buffer.bytes.delegate.NettyDelegateByteBuffer;
 import io.netty.buffer.ByteBuf;
 
 @Immutable
@@ -34,7 +34,7 @@ public class EzdbSerde<O> implements ezdb.serde.Serde<O> {
     public O fromBuffer(final java.nio.ByteBuffer buffer) {
         final int position = buffer.position();
         final int length = buffer.remaining();
-        final O obj = delegate.fromBuffer(new JavaDelegateByteBuffer(buffer).newSliceFrom(position), length);
+        final O obj = delegate.fromBuffer(new NioDelegateByteBuffer(buffer).newSliceFrom(position), length);
         return obj;
     }
 
@@ -53,7 +53,7 @@ public class EzdbSerde<O> implements ezdb.serde.Serde<O> {
     @Override
     public void toBuffer(final java.nio.ByteBuffer buffer, final O obj) {
         final int position = buffer.position();
-        final int length = delegate.toBuffer(new JavaDelegateByteBuffer(buffer).newSliceFrom(position), obj);
+        final int length = delegate.toBuffer(new NioDelegateByteBuffer(buffer).newSliceFrom(position), obj);
         buffer.limit(position + length);
     }
 

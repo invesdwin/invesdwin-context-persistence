@@ -23,6 +23,17 @@
 			<groupId>de.invesdwin</groupId>
 			<artifactId>invesdwin-context-persistence-mapdb</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>com.indeed</groupId>
+			<artifactId>util-mmap</artifactId>
+			<version>${version.indeed-util}</version>
+			<exclusions>
+				<exclusion>
+					<groupId>log4j</groupId>
+					<artifactId>log4j</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
 	</dependencies>
 
 </project>
