@@ -155,7 +155,7 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     public void finishFile(final FDate time, final V firstValue, final V lastValue, final int valueCount,
-            final long addressOffset, final int addressSize) {
+            final long addressOffset, final long addressSize) {
         storage.getFileLookupTable()
                 .put(hashKey, time,
                         new ChunkValue(valueSerde, firstValue, lastValue, valueCount, addressOffset, addressSize));
