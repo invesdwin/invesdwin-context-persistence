@@ -24,8 +24,8 @@ import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
-import de.invesdwin.context.persistence.timeseriesdb.buffer.SegmentBufferCache;
-import de.invesdwin.context.persistence.timeseriesdb.storage.ChunkValue;
+import de.invesdwin.context.persistence.timeseriesdb.buffer.FileBufferCache;
+import de.invesdwin.context.persistence.timeseriesdb.storage.FileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ALoggingTimeSeriesUpdater;
@@ -608,7 +608,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     }
 
     private void clearCaches() {
-        SegmentBufferCache.remove(hashKey);
+        FileBufferCache.remove(hashKey);
         cachedFirstValue = null;
         cachedLastValue = null;
         cachedPrevLastAvailableSegmentTo = null;
@@ -672,7 +672,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null,
                         DisabledLock.INSTANCE, new ISkipFileFunction() {
                             @Override
-                            public boolean skipFile(final ChunkValue file) {
+                            public boolean skipFile(final FileSummary file) {
                                 final boolean skip = previousValue.get() != null
                                         && file.getValueCount() < shiftBackRemaining.intValue();
                                 if (skip) {
@@ -707,7 +707,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 try (ICloseableIterator<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,
                         new ISkipFileFunction() {
                             @Override
-                            public boolean skipFile(final ChunkValue file) {
+                            public boolean skipFile(final FileSummary file) {
                                 final boolean skip = nextValue.get() != null
                                         && file.getValueCount() < shiftForwardRemaining.intValue();
                                 if (skip) {
@@ -805,7 +805,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                     final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
                     maybeInitSegment(segmentedKey);
                     final String segmentedHashKey = segmentedTable.hashKeyToString(segmentedKey);
-                    final ChunkValue latestValue = storage.getFileLookupTable()
+                    final FileSummary latestValue = storage.getFileLookupTable()
                             .getLatestValue(segmentedHashKey, FDate.MIN_DATE);
                     final V firstValue;
                     if (latestValue == null) {

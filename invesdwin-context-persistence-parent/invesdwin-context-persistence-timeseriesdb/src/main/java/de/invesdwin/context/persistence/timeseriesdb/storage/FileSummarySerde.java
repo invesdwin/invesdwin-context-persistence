@@ -8,7 +8,7 @@ import de.invesdwin.util.streams.buffer.bytes.ByteBuffers;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 
 @NotThreadSafe
-public final class ChunkValueSerde implements ISerde<ChunkValue> {
+public final class FileSummarySerde implements ISerde<FileSummary> {
 
     private static final int VALUECOUNT_INDEX = 0;
     private static final int VALUECOUNT_SIZE = Integer.BYTES;
@@ -35,7 +35,7 @@ public final class ChunkValueSerde implements ISerde<ChunkValue> {
     private final Integer fixedLength;
     private final int allocateFixedLength;
 
-    public ChunkValueSerde(final Integer valueFixedLength) {
+    public FileSummarySerde(final Integer valueFixedLength) {
         this.valueFixedLength = valueFixedLength;
         if (valueFixedLength != null) {
             firstValueLengthIndex = -1;
@@ -59,17 +59,17 @@ public final class ChunkValueSerde implements ISerde<ChunkValue> {
     }
 
     @Override
-    public ChunkValue fromBytes(final byte[] bytes) {
+    public FileSummary fromBytes(final byte[] bytes) {
         return SerdeBaseMethods.fromBytes(this, bytes);
     }
 
     @Override
-    public byte[] toBytes(final ChunkValue obj) {
+    public byte[] toBytes(final FileSummary obj) {
         return SerdeBaseMethods.toBytes(this, obj);
     }
 
     @Override
-    public ChunkValue fromBuffer(final IByteBuffer buffer, final int length) {
+    public FileSummary fromBuffer(final IByteBuffer buffer, final int length) {
         final int valueCount = buffer.getInt(VALUECOUNT_INDEX);
         final long addressOffset = buffer.getLong(ADDRESSOFFSET_INDEX);
         final long addressSize = buffer.getLong(ADDRESSSIZE_INDEX);
@@ -78,7 +78,7 @@ public final class ChunkValueSerde implements ISerde<ChunkValue> {
             buffer.getBytes(firstValueIndex, firstValue);
             final byte[] lastValue = ByteBuffers.allocateByteArray(valueFixedLength);
             buffer.getBytes(lastValueIndex, lastValue);
-            return new ChunkValue(firstValue, lastValue, valueCount, addressOffset, addressSize);
+            return new FileSummary(firstValue, lastValue, valueCount, addressOffset, addressSize);
         } else {
             final int firstValueLength = buffer.getInt(firstValueLengthIndex);
             final int lastValueLength = buffer.getInt(lastValueLengthIndex);
@@ -86,12 +86,12 @@ public final class ChunkValueSerde implements ISerde<ChunkValue> {
             buffer.getBytes(firstValueIndex, firstValue);
             final byte[] lastValue = ByteBuffers.allocateByteArray(lastValueLength);
             buffer.getBytes(firstValueIndex + firstValueLength, lastValue);
-            return new ChunkValue(firstValue, lastValue, valueCount, addressOffset, addressSize);
+            return new FileSummary(firstValue, lastValue, valueCount, addressOffset, addressSize);
         }
     }
 
     @Override
-    public int toBuffer(final IByteBuffer buffer, final ChunkValue obj) {
+    public int toBuffer(final IByteBuffer buffer, final FileSummary obj) {
         final int valueCount = obj.getValueCount();
         final long addressOffset = obj.getAddressOffset();
         final long addressSize = obj.getAddressSize();

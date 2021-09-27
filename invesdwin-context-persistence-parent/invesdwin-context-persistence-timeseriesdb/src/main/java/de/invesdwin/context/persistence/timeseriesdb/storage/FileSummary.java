@@ -6,7 +6,7 @@ import de.invesdwin.norva.marker.ISerializableValueObject;
 import de.invesdwin.util.marshallers.serde.ISerde;
 
 @Immutable
-public class ChunkValue implements ISerializableValueObject {
+public class FileSummary implements ISerializableValueObject {
 
     private final byte[] firstValue;
     private final byte[] lastValue;
@@ -14,7 +14,7 @@ public class ChunkValue implements ISerializableValueObject {
     private final long addressOffset;
     private final long addressSize;
 
-    public <V> ChunkValue(final byte[] firstValue, final byte[] lastValue, final int valueCount,
+    public <V> FileSummary(final byte[] firstValue, final byte[] lastValue, final int valueCount,
             final long addressOffset, final long addressSize) {
         this.firstValue = firstValue;
         this.lastValue = lastValue;
@@ -23,7 +23,7 @@ public class ChunkValue implements ISerializableValueObject {
         this.addressSize = addressSize;
     }
 
-    public <V> ChunkValue(final ISerde<V> serde, final V firstValue, final V lastValue, final int valueCount,
+    public <V> FileSummary(final ISerde<V> serde, final V firstValue, final V lastValue, final int valueCount,
             final long addressOffset, final long addressSize) {
         this.firstValue = serde.toBytes(firstValue);
         this.lastValue = serde.toBytes(lastValue);

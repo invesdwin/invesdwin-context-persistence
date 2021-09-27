@@ -12,14 +12,14 @@ import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.lang.description.TextDescription;
 
 @NotThreadSafe
-public abstract class AChunkValueSerializingCollection extends SerializingCollection<ChunkValue> {
+public abstract class AFileSummarySerializingCollection extends SerializingCollection<FileSummary> {
 
-    public AChunkValueSerializingCollection(final TextDescription name, final File file, final boolean readOnly) {
+    public AFileSummarySerializingCollection(final TextDescription name, final File file, final boolean readOnly) {
         super(name, file, readOnly);
     }
 
     @Override
-    protected abstract ChunkValueSerde newSerde();
+    protected abstract FileSummarySerde newSerde();
 
     @Override
     protected Integer getFixedLength() {

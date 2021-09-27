@@ -14,7 +14,7 @@ import org.apache.commons.lang3.mutable.MutableInt;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal.ILiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal.SwitchingLiveSegment;
-import de.invesdwin.context.persistence.timeseriesdb.storage.ChunkValue;
+import de.invesdwin.context.persistence.timeseriesdb.storage.FileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -206,7 +206,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
             try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null, DisabledLock.INSTANCE,
                     new ISkipFileFunction() {
                         @Override
-                        public boolean skipFile(final ChunkValue file) {
+                        public boolean skipFile(final FileSummary file) {
                             final boolean skip = previousValue.get() != null
                                     && file.getValueCount() < shiftBackRemaining.intValue();
                             if (skip) {
@@ -241,7 +241,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
             try (ICloseableIterator<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,
                     new ISkipFileFunction() {
                         @Override
-                        public boolean skipFile(final ChunkValue file) {
+                        public boolean skipFile(final FileSummary file) {
                             final boolean skip = nextValue.get() != null
                                     && file.getValueCount() < shiftForwardRemaining.intValue();
                             if (skip) {

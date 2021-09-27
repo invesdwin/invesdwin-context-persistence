@@ -15,12 +15,12 @@ import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
 
 @ThreadSafe
-public class ArraySegmentBufferCacheResult<V> extends RefCountReverseCloseableIterable<V>
-        implements ISegmentBufferCacheResult<V>, Closeable {
+public class ArrayFileBufferCacheResult<V> extends RefCountReverseCloseableIterable<V>
+        implements IFileBufferCacheResult<V>, Closeable {
 
     private final ArrayList<V> list;
 
-    public ArraySegmentBufferCacheResult(final ArrayList<V> list) {
+    public ArrayFileBufferCacheResult(final ArrayList<V> list) {
         super(new ArrayListCloseableIterable<>(list));
         getRefCount().incrementAndGet();
         this.list = list;

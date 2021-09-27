@@ -11,7 +11,7 @@ import org.apache.commons.lang3.mutable.MutableInt;
 
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
-import de.invesdwin.context.persistence.timeseriesdb.storage.ChunkValue;
+import de.invesdwin.context.persistence.timeseriesdb.storage.FileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
@@ -205,7 +205,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
             try (ICloseableIterator<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE,
                     new ISkipFileFunction() {
                         @Override
-                        public boolean skipFile(final ChunkValue file) {
+                        public boolean skipFile(final FileSummary file) {
                             final boolean skip = nextValue.get() != null
                                     && file.getValueCount() < shiftForwardRemaining.intValue();
                             if (skip) {

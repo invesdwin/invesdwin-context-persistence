@@ -88,11 +88,11 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
             }
 
             @Override
-            protected void onFlush(final int flushIndex, final Instant flushStart,
+            protected void onFlush(final int flushIndex,
                     final ATimeSeriesUpdater<String, FDate>.UpdateProgress updateProgress) {
                 try {
                     if (loopCheck.check()) {
-                        printProgress("Writes", writesStart, updateProgress.getCount() * flushIndex, VALUES);
+                        printProgress("Writes", writesStart, updateProgress.getValueCount() * flushIndex, VALUES);
                     }
                 } catch (final InterruptedException e) {
                     throw new RuntimeException(e);

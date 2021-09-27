@@ -8,7 +8,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
 import de.invesdwin.util.time.date.FDate;
 
-public interface ISegmentBufferCacheResult<V> extends IReverseCloseableIterable<V>, Closeable {
+public interface IFileBufferCacheResult<V> extends IReverseCloseableIterable<V>, Closeable {
 
     V getLatestValue(Function<V, FDate> extractEndTime, FDate key);
 

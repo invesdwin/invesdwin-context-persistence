@@ -44,9 +44,9 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
     }
 
     @Override
-    protected synchronized void onFlush(final int flushIndex, final Instant flushStart, final UpdateProgress progress) {
+    protected synchronized void onFlush(final int flushIndex, final UpdateProgress progress) {
         lastFlushIndex = Integers.max(lastFlushIndex, flushIndex);
-        flushElementCount += progress.getCount();
+        flushElementCount += progress.getValueCount();
         lastFlushMaxTime = FDates.max(lastFlushMaxTime, progress.getMaxTime());
         if (flushIndex % BATCH_LOG_INTERVAL == 0) {
             logFlush();

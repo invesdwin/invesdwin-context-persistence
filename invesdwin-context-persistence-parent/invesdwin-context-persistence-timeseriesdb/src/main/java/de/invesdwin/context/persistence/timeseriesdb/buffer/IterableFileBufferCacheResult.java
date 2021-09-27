@@ -14,11 +14,11 @@ import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.time.date.FDate;
 
 @ThreadSafe
-public class IterableSegmentBufferCacheResult<V> implements ISegmentBufferCacheResult<V> {
+public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<V> {
 
     private final IReverseCloseableIterable<V> delegate;
 
-    public IterableSegmentBufferCacheResult(final IReverseCloseableIterable<V> delegate) {
+    public IterableFileBufferCacheResult(final IReverseCloseableIterable<V> delegate) {
         this.delegate = delegate;
     }
 

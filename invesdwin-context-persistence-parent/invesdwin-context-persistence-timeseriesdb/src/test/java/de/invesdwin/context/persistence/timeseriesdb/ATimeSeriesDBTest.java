@@ -82,7 +82,7 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected void onFlush(final int flushIndex, final Instant flushStart,
+            protected void onFlush(final int flushIndex,
                     final ATimeSeriesUpdater<String, FDate>.UpdateProgress updateProgress) {
             }
 
@@ -181,7 +181,7 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected void onFlush(final int flushIndex, final Instant flushStart,
+            protected void onFlush(final int flushIndex,
                     final ATimeSeriesUpdater<String, FDate>.UpdateProgress updateProgress) {
                 segments.increment();
             }

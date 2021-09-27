@@ -24,9 +24,9 @@ import org.apache.commons.lang3.mutable.MutableInt;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable.DelegateTableIterator;
-import de.invesdwin.context.persistence.timeseriesdb.buffer.ISegmentBufferCacheResult;
-import de.invesdwin.context.persistence.timeseriesdb.buffer.SegmentBufferCache;
-import de.invesdwin.context.persistence.timeseriesdb.storage.ChunkValue;
+import de.invesdwin.context.persistence.timeseriesdb.buffer.IFileBufferCacheResult;
+import de.invesdwin.context.persistence.timeseriesdb.buffer.FileBufferCache;
+import de.invesdwin.context.persistence.timeseriesdb.storage.FileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
@@ -68,7 +68,7 @@ public class TimeSeriesStorageCache<K, V> {
     private static final String READ_RANGE_VALUES = "readRangeValues";
     private static final String READ_RANGE_VALUES_REVERSE = "readRangeValuesReverse";
     private final TimeSeriesStorage storage;
-    private final ALoadingCache<FDate, TableRow<String, FDate, ChunkValue>> fileLookupTable_latestRangeKeyCache = new ALoadingCache<FDate, TableRow<String, FDate, ChunkValue>>() {
+    private final ALoadingCache<FDate, TableRow<String, FDate, FileSummary>> fileLookupTable_latestRangeKeyCache = new ALoadingCache<FDate, TableRow<String, FDate, FileSummary>>() {
 
         @Override
         protected Integer getInitialMaximumSize() {
@@ -81,7 +81,7 @@ public class TimeSeriesStorageCache<K, V> {
         }
 
         @Override
-        protected TableRow<String, FDate, ChunkValue> loadValue(final FDate key) {
+        protected TableRow<String, FDate, FileSummary> loadValue(final FDate key) {
             return storage.getFileLookupTable().getLatest(hashKey, key);
         }
     };
@@ -100,8 +100,8 @@ public class TimeSeriesStorageCache<K, V> {
      * through to disk is still better for increased parallelity and for not having to iterate through each element of
      * the other hashkeys.
      */
-    private volatile ICloseableIterable<TableRow<String, FDate, ChunkValue>> cachedAllRangeKeys;
-    private volatile ICloseableIterable<TableRow<String, FDate, ChunkValue>> cachedAllRangeKeysReverse;
+    private volatile ICloseableIterable<TableRow<String, FDate, FileSummary>> cachedAllRangeKeys;
+    private volatile ICloseableIterable<TableRow<String, FDate, FileSummary>> cachedAllRangeKeysReverse;
     private final Log log = new Log(this);
     private Map<FDate, File> redirectedFiles;
 
@@ -158,7 +158,7 @@ public class TimeSeriesStorageCache<K, V> {
             final long addressOffset, final long addressSize) {
         storage.getFileLookupTable()
                 .put(hashKey, time,
-                        new ChunkValue(valueSerde, firstValue, lastValue, valueCount, addressOffset, addressSize));
+                        new FileSummary(valueSerde, firstValue, lastValue, valueCount, addressOffset, addressSize));
         clearCaches();
     }
 
@@ -182,9 +182,9 @@ public class TimeSeriesStorageCache<K, V> {
                         TimeSeriesStorageCache.class.getSimpleName(), hashKey, from, to)) {
 
                     //use latest time available even if delegate iterator has no values
-                    private TableRow<String, FDate, ChunkValue> latestFirstTime = fileLookupTable_latestRangeKeyCache
+                    private TableRow<String, FDate, FileSummary> latestFirstTime = fileLookupTable_latestRangeKeyCache
                             .get(usedFrom);
-                    private final ICloseableIterator<TableRow<String, FDate, ChunkValue>> delegate;
+                    private final ICloseableIterator<TableRow<String, FDate, FileSummary>> delegate;
 
                     {
                         if (latestFirstTime == null) {
@@ -199,19 +199,19 @@ public class TimeSeriesStorageCache<K, V> {
                         return latestFirstTime != null || delegate.hasNext();
                     }
 
-                    private ICloseableIterator<TableRow<String, FDate, ChunkValue>> getRangeKeys(final String hashKey,
+                    private ICloseableIterator<TableRow<String, FDate, FileSummary>> getRangeKeys(final String hashKey,
                             final FDate from, final FDate to) {
                         readLock.lock();
                         try {
-                            final ICloseableIterator<TableRow<String, FDate, ChunkValue>> range = getAllRangeKeys(
+                            final ICloseableIterator<TableRow<String, FDate, FileSummary>> range = getAllRangeKeys(
                                     readLock);
                             final GetRangeKeysIterator rangeFiltered = new GetRangeKeysIterator(range, from, to);
-                            final BufferingIterator<TableRow<String, FDate, ChunkValue>> buffer = new BufferingIterator<>(
+                            final BufferingIterator<TableRow<String, FDate, FileSummary>> buffer = new BufferingIterator<>(
                                     rangeFiltered);
                             if (skipFileFunction != null) {
-                                return new ASkippingIterator<TableRow<String, FDate, ChunkValue>>(buffer) {
+                                return new ASkippingIterator<TableRow<String, FDate, FileSummary>>(buffer) {
                                     @Override
-                                    protected boolean skip(final TableRow<String, FDate, ChunkValue> element) {
+                                    protected boolean skip(final TableRow<String, FDate, FileSummary> element) {
                                         if (element == buffer.getTail()) {
                                             /*
                                              * cannot optimize this further for multiple segments because we don't know
@@ -274,10 +274,10 @@ public class TimeSeriesStorageCache<K, V> {
                         TimeSeriesStorageCache.class.getSimpleName(), hashKey, from, to)) {
 
                     //use latest time available even if delegate iterator has no values
-                    private TableRow<String, FDate, ChunkValue> latestLastTime = fileLookupTable_latestRangeKeyCache
+                    private TableRow<String, FDate, FileSummary> latestLastTime = fileLookupTable_latestRangeKeyCache
                             .get(usedFrom);
                     // add 1 ms to not collide with firstTime
-                    private final ICloseableIterator<TableRow<String, FDate, ChunkValue>> delegate;
+                    private final ICloseableIterator<TableRow<String, FDate, FileSummary>> delegate;
 
                     {
                         if (latestLastTime == null) {
@@ -293,21 +293,21 @@ public class TimeSeriesStorageCache<K, V> {
                         return latestLastTime != null || delegate.hasNext();
                     }
 
-                    private ICloseableIterator<TableRow<String, FDate, ChunkValue>> getRangeKeysReverse(
+                    private ICloseableIterator<TableRow<String, FDate, FileSummary>> getRangeKeysReverse(
                             final String hashKey, final FDate from, final FDate to) {
                         readLock.lock();
                         try {
-                            final ICloseableIterator<TableRow<String, FDate, ChunkValue>> range = getAllRangeKeysReverse(
+                            final ICloseableIterator<TableRow<String, FDate, FileSummary>> range = getAllRangeKeysReverse(
                                     readLock);
                             final GetRangeKeysReverseIterator rangeFiltered = new GetRangeKeysReverseIterator(range,
                                     from, to);
-                            final BufferingIterator<TableRow<String, FDate, ChunkValue>> buffer = new BufferingIterator<>(
+                            final BufferingIterator<TableRow<String, FDate, FileSummary>> buffer = new BufferingIterator<>(
                                     rangeFiltered);
                             if (skipFileFunction != null) {
-                                return new ASkippingIterator<TableRow<String, FDate, ChunkValue>>(buffer) {
+                                return new ASkippingIterator<TableRow<String, FDate, FileSummary>>(buffer) {
 
                                     @Override
-                                    protected boolean skip(final TableRow<String, FDate, ChunkValue> element) {
+                                    protected boolean skip(final TableRow<String, FDate, FileSummary> element) {
                                         if (element == buffer.getTail()) {
                                             /*
                                              * cannot optimize this further for multiple segments because we don't know
@@ -365,7 +365,7 @@ public class TimeSeriesStorageCache<K, V> {
                         //end reached
                     }
                 }
-                try (ISegmentBufferCacheResult<V> serializingCollection = getResultCached(READ_RANGE_VALUES, value,
+                try (IFileBufferCacheResult<V> serializingCollection = getResultCached(READ_RANGE_VALUES, value,
                         readLock)) {
                     return serializingCollection.iterator(extractEndTime, from, to);
                 }
@@ -392,7 +392,7 @@ public class TimeSeriesStorageCache<K, V> {
                         //end reached
                     }
                 }
-                try (ISegmentBufferCacheResult<V> serializingCollection = getResultCached(READ_RANGE_VALUES_REVERSE,
+                try (IFileBufferCacheResult<V> serializingCollection = getResultCached(READ_RANGE_VALUES_REVERSE,
                         value, readLock)) {
                     return serializingCollection.reverseIterator(extractEndTime, from, to);
                 }
@@ -404,12 +404,12 @@ public class TimeSeriesStorageCache<K, V> {
         return rangeValuesReverse;
     }
 
-    private ISegmentBufferCacheResult<V> getResultCached(final String method, final File file, final Lock readLock) {
-        return SegmentBufferCache.getResult(hashKey, file, () -> newResult(method, file, readLock));
+    private IFileBufferCacheResult<V> getResultCached(final String method, final File file, final Lock readLock) {
+        return FileBufferCache.getResult(hashKey, file, () -> newResult(method, file, readLock));
     }
 
     private void preloadResultCached(final String method, final File file, final Lock readLock) {
-        SegmentBufferCache.preloadResult(hashKey, file, () -> newResult(method, file, readLock));
+        FileBufferCache.preloadResult(hashKey, file, () -> newResult(method, file, readLock));
     }
 
     private SerializingCollection<V> newResult(final String method, final File file, final Lock readLock) {
@@ -480,7 +480,7 @@ public class TimeSeriesStorageCache<K, V> {
 
     public V getFirstValue() {
         if (cachedFirstValue == null) {
-            final ChunkValue latestValue = storage.getFileLookupTable().getLatestValue(hashKey, FDate.MIN_DATE);
+            final FileSummary latestValue = storage.getFileLookupTable().getLatestValue(hashKey, FDate.MIN_DATE);
             final V firstValue;
             if (latestValue == null) {
                 firstValue = null;
@@ -494,7 +494,7 @@ public class TimeSeriesStorageCache<K, V> {
 
     public V getLastValue() {
         if (cachedLastValue == null) {
-            final ChunkValue latestValue = storage.getFileLookupTable().getLatestValue(hashKey, FDate.MAX_DATE);
+            final FileSummary latestValue = storage.getFileLookupTable().getLatestValue(hashKey, FDate.MAX_DATE);
             final V lastValue;
             if (latestValue == null) {
                 lastValue = null;
@@ -518,7 +518,7 @@ public class TimeSeriesStorageCache<K, V> {
 
     private void clearCaches() {
         fileLookupTable_latestRangeKeyCache.clear();
-        SegmentBufferCache.remove(hashKey);
+        FileBufferCache.remove(hashKey);
         cachedAllRangeKeys = null;
         cachedAllRangeKeysReverse = null;
         cachedFirstValue = null;
@@ -532,7 +532,7 @@ public class TimeSeriesStorageCache<K, V> {
                 return null;
             }
             final File file = newFile(fileTime);
-            try (ISegmentBufferCacheResult<V> result = getResultCached("latestValueLookupCache.loadValue", file,
+            try (IFileBufferCacheResult<V> result = getResultCached("latestValueLookupCache.loadValue", file,
                     DisabledLock.INSTANCE)) {
                 V latestValue = result.getLatestValue(extractEndTime, date);
                 if (latestValue == null) {
@@ -563,7 +563,7 @@ public class TimeSeriesStorageCache<K, V> {
                 try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null,
                         DisabledLock.INSTANCE, new ISkipFileFunction() {
                             @Override
-                            public boolean skipFile(final ChunkValue file) {
+                            public boolean skipFile(final FileSummary file) {
                                 final boolean skip = previousValue.get() != null
                                         && file.getValueCount() < shiftBackRemaining.intValue();
                                 if (skip) {
@@ -598,7 +598,7 @@ public class TimeSeriesStorageCache<K, V> {
                 try (ICloseableIterator<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,
                         new ISkipFileFunction() {
                             @Override
-                            public boolean skipFile(final ChunkValue file) {
+                            public boolean skipFile(final FileSummary file) {
                                 final boolean skip = nextValue.get() != null
                                         && file.getValueCount() < shiftForwardRemaining.intValue();
                                 if (skip) {
@@ -661,14 +661,14 @@ public class TimeSeriesStorageCache<K, V> {
      * get fragmented too much between updates
      */
     public synchronized PrepareForUpdateResult<V> prepareForUpdate(final boolean shouldRedoLastFile) {
-        final TableRow<String, FDate, ChunkValue> latestSegment = storage.getFileLookupTable()
+        final TableRow<String, FDate, FileSummary> latestFile = storage.getFileLookupTable()
                 .getLatest(hashKey, FDate.MAX_DATE);
         final FDate updateFrom;
         final List<V> lastValues;
         final long addressOffset;
-        if (latestSegment != null) {
-            final FDate latestRangeKey = latestSegment.getRangeKey();
-            final ChunkValue latestValue = latestSegment.getValue();
+        if (latestFile != null) {
+            final FDate latestRangeKey = latestFile.getRangeKey();
+            final FileSummary latestValue = latestFile.getValue();
             if (shouldRedoLastFile && latestValue.getValueCount() < ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
                 lastValues = new ArrayList<V>();
                 if (redirectedFiles != null) {
@@ -708,12 +708,12 @@ public class TimeSeriesStorageCache<K, V> {
         }
     }
 
-    private ICloseableIterator<TableRow<String, FDate, ChunkValue>> getAllRangeKeys(final Lock readLock) {
+    private ICloseableIterator<TableRow<String, FDate, FileSummary>> getAllRangeKeys(final Lock readLock) {
         readLock.lock();
         try {
             if (cachedAllRangeKeys == null) {
-                final BufferingIterator<TableRow<String, FDate, ChunkValue>> allRangeKeys = new BufferingIterator<TableRow<String, FDate, ChunkValue>>();
-                final DelegateTableIterator<String, FDate, ChunkValue> range = storage.getFileLookupTable()
+                final BufferingIterator<TableRow<String, FDate, FileSummary>> allRangeKeys = new BufferingIterator<TableRow<String, FDate, FileSummary>>();
+                final DelegateTableIterator<String, FDate, FileSummary> range = storage.getFileLookupTable()
                         .range(hashKey, FDate.MIN_DATE, FDate.MAX_DATE);
                 while (range.hasNext()) {
                     allRangeKeys.add(range.next());
@@ -727,12 +727,12 @@ public class TimeSeriesStorageCache<K, V> {
         }
     }
 
-    private ICloseableIterator<TableRow<String, FDate, ChunkValue>> getAllRangeKeysReverse(final Lock readLock) {
+    private ICloseableIterator<TableRow<String, FDate, FileSummary>> getAllRangeKeysReverse(final Lock readLock) {
         readLock.lock();
         try {
             if (cachedAllRangeKeysReverse == null) {
-                final BufferingIterator<TableRow<String, FDate, ChunkValue>> allRangeKeysReverse = new BufferingIterator<TableRow<String, FDate, ChunkValue>>();
-                final DelegateTableIterator<String, FDate, ChunkValue> range = storage.getFileLookupTable()
+                final BufferingIterator<TableRow<String, FDate, FileSummary>> allRangeKeysReverse = new BufferingIterator<TableRow<String, FDate, FileSummary>>();
+                final DelegateTableIterator<String, FDate, FileSummary> range = storage.getFileLookupTable()
                         .rangeReverse(hashKey, FDate.MAX_DATE, FDate.MIN_DATE);
                 while (range.hasNext()) {
                     allRangeKeysReverse.add(range.next());
@@ -747,12 +747,12 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     private static final class GetRangeKeysReverseIterator
-            extends ASkippingIterator<TableRow<String, FDate, ChunkValue>> {
+            extends ASkippingIterator<TableRow<String, FDate, FileSummary>> {
         private final FDate from;
         private final FDate to;
 
         private GetRangeKeysReverseIterator(
-                final ICloseableIterator<? extends TableRow<String, FDate, ChunkValue>> delegate, final FDate from,
+                final ICloseableIterator<? extends TableRow<String, FDate, FileSummary>> delegate, final FDate from,
                 final FDate to) {
             super(delegate);
             this.from = from;
@@ -760,7 +760,7 @@ public class TimeSeriesStorageCache<K, V> {
         }
 
         @Override
-        protected boolean skip(final TableRow<String, FDate, ChunkValue> element) {
+        protected boolean skip(final TableRow<String, FDate, FileSummary> element) {
             if (element.getRangeKey().isAfter(from)) {
                 return true;
             } else if (element.getRangeKey().isBefore(to)) {
@@ -770,11 +770,11 @@ public class TimeSeriesStorageCache<K, V> {
         }
     }
 
-    private static final class GetRangeKeysIterator extends ASkippingIterator<TableRow<String, FDate, ChunkValue>> {
+    private static final class GetRangeKeysIterator extends ASkippingIterator<TableRow<String, FDate, FileSummary>> {
         private final FDate from;
         private final FDate to;
 
-        private GetRangeKeysIterator(final ICloseableIterator<? extends TableRow<String, FDate, ChunkValue>> delegate,
+        private GetRangeKeysIterator(final ICloseableIterator<? extends TableRow<String, FDate, FileSummary>> delegate,
                 final FDate from, final FDate to) {
             super(delegate);
             this.from = from;
@@ -782,7 +782,7 @@ public class TimeSeriesStorageCache<K, V> {
         }
 
         @Override
-        protected boolean skip(final TableRow<String, FDate, ChunkValue> element) {
+        protected boolean skip(final TableRow<String, FDate, FileSummary> element) {
             if (element.getRangeKey().isBefore(from)) {
                 return true;
             } else if (element.getRangeKey().isAfter(to)) {

@@ -14,8 +14,6 @@ import org.apache.commons.lang3.RandomUtils;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
-import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
@@ -124,7 +122,7 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
             }
 
             @Override
-            protected void onFlush(final int flushIndex, final Instant flushStart,
+            protected void onFlush(final int flushIndex,
                     final ATimeSeriesUpdater<String, FDate>.UpdateProgress updateProgress) {
             }
 

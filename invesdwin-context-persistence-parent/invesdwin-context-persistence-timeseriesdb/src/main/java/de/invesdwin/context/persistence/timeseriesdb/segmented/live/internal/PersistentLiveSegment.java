@@ -166,7 +166,7 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
 
             @Override
-            protected void onFlush(final int flushIndex, final Instant flushStart,
+            protected void onFlush(final int flushIndex,
                     final ATimeSeriesUpdater<SegmentedKey<K>, V>.UpdateProgress updateProgress) {
             }
 

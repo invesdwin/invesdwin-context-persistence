@@ -17,6 +17,7 @@ import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundExcept
 import de.invesdwin.context.persistence.timeseriesdb.PrepareForUpdateResult;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
+import de.invesdwin.norva.beanpath.LongCountingOutputStream;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -125,12 +126,13 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         final PrepareForUpdateResult<V> prepareForUpdateResult = lookupTable.prepareForUpdate(shouldRedoLastFile());
         final FDate updateFrom = prepareForUpdateResult.getUpdateFrom();
         final List<V> lastValues = prepareForUpdateResult.getLastValues();
+        final long initialAddressOffset = prepareForUpdateResult.getAddressOffset();
 
         final ICloseableIterable<? extends V> source = getSource(updateFrom);
         final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues, source);
         try (ICloseableIterator<UpdateProgress> batchWriterProducer = new ICloseableIterator<UpdateProgress>() {
 
-            private final UpdateProgress progress = new UpdateProgress();
+            private final UpdateProgress progress = new UpdateProgress(initialAddressOffset);
             private final ICloseableIterator<? extends V> elements = flatteningSources.iterator();
 
             @Override
@@ -180,7 +182,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             while (true) {
                 final UpdateProgress progress = batchWriterProducer.next();
                 progress.write(flushIndex++);
-                count += progress.getCount();
+                count += progress.getValueCount();
                 if (minTime == null) {
                     minTime = progress.getMinTime();
                 }
@@ -203,40 +205,51 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
 
     protected abstract FDate extractEndTime(V element);
 
-    protected abstract void onFlush(int flushIndex, Instant flushStart, UpdateProgress updateProgress);
+    protected abstract void onFlush(int flushIndex, UpdateProgress updateProgress);
 
     public class UpdateProgress {
 
-        private int count;
+        private long addressOffset;
+        private int valueCount;
         private V firstElement;
         private FDate minTime;
         private V lastElement;
         private FDate maxTime;
+        private ConfiguredSerializingCollection collection;
+
+        public UpdateProgress(final long initialAddressOffset) {
+            this.addressOffset = initialAddressOffset;
+        }
 
         public FDate getMinTime() {
             return minTime;
         }
 
         public void reset() {
-            count = 0;
-            firstElement = null;
-            minTime = null;
-            lastElement = null;
-            maxTime = null;
+            if (collection != null) {
+                addressOffset += getAddressLength();
+            }
+            this.valueCount = 0;
+            this.firstElement = null;
+            this.minTime = null;
+            this.lastElement = null;
+            this.maxTime = null;
+            this.collection = null;
         }
 
         public FDate getMaxTime() {
             return maxTime;
         }
 
-        public long getCount() {
-            return count;
+        public int getValueCount() {
+            return valueCount;
         }
 
         private boolean onElement(final V element, final FDate endTime) {
             if (firstElement == null) {
                 firstElement = element;
                 minTime = endTime;
+                collection = newSerializingCollection();
             }
             if (maxTime != null && maxTime.isAfterNotNullSafe(endTime)) {
                 throw new IllegalArgumentException(
@@ -245,78 +258,87 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             }
             maxTime = endTime;
             lastElement = element;
-            batch.add(element);
-            count++;
-            return getCount() % BATCH_FLUSH_INTERVAL == 0;
+            collection.add(element);
+            valueCount++;
+            return valueCount % BATCH_FLUSH_INTERVAL == 0;
         }
 
         private void write(final int flushIndex) {
-            final Instant flushStart = new Instant();
+            collection.close();
+            final long addressLength = getAddressLength();
+            lookupTable.finishFile(minTime, firstElement, lastElement, valueCount, addressOffset, addressLength);
 
+            onFlush(flushIndex, this);
+        }
+
+        private long getAddressLength() {
+            return collection.output.getCount();
+        }
+
+        private ConfiguredSerializingCollection newSerializingCollection() {
             final File newFile = lookupTable.newFile(minTime);
-            final TextDescription name = new TextDescription("%s[%s]: write(%s)",
-                    ATimeSeriesUpdater.class.getSimpleName(), key, flushIndex);
-            final SerializingCollection<V> collection = new SerializingCollection<V>(name, newFile, false) {
-                @Override
-                protected ISerde<V> newSerde() {
-                    return new ISerde<V>() {
+            final TextDescription name = new TextDescription("%s[%s]: write", ATimeSeriesUpdater.class.getSimpleName(),
+                    key);
+            final ConfiguredSerializingCollection collection = new ConfiguredSerializingCollection(name, newFile);
+            return collection;
+        }
 
-                        @Override
-                        public V fromBytes(final byte[] bytes) {
-                            throw new UnsupportedOperationException();
-                        }
+        private final class ConfiguredSerializingCollection extends SerializingCollection<V> {
 
-                        @Override
-                        public byte[] toBytes(final V obj) {
-                            return valueSerde.toBytes(obj);
-                        }
+            private LongCountingOutputStream output;
 
-                        @Override
-                        public V fromBuffer(final IByteBuffer buffer, final int length) {
-                            throw new UnsupportedOperationException();
-                        }
-
-                        @Override
-                        public int toBuffer(final IByteBuffer buffer, final V obj) {
-                            return valueSerde.toBuffer(buffer, obj);
-                        }
-                    };
-                }
-
-                @Override
-                protected OutputStream newCompressor(final OutputStream out) {
-                    return table.getCompressionFactory().newCompressor(out, LARGE_COMPRESSOR);
-                }
-
-                @Override
-                protected InputStream newDecompressor(final InputStream inputStream) {
-                    return table.getCompressionFactory().newDecompressor(inputStream);
-                }
-
-                @Override
-                protected Integer getFixedLength() {
-                    return table.getValueFixedLength();
-                }
-
-            };
-            V firstElement = null;
-            V lastElement = null;
-            int valueCount = 0;
-            try {
-                for (final V element : batch) {
-                    collection.add(element);
-                    if (firstElement == null) {
-                        firstElement = element;
-                    }
-                    lastElement = element;
-                    valueCount++;
-                }
-            } finally {
-                collection.close();
+            private ConfiguredSerializingCollection(final TextDescription name, final File newFile) {
+                super(name, newFile, false);
             }
-            lookupTable.finishFile(minTime, firstElement, lastElement, valueCount);
 
-            onFlush(flushIndex, flushStart, this);
+            @Override
+            protected ISerde<V> newSerde() {
+                return new ISerde<V>() {
+
+                    @Override
+                    public V fromBytes(final byte[] bytes) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public byte[] toBytes(final V obj) {
+                        return valueSerde.toBytes(obj);
+                    }
+
+                    @Override
+                    public V fromBuffer(final IByteBuffer buffer, final int length) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public int toBuffer(final IByteBuffer buffer, final V obj) {
+                        return valueSerde.toBuffer(buffer, obj);
+                    }
+                };
+            }
+
+            @Override
+            protected OutputStream newCompressor(final OutputStream out) {
+                return table.getCompressionFactory().newCompressor(out, LARGE_COMPRESSOR);
+            }
+
+            @Override
+            protected InputStream newDecompressor(final InputStream inputStream) {
+                return table.getCompressionFactory().newDecompressor(inputStream);
+            }
+
+            @Override
+            protected OutputStream newFileOutputStream(final File file) throws IOException {
+                Assertions.checkNull(output);
+                output = new LongCountingOutputStream(super.newFileOutputStream(file));
+                return output;
+            }
+
+            @Override
+            protected Integer getFixedLength() {
+                return table.getValueFixedLength();
+            }
+
         }
 
     }

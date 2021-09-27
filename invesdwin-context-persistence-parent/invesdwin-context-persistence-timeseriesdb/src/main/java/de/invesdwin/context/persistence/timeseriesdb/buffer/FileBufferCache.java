@@ -30,19 +30,19 @@ import de.invesdwin.util.time.date.FTimeUnit;
 
 @SuppressWarnings({ "unchecked", "rawtypes" })
 @ThreadSafe
-public final class SegmentBufferCache {
+public final class FileBufferCache {
 
     private static final WrappedExecutorService PRELOAD_EXECUTOR;
 
     static {
         if (TimeseriesProperties.FILE_BUFFER_CACHE_ENABLED && TimeseriesProperties.FILE_BUFFER_CACHE_PRELOAD_ENABLED) {
-            PRELOAD_EXECUTOR = Executors.newFixedThreadPool(SegmentBufferCache.class.getSimpleName() + "_PRELOAD", 1);
+            PRELOAD_EXECUTOR = Executors.newFixedThreadPool(FileBufferCache.class.getSimpleName() + "_PRELOAD", 1);
         } else {
             PRELOAD_EXECUTOR = null;
         }
     }
 
-    private static final LoadingCache<FileBufferKey, ArraySegmentBufferCacheResult> CACHE;
+    private static final LoadingCache<FileBufferKey, ArrayFileBufferCacheResult> CACHE;
 
     private static final IObjectPool<ArrayList> LIST_POOL = new AgronaObjectPool<ArrayList>(
             () -> new ArrayList<>(ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL),
@@ -55,8 +55,8 @@ public final class SegmentBufferCache {
                         TimeseriesProperties.FILE_BUFFER_CACHE_EVICTION_TIMEOUT.longValue(FTimeUnit.MILLISECONDS),
                         TimeUnit.MILLISECONDS)
                 .softValues()
-                .removalListener(SegmentBufferCache::onRemoval)
-                .<FileBufferKey, ArraySegmentBufferCacheResult> build(SegmentBufferCache::load);
+                .removalListener(FileBufferCache::onRemoval)
+                .<FileBufferKey, ArrayFileBufferCacheResult> build(FileBufferCache::load);
         ReinitializationHookManager.register(new IReinitializationHook() {
 
             @Override
@@ -74,10 +74,10 @@ public final class SegmentBufferCache {
         });
     }
 
-    private SegmentBufferCache() {
+    private FileBufferCache() {
     }
 
-    private static void onRemoval(final FileBufferKey key, final ArraySegmentBufferCacheResult value,
+    private static void onRemoval(final FileBufferKey key, final ArrayFileBufferCacheResult value,
             final RemovalCause cause) {
         if (value != null && value.isUsed() && value.getRefCount().get() == 0) {
             final ArrayList arrayList = value.getList();
@@ -86,7 +86,7 @@ public final class SegmentBufferCache {
         }
     }
 
-    private static ArraySegmentBufferCacheResult load(final FileBufferKey key) throws Exception {
+    private static ArrayFileBufferCacheResult load(final FileBufferKey key) throws Exception {
         //keep file input stream open as shorty as possible to prevent too many open files error
         final ICloseableIterable values = key.getSource().getSource();
         key.setSource(null);
@@ -98,15 +98,15 @@ public final class SegmentBufferCache {
         } catch (final NoSuchElementException e) {
             //end reached
         }
-        return new ArraySegmentBufferCacheResult(list);
+        return new ArrayFileBufferCacheResult(list);
     }
 
     public static void remove(final String hashKey) {
-        final Set<Entry<FileBufferKey, ArraySegmentBufferCacheResult>> entries = CACHE.asMap().entrySet();
-        final Iterator<Entry<FileBufferKey, ArraySegmentBufferCacheResult>> iterator = entries.iterator();
+        final Set<Entry<FileBufferKey, ArrayFileBufferCacheResult>> entries = CACHE.asMap().entrySet();
+        final Iterator<Entry<FileBufferKey, ArrayFileBufferCacheResult>> iterator = entries.iterator();
         try {
             while (true) {
-                final Entry<FileBufferKey, ArraySegmentBufferCacheResult> next = iterator.next();
+                final Entry<FileBufferKey, ArrayFileBufferCacheResult> next = iterator.next();
                 if (next.getKey().getHashKey().equals(hashKey)) {
                     iterator.remove();
                 }
@@ -116,22 +116,22 @@ public final class SegmentBufferCache {
         }
     }
 
-    public static <T> ISegmentBufferCacheResult<T> getResult(final String hashKey, final File file,
-            final ISegmentBufferSource source) {
+    public static <T> IFileBufferCacheResult<T> getResult(final String hashKey, final File file,
+            final IFileBufferSource source) {
         if (TimeseriesProperties.FILE_BUFFER_CACHE_ENABLED) {
             final FileBufferKey key = new FileBufferKey(hashKey, file, source);
-            final ISegmentBufferCacheResult value = CACHE.get(key);
+            final IFileBufferCacheResult value = CACHE.get(key);
             return value;
         } else {
             try {
-                return new IterableSegmentBufferCacheResult(source.getSource());
+                return new IterableFileBufferCacheResult(source.getSource());
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
         }
     }
 
-    public static <T> void preloadResult(final String hashKey, final File file, final ISegmentBufferSource source) {
+    public static <T> void preloadResult(final String hashKey, final File file, final IFileBufferSource source) {
         if (PRELOAD_EXECUTOR != null) {
             if (PRELOAD_EXECUTOR.getPendingCount() <= 3) {
                 PRELOAD_EXECUTOR.execute(() -> getResult(hashKey, file, source));
@@ -143,10 +143,10 @@ public final class SegmentBufferCache {
 
         private final String hashKey;
         private final File file;
-        private ISegmentBufferSource source;
+        private IFileBufferSource source;
         private final int hashCode;
 
-        private FileBufferKey(final String hashKey, final File file, final ISegmentBufferSource source) {
+        private FileBufferKey(final String hashKey, final File file, final IFileBufferSource source) {
             this.hashKey = hashKey;
             this.file = file;
             this.source = source;
@@ -161,11 +161,11 @@ public final class SegmentBufferCache {
             return file;
         }
 
-        public ISegmentBufferSource getSource() {
+        public IFileBufferSource getSource() {
             return source;
         }
 
-        public void setSource(final ISegmentBufferSource source) {
+        public void setSource(final IFileBufferSource source) {
             this.source = source;
         }
 
