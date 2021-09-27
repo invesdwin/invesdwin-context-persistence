@@ -1,5 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb.updater;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -17,7 +18,6 @@ import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundExcept
 import de.invesdwin.context.persistence.timeseriesdb.PrepareForUpdateResult;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
-import de.invesdwin.norva.beanpath.LongCountingOutputStream;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -29,6 +29,7 @@ import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.streams.buffer.BufferedFileDataOutputStream;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
@@ -169,6 +170,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             @Override
             public void close() {
                 elements.close();
+                progress.close();
             }
         }) {
             flush(batchWriterProducer);
@@ -207,18 +209,34 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
 
     protected abstract void onFlush(int flushIndex, UpdateProgress updateProgress);
 
-    public class UpdateProgress {
+    public class UpdateProgress implements Closeable {
 
-        private long addressOffset;
+        private final TextDescription name = new TextDescription("%s[%s]: write",
+                ATimeSeriesUpdater.class.getSimpleName(), key);
+
+        private long memoryOffset;
+        private final File memoryFile;
+        private final String memoryFilePath;
         private int valueCount;
         private V firstElement;
         private FDate minTime;
         private V lastElement;
         private FDate maxTime;
         private ConfiguredSerializingCollection collection;
+        private BufferedFileDataOutputStream out;
 
         public UpdateProgress(final long initialAddressOffset) {
-            this.addressOffset = initialAddressOffset;
+            this.memoryOffset = initialAddressOffset;
+            this.memoryFile = lookupTable.getMemoryFile();
+            this.memoryFilePath = memoryFile.getAbsolutePath();
+            try {
+                this.out = new BufferedFileDataOutputStream(memoryFile);
+                if (initialAddressOffset > 0L) {
+                    this.out.seek(initialAddressOffset);
+                }
+            } catch (final IOException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         public FDate getMinTime() {
@@ -226,9 +244,6 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         }
 
         public void reset() {
-            if (collection != null) {
-                addressOffset += getAddressLength();
-            }
             this.valueCount = 0;
             this.firstElement = null;
             this.minTime = null;
@@ -249,7 +264,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             if (firstElement == null) {
                 firstElement = element;
                 minTime = endTime;
-                collection = newSerializingCollection();
+                collection = new ConfiguredSerializingCollection();
             }
             if (maxTime != null && maxTime.isAfterNotNullSafe(endTime)) {
                 throw new IllegalArgumentException(
@@ -264,31 +279,36 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         }
 
         private void write(final int flushIndex) {
-            collection.close();
-            final long addressLength = getAddressLength();
-            lookupTable.finishFile(minTime, firstElement, lastElement, valueCount, addressOffset, addressLength);
+            try {
+                //close first so that lz4 writes out its footer bytes (a flush is not sufficient)
+                collection.close();
+                final long memoryLength = out.position() - memoryOffset;
+                lookupTable.finishFile(minTime, firstElement, lastElement, valueCount, memoryFilePath, memoryOffset,
+                        memoryLength);
+                memoryOffset += memoryLength;
 
-            onFlush(flushIndex, this);
+                onFlush(flushIndex, this);
+            } catch (final IOException e) {
+                throw new RuntimeException(e);
+            }
         }
 
-        private long getAddressLength() {
-            return collection.output.getCount();
-        }
-
-        private ConfiguredSerializingCollection newSerializingCollection() {
-            final File newFile = lookupTable.newFile(minTime);
-            final TextDescription name = new TextDescription("%s[%s]: write", ATimeSeriesUpdater.class.getSimpleName(),
-                    key);
-            final ConfiguredSerializingCollection collection = new ConfiguredSerializingCollection(name, newFile);
-            return collection;
+        @Override
+        public void close() {
+            if (out != null) {
+                try {
+                    out.close();
+                    out = null;
+                } catch (final IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
         }
 
         private final class ConfiguredSerializingCollection extends SerializingCollection<V> {
 
-            private LongCountingOutputStream output;
-
-            private ConfiguredSerializingCollection(final TextDescription name, final File newFile) {
-                super(name, newFile, false);
+            private ConfiguredSerializingCollection() {
+                super(name, memoryFile, false);
             }
 
             @Override
@@ -329,9 +349,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
 
             @Override
             protected OutputStream newFileOutputStream(final File file) throws IOException {
-                Assertions.checkNull(output);
-                output = new LongCountingOutputStream(super.newFileOutputStream(file));
-                return output;
+                return out.asNonClosing();
             }
 
             @Override

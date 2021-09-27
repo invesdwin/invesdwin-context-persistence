@@ -132,7 +132,7 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
                     break;
                 }
             }
-            Assertions.checkEquals(count, VALUES);
+            Assertions.checkEquals(VALUES, count);
             if (loopCheck.check()) {
                 printProgress("Reads" + suffix, readsStart, VALUES * reads, VALUES * maxReads);
             }

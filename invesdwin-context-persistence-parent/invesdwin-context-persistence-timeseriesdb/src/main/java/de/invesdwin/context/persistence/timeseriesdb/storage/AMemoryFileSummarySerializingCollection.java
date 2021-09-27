@@ -12,19 +12,15 @@ import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.lang.description.TextDescription;
 
 @NotThreadSafe
-public abstract class AFileSummarySerializingCollection extends SerializingCollection<FileSummary> {
+public abstract class AMemoryFileSummarySerializingCollection extends SerializingCollection<MemoryFileSummary> {
 
-    public AFileSummarySerializingCollection(final TextDescription name, final File file, final boolean readOnly) {
+    public AMemoryFileSummarySerializingCollection(final TextDescription name, final File file,
+            final boolean readOnly) {
         super(name, file, readOnly);
     }
 
     @Override
-    protected abstract FileSummarySerde newSerde();
-
-    @Override
-    protected Integer getFixedLength() {
-        return newSerde().getFixedLength();
-    }
+    protected abstract MemoryFileSummarySerde newSerde();
 
     protected abstract ICompressionFactory getCompressionFactory();
 

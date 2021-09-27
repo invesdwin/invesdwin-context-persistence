@@ -25,7 +25,7 @@ import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.FileBufferCache;
-import de.invesdwin.context.persistence.timeseriesdb.storage.FileSummary;
+import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ALoggingTimeSeriesUpdater;
@@ -672,7 +672,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null,
                         DisabledLock.INSTANCE, new ISkipFileFunction() {
                             @Override
-                            public boolean skipFile(final FileSummary file) {
+                            public boolean skipFile(final MemoryFileSummary file) {
                                 final boolean skip = previousValue.get() != null
                                         && file.getValueCount() < shiftBackRemaining.intValue();
                                 if (skip) {
@@ -707,7 +707,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 try (ICloseableIterator<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,
                         new ISkipFileFunction() {
                             @Override
-                            public boolean skipFile(final FileSummary file) {
+                            public boolean skipFile(final MemoryFileSummary file) {
                                 final boolean skip = nextValue.get() != null
                                         && file.getValueCount() < shiftForwardRemaining.intValue();
                                 if (skip) {
@@ -805,7 +805,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                     final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
                     maybeInitSegment(segmentedKey);
                     final String segmentedHashKey = segmentedTable.hashKeyToString(segmentedKey);
-                    final FileSummary latestValue = storage.getFileLookupTable()
+                    final MemoryFileSummary latestValue = storage.getFileLookupTable()
                             .getLatestValue(segmentedHashKey, FDate.MIN_DATE);
                     final V firstValue;
                     if (latestValue == null) {

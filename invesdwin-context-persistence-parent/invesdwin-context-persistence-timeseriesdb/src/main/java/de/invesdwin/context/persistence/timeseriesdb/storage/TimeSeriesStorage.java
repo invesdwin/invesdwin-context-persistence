@@ -24,7 +24,7 @@ public class TimeSeriesStorage {
 
     private final File directory;
     private final ICompressionFactory compressionFactory;
-    private final ADelegateRangeTable<String, FDate, FileSummary> fileLookupTable;
+    private final ADelegateRangeTable<String, FDate, MemoryFileSummary> fileLookupTable;
     private final APersistentMap<HashRangeKey, SingleValue> latestValueLookupTable;
     private final APersistentMap<HashRangeShiftUnitsKey, SingleValue> previousValueLookupTable;
     private final APersistentMap<HashRangeShiftUnitsKey, SingleValue> nextValueLookupTable;
@@ -33,7 +33,7 @@ public class TimeSeriesStorage {
             final ICompressionFactory compressionFactory) {
         this.directory = directory;
         this.compressionFactory = compressionFactory;
-        this.fileLookupTable = new ADelegateRangeTable<String, FDate, FileSummary>("fileLookupTable") {
+        this.fileLookupTable = new ADelegateRangeTable<String, FDate, MemoryFileSummary>("fileLookupTable") {
 
             @Override
             protected boolean allowHasNext() {
@@ -51,8 +51,8 @@ public class TimeSeriesStorage {
             }
 
             @Override
-            protected ISerde<FileSummary> newValueSerde() {
-                return new FileSummarySerde(valueFixedLength);
+            protected ISerde<MemoryFileSummary> newValueSerde() {
+                return new MemoryFileSummarySerde(valueFixedLength);
             }
 
             @Override
@@ -154,7 +154,7 @@ public class TimeSeriesStorage {
         return compressionFactory;
     }
 
-    public ADelegateRangeTable<String, FDate, FileSummary> getFileLookupTable() {
+    public ADelegateRangeTable<String, FDate, MemoryFileSummary> getFileLookupTable() {
         return fileLookupTable;
     }
 

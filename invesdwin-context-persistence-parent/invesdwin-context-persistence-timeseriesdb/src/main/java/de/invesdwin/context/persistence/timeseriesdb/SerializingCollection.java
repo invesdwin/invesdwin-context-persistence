@@ -81,9 +81,6 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             this.finalizer.closed = true;
         } else {
             this.finalizer.register(this);
-            if (file.exists()) {
-                throw new IllegalStateException("File [" + file.getAbsolutePath() + "] already exists!");
-            }
         }
     }
 

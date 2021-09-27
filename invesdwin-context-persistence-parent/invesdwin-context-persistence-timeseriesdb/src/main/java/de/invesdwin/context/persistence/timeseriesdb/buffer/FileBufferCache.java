@@ -1,6 +1,5 @@
 package de.invesdwin.context.persistence.timeseriesdb.buffer;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -18,6 +17,7 @@ import com.github.benmanes.caffeine.cache.RemovalCause;
 import de.invesdwin.context.beans.hook.IReinitializationHook;
 import de.invesdwin.context.beans.hook.ReinitializationHookManager;
 import de.invesdwin.context.persistence.timeseriesdb.TimeseriesProperties;
+import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -116,10 +116,10 @@ public final class FileBufferCache {
         }
     }
 
-    public static <T> IFileBufferCacheResult<T> getResult(final String hashKey, final File file,
+    public static <T> IFileBufferCacheResult<T> getResult(final String hashKey, final MemoryFileSummary summary,
             final IFileBufferSource source) {
         if (TimeseriesProperties.FILE_BUFFER_CACHE_ENABLED) {
-            final FileBufferKey key = new FileBufferKey(hashKey, file, source);
+            final FileBufferKey key = new FileBufferKey(hashKey, summary, source);
             final IFileBufferCacheResult value = CACHE.get(key);
             return value;
         } else {
@@ -131,10 +131,11 @@ public final class FileBufferCache {
         }
     }
 
-    public static <T> void preloadResult(final String hashKey, final File file, final IFileBufferSource source) {
+    public static <T> void preloadResult(final String hashKey, final MemoryFileSummary summary,
+            final IFileBufferSource source) {
         if (PRELOAD_EXECUTOR != null) {
             if (PRELOAD_EXECUTOR.getPendingCount() <= 3) {
-                PRELOAD_EXECUTOR.execute(() -> getResult(hashKey, file, source));
+                PRELOAD_EXECUTOR.execute(() -> getResult(hashKey, summary, source));
             }
         }
     }
@@ -142,23 +143,23 @@ public final class FileBufferCache {
     private static final class FileBufferKey {
 
         private final String hashKey;
-        private final File file;
+        private final MemoryFileSummary summary;
         private IFileBufferSource source;
         private final int hashCode;
 
-        private FileBufferKey(final String hashKey, final File file, final IFileBufferSource source) {
+        private FileBufferKey(final String hashKey, final MemoryFileSummary summary, final IFileBufferSource source) {
             this.hashKey = hashKey;
-            this.file = file;
+            this.summary = summary;
             this.source = source;
-            this.hashCode = Objects.hashCode(hashKey, file);
+            this.hashCode = Objects.hashCode(hashKey, summary);
         }
 
         public String getHashKey() {
             return hashKey;
         }
 
-        public File getFile() {
-            return file;
+        public MemoryFileSummary getSummary() {
+            return summary;
         }
 
         public IFileBufferSource getSource() {
@@ -178,7 +179,7 @@ public final class FileBufferCache {
         public boolean equals(final Object obj) {
             if (obj instanceof FileBufferKey) {
                 final FileBufferKey cObj = (FileBufferKey) obj;
-                return Objects.equals(hashKey, cObj.hashKey) && Objects.equals(file, cObj.file);
+                return Objects.equals(hashKey, cObj.hashKey) && Objects.equals(summary, cObj.summary);
             }
             return false;
         }

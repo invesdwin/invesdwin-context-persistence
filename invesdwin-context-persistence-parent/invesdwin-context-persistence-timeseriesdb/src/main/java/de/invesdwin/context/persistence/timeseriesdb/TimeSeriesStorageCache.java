@@ -8,7 +8,6 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.concurrent.locks.Lock;
@@ -24,16 +23,14 @@ import org.apache.commons.lang3.mutable.MutableInt;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable.DelegateTableIterator;
-import de.invesdwin.context.persistence.timeseriesdb.buffer.IFileBufferCacheResult;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.FileBufferCache;
-import de.invesdwin.context.persistence.timeseriesdb.storage.FileSummary;
+import de.invesdwin.context.persistence.timeseriesdb.buffer.IFileBufferCacheResult;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
+import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
-import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.eviction.EvictionMode;
-import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ATransformingIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
@@ -53,6 +50,8 @@ import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.streams.buffer.BufferedFileDataInputStream;
+import de.invesdwin.util.streams.buffer.PreLockedBufferedFileDataInputStream;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 import de.invesdwin.util.streams.pool.PooledFastByteArrayOutputStream;
 import de.invesdwin.util.time.date.FDate;
@@ -68,7 +67,7 @@ public class TimeSeriesStorageCache<K, V> {
     private static final String READ_RANGE_VALUES = "readRangeValues";
     private static final String READ_RANGE_VALUES_REVERSE = "readRangeValuesReverse";
     private final TimeSeriesStorage storage;
-    private final ALoadingCache<FDate, TableRow<String, FDate, FileSummary>> fileLookupTable_latestRangeKeyCache = new ALoadingCache<FDate, TableRow<String, FDate, FileSummary>>() {
+    private final ALoadingCache<FDate, TableRow<String, FDate, MemoryFileSummary>> fileLookupTable_latestRangeKeyCache = new ALoadingCache<FDate, TableRow<String, FDate, MemoryFileSummary>>() {
 
         @Override
         protected Integer getInitialMaximumSize() {
@@ -81,7 +80,7 @@ public class TimeSeriesStorageCache<K, V> {
         }
 
         @Override
-        protected TableRow<String, FDate, FileSummary> loadValue(final FDate key) {
+        protected TableRow<String, FDate, MemoryFileSummary> loadValue(final FDate key) {
             return storage.getFileLookupTable().getLatest(hashKey, key);
         }
     };
@@ -100,10 +99,9 @@ public class TimeSeriesStorageCache<K, V> {
      * through to disk is still better for increased parallelity and for not having to iterate through each element of
      * the other hashkeys.
      */
-    private volatile ICloseableIterable<TableRow<String, FDate, FileSummary>> cachedAllRangeKeys;
-    private volatile ICloseableIterable<TableRow<String, FDate, FileSummary>> cachedAllRangeKeysReverse;
+    private volatile ICloseableIterable<TableRow<String, FDate, MemoryFileSummary>> cachedAllRangeKeys;
+    private volatile ICloseableIterable<TableRow<String, FDate, MemoryFileSummary>> cachedAllRangeKeysReverse;
     private final Log log = new Log(this);
-    private Map<FDate, File> redirectedFiles;
 
     public TimeSeriesStorageCache(final TimeSeriesStorage storage, final String hashKey, final ISerde<V> valueSerde,
             final Integer fixedLength, final Function<V, FDate> extractTime) {
@@ -134,40 +132,29 @@ public class TimeSeriesStorageCache<K, V> {
         return new File(getDataDirectory(), "updateRunning.lock");
     }
 
-    public File newFile(final FDate time) {
-        if (time == null) {
-            throw new NullPointerException("time should not be null");
-        }
-        if (redirectedFiles != null) {
-            final File redirectedFile = redirectedFiles.get(time);
-            if (redirectedFile != null) {
-                return redirectedFile;
-            }
-        }
-        return new File(getDataDirectory(), time.toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_MS) + ".data");
-    }
-
-    public synchronized void redirectFileInMemory(final FDate time, final File redirect) {
-        if (redirectedFiles == null) {
-            redirectedFiles = ILockCollectionFactory.getInstance(true).newConcurrentMap();
-        }
-        Assertions.checkNull(redirectedFiles.put(time, redirect));
+    public File getMemoryFile() {
+        return new File(getDataDirectory(), "memory.data");
     }
 
     public void finishFile(final FDate time, final V firstValue, final V lastValue, final int valueCount,
-            final long addressOffset, final long addressSize) {
+            final String memoryResourceUri, final long memoryOffset, final long memoryLength) {
         storage.getFileLookupTable()
-                .put(hashKey, time,
-                        new FileSummary(valueSerde, firstValue, lastValue, valueCount, addressOffset, addressSize));
+                .put(hashKey, time, new MemoryFileSummary(valueSerde, firstValue, lastValue, valueCount,
+                        memoryResourceUri, memoryOffset, memoryLength));
         clearCaches();
     }
 
-    protected ICloseableIterable<File> readRangeFiles(final FDate from, final FDate to, final Lock readLock,
-            final ISkipFileFunction skipFileFunction) {
-        return new ICloseableIterable<File>() {
+    public void finishFile(final FDate time, final MemoryFileSummary summary) {
+        storage.getFileLookupTable().put(hashKey, time, summary);
+        clearCaches();
+    }
+
+    protected ICloseableIterable<MemoryFileSummary> readRangeFiles(final FDate from, final FDate to,
+            final Lock readLock, final ISkipFileFunction skipFileFunction) {
+        return new ICloseableIterable<MemoryFileSummary>() {
 
             @Override
-            public ICloseableIterator<File> iterator() {
+            public ICloseableIterator<MemoryFileSummary> iterator() {
                 final FDate usedFrom;
                 if (from == null) {
                     final V firstValue = getFirstValue();
@@ -178,13 +165,13 @@ public class TimeSeriesStorageCache<K, V> {
                 } else {
                     usedFrom = from;
                 }
-                return new ACloseableIterator<File>(new TextDescription("%s[%s]: readRangeFiles(%s, %s)",
+                return new ACloseableIterator<MemoryFileSummary>(new TextDescription("%s[%s]: readRangeFiles(%s, %s)",
                         TimeSeriesStorageCache.class.getSimpleName(), hashKey, from, to)) {
 
                     //use latest time available even if delegate iterator has no values
-                    private TableRow<String, FDate, FileSummary> latestFirstTime = fileLookupTable_latestRangeKeyCache
+                    private TableRow<String, FDate, MemoryFileSummary> latestFirstTime = fileLookupTable_latestRangeKeyCache
                             .get(usedFrom);
-                    private final ICloseableIterator<TableRow<String, FDate, FileSummary>> delegate;
+                    private final ICloseableIterator<TableRow<String, FDate, MemoryFileSummary>> delegate;
 
                     {
                         if (latestFirstTime == null) {
@@ -199,19 +186,19 @@ public class TimeSeriesStorageCache<K, V> {
                         return latestFirstTime != null || delegate.hasNext();
                     }
 
-                    private ICloseableIterator<TableRow<String, FDate, FileSummary>> getRangeKeys(final String hashKey,
-                            final FDate from, final FDate to) {
+                    private ICloseableIterator<TableRow<String, FDate, MemoryFileSummary>> getRangeKeys(
+                            final String hashKey, final FDate from, final FDate to) {
                         readLock.lock();
                         try {
-                            final ICloseableIterator<TableRow<String, FDate, FileSummary>> range = getAllRangeKeys(
+                            final ICloseableIterator<TableRow<String, FDate, MemoryFileSummary>> range = getAllRangeKeys(
                                     readLock);
                             final GetRangeKeysIterator rangeFiltered = new GetRangeKeysIterator(range, from, to);
-                            final BufferingIterator<TableRow<String, FDate, FileSummary>> buffer = new BufferingIterator<>(
+                            final BufferingIterator<TableRow<String, FDate, MemoryFileSummary>> buffer = new BufferingIterator<>(
                                     rangeFiltered);
                             if (skipFileFunction != null) {
-                                return new ASkippingIterator<TableRow<String, FDate, FileSummary>>(buffer) {
+                                return new ASkippingIterator<TableRow<String, FDate, MemoryFileSummary>>(buffer) {
                                     @Override
-                                    protected boolean skip(final TableRow<String, FDate, FileSummary> element) {
+                                    protected boolean skip(final TableRow<String, FDate, MemoryFileSummary> element) {
                                         if (element == buffer.getTail()) {
                                             /*
                                              * cannot optimize this further for multiple segments because we don't know
@@ -233,15 +220,15 @@ public class TimeSeriesStorageCache<K, V> {
                     }
 
                     @Override
-                    protected File innerNext() {
-                        final FDate time;
+                    protected MemoryFileSummary innerNext() {
+                        final MemoryFileSummary summary;
                         if (latestFirstTime != null) {
-                            time = latestFirstTime.getRangeKey();
+                            summary = latestFirstTime.getValue();
                             latestFirstTime = null;
                         } else {
-                            time = delegate.next().getRangeKey();
+                            summary = delegate.next().getValue();
                         }
-                        return newFile(time);
+                        return summary;
                     }
 
                     @Override
@@ -254,12 +241,12 @@ public class TimeSeriesStorageCache<K, V> {
         };
     }
 
-    protected ICloseableIterable<File> readRangeFilesReverse(final FDate from, final FDate to, final Lock readLock,
-            final ISkipFileFunction skipFileFunction) {
-        return new ICloseableIterable<File>() {
+    protected ICloseableIterable<MemoryFileSummary> readRangeFilesReverse(final FDate from, final FDate to,
+            final Lock readLock, final ISkipFileFunction skipFileFunction) {
+        return new ICloseableIterable<MemoryFileSummary>() {
 
             @Override
-            public ICloseableIterator<File> iterator() {
+            public ICloseableIterator<MemoryFileSummary> iterator() {
                 final FDate usedFrom;
                 if (from == null) {
                     final V lastValue = getLastValue();
@@ -270,14 +257,15 @@ public class TimeSeriesStorageCache<K, V> {
                 } else {
                     usedFrom = from;
                 }
-                return new ACloseableIterator<File>(new TextDescription("%s[%s]: readRangeFilesReverse(%s, %s)",
-                        TimeSeriesStorageCache.class.getSimpleName(), hashKey, from, to)) {
+                return new ACloseableIterator<MemoryFileSummary>(
+                        new TextDescription("%s[%s]: readRangeFilesReverse(%s, %s)",
+                                TimeSeriesStorageCache.class.getSimpleName(), hashKey, from, to)) {
 
                     //use latest time available even if delegate iterator has no values
-                    private TableRow<String, FDate, FileSummary> latestLastTime = fileLookupTable_latestRangeKeyCache
+                    private TableRow<String, FDate, MemoryFileSummary> latestLastTime = fileLookupTable_latestRangeKeyCache
                             .get(usedFrom);
                     // add 1 ms to not collide with firstTime
-                    private final ICloseableIterator<TableRow<String, FDate, FileSummary>> delegate;
+                    private final ICloseableIterator<TableRow<String, FDate, MemoryFileSummary>> delegate;
 
                     {
                         if (latestLastTime == null) {
@@ -293,21 +281,21 @@ public class TimeSeriesStorageCache<K, V> {
                         return latestLastTime != null || delegate.hasNext();
                     }
 
-                    private ICloseableIterator<TableRow<String, FDate, FileSummary>> getRangeKeysReverse(
+                    private ICloseableIterator<TableRow<String, FDate, MemoryFileSummary>> getRangeKeysReverse(
                             final String hashKey, final FDate from, final FDate to) {
                         readLock.lock();
                         try {
-                            final ICloseableIterator<TableRow<String, FDate, FileSummary>> range = getAllRangeKeysReverse(
+                            final ICloseableIterator<TableRow<String, FDate, MemoryFileSummary>> range = getAllRangeKeysReverse(
                                     readLock);
                             final GetRangeKeysReverseIterator rangeFiltered = new GetRangeKeysReverseIterator(range,
                                     from, to);
-                            final BufferingIterator<TableRow<String, FDate, FileSummary>> buffer = new BufferingIterator<>(
+                            final BufferingIterator<TableRow<String, FDate, MemoryFileSummary>> buffer = new BufferingIterator<>(
                                     rangeFiltered);
                             if (skipFileFunction != null) {
-                                return new ASkippingIterator<TableRow<String, FDate, FileSummary>>(buffer) {
+                                return new ASkippingIterator<TableRow<String, FDate, MemoryFileSummary>>(buffer) {
 
                                     @Override
-                                    protected boolean skip(final TableRow<String, FDate, FileSummary> element) {
+                                    protected boolean skip(final TableRow<String, FDate, MemoryFileSummary> element) {
                                         if (element == buffer.getTail()) {
                                             /*
                                              * cannot optimize this further for multiple segments because we don't know
@@ -329,15 +317,15 @@ public class TimeSeriesStorageCache<K, V> {
                     }
 
                     @Override
-                    protected File innerNext() {
-                        final FDate time;
+                    protected MemoryFileSummary innerNext() {
+                        final MemoryFileSummary summary;
                         if (latestLastTime != null) {
-                            time = latestLastTime.getRangeKey();
+                            summary = latestLastTime.getValue();
                             latestLastTime = null;
                         } else {
-                            time = delegate.next().getRangeKey();
+                            summary = delegate.next().getValue();
                         }
-                        return newFile(time);
+                        return summary;
                     }
 
                     @Override
@@ -352,12 +340,12 @@ public class TimeSeriesStorageCache<K, V> {
 
     public ICloseableIterator<V> readRangeValues(final FDate from, final FDate to, final Lock readLock,
             final ISkipFileFunction skipFileFunction) {
-        final PeekingCloseableIterator<File> fileIterator = new PeekingCloseableIterator<File>(
+        final PeekingCloseableIterator<MemoryFileSummary> fileIterator = new PeekingCloseableIterator<MemoryFileSummary>(
                 readRangeFiles(from, to, readLock, skipFileFunction).iterator());
-        final ICloseableIterator<ICloseableIterator<V>> chunkIterator = new ATransformingIterator<File, ICloseableIterator<V>>(
+        final ICloseableIterator<ICloseableIterator<V>> chunkIterator = new ATransformingIterator<MemoryFileSummary, ICloseableIterator<V>>(
                 fileIterator) {
             @Override
-            protected ICloseableIterator<V> transform(final File value) {
+            protected ICloseableIterator<V> transform(final MemoryFileSummary value) {
                 if (TimeseriesProperties.FILE_BUFFER_CACHE_PRELOAD_ENABLED) {
                     try {
                         preloadResultCached(READ_RANGE_VALUES, fileIterator.peek(), readLock);
@@ -379,12 +367,12 @@ public class TimeSeriesStorageCache<K, V> {
 
     public ICloseableIterator<V> readRangeValuesReverse(final FDate from, final FDate to, final Lock readLock,
             final ISkipFileFunction skipFileFunction) {
-        final PeekingCloseableIterator<File> fileIterator = new PeekingCloseableIterator<File>(
+        final PeekingCloseableIterator<MemoryFileSummary> fileIterator = new PeekingCloseableIterator<MemoryFileSummary>(
                 readRangeFilesReverse(from, to, readLock, skipFileFunction).iterator());
-        final ICloseableIterator<ICloseableIterator<V>> chunkIterator = new ATransformingIterator<File, ICloseableIterator<V>>(
+        final ICloseableIterator<ICloseableIterator<V>> chunkIterator = new ATransformingIterator<MemoryFileSummary, ICloseableIterator<V>>(
                 fileIterator) {
             @Override
-            protected ICloseableIterator<V> transform(final File value) {
+            protected ICloseableIterator<V> transform(final MemoryFileSummary value) {
                 if (TimeseriesProperties.FILE_BUFFER_CACHE_PRELOAD_ENABLED) {
                     try {
                         preloadResultCached(READ_RANGE_VALUES_REVERSE, fileIterator.peek(), readLock);
@@ -392,8 +380,8 @@ public class TimeSeriesStorageCache<K, V> {
                         //end reached
                     }
                 }
-                try (IFileBufferCacheResult<V> serializingCollection = getResultCached(READ_RANGE_VALUES_REVERSE,
-                        value, readLock)) {
+                try (IFileBufferCacheResult<V> serializingCollection = getResultCached(READ_RANGE_VALUES_REVERSE, value,
+                        readLock)) {
                     return serializingCollection.reverseIterator(extractEndTime, from, to);
                 }
             }
@@ -404,18 +392,21 @@ public class TimeSeriesStorageCache<K, V> {
         return rangeValuesReverse;
     }
 
-    private IFileBufferCacheResult<V> getResultCached(final String method, final File file, final Lock readLock) {
-        return FileBufferCache.getResult(hashKey, file, () -> newResult(method, file, readLock));
+    private IFileBufferCacheResult<V> getResultCached(final String method, final MemoryFileSummary summary,
+            final Lock readLock) {
+        return FileBufferCache.getResult(hashKey, summary, () -> newResult(method, summary, readLock));
     }
 
-    private void preloadResultCached(final String method, final File file, final Lock readLock) {
-        FileBufferCache.preloadResult(hashKey, file, () -> newResult(method, file, readLock));
+    private void preloadResultCached(final String method, final MemoryFileSummary summary, final Lock readLock) {
+        FileBufferCache.preloadResult(hashKey, summary, () -> newResult(method, summary, readLock));
     }
 
-    private SerializingCollection<V> newResult(final String method, final File file, final Lock readLock) {
+    private SerializingCollection<V> newResult(final String method, final MemoryFileSummary summary,
+            final Lock readLock) {
         final TextDescription name = new TextDescription("%s[%s]: %s(%s)", ATimeSeriesUpdater.class.getSimpleName(),
-                hashKey, method, file);
-        return new SerializingCollection<V>(name, file, true) {
+                hashKey, method, summary);
+        final File memoryFile = new File(summary.getMemoryResourceUri());
+        return new SerializingCollection<V>(name, memoryFile, true) {
 
             @Override
             protected ISerde<V> newSerde() {
@@ -444,20 +435,32 @@ public class TimeSeriesStorageCache<K, V> {
 
             @Override
             protected InputStream newFileInputStream(final File file) throws IOException {
-                //keep file input stream open as shorty as possible to prevent too many open files error
-                readLock.lock();
-                try (InputStream fis = super.newFileInputStream(file)) {
-                    final PooledFastByteArrayOutputStream bos = PooledFastByteArrayOutputStream.newInstance();
-                    IOUtils.copy(fis, bos.asNonClosing());
-                    return bos.asInputStream();
-                } catch (final FileNotFoundException e) {
-                    //maybe retry because of this in the outer iterator?
-                    throw new RetryLaterRuntimeException(
-                            "File might have been deleted in the mean time between read locks: "
-                                    + file.getAbsolutePath(),
-                            e);
-                } finally {
-                    readLock.unlock();
+                if (TimeseriesProperties.FILE_BUFFER_CACHE_ENABLED) {
+                    readLock.lock();
+                    //file buffer cache will close the file quickly
+                    final PreLockedBufferedFileDataInputStream in = new PreLockedBufferedFileDataInputStream(readLock,
+                            memoryFile);
+                    in.position(summary.getMemoryOffset());
+                    in.limit(summary.getMemoryOffset() + summary.getMemoryLength());
+                    return in;
+                } else {
+                    //keep file input stream open as shorty as possible to prevent too many open files error
+                    readLock.lock();
+                    try (BufferedFileDataInputStream in = new BufferedFileDataInputStream(memoryFile)) {
+                        in.position(summary.getMemoryOffset());
+                        in.limit(summary.getMemoryOffset() + summary.getMemoryLength());
+                        final PooledFastByteArrayOutputStream bos = PooledFastByteArrayOutputStream.newInstance();
+                        IOUtils.copy(in, bos.asNonClosing());
+                        return bos.asInputStream();
+                    } catch (final FileNotFoundException e) {
+                        //maybe retry because of this in the outer iterator?
+                        throw new RetryLaterRuntimeException(
+                                "File might have been deleted in the mean time between read locks: "
+                                        + file.getAbsolutePath(),
+                                e);
+                    } finally {
+                        readLock.unlock();
+                    }
                 }
             }
 
@@ -480,7 +483,7 @@ public class TimeSeriesStorageCache<K, V> {
 
     public V getFirstValue() {
         if (cachedFirstValue == null) {
-            final FileSummary latestValue = storage.getFileLookupTable().getLatestValue(hashKey, FDate.MIN_DATE);
+            final MemoryFileSummary latestValue = storage.getFileLookupTable().getLatestValue(hashKey, FDate.MIN_DATE);
             final V firstValue;
             if (latestValue == null) {
                 firstValue = null;
@@ -494,7 +497,7 @@ public class TimeSeriesStorageCache<K, V> {
 
     public V getLastValue() {
         if (cachedLastValue == null) {
-            final FileSummary latestValue = storage.getFileLookupTable().getLatestValue(hashKey, FDate.MAX_DATE);
+            final MemoryFileSummary latestValue = storage.getFileLookupTable().getLatestValue(hashKey, FDate.MAX_DATE);
             final V lastValue;
             if (latestValue == null) {
                 lastValue = null;
@@ -527,12 +530,11 @@ public class TimeSeriesStorageCache<K, V> {
 
     public V getLatestValue(final FDate date) {
         final SingleValue value = storage.getOrLoad_latestValueLookupTable(hashKey, date, () -> {
-            final FDate fileTime = storage.getFileLookupTable().getLatestRangeKey(hashKey, date);
-            if (fileTime == null) {
+            final MemoryFileSummary summary = storage.getFileLookupTable().getLatestValue(hashKey, date);
+            if (summary == null) {
                 return null;
             }
-            final File file = newFile(fileTime);
-            try (IFileBufferCacheResult<V> result = getResultCached("latestValueLookupCache.loadValue", file,
+            try (IFileBufferCacheResult<V> result = getResultCached("latestValueLookupCache.loadValue", summary,
                     DisabledLock.INSTANCE)) {
                 V latestValue = result.getLatestValue(extractEndTime, date);
                 if (latestValue == null) {
@@ -563,7 +565,7 @@ public class TimeSeriesStorageCache<K, V> {
                 try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null,
                         DisabledLock.INSTANCE, new ISkipFileFunction() {
                             @Override
-                            public boolean skipFile(final FileSummary file) {
+                            public boolean skipFile(final MemoryFileSummary file) {
                                 final boolean skip = previousValue.get() != null
                                         && file.getValueCount() < shiftBackRemaining.intValue();
                                 if (skip) {
@@ -598,7 +600,7 @@ public class TimeSeriesStorageCache<K, V> {
                 try (ICloseableIterator<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,
                         new ISkipFileFunction() {
                             @Override
-                            public boolean skipFile(final FileSummary file) {
+                            public boolean skipFile(final MemoryFileSummary file) {
                                 final boolean skip = nextValue.get() != null
                                         && file.getValueCount() < shiftForwardRemaining.intValue();
                                 if (skip) {
@@ -635,18 +637,21 @@ public class TimeSeriesStorageCache<K, V> {
                 throw Throwables.propagate(t);
             }
         }
-        try (ICloseableIterator<File> files = readRangeFiles(null, null, DisabledLock.INSTANCE, null).iterator()) {
+        try (ICloseableIterator<MemoryFileSummary> summaries = readRangeFiles(null, null, DisabledLock.INSTANCE, null)
+                .iterator()) {
             boolean noFileFound = true;
-            while (files.hasNext()) {
-                final File file = files.next();
-                if (!file.exists()) {
-                    log.warn("Table data for [%s] is inconsistent and needs to be reset. Missing file: [%s]", hashKey,
-                            file);
-                    return true;
-                }
-                if (file.length() == 0) {
+            final File memoryFile = getMemoryFile();
+            final long length = memoryFile.length();
+            if (!memoryFile.exists()) {
+                log.warn("Table data for [%s] is inconsistent and needs to be reset. Missing file: [%s]", hashKey,
+                        memoryFile);
+                return true;
+            }
+            while (summaries.hasNext()) {
+                final MemoryFileSummary summary = summaries.next();
+                if (summary.getMemoryOffset() + summary.getMemoryLength() > length) {
                     log.warn("Table data for [%s] is inconsistent and needs to be reset. Empty file: [%s]", hashKey,
-                            file);
+                            summary);
                     return true;
                 }
                 noFileFound = false;
@@ -661,33 +666,28 @@ public class TimeSeriesStorageCache<K, V> {
      * get fragmented too much between updates
      */
     public synchronized PrepareForUpdateResult<V> prepareForUpdate(final boolean shouldRedoLastFile) {
-        final TableRow<String, FDate, FileSummary> latestFile = storage.getFileLookupTable()
+        final TableRow<String, FDate, MemoryFileSummary> latestFile = storage.getFileLookupTable()
                 .getLatest(hashKey, FDate.MAX_DATE);
         final FDate updateFrom;
         final List<V> lastValues;
         final long addressOffset;
         if (latestFile != null) {
             final FDate latestRangeKey = latestFile.getRangeKey();
-            final FileSummary latestValue = latestFile.getValue();
-            if (shouldRedoLastFile && latestValue.getValueCount() < ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
+            final MemoryFileSummary latestSummary = latestFile.getValue();
+            if (shouldRedoLastFile && latestSummary.getValueCount() < ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
                 lastValues = new ArrayList<V>();
-                if (redirectedFiles != null) {
-                    throw new IllegalStateException("redirectedFiles should be null when shouldRedoLastFile=true");
-                }
-                final File lastFile = newFile(latestRangeKey);
-                try (ICloseableIterator<V> lastColl = newResult("prepareForUpdate", lastFile, DisabledLock.INSTANCE)
-                        .iterator()) {
+                try (ICloseableIterator<V> lastColl = newResult("prepareForUpdate", latestSummary,
+                        DisabledLock.INSTANCE).iterator()) {
                     Lists.toListWithoutHasNext(lastColl, lastValues);
                 }
                 //remove last value because it might be an incomplete bar
                 final V lastValue = lastValues.remove(lastValues.size() - 1);
                 updateFrom = extractEndTime.apply(lastValue);
-                lastFile.delete();
-                addressOffset = latestValue.getAddressOffset();
+                addressOffset = latestSummary.getMemoryOffset();
             } else {
                 lastValues = Collections.emptyList();
                 updateFrom = latestRangeKey.addMilliseconds(1);
-                addressOffset = latestValue.getAddressOffset() + latestValue.getAddressSize() + 1L;
+                addressOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength() + 1L;
             }
             storage.getFileLookupTable().deleteRange(hashKey, latestRangeKey);
             storage.deleteRange_latestValueLookupTable(hashKey, latestRangeKey);
@@ -708,12 +708,12 @@ public class TimeSeriesStorageCache<K, V> {
         }
     }
 
-    private ICloseableIterator<TableRow<String, FDate, FileSummary>> getAllRangeKeys(final Lock readLock) {
+    private ICloseableIterator<TableRow<String, FDate, MemoryFileSummary>> getAllRangeKeys(final Lock readLock) {
         readLock.lock();
         try {
             if (cachedAllRangeKeys == null) {
-                final BufferingIterator<TableRow<String, FDate, FileSummary>> allRangeKeys = new BufferingIterator<TableRow<String, FDate, FileSummary>>();
-                final DelegateTableIterator<String, FDate, FileSummary> range = storage.getFileLookupTable()
+                final BufferingIterator<TableRow<String, FDate, MemoryFileSummary>> allRangeKeys = new BufferingIterator<TableRow<String, FDate, MemoryFileSummary>>();
+                final DelegateTableIterator<String, FDate, MemoryFileSummary> range = storage.getFileLookupTable()
                         .range(hashKey, FDate.MIN_DATE, FDate.MAX_DATE);
                 while (range.hasNext()) {
                     allRangeKeys.add(range.next());
@@ -727,12 +727,12 @@ public class TimeSeriesStorageCache<K, V> {
         }
     }
 
-    private ICloseableIterator<TableRow<String, FDate, FileSummary>> getAllRangeKeysReverse(final Lock readLock) {
+    private ICloseableIterator<TableRow<String, FDate, MemoryFileSummary>> getAllRangeKeysReverse(final Lock readLock) {
         readLock.lock();
         try {
             if (cachedAllRangeKeysReverse == null) {
-                final BufferingIterator<TableRow<String, FDate, FileSummary>> allRangeKeysReverse = new BufferingIterator<TableRow<String, FDate, FileSummary>>();
-                final DelegateTableIterator<String, FDate, FileSummary> range = storage.getFileLookupTable()
+                final BufferingIterator<TableRow<String, FDate, MemoryFileSummary>> allRangeKeysReverse = new BufferingIterator<TableRow<String, FDate, MemoryFileSummary>>();
+                final DelegateTableIterator<String, FDate, MemoryFileSummary> range = storage.getFileLookupTable()
                         .rangeReverse(hashKey, FDate.MAX_DATE, FDate.MIN_DATE);
                 while (range.hasNext()) {
                     allRangeKeysReverse.add(range.next());
@@ -747,20 +747,20 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     private static final class GetRangeKeysReverseIterator
-            extends ASkippingIterator<TableRow<String, FDate, FileSummary>> {
+            extends ASkippingIterator<TableRow<String, FDate, MemoryFileSummary>> {
         private final FDate from;
         private final FDate to;
 
         private GetRangeKeysReverseIterator(
-                final ICloseableIterator<? extends TableRow<String, FDate, FileSummary>> delegate, final FDate from,
-                final FDate to) {
+                final ICloseableIterator<? extends TableRow<String, FDate, MemoryFileSummary>> delegate,
+                final FDate from, final FDate to) {
             super(delegate);
             this.from = from;
             this.to = to;
         }
 
         @Override
-        protected boolean skip(final TableRow<String, FDate, FileSummary> element) {
+        protected boolean skip(final TableRow<String, FDate, MemoryFileSummary> element) {
             if (element.getRangeKey().isAfter(from)) {
                 return true;
             } else if (element.getRangeKey().isBefore(to)) {
@@ -770,11 +770,13 @@ public class TimeSeriesStorageCache<K, V> {
         }
     }
 
-    private static final class GetRangeKeysIterator extends ASkippingIterator<TableRow<String, FDate, FileSummary>> {
+    private static final class GetRangeKeysIterator
+            extends ASkippingIterator<TableRow<String, FDate, MemoryFileSummary>> {
         private final FDate from;
         private final FDate to;
 
-        private GetRangeKeysIterator(final ICloseableIterator<? extends TableRow<String, FDate, FileSummary>> delegate,
+        private GetRangeKeysIterator(
+                final ICloseableIterator<? extends TableRow<String, FDate, MemoryFileSummary>> delegate,
                 final FDate from, final FDate to) {
             super(delegate);
             this.from = from;
@@ -782,7 +784,7 @@ public class TimeSeriesStorageCache<K, V> {
         }
 
         @Override
-        protected boolean skip(final TableRow<String, FDate, FileSummary> element) {
+        protected boolean skip(final TableRow<String, FDate, MemoryFileSummary> element) {
             if (element.getRangeKey().isBefore(from)) {
                 return true;
             } else if (element.getRangeKey().isAfter(to)) {
