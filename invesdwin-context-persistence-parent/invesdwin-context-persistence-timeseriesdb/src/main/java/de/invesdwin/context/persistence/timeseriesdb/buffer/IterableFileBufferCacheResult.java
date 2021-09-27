@@ -11,15 +11,18 @@ import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterator;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.error.FastNoSuchElementException;
+import de.invesdwin.util.streams.buffer.MemoryMappedFile;
 import de.invesdwin.util.time.date.FDate;
 
 @ThreadSafe
 public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<V> {
 
     private final IReverseCloseableIterable<V> delegate;
+    private MemoryMappedFile file;
 
-    public IterableFileBufferCacheResult(final IReverseCloseableIterable<V> delegate) {
+    public IterableFileBufferCacheResult(final IReverseCloseableIterable<V> delegate, final MemoryMappedFile file) {
         this.delegate = delegate;
+        this.file = file;
     }
 
     @Override
@@ -143,7 +146,10 @@ public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<
 
     @Override
     public void close() {
-        //noop
+        if (file != null) {
+            file.decrementRefCount();
+            file = null;
+        }
     }
 
 }

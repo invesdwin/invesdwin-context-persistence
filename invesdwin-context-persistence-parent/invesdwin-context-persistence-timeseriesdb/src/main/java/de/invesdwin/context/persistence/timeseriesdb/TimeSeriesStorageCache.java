@@ -439,7 +439,7 @@ public class TimeSeriesStorageCache<K, V> {
             protected InputStream newFileInputStream(final File file) throws IOException {
                 if (readLockedBuffer != null) {
                     return readLockedBuffer.asInputStream();
-                } else if (TimeseriesProperties.FILE_BUFFER_CACHE_ENABLED) {
+                } else if (TimeseriesProperties.FILE_BUFFER_CACHE_SEGMENTS_ENABLED) {
                     readLock.lock();
                     //file buffer cache will close the file quickly
                     final PreLockedBufferedFileDataInputStream in = new PreLockedBufferedFileDataInputStream(readLock,
