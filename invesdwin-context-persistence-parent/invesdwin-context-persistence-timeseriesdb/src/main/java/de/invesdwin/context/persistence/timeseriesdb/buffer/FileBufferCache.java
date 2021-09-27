@@ -8,7 +8,6 @@ import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
 
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -28,10 +27,7 @@ import de.invesdwin.util.concurrent.WrappedExecutorService;
 import de.invesdwin.util.concurrent.pool.AgronaObjectPool;
 import de.invesdwin.util.concurrent.pool.IObjectPool;
 import de.invesdwin.util.lang.Objects;
-import de.invesdwin.util.math.Integers;
 import de.invesdwin.util.streams.buffer.MemoryMappedFile;
-import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
-import de.invesdwin.util.streams.buffer.bytes.extend.UnsafeByteBuffer;
 import de.invesdwin.util.time.date.FTimeUnit;
 
 @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -94,37 +90,17 @@ public final class FileBufferCache {
     }
 
     private static ArrayFileBufferCacheResult resultCache_load(final ResultCacheKey key) throws Exception {
-        MemoryMappedFile file = null;
-        try {
-            final ICloseableIterable values;
-            if (TimeseriesProperties.FILE_BUFFER_CACHE_MMAP_ENABLED) {
-                //keep file input stream open as shorty as possible to prevent too many open files error
-                key.getSourceLock().lock();
-                final FileCacheKey fileCacheKey = key.getFileCacheKey();
-                do {
-                    file = FILE_CACHE.get(fileCacheKey);
-                    //try again until lock is successfull
-                } while (!file.incrementRefCount());
-                values = key.getSource().getSource(newPreLockedBuffer(file, key.getSummary()));
-            } else {
-                values = key.getSource().getSource(null);
+        final ICloseableIterable values = key.getSource().getSource();
+        key.setSource(null);
+        final ArrayList list = LIST_POOL.borrowObject();
+        try (ICloseableIterator it = values.iterator()) {
+            while (true) {
+                list.add(it.next());
             }
-            key.setSource(null);
-            key.setSourceLock(null);
-            final ArrayList list = LIST_POOL.borrowObject();
-            try (ICloseableIterator it = values.iterator()) {
-                while (true) {
-                    list.add(it.next());
-                }
-            } catch (final NoSuchElementException e) {
-                //end reached
-            }
-            return new ArrayFileBufferCacheResult(list);
-        } finally {
-            if (file != null) {
-                file.decrementRefCount();
-            }
+        } catch (final NoSuchElementException e) {
+            //end reached
         }
+        return new ArrayFileBufferCacheResult(list);
     }
 
     private static void fileCache_onRemoval(final FileCacheKey key, final MemoryMappedFile value,
@@ -184,73 +160,55 @@ public final class FileBufferCache {
     }
 
     public static <T> IFileBufferCacheResult<T> getResult(final String hashKey, final MemoryFileSummary summary,
-            final Lock sourceLock, final IFileBufferSource source) {
+            final IFileBufferSource source) {
         if (TimeseriesProperties.FILE_BUFFER_CACHE_SEGMENTS_ENABLED) {
-            final ResultCacheKey key = new ResultCacheKey(hashKey, summary, sourceLock, source);
+            final ResultCacheKey key = new ResultCacheKey(hashKey, summary, source);
             final IFileBufferCacheResult value = RESULT_CACHE.get(key);
             return value;
-        } else if (TimeseriesProperties.FILE_BUFFER_CACHE_MMAP_ENABLED) {
-            try {
-                sourceLock.lock();
-                final FileCacheKey fileCacheKey = new FileCacheKey(hashKey, new File(summary.getMemoryResourceUri()));
-                MemoryMappedFile file;
-                do {
-                    file = FILE_CACHE.get(fileCacheKey);
-                    //try again until lock is successfull
-                } while (!file.incrementRefCount());
-                return new IterableFileBufferCacheResult(source.getSource(newPreLockedBuffer(file, summary)), file);
-            } catch (final IOException e) {
-                throw new RuntimeException(e);
-            }
         } else {
             try {
-                return new IterableFileBufferCacheResult(source.getSource(null), null);
+                return new IterableFileBufferCacheResult(source.getSource());
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
         }
     }
 
-    public static <T> void preloadResult(final String hashKey, final MemoryFileSummary summary, final Lock sourceLock,
+    public static MemoryMappedFile getFile(final String hashKey, final String memoryFilePath) {
+        if (TimeseriesProperties.FILE_BUFFER_CACHE_MMAP_ENABLED) {
+            final FileCacheKey key = new FileCacheKey(hashKey, new File(memoryFilePath));
+            final MemoryMappedFile value = FILE_CACHE.get(key);
+            return value;
+        } else {
+            return null;
+        }
+    }
+
+    public static <T> void preloadResult(final String hashKey, final MemoryFileSummary summary,
             final IFileBufferSource source) {
         if (PRELOAD_EXECUTOR != null) {
             if (PRELOAD_EXECUTOR.getPendingCount() <= 3) {
-                PRELOAD_EXECUTOR.execute(() -> getResult(hashKey, summary, sourceLock, source));
+                PRELOAD_EXECUTOR.execute(() -> getResult(hashKey, summary, source));
             }
         }
-    }
-
-    private static IByteBuffer newPreLockedBuffer(final MemoryMappedFile file, final MemoryFileSummary summary) {
-        final long address = file.getAddress() + summary.getMemoryOffset();
-        final int length = Integers.checkedCast(summary.getMemoryLength());
-        return new UnsafeByteBuffer(address, length);
     }
 
     private static final class ResultCacheKey {
 
         private final String hashKey;
-        private final FileCacheKey fileCacheKey;
         private final MemoryFileSummary summary;
-        private Lock sourceLock;
         private IFileBufferSource source;
         private final int hashCode;
 
-        private ResultCacheKey(final String hashKey, final MemoryFileSummary summary, final Lock sourceLock,
-                final IFileBufferSource source) {
+        private ResultCacheKey(final String hashKey, final MemoryFileSummary summary, final IFileBufferSource source) {
             this.hashKey = hashKey;
-            this.fileCacheKey = new FileCacheKey(hashKey, new File(summary.getMemoryResourceUri()));
             this.summary = summary;
-            this.sourceLock = sourceLock;
             this.source = source;
             this.hashCode = Objects.hashCode(hashKey, summary);
         }
 
         public String getHashKey() {
             return hashKey;
-        }
-
-        public FileCacheKey getFileCacheKey() {
-            return fileCacheKey;
         }
 
         public MemoryFileSummary getSummary() {
@@ -263,14 +221,6 @@ public final class FileBufferCache {
 
         public void setSource(final IFileBufferSource source) {
             this.source = source;
-        }
-
-        public Lock getSourceLock() {
-            return sourceLock;
-        }
-
-        public void setSourceLock(final Lock sourceLock) {
-            this.sourceLock = sourceLock;
         }
 
         @Override

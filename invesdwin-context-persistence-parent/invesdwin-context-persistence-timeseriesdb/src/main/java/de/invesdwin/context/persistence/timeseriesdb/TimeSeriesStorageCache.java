@@ -50,7 +50,9 @@ import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.streams.PreLockedDelegateInputStream;
 import de.invesdwin.util.streams.buffer.BufferedFileDataInputStream;
+import de.invesdwin.util.streams.buffer.MemoryMappedFile;
 import de.invesdwin.util.streams.buffer.PreLockedBufferedFileDataInputStream;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 import de.invesdwin.util.streams.pool.PooledFastByteArrayOutputStream;
@@ -394,17 +396,15 @@ public class TimeSeriesStorageCache<K, V> {
 
     private IFileBufferCacheResult<V> getResultCached(final String method, final MemoryFileSummary summary,
             final Lock readLock) {
-        return FileBufferCache.getResult(hashKey, summary, readLock,
-                (readLockedBuffer) -> newResult(method, summary, readLockedBuffer, readLock));
+        return FileBufferCache.getResult(hashKey, summary, () -> newResult(method, summary, readLock));
     }
 
     private void preloadResultCached(final String method, final MemoryFileSummary summary, final Lock readLock) {
-        FileBufferCache.preloadResult(hashKey, summary, readLock,
-                (readLockedBuffer) -> newResult(method, summary, readLockedBuffer, readLock));
+        FileBufferCache.preloadResult(hashKey, summary, () -> newResult(method, summary, readLock));
     }
 
     private SerializingCollection<V> newResult(final String method, final MemoryFileSummary summary,
-            final IByteBuffer readLockedBuffer, final Lock readLock) {
+            final Lock readLock) {
         final TextDescription name = new TextDescription("%s[%s]: %s(%s)", ATimeSeriesUpdater.class.getSimpleName(),
                 hashKey, method, summary);
         final File memoryFile = new File(summary.getMemoryResourceUri());
@@ -437,9 +437,16 @@ public class TimeSeriesStorageCache<K, V> {
 
             @Override
             protected InputStream newFileInputStream(final File file) throws IOException {
-                if (readLockedBuffer != null) {
-                    return readLockedBuffer.asInputStream();
-                } else if (TimeseriesProperties.FILE_BUFFER_CACHE_SEGMENTS_ENABLED) {
+                if (TimeseriesProperties.FILE_BUFFER_CACHE_MMAP_ENABLED) {
+                    readLock.lock();
+                    final MemoryMappedFile mmapFile = FileBufferCache.getFile(hashKey, summary.getMemoryResourceUri());
+                    if (mmapFile.incrementRefCount()) {
+                        return new PreLockedDelegateInputStream(readLock, summary.newBuffer(mmapFile).asInputStream());
+                    } else {
+                        readLock.unlock();
+                    }
+                }
+                if (TimeseriesProperties.FILE_BUFFER_CACHE_SEGMENTS_ENABLED) {
                     readLock.lock();
                     //file buffer cache will close the file quickly
                     final PreLockedBufferedFileDataInputStream in = new PreLockedBufferedFileDataInputStream(readLock,
@@ -680,7 +687,7 @@ public class TimeSeriesStorageCache<K, V> {
             final MemoryFileSummary latestSummary = latestFile.getValue();
             if (shouldRedoLastFile && latestSummary.getValueCount() < ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
                 lastValues = new ArrayList<V>();
-                try (ICloseableIterator<V> lastColl = newResult("prepareForUpdate", latestSummary, null,
+                try (ICloseableIterator<V> lastColl = newResult("prepareForUpdate", latestSummary,
                         DisabledLock.INSTANCE).iterator()) {
                     Lists.toListWithoutHasNext(lastColl, lastValues);
                 }

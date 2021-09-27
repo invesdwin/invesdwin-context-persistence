@@ -5,6 +5,10 @@ import javax.annotation.concurrent.Immutable;
 import de.invesdwin.norva.marker.ISerializableValueObject;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.math.Integers;
+import de.invesdwin.util.streams.buffer.MemoryMappedFile;
+import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
+import de.invesdwin.util.streams.buffer.bytes.extend.UnsafeByteBuffer;
 
 @Immutable
 public class MemoryFileSummary implements ISerializableValueObject {
@@ -73,6 +77,12 @@ public class MemoryFileSummary implements ISerializableValueObject {
 
     public long getMemoryLength() {
         return memoryLength;
+    }
+
+    public IByteBuffer newBuffer(final MemoryMappedFile file) {
+        final long address = file.getAddress() + getMemoryOffset();
+        final int length = Integers.checkedCast(getMemoryLength());
+        return new UnsafeByteBuffer(address, length);
     }
 
     @Override
