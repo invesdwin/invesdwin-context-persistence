@@ -394,15 +394,17 @@ public class TimeSeriesStorageCache<K, V> {
 
     private IFileBufferCacheResult<V> getResultCached(final String method, final MemoryFileSummary summary,
             final Lock readLock) {
-        return FileBufferCache.getResult(hashKey, summary, () -> newResult(method, summary, readLock));
+        return FileBufferCache.getResult(hashKey, summary, readLock,
+                (readLockedBuffer) -> newResult(method, summary, readLockedBuffer, readLock));
     }
 
     private void preloadResultCached(final String method, final MemoryFileSummary summary, final Lock readLock) {
-        FileBufferCache.preloadResult(hashKey, summary, () -> newResult(method, summary, readLock));
+        FileBufferCache.preloadResult(hashKey, summary, readLock,
+                (readLockedBuffer) -> newResult(method, summary, readLockedBuffer, readLock));
     }
 
     private SerializingCollection<V> newResult(final String method, final MemoryFileSummary summary,
-            final Lock readLock) {
+            final IByteBuffer readLockedBuffer, final Lock readLock) {
         final TextDescription name = new TextDescription("%s[%s]: %s(%s)", ATimeSeriesUpdater.class.getSimpleName(),
                 hashKey, method, summary);
         final File memoryFile = new File(summary.getMemoryResourceUri());
@@ -435,7 +437,9 @@ public class TimeSeriesStorageCache<K, V> {
 
             @Override
             protected InputStream newFileInputStream(final File file) throws IOException {
-                if (TimeseriesProperties.FILE_BUFFER_CACHE_ENABLED) {
+                if (readLockedBuffer != null) {
+                    return readLockedBuffer.asInputStream();
+                } else if (TimeseriesProperties.FILE_BUFFER_CACHE_ENABLED) {
                     readLock.lock();
                     //file buffer cache will close the file quickly
                     final PreLockedBufferedFileDataInputStream in = new PreLockedBufferedFileDataInputStream(readLock,
@@ -676,7 +680,7 @@ public class TimeSeriesStorageCache<K, V> {
             final MemoryFileSummary latestSummary = latestFile.getValue();
             if (shouldRedoLastFile && latestSummary.getValueCount() < ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
                 lastValues = new ArrayList<V>();
-                try (ICloseableIterator<V> lastColl = newResult("prepareForUpdate", latestSummary,
+                try (ICloseableIterator<V> lastColl = newResult("prepareForUpdate", latestSummary, null,
                         DisabledLock.INSTANCE).iterator()) {
                     Lists.toListWithoutHasNext(lastColl, lastValues);
                 }
