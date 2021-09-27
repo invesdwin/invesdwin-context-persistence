@@ -441,7 +441,7 @@ public class TimeSeriesStorageCache<K, V> {
                     readLock.lock();
                     final MemoryMappedFile mmapFile = FileBufferCache.getFile(hashKey, summary.getMemoryResourceUri());
                     if (mmapFile.incrementRefCount()) {
-                        return new PreLockedDelegateInputStream(readLock, summary.newBuffer(mmapFile).asInputStream());
+                        return new MmapInputStream(readLock, summary.newBuffer(mmapFile).asInputStream(), mmapFile);
                     } else {
                         readLock.unlock();
                     }
@@ -754,6 +754,24 @@ public class TimeSeriesStorageCache<K, V> {
             return cachedAllRangeKeysReverse.iterator();
         } finally {
             readLock.unlock();
+        }
+    }
+
+    private static final class MmapInputStream extends PreLockedDelegateInputStream {
+        private MemoryMappedFile mmapFile;
+
+        private MmapInputStream(final Lock lock, final InputStream delegate, final MemoryMappedFile mmapFile) {
+            super(lock, delegate);
+            this.mmapFile = mmapFile;
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (mmapFile != null) {
+                super.close();
+                mmapFile.decrementRefCount();
+                mmapFile = null;
+            }
         }
     }
 
