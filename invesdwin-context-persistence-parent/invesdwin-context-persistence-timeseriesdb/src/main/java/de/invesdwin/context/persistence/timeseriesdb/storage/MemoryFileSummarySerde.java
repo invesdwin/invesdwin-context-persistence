@@ -70,7 +70,7 @@ public final class MemoryFileSummarySerde implements ISerde<MemoryFileSummary> {
             buffer.getBytes(firstValueIndex, firstValue);
             final byte[] lastValue = ByteBuffers.allocateByteArray(valueFixedLength);
             buffer.getBytes(lastValueIndex, lastValue);
-            final String memoryResourceUri = buffer.getStringUtf8(memoryResourceUriIndex, memoryResourceUriIndex);
+            final String memoryResourceUri = buffer.getStringUtf8(memoryResourceUriIndex, memoryResourceUriSize);
             return new MemoryFileSummary(firstValue, lastValue, valueCount, memoryResourceUri, memoryOffset,
                     memoryLength);
         } else {
