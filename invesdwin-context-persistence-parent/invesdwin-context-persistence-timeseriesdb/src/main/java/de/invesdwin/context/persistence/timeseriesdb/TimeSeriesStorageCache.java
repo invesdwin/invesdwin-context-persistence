@@ -653,10 +653,12 @@ public class TimeSeriesStorageCache<K, V> {
             boolean noFileFound = true;
             final File memoryFile = getMemoryFile();
             final long length = memoryFile.length();
-            if (!memoryFile.exists()) {
-                log.warn("Table data for [%s] is inconsistent and needs to be reset. Missing file: [%s]", hashKey,
-                        memoryFile);
-                return true;
+            if (summaries.hasNext()) {
+                if (!memoryFile.exists()) {
+                    log.warn("Table data for [%s] is inconsistent and needs to be reset. Missing file: [%s]", hashKey,
+                            memoryFile);
+                    return true;
+                }
             }
             while (summaries.hasNext()) {
                 final MemoryFileSummary summary = summaries.next();
