@@ -3,7 +3,6 @@ package de.invesdwin.context.persistence.timeseriesdb;
 import java.io.File;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
-import java.util.function.Function;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -73,12 +72,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
             protected TimeSeriesStorageCache<K, V> loadValue(final K key) {
                 final String hashKey = hashKeyToString(key);
                 return new TimeSeriesStorageCache<K, V>(getStorage(), hashKey, valueSerde, valueFixedLength,
-                        new Function<V, FDate>() {
-                            @Override
-                            public FDate apply(final V input) {
-                                return extractEndTime(input);
-                            }
-                        });
+                        input -> extractEndTime(input));
             }
 
             @Override

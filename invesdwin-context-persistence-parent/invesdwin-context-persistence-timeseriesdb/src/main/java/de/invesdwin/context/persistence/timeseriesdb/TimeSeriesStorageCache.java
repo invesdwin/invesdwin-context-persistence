@@ -566,6 +566,9 @@ public class TimeSeriesStorageCache<K, V> {
     public V getPreviousValue(final FDate date, final int shiftBackUnits) {
         assertShiftUnitsPositiveNonZero(shiftBackUnits);
         final V firstValue = getFirstValue();
+        if (firstValue == null) {
+            return null;
+        }
         final FDate firstTime = extractEndTime.apply(firstValue);
         if (date.isBeforeOrEqualTo(firstTime)) {
             return firstValue;
@@ -601,6 +604,9 @@ public class TimeSeriesStorageCache<K, V> {
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
         assertShiftUnitsPositiveNonZero(shiftForwardUnits);
         final V lastValue = getLastValue();
+        if (lastValue == null) {
+            return null;
+        }
         final FDate lastTime = extractEndTime.apply(lastValue);
         if (date.isAfterOrEqualTo(lastTime)) {
             return lastValue;
@@ -686,10 +692,15 @@ public class TimeSeriesStorageCache<K, V> {
                         DisabledLock.INSTANCE).iterator()) {
                     Lists.toListWithoutHasNext(lastColl, lastValues);
                 }
-                //remove last value because it might be an incomplete bar
-                final V lastValue = lastValues.remove(lastValues.size() - 1);
-                updateFrom = extractEndTime.apply(lastValue);
-                addressOffset = latestSummary.getMemoryOffset();
+                if (!lastValues.isEmpty()) {
+                    //remove last value because it might be an incomplete bar
+                    final V lastValue = lastValues.remove(lastValues.size() - 1);
+                    updateFrom = extractEndTime.apply(lastValue);
+                    addressOffset = latestSummary.getMemoryOffset();
+                } else {
+                    updateFrom = latestRangeKey.addMilliseconds(1);
+                    addressOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength() + 1L;
+                }
             } else {
                 lastValues = Collections.emptyList();
                 updateFrom = latestRangeKey.addMilliseconds(1);
