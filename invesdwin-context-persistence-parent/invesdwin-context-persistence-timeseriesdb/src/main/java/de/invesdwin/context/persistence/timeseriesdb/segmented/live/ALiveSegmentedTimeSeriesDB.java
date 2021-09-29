@@ -175,6 +175,11 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         }
 
         @Override
+        protected String getStorageName(final String name) {
+            return ALiveSegmentedTimeSeriesDB.this.getStorageName(name);
+        }
+
+        @Override
         protected ICloseableIterable<? extends V> downloadSegmentElements(final SegmentedKey<K> segmentedKey) {
             return ALiveSegmentedTimeSeriesDB.this.downloadSegmentElements(segmentedKey);
         }
@@ -386,6 +391,10 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
 
     protected File getBaseDirectory() {
         return ATimeSeriesDB.getDefaultBaseDirectory();
+    }
+
+    protected String getStorageName(final String name) {
+        return ATimeSeriesDB.getDefaultStorageName(name);
     }
 
     public void putNextLiveValue(final K key, final V nextLiveValue) {

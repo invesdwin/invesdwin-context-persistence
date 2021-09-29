@@ -67,8 +67,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
             throw new IllegalStateException(
                     "Should not use current working directory as base directory: " + baseDirectory);
         }
-        this.directory = new File(baseDirectory,
-                ATimeSeriesDB.class.getSimpleName() + "/" + Files.normalizePath(getName()));
+        this.directory = new File(baseDirectory, getStorageName(Files.normalizePath(getName())));
         this.key_lookupTableCache = new ALoadingCache<K, TimeSeriesStorageCache<K, V>>() {
             @Override
             protected TimeSeriesStorageCache<K, V> loadValue(final K key) {
@@ -134,6 +133,14 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
     protected File getBaseDirectory() {
         return getDefaultBaseDirectory();
+    }
+
+    protected String getStorageName(final String name) {
+        return getDefaultStorageName(name);
+    }
+
+    public static String getDefaultStorageName(final String name) {
+        return ATimeSeriesDB.class.getSimpleName() + "/" + name;
     }
 
     public static File getDefaultBaseDirectory() {

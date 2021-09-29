@@ -320,6 +320,10 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         return ATimeSeriesDB.getDefaultBaseDirectory();
     }
 
+    protected String getStorageName(final String name) {
+        return ATimeSeriesDB.getDefaultStorageName(name);
+    }
+
     private final class RangeReverseValues implements ICloseableIterable<V> {
         private final K key;
         private final FDate from;
@@ -484,6 +488,11 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         @Override
         protected void deleteCorruptedStorage(final File directory) {
             ASegmentedTimeSeriesDB.this.deleteCorruptedStorage(directory);
+        }
+
+        @Override
+        protected String getStorageName(final String name) {
+            return ASegmentedTimeSeriesDB.this.getStorageName(name);
         }
 
         @Override
