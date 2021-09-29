@@ -94,7 +94,11 @@ public abstract class ADelegateDailyDownloadRangeTableRequest<K, V>
 
     protected boolean shouldUpdate() {
         if (table == null) {
-            table = newTable();
+            synchronized (this) {
+                if (table == null) {
+                    table = newTable();
+                }
+            }
         }
         return table.isEmpty() || dailyDownloadCache.shouldUpdate(getDownloadFileName(), getNow());
     }
