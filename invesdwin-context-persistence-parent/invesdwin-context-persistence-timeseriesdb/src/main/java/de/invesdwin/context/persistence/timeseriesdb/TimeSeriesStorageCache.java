@@ -651,24 +651,17 @@ public class TimeSeriesStorageCache<K, V> {
         try (ICloseableIterator<MemoryFileSummary> summaries = readRangeFiles(null, null, DisabledLock.INSTANCE, null)
                 .iterator()) {
             boolean noFileFound = true;
-            final File memoryFile = getMemoryFile();
-            final long length = memoryFile.length();
-            if (summaries.hasNext()) {
-                if (!memoryFile.exists()) {
-                    log.warn("Table data for [%s] is inconsistent and needs to be reset. Missing file: [%s]", hashKey,
-                            memoryFile);
-                    return true;
-                }
-            }
             while (summaries.hasNext()) {
                 final MemoryFileSummary summary = summaries.next();
-                if (summary.getMemoryOffset() + summary.getMemoryLength() > length) {
+                final File memoryFile = new File(summary.getMemoryResourceUri());
+                final long memoryFileLength = memoryFile.length();
+                final long segmentLength = summary.getMemoryOffset() + summary.getMemoryLength();
+                if (segmentLength > memoryFileLength) {
                     log.warn("Table data for [%s] is inconsistent and needs to be reset. Empty file: [%s]", hashKey,
                             summary);
                     return true;
                 }
                 noFileFound = false;
-
             }
             return noFileFound;
         }
