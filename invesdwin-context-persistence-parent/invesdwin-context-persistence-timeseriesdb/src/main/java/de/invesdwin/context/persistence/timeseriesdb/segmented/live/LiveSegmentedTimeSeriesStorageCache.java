@@ -14,7 +14,6 @@ import org.apache.commons.lang3.mutable.MutableInt;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal.ILiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal.SwitchingLiveSegment;
-import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -204,16 +203,13 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
             final MutableReference<V> previousValue = new MutableReference<>();
             final MutableInt shiftBackRemaining = new MutableInt(shiftBackUnits);
             try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null, DisabledLock.INSTANCE,
-                    new ISkipFileFunction() {
-                        @Override
-                        public boolean skipFile(final MemoryFileSummary file) {
-                            final boolean skip = previousValue.get() != null
-                                    && file.getValueCount() < shiftBackRemaining.intValue();
-                            if (skip) {
-                                shiftBackRemaining.subtract(file.getValueCount());
-                            }
-                            return skip;
+                    file -> {
+                        final boolean skip = previousValue.get() != null
+                                && file.getValueCount() < shiftBackRemaining.intValue();
+                        if (skip) {
+                            shiftBackRemaining.subtract(file.getValueCount());
                         }
+                        return skip;
                     }).iterator()) {
                 while (shiftBackRemaining.intValue() >= 0) {
                     previousValue.set(rangeValuesReverse.next());
@@ -238,18 +234,13 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
             //use both segments
             final MutableReference<V> nextValue = new MutableReference<>();
             final MutableInt shiftForwardRemaining = new MutableInt(shiftForwardUnits);
-            try (ICloseableIterator<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,
-                    new ISkipFileFunction() {
-                        @Override
-                        public boolean skipFile(final MemoryFileSummary file) {
-                            final boolean skip = nextValue.get() != null
-                                    && file.getValueCount() < shiftForwardRemaining.intValue();
-                            if (skip) {
-                                shiftForwardRemaining.subtract(file.getValueCount());
-                            }
-                            return skip;
-                        }
-                    }).iterator()) {
+            try (ICloseableIterator<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE, file -> {
+                final boolean skip = nextValue.get() != null && file.getValueCount() < shiftForwardRemaining.intValue();
+                if (skip) {
+                    shiftForwardRemaining.subtract(file.getValueCount());
+                }
+                return skip;
+            }).iterator()) {
                 while (shiftForwardRemaining.intValue() >= 0) {
                     nextValue.set(rangeValues.next());
                     shiftForwardRemaining.decrement();

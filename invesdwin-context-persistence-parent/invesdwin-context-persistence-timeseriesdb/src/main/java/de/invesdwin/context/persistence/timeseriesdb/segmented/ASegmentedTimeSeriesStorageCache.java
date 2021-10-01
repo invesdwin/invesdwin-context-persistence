@@ -25,12 +25,11 @@ import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.FileBufferCache;
-import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
+import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ALoggingTimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ITimeSeriesUpdater;
-import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.eviction.EvictionMode;
 import de.invesdwin.util.collections.iterable.ATransformingIterable;
 import de.invesdwin.util.collections.iterable.ATransformingIterator;
@@ -432,7 +431,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
                 @Override
                 protected ICloseableIterable<? extends V> getSource(final FDate updateFrom) {
-                    Assertions.checkNull(updateFrom);
+                    if (updateFrom != null) {
+                        throw new IllegalArgumentException("updateFrom should be null");
+                    }
                     return source.apply(segmentedKey);
                 }
 

@@ -11,7 +11,6 @@ import org.apache.commons.lang3.mutable.MutableInt;
 
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
-import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
@@ -202,18 +201,13 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
             //use both segments
             final MutableReference<V> nextValue = new MutableReference<>();
             final MutableInt shiftForwardRemaining = new MutableInt(shiftForwardUnits);
-            try (ICloseableIterator<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE,
-                    new ISkipFileFunction() {
-                        @Override
-                        public boolean skipFile(final MemoryFileSummary file) {
-                            final boolean skip = nextValue.get() != null
-                                    && file.getValueCount() < shiftForwardRemaining.intValue();
-                            if (skip) {
-                                shiftForwardRemaining.subtract(file.getValueCount());
-                            }
-                            return skip;
-                        }
-                    }).iterator()) {
+            try (ICloseableIterator<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE, file -> {
+                final boolean skip = nextValue.get() != null && file.getValueCount() < shiftForwardRemaining.intValue();
+                if (skip) {
+                    shiftForwardRemaining.subtract(file.getValueCount());
+                }
+                return skip;
+            }).iterator()) {
                 while (shiftForwardRemaining.intValue() >= 0) {
                     nextValue.set(rangeValues.next());
                     shiftForwardRemaining.decrement();

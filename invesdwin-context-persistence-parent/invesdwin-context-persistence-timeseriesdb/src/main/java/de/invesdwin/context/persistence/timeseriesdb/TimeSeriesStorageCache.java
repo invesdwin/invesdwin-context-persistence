@@ -573,16 +573,13 @@ public class TimeSeriesStorageCache<K, V> {
                 final MutableReference<V> previousValue = new MutableReference<>();
                 final MutableInt shiftBackRemaining = new MutableInt(shiftBackUnits);
                 try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null,
-                        DisabledLock.INSTANCE, new ISkipFileFunction() {
-                            @Override
-                            public boolean skipFile(final MemoryFileSummary file) {
-                                final boolean skip = previousValue.get() != null
-                                        && file.getValueCount() < shiftBackRemaining.intValue();
-                                if (skip) {
-                                    shiftBackRemaining.subtract(file.getValueCount());
-                                }
-                                return skip;
+                        DisabledLock.INSTANCE, file -> {
+                            final boolean skip = previousValue.get() != null
+                                    && file.getValueCount() < shiftBackRemaining.intValue();
+                            if (skip) {
+                                shiftBackRemaining.subtract(file.getValueCount());
                             }
+                            return skip;
                         })) {
                     while (shiftBackRemaining.intValue() >= 0) {
                         previousValue.set(rangeValuesReverse.next());
