@@ -5,13 +5,13 @@ import javax.persistence.Transient;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import de.invesdwin.norva.marker.ISerializableValueObject;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.bean.AValueObject;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.time.range.TimeRange;
 
 @Immutable
-public class SegmentedKey<K> extends AValueObject {
+public class SegmentedKey<K> implements ISerializableValueObject {
 
     private final K key;
     private final TimeRange segment;
@@ -53,6 +53,11 @@ public class SegmentedKey<K> extends AValueObject {
         } else {
             return false;
         }
+    }
+
+    @Override
+    public String toString() {
+        return Objects.toString(this);
     }
 
 }

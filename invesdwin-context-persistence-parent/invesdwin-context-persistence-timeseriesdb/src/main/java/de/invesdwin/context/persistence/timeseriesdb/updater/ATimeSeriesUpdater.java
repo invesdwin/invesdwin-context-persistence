@@ -26,6 +26,7 @@ import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.lock.FileChannelLock;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
+import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
@@ -116,7 +117,13 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                 Assertions.assertThat(updateLockFile.delete()).isTrue();
                 return true;
             } catch (final Throwable t) {
-                throw new IncompleteUpdateFoundException("Something unexpected went wrong", t);
+                final IncompleteUpdateFoundException incompleteException = Throwables.getCauseByType(t,
+                        IncompleteUpdateFoundException.class);
+                if (incompleteException != null) {
+                    throw incompleteException;
+                } else {
+                    throw new IncompleteUpdateFoundException("Something unexpected went wrong", t);
+                }
             }
         } finally {
             writeLock.unlock();
