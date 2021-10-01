@@ -680,9 +680,10 @@ public class TimeSeriesStorageCache<K, V> {
         final List<V> lastValues;
         final long addressOffset;
         if (latestFile != null) {
-            final FDate latestRangeKey = latestFile.getRangeKey();
+            final FDate latestRangeKey;
             final MemoryFileSummary latestSummary = latestFile.getValue();
             if (shouldRedoLastFile && latestSummary.getValueCount() < ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
+                latestRangeKey = latestFile.getRangeKey();
                 lastValues = new ArrayList<V>();
                 try (ICloseableIterator<V> lastColl = newResult("prepareForUpdate", latestSummary,
                         DisabledLock.INSTANCE).iterator()) {
@@ -699,8 +700,9 @@ public class TimeSeriesStorageCache<K, V> {
                 }
             } else {
                 lastValues = Collections.emptyList();
-                updateFrom = latestRangeKey.addMilliseconds(1);
+                updateFrom = latestFile.getRangeKey();
                 addressOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength() + 1L;
+                latestRangeKey = latestFile.getRangeKey().addMilliseconds(1);
             }
             storage.getFileLookupTable().deleteRange(hashKey, latestRangeKey);
             storage.deleteRange_latestValueLookupTable(hashKey, latestRangeKey);
