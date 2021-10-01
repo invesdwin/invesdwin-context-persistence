@@ -683,7 +683,6 @@ public class TimeSeriesStorageCache<K, V> {
             final FDate latestRangeKey;
             final MemoryFileSummary latestSummary = latestFile.getValue();
             if (shouldRedoLastFile && latestSummary.getValueCount() < ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
-                latestRangeKey = latestFile.getRangeKey();
                 lastValues = new ArrayList<V>();
                 try (ICloseableIterator<V> lastColl = newResult("prepareForUpdate", latestSummary,
                         DisabledLock.INSTANCE).iterator()) {
@@ -692,16 +691,18 @@ public class TimeSeriesStorageCache<K, V> {
                 if (!lastValues.isEmpty()) {
                     //remove last value because it might be an incomplete bar
                     final V lastValue = lastValues.remove(lastValues.size() - 1);
-                    updateFrom = extractEndTime.apply(lastValue);
                     addressOffset = latestSummary.getMemoryOffset();
+                    updateFrom = extractEndTime.apply(lastValue);
+                    latestRangeKey = latestFile.getRangeKey();
                 } else {
-                    updateFrom = latestRangeKey.addMilliseconds(1);
                     addressOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength() + 1L;
+                    updateFrom = latestFile.getRangeKey();
+                    latestRangeKey = latestFile.getRangeKey().addMilliseconds(1);
                 }
             } else {
                 lastValues = Collections.emptyList();
-                updateFrom = latestFile.getRangeKey();
                 addressOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength() + 1L;
+                updateFrom = latestFile.getRangeKey();
                 latestRangeKey = latestFile.getRangeKey().addMilliseconds(1);
             }
             storage.getFileLookupTable().deleteRange(hashKey, latestRangeKey);
@@ -715,6 +716,36 @@ public class TimeSeriesStorageCache<K, V> {
         }
         clearCaches();
         return new PrepareForUpdateResult<>(updateFrom, lastValues, addressOffset);
+    }
+
+    public synchronized Pair<FDate, List<V>> prepareForUpdate(final boolean shouldRedoLastFile) {
+        FDate latestRangeKey = storage.getFileLookupTable().getLatestRangeKey(hashKey, FDate.MAX_DATE);
+        FDate updateFrom = latestRangeKey;
+        final List<V> lastValues = new ArrayList<V>();
+        if (latestRangeKey != null) {
+            if (shouldRedoLastFile) {
+                if (redirectedFiles != null) {
+                    throw new IllegalStateException("redirectedFiles should be null when shouldRedoLastFile=true");
+                }
+                final File lastFile = newFile(latestRangeKey);
+                try (IFileBufferCacheResult<V> lastColl = getResultCached("prepareForUpdate", lastFile,
+                        DisabledLock.INSTANCE)) {
+                    lastColl.addToList(lastValues);
+                }
+                //remove last value because it might be an incomplete bar
+                final V lastValue = lastValues.remove(lastValues.size() - 1);
+                updateFrom = extractEndTime.apply(lastValue);
+                lastFile.delete();
+            } else {
+                latestRangeKey = latestRangeKey.addMilliseconds(1);
+            }
+            storage.getFileLookupTable().deleteRange(hashKey, latestRangeKey);
+            storage.deleteRange_latestValueLookupTable(hashKey, latestRangeKey);
+            storage.deleteRange_nextValueLookupTable(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
+            storage.deleteRange_previousValueLookupTable(hashKey, latestRangeKey);
+        }
+        clearCaches();
+        return Pair.of(updateFrom, lastValues);
     }
 
     private void assertShiftUnitsPositiveNonZero(final int shiftUnits) {
