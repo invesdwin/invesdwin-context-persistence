@@ -15,6 +15,7 @@ import de.invesdwin.context.beans.hook.ReinitializationHookSupport;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.collections.loadingcache.historical.refresh.HistoricalCacheRefreshManager;
+import ezdb.table.Table;
 
 /**
  * This class makes sure that all range tables are closed on application reinitialization. This makes sure that no beans
@@ -27,13 +28,13 @@ public final class RangeTableCloseManager {
     private static final org.slf4j.ext.XLogger LOG = org.slf4j.ext.XLoggerFactory
             .getXLogger(HistoricalCacheRefreshManager.class);
 
-    private static final ALoadingCache<String, Set<ADelegateRangeTable<?, ?, ?>>> REGISTERED_CACHES = new ALoadingCache<String, Set<ADelegateRangeTable<?, ?, ?>>>() {
+    private static final ALoadingCache<String, Set<Table<?, ?>>> REGISTERED_CACHES = new ALoadingCache<String, Set<Table<?, ?>>>() {
 
         @Override
-        protected Set<ADelegateRangeTable<?, ?, ?>> loadValue(final String key) {
-            final ConcurrentMap<ADelegateRangeTable<?, ?, ?>, Boolean> map = Caffeine.newBuilder()
+        protected Set<Table<?, ?>> loadValue(final String key) {
+            final ConcurrentMap<Table<?, ?>, Boolean> map = Caffeine.newBuilder()
                     .weakKeys()
-                    .<ADelegateRangeTable<?, ?, ?>, Boolean> build()
+                    .<Table<?, ?>, Boolean> build()
                     .asMap();
             return Collections.newSetFromMap(map);
         }
@@ -53,10 +54,11 @@ public final class RangeTableCloseManager {
         });
     }
 
-    private RangeTableCloseManager() {}
+    private RangeTableCloseManager() {
+    }
 
-    public static synchronized boolean register(final ADelegateRangeTable<?, ?, ?> cache) {
-        final Set<ADelegateRangeTable<?, ?, ?>> caches = REGISTERED_CACHES.get(cache.toString());
+    public static synchronized boolean register(final Table<?, ?> cache) {
+        final Set<Table<?, ?>> caches = REGISTERED_CACHES.get(cache.toString());
         if (!caches.add(cache)) {
             return false;
         }
@@ -72,19 +74,19 @@ public final class RangeTableCloseManager {
     }
 
     public static synchronized void closeAll() {
-        final List<ADelegateRangeTable<?, ?, ?>> cachesCopy = new ArrayList<>();
-        for (final Set<ADelegateRangeTable<?, ?, ?>> caches : REGISTERED_CACHES.values()) {
-            for (final ADelegateRangeTable<?, ?, ?> registeredCache : caches) {
+        final List<Table<?, ?>> cachesCopy = new ArrayList<>();
+        for (final Set<Table<?, ?>> caches : REGISTERED_CACHES.values()) {
+            for (final Table<?, ?> registeredCache : caches) {
                 cachesCopy.add(registeredCache);
             }
         }
-        for (final ADelegateRangeTable<?, ?, ?> cache : cachesCopy) {
+        for (final Table<?, ?> cache : cachesCopy) {
             cache.close();
         }
     }
 
-    public static synchronized boolean unregister(final ADelegateRangeTable<?, ?, ?> cache) {
-        final Set<ADelegateRangeTable<?, ?, ?>> caches = REGISTERED_CACHES.get(cache.toString());
+    public static synchronized boolean unregister(final Table<?, ?> cache) {
+        final Set<Table<?, ?>> caches = REGISTERED_CACHES.get(cache.toString());
         return caches.remove(cache);
     }
 

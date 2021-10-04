@@ -11,7 +11,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable;
+import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.list.Lists;
@@ -21,7 +21,7 @@ import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.duration.Duration;
-import ezdb.batch.RangeBatch;
+import ezdb.table.range.RangeBatch;
 
 @NotThreadSafe
 @Ignore("manual test")

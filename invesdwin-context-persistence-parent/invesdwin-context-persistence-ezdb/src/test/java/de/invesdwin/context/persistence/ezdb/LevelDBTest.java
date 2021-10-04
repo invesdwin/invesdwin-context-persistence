@@ -9,7 +9,8 @@ import org.assertj.core.api.Fail;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable.DelegateTableIterator;
+import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
+import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable.DelegateRangeTableIterator;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.marshallers.serde.ISerde;
@@ -17,9 +18,9 @@ import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
 import ezdb.Db;
-import ezdb.Table;
 import ezdb.leveldb.EzLevelDbJava;
 import ezdb.leveldb.EzLevelDbJavaFactory;
+import ezdb.table.Table;
 
 @ThreadSafe
 public class LevelDBTest extends ATest {
@@ -63,7 +64,7 @@ public class LevelDBTest extends ATest {
         rangeTable.put(HASHKEY, oneDate, 1);
         rangeTable.put(HASHKEY, twoDate, 2);
         rangeTable.put(HASHKEY, threeDate, 3);
-        final DelegateTableIterator<String, FDate, Integer> range3 = rangeTable.range(HASHKEY, now);
+        final DelegateRangeTableIterator<String, FDate, Integer> range3 = rangeTable.range(HASHKEY, now);
         Assertions.assertThat(range3.next().getValue()).isEqualTo(1);
         Assertions.assertThat(range3.next().getValue()).isEqualTo(2);
         Assertions.assertThat(range3.next().getValue()).isEqualTo(3);
@@ -76,7 +77,7 @@ public class LevelDBTest extends ATest {
         }
         range3.close(); //should already be closed but should not cause an error when calling again
 
-        final DelegateTableIterator<String, FDate, Integer> rangeNone = rangeTable.range(HASHKEY);
+        final DelegateRangeTableIterator<String, FDate, Integer> rangeNone = rangeTable.range(HASHKEY);
         Assertions.assertThat(rangeNone.next().getValue()).isEqualTo(1);
         Assertions.assertThat(rangeNone.next().getValue()).isEqualTo(2);
         Assertions.assertThat(rangeNone.next().getValue()).isEqualTo(3);
@@ -88,7 +89,7 @@ public class LevelDBTest extends ATest {
             Assertions.assertThat(e).isNotNull();
         }
 
-        final DelegateTableIterator<String, FDate, Integer> rangeMin = rangeTable.range(HASHKEY, FDate.MIN_DATE);
+        final DelegateRangeTableIterator<String, FDate, Integer> rangeMin = rangeTable.range(HASHKEY, FDate.MIN_DATE);
         Assertions.assertThat(rangeMin.next().getValue()).isEqualTo(1);
         Assertions.assertThat(rangeMin.next().getValue()).isEqualTo(2);
         Assertions.assertThat(rangeMin.next().getValue()).isEqualTo(3);
@@ -100,7 +101,7 @@ public class LevelDBTest extends ATest {
             Assertions.assertThat(e).isNotNull();
         }
 
-        final DelegateTableIterator<String, FDate, Integer> rangeMax = rangeTable.range(HASHKEY, FDate.MAX_DATE);
+        final DelegateRangeTableIterator<String, FDate, Integer> rangeMax = rangeTable.range(HASHKEY, FDate.MAX_DATE);
         Assertions.assertThat(rangeMax.hasNext()).isFalse();
         try {
             rangeMax.next();
@@ -109,7 +110,7 @@ public class LevelDBTest extends ATest {
             Assertions.assertThat(e).isNotNull();
         }
 
-        final DelegateTableIterator<String, FDate, Integer> range2 = rangeTable.range(HASHKEY, twoDate);
+        final DelegateRangeTableIterator<String, FDate, Integer> range2 = rangeTable.range(HASHKEY, twoDate);
         Assertions.assertThat(range2.next().getValue()).isEqualTo(2);
         Assertions.assertThat(range2.next().getValue()).isEqualTo(3);
         Assertions.assertThat(range2.hasNext()).isFalse();
@@ -145,7 +146,7 @@ public class LevelDBTest extends ATest {
 
     private void testReverse(final ADelegateRangeTable<String, FDate, Integer> rangeTable, final FDate oneFDate,
             final FDate twoFDate, final FDate threeFDate) {
-        final DelegateTableIterator<String, FDate, Integer> range3Reverse = rangeTable.rangeReverse(HASHKEY,
+        final DelegateRangeTableIterator<String, FDate, Integer> range3Reverse = rangeTable.rangeReverse(HASHKEY,
                 threeFDate);
         Assertions.assertThat(range3Reverse.next().getValue()).isEqualTo(3);
         Assertions.assertThat(range3Reverse.next().getValue()).isEqualTo(2);
@@ -158,7 +159,7 @@ public class LevelDBTest extends ATest {
             Assertions.assertThat(e).isNotNull();
         }
 
-        final DelegateTableIterator<String, FDate, Integer> rangeNoneReverse = rangeTable.rangeReverse(HASHKEY);
+        final DelegateRangeTableIterator<String, FDate, Integer> rangeNoneReverse = rangeTable.rangeReverse(HASHKEY);
         Assertions.assertThat(rangeNoneReverse.next().getValue()).isEqualTo(3);
         Assertions.assertThat(rangeNoneReverse.next().getValue()).isEqualTo(2);
         Assertions.assertThat(rangeNoneReverse.next().getValue()).isEqualTo(1);
@@ -170,7 +171,7 @@ public class LevelDBTest extends ATest {
             Assertions.assertThat(e).isNotNull();
         }
 
-        final DelegateTableIterator<String, FDate, Integer> range2Reverse = rangeTable.rangeReverse(HASHKEY, twoFDate);
+        final DelegateRangeTableIterator<String, FDate, Integer> range2Reverse = rangeTable.rangeReverse(HASHKEY, twoFDate);
         Assertions.assertThat(range2Reverse.next().getValue()).isEqualTo(2);
         Assertions.assertThat(range2Reverse.next().getValue()).isEqualTo(1);
         Assertions.assertThat(range2Reverse.hasNext()).isFalse();
@@ -181,7 +182,7 @@ public class LevelDBTest extends ATest {
             Assertions.assertThat(e).isNotNull();
         }
 
-        final DelegateTableIterator<String, FDate, Integer> range32Reverse = rangeTable.rangeReverse(HASHKEY,
+        final DelegateRangeTableIterator<String, FDate, Integer> range32Reverse = rangeTable.rangeReverse(HASHKEY,
                 threeFDate, twoFDate);
         Assertions.assertThat(range32Reverse.next().getValue()).isEqualTo(3);
         Assertions.assertThat(range32Reverse.next().getValue()).isEqualTo(2);
@@ -193,7 +194,7 @@ public class LevelDBTest extends ATest {
             Assertions.assertThat(e).isNotNull();
         }
 
-        final DelegateTableIterator<String, FDate, Integer> range21Reverse = rangeTable.rangeReverse(HASHKEY, twoFDate,
+        final DelegateRangeTableIterator<String, FDate, Integer> range21Reverse = rangeTable.rangeReverse(HASHKEY, twoFDate,
                 oneFDate);
         Assertions.assertThat(range21Reverse.next().getValue()).isEqualTo(2);
         Assertions.assertThat(range21Reverse.next().getValue()).isEqualTo(1);

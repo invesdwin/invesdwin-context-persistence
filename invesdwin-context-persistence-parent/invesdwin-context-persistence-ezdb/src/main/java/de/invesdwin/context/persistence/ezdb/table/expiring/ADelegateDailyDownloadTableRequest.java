@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.ezdb;
+package de.invesdwin.context.persistence.ezdb.table.expiring;
 
 import java.io.File;
 import java.io.InputStream;
@@ -12,29 +12,28 @@ import org.apache.commons.io.IOUtils;
 
 import de.invesdwin.context.integration.network.request.DailyDownloadCache;
 import de.invesdwin.context.log.Log;
+import de.invesdwin.context.persistence.ezdb.table.ADelegateTable;
+import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
 import de.invesdwin.util.concurrent.reference.IReference;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.ProcessedEventsRateString;
-import de.invesdwin.util.marshallers.serde.ISerde;
-import de.invesdwin.util.marshallers.serde.basic.VoidSerde;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.duration.Duration;
-import ezdb.batch.Batch;
+import ezdb.table.Batch;
 
 @NotThreadSafe
-public abstract class ADelegateDailyDownloadRangeTableRequest<K, V>
-        implements IReference<ADelegateRangeTable<K, Void, V>> {
+public abstract class ADelegateDailyDownloadTableRequest<K, V> implements IReference<ADelegateTable<K, V>> {
 
     private final Log log = new Log(this);
 
     private final DailyDownloadCache dailyDownloadCache = newDailyDownloadCache();
-    private ADelegateRangeTable<K, Void, V> table;
+    private ADelegateTable<K, V> table;
 
     @Override
-    public ADelegateRangeTable<K, Void, V> get() {
+    public ADelegateTable<K, V> get() {
         maybeUpdate();
         return table;
     }
@@ -116,13 +115,8 @@ public abstract class ADelegateDailyDownloadRangeTableRequest<K, V>
 
     protected abstract ICloseableIterator<V> newReader(InputStream content);
 
-    protected ADelegateRangeTable<K, Void, V> newTable() {
-        return new ADelegateRangeTable<K, Void, V>(getDownloadName()) {
-
-            @Override
-            protected ISerde<Void> newRangeKeySerde() {
-                return VoidSerde.GET;
-            }
+    protected ADelegateTable<K, V> newTable() {
+        return new ADelegateTable<K, V>(getDownloadName()) {
 
         };
     }

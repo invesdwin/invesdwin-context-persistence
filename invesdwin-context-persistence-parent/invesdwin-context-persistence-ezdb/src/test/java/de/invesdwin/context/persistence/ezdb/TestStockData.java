@@ -18,15 +18,15 @@ import org.springframework.core.io.ClassPathResource;
 import com.google.common.io.CharStreams;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable;
+import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
-import ezdb.RangeTable;
-import ezdb.TableIterator;
-import ezdb.TableRow;
+import ezdb.table.RangeTableRow;
+import ezdb.table.range.RangeTable;
+import ezdb.util.TableIterator;
 
 @NotThreadSafe
 public class TestStockData extends ATest {
@@ -100,10 +100,11 @@ public class TestStockData extends ATest {
         assertIteration(countFDate, firstFDate, lastFDate);
 
         //      Fri Jan 24 23:46:40 UTC 2014
-        TableIterator<String, FDate, Integer> range = table.range(MSFT, FDateBuilder.newDate(2014, 1, 23));
+        TableIterator<RangeTableRow<String, FDate, Integer>> range = table.range(MSFT,
+                FDateBuilder.newDate(2014, 1, 23));
         int countBars = 0;
         while (range.hasNext()) {
-            final TableRow<String, FDate, Integer> next = range.next();
+            final RangeTableRow<String, FDate, Integer> next = range.next();
             System.out.println(next.getValue());
             countBars++;
         }
@@ -112,7 +113,7 @@ public class TestStockData extends ATest {
         range = table.range(MSFT, FDateBuilder.newDate(2014, 1, 23), null);
         countBars = 0;
         while (range.hasNext()) {
-            final TableRow<String, FDate, Integer> next = range.next();
+            final RangeTableRow<String, FDate, Integer> next = range.next();
             //          System.out.println(next.getValue());
             countBars++;
         }
@@ -121,7 +122,7 @@ public class TestStockData extends ATest {
         range = table.range(MSFT, null, FDateBuilder.newDate(1987, 1, 1));
         countBars = 0;
         while (range.hasNext()) {
-            final TableRow<String, FDate, Integer> next = range.next();
+            final RangeTableRow<String, FDate, Integer> next = range.next();
             //          System.out.println(next.getValue());
             countBars++;
         }
@@ -129,14 +130,14 @@ public class TestStockData extends ATest {
     }
 
     private void assertIteration(final int countFDates, final FDate fromFDate, final FDate toFDate) {
-        TableIterator<String, FDate, Integer> range = table.range(MSFT, fromFDate, toFDate);
+        TableIterator<RangeTableRow<String, FDate, Integer>> range = table.range(MSFT, fromFDate, toFDate);
         int iteratedBars = 0;
         int prevValue = 0;
         FDate left1000FDate = null;
         FDate left900FDate = null;
         final Instant start = new Instant();
         while (range.hasNext()) {
-            final TableRow<String, FDate, Integer> next = range.next();
+            final RangeTableRow<String, FDate, Integer> next = range.next();
             final Integer value = next.getValue();
             // System.out.println(value);
             iteratedBars++;
@@ -159,9 +160,9 @@ public class TestStockData extends ATest {
         //      System.out.println(left1000FDate +" -> "+left900FDate);
         range = table.range(MSFT, left1000FDate, left900FDate);
         int curLeftIt = 0;
-        TableRow<String, FDate, Integer> prev = null;
+        RangeTableRow<String, FDate, Integer> prev = null;
         while (range.hasNext()) {
-            final TableRow<String, FDate, Integer> next = range.next();
+            final RangeTableRow<String, FDate, Integer> next = range.next();
             curLeftIt++;
             Assertions.checkEquals(countFDates - 1000 + curLeftIt, next.getValue());
             if (prev != null) {

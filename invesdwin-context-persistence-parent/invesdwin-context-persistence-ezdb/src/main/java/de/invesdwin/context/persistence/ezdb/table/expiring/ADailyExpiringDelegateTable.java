@@ -1,14 +1,15 @@
-package de.invesdwin.context.persistence.ezdb;
+package de.invesdwin.context.persistence.ezdb.table.expiring;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import de.invesdwin.context.persistence.ezdb.table.ADelegateTable;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
 
 @ThreadSafe
-public abstract class ADailyExpiringDelegateRangeTable<H, R, V> extends ADelegateRangeTable<H, R, V> {
+public abstract class ADailyExpiringDelegateTable<H, V> extends ADelegateTable<H, V> {
 
-    public ADailyExpiringDelegateRangeTable(final String name) {
+    public ADailyExpiringDelegateTable(final String name) {
         super(name);
     }
 

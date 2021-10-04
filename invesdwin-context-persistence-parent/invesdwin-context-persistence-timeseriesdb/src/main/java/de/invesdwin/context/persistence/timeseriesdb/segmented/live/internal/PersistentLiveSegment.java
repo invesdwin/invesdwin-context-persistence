@@ -4,7 +4,7 @@ import java.util.concurrent.locks.Lock;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable;
+import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentStatus;

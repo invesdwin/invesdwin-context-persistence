@@ -8,10 +8,11 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.commons.configuration2.AbstractConfiguration;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable.DelegateTableIterator;
+import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
+import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable.DelegateRangeTableIterator;
 import de.invesdwin.context.system.properties.AProperties;
 import de.invesdwin.util.collections.iterable.ATransformingIterator;
-import ezdb.TableRow;
+import ezdb.table.RangeTableRow;
 
 @ThreadSafe
 public class RangeTableProperties extends AProperties {
@@ -46,7 +47,7 @@ public class RangeTableProperties extends AProperties {
         return new AbstractConfiguration() {
             @Override
             protected boolean isEmptyInternal() {
-                try (DelegateTableIterator<Void, String, Object> range = table.range(null)) {
+                try (DelegateRangeTableIterator<Void, String, Object> range = table.range(null)) {
                     return range.hasNext();
                 }
             }
@@ -58,10 +59,10 @@ public class RangeTableProperties extends AProperties {
 
             @Override
             protected Iterator<String> getKeysInternal() {
-                final DelegateTableIterator<Void, String, Object> range = table.range(null);
-                return new ATransformingIterator<TableRow<Void, String, Object>, String>(range) {
+                final DelegateRangeTableIterator<Void, String, Object> range = table.range(null);
+                return new ATransformingIterator<RangeTableRow<Void, String, Object>, String>(range) {
                     @Override
-                    protected String transform(final TableRow<Void, String, Object> value) {
+                    protected String transform(final RangeTableRow<Void, String, Object> value) {
                         return value.getRangeKey();
                     }
                 };

@@ -2,7 +2,7 @@ package de.invesdwin.context.persistence.ezdb.performance;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable;
+import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.lang.ProcessedEventsRateString;

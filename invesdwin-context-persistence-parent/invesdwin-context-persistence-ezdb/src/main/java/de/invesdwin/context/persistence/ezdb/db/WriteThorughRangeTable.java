@@ -5,13 +5,13 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable;
+import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
-import ezdb.RangeTable;
-import ezdb.TableIterator;
-import ezdb.TableRow;
-import ezdb.batch.Batch;
-import ezdb.batch.RangeBatch;
+import ezdb.table.Batch;
+import ezdb.table.RangeTableRow;
+import ezdb.table.range.RangeBatch;
+import ezdb.table.range.RangeTable;
+import ezdb.util.TableIterator;
 
 @NotThreadSafe
 public class WriteThorughRangeTable<H, R, V> implements RangeTable<H, R, V> {
@@ -37,13 +37,13 @@ public class WriteThorughRangeTable<H, R, V> implements RangeTable<H, R, V> {
     }
 
     private void loadHashKeyIntoMemory(final H hashKey) {
-        final TableIterator<H, R, V> range = disk.range(hashKey);
+        final TableIterator<RangeTableRow<H, R, V>> range = disk.range(hashKey);
         final RangeBatch<H, R, V> batch = memory.newRangeBatch();
         try {
             int count = 0;
             try {
                 while (true) {
-                    final TableRow<H, R, V> next = range.next();
+                    final RangeTableRow<H, R, V> next = range.next();
                     batch.put(next.getHashKey(), next.getRangeKey(), next.getValue());
                     count++;
                     if (count >= ADelegateRangeTable.BATCH_FLUSH_INTERVAL) {
@@ -113,52 +113,53 @@ public class WriteThorughRangeTable<H, R, V> implements RangeTable<H, R, V> {
     }
 
     @Override
-    public TableRow<H, R, V> getLatest(final H hashKey) {
+    public RangeTableRow<H, R, V> getLatest(final H hashKey) {
         return hashKey_loadedMemory.get(hashKey).getLatest(hashKey);
     }
 
     @Override
-    public TableRow<H, R, V> getLatest(final H hashKey, final R rangeKey) {
+    public RangeTableRow<H, R, V> getLatest(final H hashKey, final R rangeKey) {
         return hashKey_loadedMemory.get(hashKey).getLatest(hashKey, rangeKey);
     }
 
     @Override
-    public TableRow<H, R, V> getNext(final H hashKey, final R rangeKey) {
+    public RangeTableRow<H, R, V> getNext(final H hashKey, final R rangeKey) {
         return hashKey_loadedMemory.get(hashKey).getNext(hashKey, rangeKey);
     }
 
     @Override
-    public TableRow<H, R, V> getPrev(final H hashKey, final R rangeKey) {
+    public RangeTableRow<H, R, V> getPrev(final H hashKey, final R rangeKey) {
         return hashKey_loadedMemory.get(hashKey).getPrev(hashKey, rangeKey);
     }
 
     @Override
-    public TableIterator<H, R, V> range(final H hashKey) {
+    public TableIterator<RangeTableRow<H, R, V>> range(final H hashKey) {
         return hashKey_loadedMemory.get(hashKey).range(hashKey);
     }
 
     @Override
-    public TableIterator<H, R, V> range(final H hashKey, final R fromRangeKey) {
+    public TableIterator<RangeTableRow<H, R, V>> range(final H hashKey, final R fromRangeKey) {
         return hashKey_loadedMemory.get(hashKey).range(hashKey, fromRangeKey);
     }
 
     @Override
-    public TableIterator<H, R, V> range(final H hashKey, final R fromRangeKey, final R toRangeKey) {
+    public TableIterator<RangeTableRow<H, R, V>> range(final H hashKey, final R fromRangeKey, final R toRangeKey) {
         return hashKey_loadedMemory.get(hashKey).range(hashKey, fromRangeKey, toRangeKey);
     }
 
     @Override
-    public TableIterator<H, R, V> rangeReverse(final H hashKey) {
+    public TableIterator<RangeTableRow<H, R, V>> rangeReverse(final H hashKey) {
         return hashKey_loadedMemory.get(hashKey).rangeReverse(hashKey);
     }
 
     @Override
-    public TableIterator<H, R, V> rangeReverse(final H hashKey, final R fromRangeKey) {
+    public TableIterator<RangeTableRow<H, R, V>> rangeReverse(final H hashKey, final R fromRangeKey) {
         return hashKey_loadedMemory.get(hashKey).rangeReverse(hashKey, fromRangeKey);
     }
 
     @Override
-    public TableIterator<H, R, V> rangeReverse(final H hashKey, final R fromRangeKey, final R toRangeKey) {
+    public TableIterator<RangeTableRow<H, R, V>> rangeReverse(final H hashKey, final R fromRangeKey,
+            final R toRangeKey) {
         return hashKey_loadedMemory.get(hashKey).rangeReverse(hashKey, fromRangeKey, toRangeKey);
     }
 

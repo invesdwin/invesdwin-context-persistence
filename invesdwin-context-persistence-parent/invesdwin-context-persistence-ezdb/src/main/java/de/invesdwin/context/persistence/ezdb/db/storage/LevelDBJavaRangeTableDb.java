@@ -13,9 +13,10 @@ import org.iq80.leveldb.impl.ExtendedDbImpl;
 import de.invesdwin.context.persistence.ezdb.EzdbSerde;
 import de.invesdwin.context.persistence.ezdb.db.IRangeTableDb;
 import de.invesdwin.util.error.Throwables;
-import ezdb.RangeTable;
 import ezdb.leveldb.EzLevelDbJava;
 import ezdb.leveldb.EzLevelDbJavaFactory;
+import ezdb.table.Table;
+import ezdb.table.range.RangeTable;
 
 @NotThreadSafe
 public class LevelDBJavaRangeTableDb implements IRangeTableDb {
@@ -27,23 +28,24 @@ public class LevelDBJavaRangeTableDb implements IRangeTableDb {
         this.internalMethods = internalMethods;
         this.db = new EzLevelDbJava(internalMethods.getDirectory(), new EzLevelDbJavaFactory() {
             @Override
-            public ExtendedDbImpl open(final File path, final org.iq80.leveldb.Options options) throws IOException {
+            public ExtendedDbImpl open(final File path, final org.iq80.leveldb.Options options,
+                    final boolean rangeTable) throws IOException {
                 options.paranoidChecks(false);
                 //make sure snappy is enabled
                 options.compressionType(newCompressionType());
-                final ExtendedDbImpl open = super.open(path, options);
+                final ExtendedDbImpl open = super.open(path, options, rangeTable);
                 try {
                     //do some sanity checks just to be safe
                     try (DBIterator iterator = open.iterator()) {
                         iterator.seekToFirst();
                         if (iterator.hasNext()) {
                             final Entry<byte[], byte[]> next = iterator.next();
-                            internalMethods.validateRowBytes(next);
+                            internalMethods.validateRowBytes(next, rangeTable);
                         }
                         iterator.seekToLast();
                         if (iterator.hasPrev()) {
                             final Entry<byte[], byte[]> prev = iterator.prev();
-                            internalMethods.validateRowBytes(prev);
+                            internalMethods.validateRowBytes(prev, rangeTable);
                         }
                     }
                     return open;
@@ -72,12 +74,20 @@ public class LevelDBJavaRangeTableDb implements IRangeTableDb {
 
     @SuppressWarnings("unchecked")
     @Override
-    public <_H, _R, _V> RangeTable<_H, _R, _V> getTable(final String tableName) {
+    public <_H, _R, _V> RangeTable<_H, _R, _V> getRangeTable(final String tableName) {
         internalMethods.initDirectory();
-        return db.getTable(tableName, EzdbSerde.valueOf(internalMethods.getHashKeySerde()),
+        return db.getRangeTable(tableName, EzdbSerde.valueOf(internalMethods.getHashKeySerde()),
                 EzdbSerde.valueOf(internalMethods.getRangeKeySerde()),
                 EzdbSerde.valueOf(internalMethods.getValueSerde()), internalMethods.getHashKeyComparatorDisk(),
                 internalMethods.getRangeKeyComparatorDisk());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public <H, V> Table<H, V> getTable(final String tableName) {
+        internalMethods.initDirectory();
+        return db.getTable(tableName, EzdbSerde.valueOf(internalMethods.getHashKeySerde()),
+                EzdbSerde.valueOf(internalMethods.getValueSerde()), internalMethods.getHashKeyComparatorDisk());
     }
 
     @Override

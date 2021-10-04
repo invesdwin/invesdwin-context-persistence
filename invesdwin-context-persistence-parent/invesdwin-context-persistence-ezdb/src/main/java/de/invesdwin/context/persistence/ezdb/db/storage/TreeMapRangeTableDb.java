@@ -2,8 +2,10 @@ package de.invesdwin.context.persistence.ezdb.db.storage;
 
 import javax.annotation.concurrent.Immutable;
 
+import de.invesdwin.context.persistence.ezdb.EzdbSerde;
 import de.invesdwin.context.persistence.ezdb.db.IRangeTableDb;
-import ezdb.RangeTable;
+import ezdb.table.Table;
+import ezdb.table.range.RangeTable;
 import ezdb.treemap.object.EzObjectTreeMapDb;
 
 @Immutable
@@ -22,9 +24,17 @@ public class TreeMapRangeTableDb implements IRangeTableDb {
     }
 
     @Override
-    public <_H, _R, _V> RangeTable<_H, _R, _V> getTable(final String tableName) {
-        return db.getTable(tableName, null, null, null, internalMethods.getHashKeyComparatorMemory(),
+    public <_H, _R, _V> RangeTable<_H, _R, _V> getRangeTable(final String tableName) {
+        return db.getRangeTable(tableName, null, null, null, internalMethods.getHashKeyComparatorMemory(),
                 internalMethods.getRangeKeyComparatorMemory());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public <H, V> Table<H, V> getTable(final String tableName) {
+        internalMethods.initDirectory();
+        return db.getTable(tableName, EzdbSerde.valueOf(internalMethods.getHashKeySerde()),
+                EzdbSerde.valueOf(internalMethods.getValueSerde()), internalMethods.getHashKeyComparatorDisk());
     }
 
     @Override

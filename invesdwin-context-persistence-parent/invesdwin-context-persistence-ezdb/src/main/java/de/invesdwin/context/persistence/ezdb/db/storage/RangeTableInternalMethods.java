@@ -11,7 +11,8 @@ import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.ezdb.EzdbSerde;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.marshallers.serde.ISerde;
-import ezdb.RawTableRow;
+import ezdb.table.RawTableRow;
+import ezdb.table.range.RawRangeTableRow;
 
 @SuppressWarnings({ "rawtypes", "unchecked" })
 @Immutable
@@ -73,23 +74,41 @@ public class RangeTableInternalMethods {
         return directory;
     }
 
-    public void validateRowBuffer(final Entry<java.nio.ByteBuffer, java.nio.ByteBuffer> rawRow) {
+    public void validateRowBuffer(final Entry<java.nio.ByteBuffer, java.nio.ByteBuffer> rawRow,
+            final boolean rangeTable) {
         //fst library might have been updated, in that case deserialization might fail
-        final RawTableRow row = RawTableRow.valueOfBuffer(rawRow, EzdbSerde.valueOf(hashKeySerde),
-                EzdbSerde.valueOf(rangeKeySerde), EzdbSerde.valueOf(valueSerde));
-        validateRow(row);
+        if (rangeTable) {
+            final RawRangeTableRow row = RawRangeTableRow.valueOfBuffer(rawRow, EzdbSerde.valueOf(hashKeySerde),
+                    EzdbSerde.valueOf(rangeKeySerde), EzdbSerde.valueOf(valueSerde));
+            validateRow(row);
+        } else {
+            final RawTableRow row = RawTableRow.valueOfBuffer(rawRow, EzdbSerde.valueOf(hashKeySerde),
+                    EzdbSerde.valueOf(valueSerde));
+            validateRow(row);
+        }
     }
 
-    public void validateRowBytes(final Entry<byte[], byte[]> rawRow) {
+    public void validateRowBytes(final Entry<byte[], byte[]> rawRow, final boolean rangeTable) {
         //fst library might have been updated, in that case deserialization might fail
-        final RawTableRow row = RawTableRow.valueOfBytes(rawRow, EzdbSerde.valueOf(hashKeySerde),
-                EzdbSerde.valueOf(rangeKeySerde), EzdbSerde.valueOf(valueSerde));
-        validateRow(row);
+        if (rangeTable) {
+            final RawRangeTableRow row = RawRangeTableRow.valueOfBytes(rawRow, EzdbSerde.valueOf(hashKeySerde),
+                    EzdbSerde.valueOf(rangeKeySerde), EzdbSerde.valueOf(valueSerde));
+            validateRow(row);
+        } else {
+            final RawTableRow row = RawTableRow.valueOfBytes(rawRow, EzdbSerde.valueOf(hashKeySerde),
+                    EzdbSerde.valueOf(valueSerde));
+            validateRow(row);
+        }
+    }
+
+    public void validateRow(final RawRangeTableRow row) {
+        row.getHashKey();
+        row.getRangeKey();
+        row.getValue();
     }
 
     public void validateRow(final RawTableRow row) {
         row.getHashKey();
-        row.getRangeKey();
         row.getValue();
     }
 

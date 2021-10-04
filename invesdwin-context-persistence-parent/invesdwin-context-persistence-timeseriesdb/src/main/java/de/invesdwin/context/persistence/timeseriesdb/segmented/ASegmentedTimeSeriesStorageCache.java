@@ -21,7 +21,7 @@ import de.invesdwin.context.integration.retry.task.ARetryCallable;
 import de.invesdwin.context.integration.retry.task.BackOffPolicies;
 import de.invesdwin.context.integration.retry.task.RetryOriginator;
 import de.invesdwin.context.log.Log;
-import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable;
+import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.FileBufferCache;
@@ -55,7 +55,7 @@ import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.range.TimeRange;
-import ezdb.TableRow;
+import ezdb.table.RangeTableRow;
 
 @NotThreadSafe
 public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeable {
@@ -587,11 +587,11 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable = storage
                 .getSegmentStatusTable();
         final List<TimeRange> rangeKeys;
-        try (ICloseableIterator<TimeRange> rangeKeysIterator = new ATransformingIterator<TableRow<String, TimeRange, SegmentStatus>, TimeRange>(
+        try (ICloseableIterator<TimeRange> rangeKeysIterator = new ATransformingIterator<RangeTableRow<String, TimeRange, SegmentStatus>, TimeRange>(
                 segmentStatusTable.range(hashKey)) {
 
             @Override
-            protected TimeRange transform(final TableRow<String, TimeRange, SegmentStatus> value) {
+            protected TimeRange transform(final RangeTableRow<String, TimeRange, SegmentStatus> value) {
                 return value.getRangeKey();
             }
         }) {
@@ -744,7 +744,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
     private FDate getPrevLastAvailableSegmentTo() {
         if (cachedPrevLastAvailableSegmentTo == null) {
-            final TableRow<String, TimeRange, SegmentStatus> latestRow = storage.getSegmentStatusTable()
+            final RangeTableRow<String, TimeRange, SegmentStatus> latestRow = storage.getSegmentStatusTable()
                     .getLatest(hashKey);
             if (latestRow != null) {
                 cachedPrevLastAvailableSegmentTo = Optional.of(latestRow.getRangeKey().getTo());
@@ -858,13 +858,13 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         boolean empty = true;
         final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable = storage
                 .getSegmentStatusTable();
-        final List<TableRow<String, TimeRange, SegmentStatus>> rows;
-        try (ICloseableIterator<TableRow<String, TimeRange, SegmentStatus>> rangeKeysIterator = segmentStatusTable
+        final List<RangeTableRow<String, TimeRange, SegmentStatus>> rows;
+        try (ICloseableIterator<RangeTableRow<String, TimeRange, SegmentStatus>> rangeKeysIterator = segmentStatusTable
                 .range(hashKey)) {
             rows = Lists.toListWithoutHasNext(rangeKeysIterator);
         }
         for (int i = 0; i < rows.size(); i++) {
-            final TableRow<String, TimeRange, SegmentStatus> row = rows.get(i);
+            final RangeTableRow<String, TimeRange, SegmentStatus> row = rows.get(i);
             final SegmentStatus status = row.getValue();
             if (status == SegmentStatus.COMPLETE) {
                 if (segmentedTable.isEmptyOrInconsistent(new SegmentedKey<K>(key, row.getRangeKey()))) {

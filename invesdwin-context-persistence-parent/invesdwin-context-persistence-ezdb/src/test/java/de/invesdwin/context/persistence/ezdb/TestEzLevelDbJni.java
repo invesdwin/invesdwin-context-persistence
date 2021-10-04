@@ -12,14 +12,15 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable;
+import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
-import ezdb.RawTableRow;
-import ezdb.Table;
-import ezdb.TableIterator;
+import ezdb.table.RangeTableRow;
+import ezdb.table.Table;
+import ezdb.table.range.RawRangeTableRow;
+import ezdb.util.TableIterator;
 
 @NotThreadSafe
 public class TestEzLevelDbJni extends ATest {
@@ -98,8 +99,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range21Reverse() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.rangeReverse(HASHKEY_ONE, twoFDate,
-                oneFDate);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.rangeReverse(HASHKEY_ONE,
+                twoFDate, oneFDate);
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkEquals(1, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
@@ -113,8 +114,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range21ReversePlus() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.rangeReverse(HASHKEY_ONE, twoFDatePlus,
-                oneFDatePlus);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.rangeReverse(HASHKEY_ONE,
+                twoFDatePlus, oneFDatePlus);
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
         try {
@@ -127,8 +128,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range21ReverseMinus() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.rangeReverse(HASHKEY_ONE, twoFDateMinus,
-                oneFDateMinus);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.rangeReverse(HASHKEY_ONE,
+                twoFDateMinus, oneFDateMinus);
         Assertions.checkEquals(1, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
         try {
@@ -141,8 +142,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range32Reverse() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.rangeReverse(HASHKEY_ONE, threeFDate,
-                twoFDate);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.rangeReverse(HASHKEY_ONE,
+                threeFDate, twoFDate);
         Assertions.checkEquals(3, (int) range.next().getValue());
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
@@ -156,8 +157,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range32ReversePlus() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.rangeReverse(HASHKEY_ONE, threeFDatePlus,
-                twoFDatePlus);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.rangeReverse(HASHKEY_ONE,
+                threeFDatePlus, twoFDatePlus);
         Assertions.checkEquals(3, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
         try {
@@ -170,8 +171,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range32ReverseMinus() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.rangeReverse(HASHKEY_ONE, threeFDateMinus,
-                twoFDateMinus);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.rangeReverse(HASHKEY_ONE,
+                threeFDateMinus, twoFDateMinus);
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
         try {
@@ -184,8 +185,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range12Reverse() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.rangeReverse(HASHKEY_ONE, oneFDate,
-                twoFDate);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.rangeReverse(HASHKEY_ONE,
+                oneFDate, twoFDate);
         Assertions.checkFalse(range.hasNext());
         try {
             range.next();
@@ -197,8 +198,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range23Reverse() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.rangeReverse(HASHKEY_ONE, twoFDate,
-                threeFDate);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.rangeReverse(HASHKEY_ONE,
+                twoFDate, threeFDate);
         Assertions.checkFalse(range.hasNext());
         try {
             range.next();
@@ -210,7 +211,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range21() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, twoFDate, oneFDate);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE,
+                twoFDate, oneFDate);
         Assertions.checkFalse(range.hasNext());
         try {
             range.next();
@@ -222,7 +224,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range32() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, threeFDate, twoFDate);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE,
+                threeFDate, twoFDate);
         Assertions.checkFalse(range.hasNext());
         try {
             range.next();
@@ -234,7 +237,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range12() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, oneFDate, twoFDate);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE,
+                oneFDate, twoFDate);
         Assertions.checkEquals(1, (int) range.next().getValue());
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
@@ -248,8 +252,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range12Plus() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, oneFDatePlus,
-                twoFDatePlus);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE,
+                oneFDatePlus, twoFDatePlus);
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
         try {
@@ -262,8 +266,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range12Minus() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, oneFDateMinus,
-                twoFDateMinus);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE,
+                oneFDateMinus, twoFDateMinus);
         Assertions.checkEquals(1, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
         try {
@@ -276,7 +280,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range23() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, twoFDate, threeFDate);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE,
+                twoFDate, threeFDate);
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkEquals(3, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
@@ -290,8 +295,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range23Plus() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, twoFDatePlus,
-                threeFDatePlus);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE,
+                twoFDatePlus, threeFDatePlus);
         Assertions.checkEquals(3, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
         try {
@@ -304,8 +309,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range23Minus() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, twoFDateMinus,
-                threeFDateMinus);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE,
+                twoFDateMinus, threeFDateMinus);
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
         try {
@@ -318,7 +323,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range2Reverse() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.rangeReverse(HASHKEY_ONE, twoFDate);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.rangeReverse(HASHKEY_ONE,
+                twoFDate);
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkEquals(1, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
@@ -332,7 +338,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range2ReversePlus() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.rangeReverse(HASHKEY_ONE, twoFDatePlus);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.rangeReverse(HASHKEY_ONE,
+                twoFDatePlus);
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkEquals(1, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
@@ -346,7 +353,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range2ReverseMinus() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.rangeReverse(HASHKEY_ONE, twoFDateMinus);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.rangeReverse(HASHKEY_ONE,
+                twoFDateMinus);
         Assertions.checkEquals(1, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
         try {
@@ -359,7 +367,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeNoneReverse() {
-        final TableIterator<String, FDate, Integer> rangeNoneReverse = reverseRangeTable.rangeReverse(HASHKEY_ONE);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> rangeNoneReverse = reverseRangeTable
+                .rangeReverse(HASHKEY_ONE);
         Assertions.checkEquals(3, (int) rangeNoneReverse.next().getValue());
         Assertions.checkEquals(2, (int) rangeNoneReverse.next().getValue());
         Assertions.checkEquals(1, (int) rangeNoneReverse.next().getValue());
@@ -374,8 +383,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeNullReverse() {
-        final TableIterator<String, FDate, Integer> rangeNoneReverse = reverseRangeTable.rangeReverse(HASHKEY_ONE,
-                null);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> rangeNoneReverse = reverseRangeTable
+                .rangeReverse(HASHKEY_ONE, null);
         Assertions.checkEquals(3, (int) rangeNoneReverse.next().getValue());
         Assertions.checkEquals(2, (int) rangeNoneReverse.next().getValue());
         Assertions.checkEquals(1, (int) rangeNoneReverse.next().getValue());
@@ -390,8 +399,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeNullNullReverse() {
-        final TableIterator<String, FDate, Integer> rangeNoneReverse = reverseRangeTable.rangeReverse(HASHKEY_ONE, null,
-                null);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> rangeNoneReverse = reverseRangeTable
+                .rangeReverse(HASHKEY_ONE, null, null);
         Assertions.checkEquals(3, (int) rangeNoneReverse.next().getValue());
         Assertions.checkEquals(2, (int) rangeNoneReverse.next().getValue());
         Assertions.checkEquals(1, (int) rangeNoneReverse.next().getValue());
@@ -406,8 +415,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range2NullReverse() {
-        final TableIterator<String, FDate, Integer> rangeNoneReverse = reverseRangeTable.rangeReverse(HASHKEY_ONE,
-                twoFDate, null);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> rangeNoneReverse = reverseRangeTable
+                .rangeReverse(HASHKEY_ONE, twoFDate, null);
         Assertions.checkEquals(2, (int) rangeNoneReverse.next().getValue());
         Assertions.checkEquals(1, (int) rangeNoneReverse.next().getValue());
         Assertions.checkFalse(rangeNoneReverse.hasNext());
@@ -421,8 +430,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeNull2Reverse() {
-        final TableIterator<String, FDate, Integer> rangeNoneReverse = reverseRangeTable.rangeReverse(HASHKEY_ONE, null,
-                twoFDate);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> rangeNoneReverse = reverseRangeTable
+                .rangeReverse(HASHKEY_ONE, null, twoFDate);
         Assertions.checkEquals(3, (int) rangeNoneReverse.next().getValue());
         Assertions.checkEquals(2, (int) rangeNoneReverse.next().getValue());
         Assertions.checkFalse(rangeNoneReverse.hasNext());
@@ -436,8 +445,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeMaxNullReverse() {
-        final TableIterator<String, FDate, Integer> rangeNoneReverse = reverseRangeTable.rangeReverse(HASHKEY_ONE,
-                MAX_DATE, null);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> rangeNoneReverse = reverseRangeTable
+                .rangeReverse(HASHKEY_ONE, MAX_DATE, null);
         Assertions.checkEquals(3, (int) rangeNoneReverse.next().getValue());
         Assertions.checkEquals(2, (int) rangeNoneReverse.next().getValue());
         Assertions.checkEquals(1, (int) rangeNoneReverse.next().getValue());
@@ -452,8 +461,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeNullMaxReverse() {
-        final TableIterator<String, FDate, Integer> rangeNoneReverse = reverseRangeTable.rangeReverse(HASHKEY_ONE, null,
-                MAX_DATE);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> rangeNoneReverse = reverseRangeTable
+                .rangeReverse(HASHKEY_ONE, null, MAX_DATE);
         Assertions.checkFalse(rangeNoneReverse.hasNext());
         try {
             rangeNoneReverse.next();
@@ -465,8 +474,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeMinNullReverse() {
-        final TableIterator<String, FDate, Integer> rangeNoneReverse = reverseRangeTable.rangeReverse(HASHKEY_ONE,
-                MIN_DATE, null);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> rangeNoneReverse = reverseRangeTable
+                .rangeReverse(HASHKEY_ONE, MIN_DATE, null);
         Assertions.checkFalse(rangeNoneReverse.hasNext());
         try {
             rangeNoneReverse.next();
@@ -478,8 +487,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeNullMinReverse() {
-        final TableIterator<String, FDate, Integer> rangeNoneReverse = reverseRangeTable.rangeReverse(HASHKEY_ONE, null,
-                MIN_DATE);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> rangeNoneReverse = reverseRangeTable
+                .rangeReverse(HASHKEY_ONE, null, MIN_DATE);
         Assertions.checkEquals(3, (int) rangeNoneReverse.next().getValue());
         Assertions.checkEquals(2, (int) rangeNoneReverse.next().getValue());
         Assertions.checkEquals(1, (int) rangeNoneReverse.next().getValue());
@@ -494,7 +503,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range3Reverse() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.rangeReverse(HASHKEY_ONE, threeFDate);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.rangeReverse(HASHKEY_ONE,
+                threeFDate);
         Assertions.checkEquals(3, (int) range.next().getValue());
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkEquals(1, (int) range.next().getValue());
@@ -509,7 +519,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range3ReversePlus() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.rangeReverse(HASHKEY_ONE, threeFDatePlus);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.rangeReverse(HASHKEY_ONE,
+                threeFDatePlus);
         Assertions.checkEquals(3, (int) range.next().getValue());
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkEquals(1, (int) range.next().getValue());
@@ -524,7 +535,7 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range3ReverseMinus() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.rangeReverse(HASHKEY_ONE,
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.rangeReverse(HASHKEY_ONE,
                 threeFDateMinus);
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkEquals(1, (int) range.next().getValue());
@@ -539,7 +550,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range2() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, twoFDate);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE,
+                twoFDate);
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkEquals(3, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
@@ -553,7 +565,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range2Plus() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, twoFDatePlus);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE,
+                twoFDatePlus);
         Assertions.checkEquals(3, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
         try {
@@ -566,7 +579,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range2Minus() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, twoFDateMinus);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE,
+                twoFDateMinus);
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkEquals(3, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
@@ -580,7 +594,7 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeNone() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE);
         Assertions.checkEquals(1, (int) range.next().getValue());
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkEquals(3, (int) range.next().getValue());
@@ -595,7 +609,7 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeNull() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, null);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE, null);
         Assertions.checkEquals(1, (int) range.next().getValue());
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkEquals(3, (int) range.next().getValue());
@@ -610,7 +624,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeNullNull() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, null, null);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE, null,
+                null);
         Assertions.checkEquals(1, (int) range.next().getValue());
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkEquals(3, (int) range.next().getValue());
@@ -625,7 +640,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range2Null() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, twoFDate, null);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE,
+                twoFDate, null);
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkEquals(3, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
@@ -639,7 +655,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeNull2() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, null, twoFDate);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE, null,
+                twoFDate);
         Assertions.checkEquals(1, (int) range.next().getValue());
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
@@ -653,7 +670,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeMaxNull() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, MAX_DATE, null);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE,
+                MAX_DATE, null);
         Assertions.checkFalse(range.hasNext());
         try {
             range.next();
@@ -665,7 +683,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeNullMax() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, null, MAX_DATE);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE, null,
+                MAX_DATE);
         Assertions.checkEquals(1, (int) range.next().getValue());
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkEquals(3, (int) range.next().getValue());
@@ -680,7 +699,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeMinNull() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, MIN_DATE, null);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE,
+                MIN_DATE, null);
         Assertions.checkEquals(1, (int) range.next().getValue());
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkEquals(3, (int) range.next().getValue());
@@ -695,7 +715,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeNullMin() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, null, MIN_DATE);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE, null,
+                MIN_DATE);
         Assertions.checkFalse(range.hasNext());
         try {
             range.next();
@@ -707,7 +728,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range3() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, threeFDate);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE,
+                threeFDate);
         Assertions.checkEquals(3, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
         try {
@@ -720,7 +742,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range3Plus() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, threeFDatePlus);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE,
+                threeFDatePlus);
         Assertions.checkFalse(range.hasNext());
         try {
             range.next();
@@ -732,7 +755,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void range3Minus() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, threeFDateMinus);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE,
+                threeFDateMinus);
         Assertions.checkEquals(3, (int) range.next().getValue());
         Assertions.checkFalse(range.hasNext());
         try {
@@ -745,7 +769,7 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeNow() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, now);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE, now);
         Assertions.checkEquals(1, (int) range.next().getValue());
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkEquals(3, (int) range.next().getValue());
@@ -760,7 +784,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeNowReverse() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.rangeReverse(HASHKEY_ONE, now);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.rangeReverse(HASHKEY_ONE,
+                now);
         Assertions.checkFalse(range.hasNext());
         try {
             range.next();
@@ -772,7 +797,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeMin() {
-        final TableIterator<String, FDate, Integer> rangeMin = reverseRangeTable.range(HASHKEY_ONE, MIN_DATE);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> rangeMin = reverseRangeTable.range(HASHKEY_ONE,
+                MIN_DATE);
         Assertions.checkEquals(1, (int) rangeMin.next().getValue());
         Assertions.checkEquals(2, (int) rangeMin.next().getValue());
         Assertions.checkEquals(3, (int) rangeMin.next().getValue());
@@ -787,7 +813,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeMinMax() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, MIN_DATE, MAX_DATE);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE,
+                MIN_DATE, MAX_DATE);
         Assertions.checkEquals(1, (int) range.next().getValue());
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkEquals(3, (int) range.next().getValue());
@@ -802,7 +829,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeMaxMin() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, MAX_DATE, MIN_DATE);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE,
+                MAX_DATE, MIN_DATE);
         Assertions.checkFalse(range.hasNext());
         try {
             range.next();
@@ -814,7 +842,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeMinReverse() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.rangeReverse(HASHKEY_ONE, MIN_DATE);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.rangeReverse(HASHKEY_ONE,
+                MIN_DATE);
         Assertions.checkFalse(range.hasNext());
         try {
             range.next();
@@ -826,8 +855,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeMinMaxReverse() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.rangeReverse(HASHKEY_ONE, MIN_DATE,
-                MAX_DATE);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.rangeReverse(HASHKEY_ONE,
+                MIN_DATE, MAX_DATE);
         Assertions.checkFalse(range.hasNext());
         try {
             range.next();
@@ -839,8 +868,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeMaxMinReverse() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.rangeReverse(HASHKEY_ONE, MAX_DATE,
-                MIN_DATE);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.rangeReverse(HASHKEY_ONE,
+                MAX_DATE, MIN_DATE);
         Assertions.checkEquals(3, (int) range.next().getValue());
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkEquals(1, (int) range.next().getValue());
@@ -855,7 +884,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeMaxReverse() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.rangeReverse(HASHKEY_ONE, MAX_DATE);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.rangeReverse(HASHKEY_ONE,
+                MAX_DATE);
         Assertions.checkEquals(3, (int) range.next().getValue());
         Assertions.checkEquals(2, (int) range.next().getValue());
         Assertions.checkEquals(1, (int) range.next().getValue());
@@ -870,7 +900,8 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void rangeMax() {
-        final TableIterator<String, FDate, Integer> range = reverseRangeTable.range(HASHKEY_ONE, MAX_DATE);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range = reverseRangeTable.range(HASHKEY_ONE,
+                MAX_DATE);
         Assertions.checkFalse(range.hasNext());
         try {
             range.next();
@@ -955,13 +986,13 @@ public class TestEzLevelDbJni extends ATest {
         // test nulls
         assertEquals(null, table.get(1));
         assertEquals(null, table.get(1, 1));
-        final TableIterator<Integer, Integer, Integer> range1 = table.range(1);
+        final TableIterator<RangeTableRow<Integer, Integer, Integer>> range1 = table.range(1);
         assertTrue(!range1.hasNext());
         range1.close();
-        final TableIterator<Integer, Integer, Integer> range12 = table.range(1, 2);
+        final TableIterator<RangeTableRow<Integer, Integer, Integer>> range12 = table.range(1, 2);
         assertTrue(!range12.hasNext());
         range12.close();
-        final TableIterator<Integer, Integer, Integer> range112 = table.range(1, 1, 2);
+        final TableIterator<RangeTableRow<Integer, Integer, Integer>> range112 = table.range(1, 1, 2);
         assertTrue(!range112.hasNext());
         range112.close();
         table.delete(1);
@@ -1001,7 +1032,7 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void testRangeH() {
-        TableIterator<Integer, Integer, Integer> it = table.range(1);
+        TableIterator<RangeTableRow<Integer, Integer, Integer>> it = table.range(1);
         try {
             table.put(1, 2);
             table.put(1, 1, 4);
@@ -1011,9 +1042,9 @@ public class TestEzLevelDbJni extends ATest {
         }
         it = table.range(1);
         try {
-            Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, null, 2), it.next());
+            Assertions.checkEquals(new RawRangeTableRow<Integer, Integer, Integer>(1, null, 2), it.next());
             Assertions.checkTrue(it.hasNext());
-            Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
+            Assertions.checkEquals(new RawRangeTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
             Assertions.checkTrue(!it.hasNext());
         } finally {
             it.close();
@@ -1024,34 +1055,34 @@ public class TestEzLevelDbJni extends ATest {
     public void testRangeHR() {
         table.put(1, 2);
         table.put(1, 1, 4);
-        TableIterator<Integer, Integer, Integer> it = table.range(1, null);
+        TableIterator<RangeTableRow<Integer, Integer, Integer>> it = table.range(1, null);
         Assertions.checkTrue(it.hasNext());
-        Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, null, 2), it.next());
+        Assertions.checkEquals(new RawRangeTableRow<Integer, Integer, Integer>(1, null, 2), it.next());
         Assertions.checkTrue(it.hasNext());
-        Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
+        Assertions.checkEquals(new RawRangeTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
         Assertions.checkTrue(!it.hasNext());
         it.close();
         it = table.range(1, 1);
         Assertions.checkTrue(it.hasNext());
-        Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
+        Assertions.checkEquals(new RawRangeTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
         Assertions.checkTrue(!it.hasNext());
         table.put(1, 2, 5);
         table.put(2, 2, 5);
         it.close();
         it = table.range(1, 1);
         Assertions.checkTrue(it.hasNext());
-        Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
+        Assertions.checkEquals(new RawRangeTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
         Assertions.checkTrue(it.hasNext());
-        Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 2, 5), it.next());
+        Assertions.checkEquals(new RawRangeTableRow<Integer, Integer, Integer>(1, 2, 5), it.next());
         Assertions.checkTrue(!it.hasNext());
         it.close();
         it = table.range(1, null);
         Assertions.checkTrue(it.hasNext());
-        Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, null, 2), it.next());
+        Assertions.checkEquals(new RawRangeTableRow<Integer, Integer, Integer>(1, null, 2), it.next());
         Assertions.checkTrue(it.hasNext());
-        Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
+        Assertions.checkEquals(new RawRangeTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
         Assertions.checkTrue(it.hasNext());
-        Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 2, 5), it.next());
+        Assertions.checkEquals(new RawRangeTableRow<Integer, Integer, Integer>(1, 2, 5), it.next());
         Assertions.checkTrue(!it.hasNext());
         it.close();
     }
@@ -1060,12 +1091,12 @@ public class TestEzLevelDbJni extends ATest {
     public void testRangeHRR() {
         table.put(1, 2);
         table.put(1, 1, 4);
-        TableIterator<Integer, Integer, Integer> it = table.range(1, null, 2);
+        TableIterator<RangeTableRow<Integer, Integer, Integer>> it = table.range(1, null, 2);
         try {
             Assertions.checkTrue(it.hasNext());
-            Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, null, 2), it.next());
+            Assertions.checkEquals(new RawRangeTableRow<Integer, Integer, Integer>(1, null, 2), it.next());
             Assertions.checkTrue(it.hasNext());
-            Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
+            Assertions.checkEquals(new RawRangeTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
             Assertions.checkTrue(!it.hasNext());
         } finally {
             it.close();
@@ -1073,7 +1104,7 @@ public class TestEzLevelDbJni extends ATest {
         it = table.range(1, 1, 2);
         try {
             Assertions.checkTrue(it.hasNext());
-            Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
+            Assertions.checkEquals(new RawRangeTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
             Assertions.checkTrue(!it.hasNext());
             table.put(1, 2, 5);
             table.put(1, 3, 5);
@@ -1083,11 +1114,11 @@ public class TestEzLevelDbJni extends ATest {
         it = table.range(1, 1, 3);
         try {
             Assertions.checkTrue(it.hasNext());
-            Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
+            Assertions.checkEquals(new RawRangeTableRow<Integer, Integer, Integer>(1, 1, 4), it.next());
             Assertions.checkTrue(it.hasNext());
-            Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 2, 5), it.next());
+            Assertions.checkEquals(new RawRangeTableRow<Integer, Integer, Integer>(1, 2, 5), it.next());
             Assertions.checkTrue(it.hasNext());
-            Assertions.checkEquals(new RawTableRow<Integer, Integer, Integer>(1, 3, 5), it.next());
+            Assertions.checkEquals(new RawRangeTableRow<Integer, Integer, Integer>(1, 3, 5), it.next());
             Assertions.checkTrue(!it.hasNext());
         } finally {
             it.close();
@@ -1115,7 +1146,7 @@ public class TestEzLevelDbJni extends ATest {
 
     @Test
     public void testInverseOrder() {
-        final TableIterator<String, FDate, Integer> range3 = reverseRangeTable.range(HASHKEY_ONE, now);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range3 = reverseRangeTable.range(HASHKEY_ONE, now);
         Assertions.checkEquals(1, range3.next().getValue());
         Assertions.checkEquals(2, range3.next().getValue());
         Assertions.checkEquals(3, range3.next().getValue());
@@ -1129,7 +1160,7 @@ public class TestEzLevelDbJni extends ATest {
         range3.close(); // should already be closed but should not cause an
         // error when calling again
 
-        final TableIterator<String, FDate, Integer> rangeNone = reverseRangeTable.range(HASHKEY_ONE);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> rangeNone = reverseRangeTable.range(HASHKEY_ONE);
         Assertions.checkEquals(1, rangeNone.next().getValue());
         Assertions.checkEquals(2, rangeNone.next().getValue());
         Assertions.checkEquals(3, rangeNone.next().getValue());
@@ -1141,7 +1172,8 @@ public class TestEzLevelDbJni extends ATest {
             Assertions.checkNotNull(e);
         }
 
-        final TableIterator<String, FDate, Integer> rangeMin = reverseRangeTable.range(HASHKEY_ONE, MIN_DATE);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> rangeMin = reverseRangeTable.range(HASHKEY_ONE,
+                MIN_DATE);
         Assertions.checkEquals(1, rangeMin.next().getValue());
         Assertions.checkEquals(2, rangeMin.next().getValue());
         Assertions.checkEquals(3, rangeMin.next().getValue());
@@ -1153,7 +1185,8 @@ public class TestEzLevelDbJni extends ATest {
             Assertions.checkNotNull(e);
         }
 
-        final TableIterator<String, FDate, Integer> rangeMax = reverseRangeTable.range(HASHKEY_ONE, MAX_DATE);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> rangeMax = reverseRangeTable.range(HASHKEY_ONE,
+                MAX_DATE);
         Assertions.checkFalse(rangeMax.hasNext());
         try {
             rangeMax.next();
@@ -1162,7 +1195,8 @@ public class TestEzLevelDbJni extends ATest {
             Assertions.checkNotNull(e);
         }
 
-        final TableIterator<String, FDate, Integer> range2 = reverseRangeTable.range(HASHKEY_ONE, twoFDate);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range2 = reverseRangeTable.range(HASHKEY_ONE,
+                twoFDate);
         Assertions.checkEquals(2, range2.next().getValue());
         Assertions.checkEquals(3, range2.next().getValue());
         Assertions.checkFalse(range2.hasNext());
@@ -1197,8 +1231,8 @@ public class TestEzLevelDbJni extends ATest {
     }
 
     private void testReverse() {
-        final TableIterator<String, FDate, Integer> range3Reverse = reverseRangeTable.rangeReverse(HASHKEY_ONE,
-                threeFDate);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range3Reverse = reverseRangeTable
+                .rangeReverse(HASHKEY_ONE, threeFDate);
         Assertions.checkEquals(3, range3Reverse.next().getValue());
         Assertions.checkEquals(2, range3Reverse.next().getValue());
         Assertions.checkEquals(1, range3Reverse.next().getValue());
@@ -1210,7 +1244,8 @@ public class TestEzLevelDbJni extends ATest {
             Assertions.checkNotNull(e);
         }
 
-        final TableIterator<String, FDate, Integer> rangeNoneReverse = reverseRangeTable.rangeReverse(HASHKEY_ONE);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> rangeNoneReverse = reverseRangeTable
+                .rangeReverse(HASHKEY_ONE);
         Assertions.checkEquals(3, rangeNoneReverse.next().getValue());
         Assertions.checkEquals(2, rangeNoneReverse.next().getValue());
         Assertions.checkEquals(1, rangeNoneReverse.next().getValue());
@@ -1222,8 +1257,8 @@ public class TestEzLevelDbJni extends ATest {
             Assertions.checkNotNull(e);
         }
 
-        final TableIterator<String, FDate, Integer> range2Reverse = reverseRangeTable.rangeReverse(HASHKEY_ONE,
-                twoFDate);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range2Reverse = reverseRangeTable
+                .rangeReverse(HASHKEY_ONE, twoFDate);
         Assertions.checkEquals(2, range2Reverse.next().getValue());
         Assertions.checkEquals(1, range2Reverse.next().getValue());
         Assertions.checkFalse(range2Reverse.hasNext());
@@ -1234,8 +1269,8 @@ public class TestEzLevelDbJni extends ATest {
             Assertions.checkNotNull(e);
         }
 
-        final TableIterator<String, FDate, Integer> range32Reverse = reverseRangeTable.rangeReverse(HASHKEY_ONE,
-                threeFDate, twoFDate);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range32Reverse = reverseRangeTable
+                .rangeReverse(HASHKEY_ONE, threeFDate, twoFDate);
         Assertions.checkEquals(3, range32Reverse.next().getValue());
         Assertions.checkEquals(2, range32Reverse.next().getValue());
         Assertions.checkFalse(range32Reverse.hasNext());
@@ -1246,8 +1281,8 @@ public class TestEzLevelDbJni extends ATest {
             Assertions.checkNotNull(e);
         }
 
-        final TableIterator<String, FDate, Integer> range21Reverse = reverseRangeTable.rangeReverse(HASHKEY_ONE,
-                twoFDate, oneFDate);
+        final TableIterator<RangeTableRow<String, FDate, Integer>> range21Reverse = reverseRangeTable
+                .rangeReverse(HASHKEY_ONE, twoFDate, oneFDate);
         Assertions.checkEquals(2, range21Reverse.next().getValue());
         Assertions.checkEquals(1, range21Reverse.next().getValue());
         Assertions.checkFalse(range21Reverse.hasNext());

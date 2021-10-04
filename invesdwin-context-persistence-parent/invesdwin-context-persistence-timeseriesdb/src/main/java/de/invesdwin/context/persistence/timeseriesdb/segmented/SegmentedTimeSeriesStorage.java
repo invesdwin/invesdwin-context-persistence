@@ -5,8 +5,8 @@ import java.io.File;
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
-import de.invesdwin.context.persistence.ezdb.ADelegateRangeTable;
 import de.invesdwin.context.persistence.ezdb.RangeTablePersistenceMode;
+import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.storage.CorruptedTimeSeriesStorageException;
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
