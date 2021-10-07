@@ -11,7 +11,7 @@ import de.invesdwin.context.integration.streams.compressor.ICompressionFactory;
 import de.invesdwin.context.integration.streams.compressor.lz4.FastLZ4CompressionFactory;
 import de.invesdwin.context.persistence.ezdb.RangeTablePersistenceMode;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
-import de.invesdwin.context.persistence.timeseriesdb.TimeseriesProperties;
+import de.invesdwin.context.persistence.timeseriesdb.PersistentMapType;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeKey;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeKeySerde;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeShiftUnitsKey;
@@ -85,7 +85,7 @@ public class TimeSeriesStorage {
 
             @Override
             protected IPersistentMapFactory<HashRangeKey, SingleValue> newFactory() {
-                return TimeseriesProperties.newPersistentMapFactory(false);
+                return PersistentMapType.FAST.newFactory();
             }
 
         };
@@ -113,7 +113,7 @@ public class TimeSeriesStorage {
 
             @Override
             protected IPersistentMapFactory<HashRangeShiftUnitsKey, SingleValue> newFactory() {
-                return TimeseriesProperties.newPersistentMapFactory(false);
+                return PersistentMapType.FAST.newFactory();
             }
         };
         this.previousValueLookupTable = new APersistentMap<HashRangeShiftUnitsKey, SingleValue>(
@@ -141,7 +141,7 @@ public class TimeSeriesStorage {
 
             @Override
             protected IPersistentMapFactory<HashRangeShiftUnitsKey, SingleValue> newFactory() {
-                return TimeseriesProperties.newPersistentMapFactory(false);
+                return PersistentMapType.FAST.newFactory();
             }
         };
     }

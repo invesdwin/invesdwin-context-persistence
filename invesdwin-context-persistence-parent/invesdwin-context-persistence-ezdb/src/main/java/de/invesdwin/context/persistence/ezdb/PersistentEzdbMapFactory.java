@@ -16,7 +16,7 @@ import ezdb.table.TableRow;
 import ezdb.util.TableIterator;
 
 @Immutable
-public class EzdbPersistentMapFactory<K, V> implements IPersistentMapFactory<K, V> {
+public class PersistentEzdbMapFactory<K, V> implements IPersistentMapFactory<K, V> {
 
     @Override
     public ConcurrentMap<K, V> newPersistentMap(final APersistentMapConfig<K, V> config) {
