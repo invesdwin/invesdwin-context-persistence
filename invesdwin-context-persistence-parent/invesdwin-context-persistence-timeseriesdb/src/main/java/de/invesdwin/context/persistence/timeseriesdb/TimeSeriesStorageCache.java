@@ -51,11 +51,11 @@ import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.streams.PreLockedDelegateInputStream;
-import de.invesdwin.util.streams.buffer.BufferedFileDataInputStream;
 import de.invesdwin.util.streams.buffer.MemoryMappedFile;
-import de.invesdwin.util.streams.buffer.PreLockedBufferedFileDataInputStream;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 import de.invesdwin.util.streams.pool.PooledFastByteArrayOutputStream;
+import de.invesdwin.util.streams.pool.buffered.BufferedFileDataInputStream;
+import de.invesdwin.util.streams.pool.buffered.PreLockedBufferedFileDataInputStream;
 import de.invesdwin.util.time.date.FDate;
 import ezdb.table.RangeTableRow;
 
