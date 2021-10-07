@@ -155,6 +155,10 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
                     @Override
                     public TimeRange next() {
+                        if (nextSegment == null) {
+                            throw new FastNoSuchElementException(
+                                    "ASegmentedTimeSeriesStorageCache getSegments nextSegment is null");
+                        }
                         final TimeRange curSegment = nextSegment;
                         //get one segment later
                         nextSegment = determineNextSegment(curSegment);
