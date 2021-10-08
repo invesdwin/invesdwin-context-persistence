@@ -1,6 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb.updater;
 
-public interface IDataUpdater<K, V> {
+public interface ILazyDataUpdater<K, V> {
 
     void maybeUpdate();
 

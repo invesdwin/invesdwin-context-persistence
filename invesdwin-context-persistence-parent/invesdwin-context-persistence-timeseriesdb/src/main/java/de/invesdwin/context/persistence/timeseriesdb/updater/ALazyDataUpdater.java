@@ -26,7 +26,7 @@ import de.invesdwin.util.time.duration.Duration;
 import io.netty.util.concurrent.FastThreadLocal;
 
 @ThreadSafe
-public abstract class ADataUpdater<K, V> implements IDataUpdater<K, V> {
+public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
 
     private static final FastThreadLocal<Boolean> SKIP_UPDATE_ON_CURRENT_THREAD_IF_ALREADY_RUNNING = new FastThreadLocal<Boolean>();
     protected final Log log = new Log(this);
@@ -36,7 +36,7 @@ public abstract class ADataUpdater<K, V> implements IDataUpdater<K, V> {
     @GuardedBy("this")
     private IReentrantLock updateLock;
 
-    public ADataUpdater(final K key) {
+    public ALazyDataUpdater(final K key) {
         if (key == null) {
             throw new NullPointerException("key should not be null");
         }
@@ -50,7 +50,7 @@ public abstract class ADataUpdater<K, V> implements IDataUpdater<K, V> {
     private synchronized IReentrantLock getUpdateLock() {
         if (updateLock == null) {
             updateLock = Locks.newReentrantLock(
-                    ADataUpdater.class.getSimpleName() + "_" + getTable().getName() + "_" + key + "_updateLock");
+                    ALazyDataUpdater.class.getSimpleName() + "_" + getTable().getName() + "_" + key + "_updateLock");
         }
         return updateLock;
     }
@@ -132,24 +132,24 @@ public abstract class ADataUpdater<K, V> implements IDataUpdater<K, V> {
 
                 @Override
                 protected FDate extractEndTime(final V element) {
-                    return ADataUpdater.this.extractEndTime(element);
+                    return ALazyDataUpdater.this.extractEndTime(element);
                 }
 
                 @Override
                 protected ICloseableIterable<? extends V> getSource(final FDate updateFrom) {
-                    final ICloseableIterable<? extends V> downloadElements = ADataUpdater.this
+                    final ICloseableIterable<? extends V> downloadElements = ALazyDataUpdater.this
                             .downloadElements(getKey(), updateFrom);
                     return downloadElements;
                 }
 
                 @Override
                 protected String keyToString(final K key) {
-                    return ADataUpdater.this.keyToString(key);
+                    return ALazyDataUpdater.this.keyToString(key);
                 }
 
                 @Override
                 protected String getElementsName() {
-                    return ADataUpdater.this.getElementsName();
+                    return ALazyDataUpdater.this.getElementsName();
                 }
 
                 @Override

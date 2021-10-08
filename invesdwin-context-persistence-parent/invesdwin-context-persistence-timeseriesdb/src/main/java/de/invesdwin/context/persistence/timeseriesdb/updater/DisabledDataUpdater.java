@@ -3,7 +3,7 @@ package de.invesdwin.context.persistence.timeseriesdb.updater;
 import javax.annotation.concurrent.Immutable;
 
 @Immutable
-public class DisabledDataUpdater<K, V> implements IDataUpdater<K, V> {
+public class DisabledDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
 
     @SuppressWarnings("rawtypes")
     private static final DisabledDataUpdater INSTANCE = new DisabledDataUpdater<>();

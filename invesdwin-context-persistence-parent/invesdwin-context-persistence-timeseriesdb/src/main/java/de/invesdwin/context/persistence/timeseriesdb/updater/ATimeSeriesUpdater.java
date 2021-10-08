@@ -182,7 +182,6 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         }) {
             flush(batchWriterProducer);
         }
-
     }
 
     private void flush(final ICloseableIterator<UpdateProgress> batchWriterProducer) {
