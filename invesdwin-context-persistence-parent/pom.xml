@@ -47,7 +47,7 @@
 		<version.c3p0>0.9.5.5</version.c3p0>
 		<version.p6spy>3.9.1</version.p6spy>
 		<version.hibernate>5.4.19.Final</version.hibernate>
-		<version.jboss-logging>3.3.2.Final</version.jboss-logging>
+		<version.jboss-logging>3.4.2.Final</version.jboss-logging>
 		<version.datanucleus>5.2.4</version.datanucleus>
 		<version.datanucleus-cache>5.1.1</version.datanucleus-cache>
 		<version.javax.jdo>3.2.0-m10</version.javax.jdo>
