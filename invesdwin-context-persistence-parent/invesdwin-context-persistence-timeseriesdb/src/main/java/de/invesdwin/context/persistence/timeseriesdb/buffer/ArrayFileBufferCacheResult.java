@@ -62,7 +62,8 @@ public class ArrayFileBufferCacheResult<V> extends RefCountReverseCloseableItera
         if (lowIndex > highIndex) {
             return EmptyCloseableIterator.getInstance();
         }
-        return getDelegate().iterator(lowIndex, highIndex);
+        final ICloseableIterator<V> delegate = getDelegate().iterator(lowIndex, highIndex);
+        return new ResultReferenceCloseableIterator<V>(this, delegate);
     }
 
     @Override
@@ -83,7 +84,8 @@ public class ArrayFileBufferCacheResult<V> extends RefCountReverseCloseableItera
         if (lowIndex > highIndex) {
             return EmptyCloseableIterator.getInstance();
         }
-        return getDelegate().reverseIterator(highIndex, lowIndex);
+        final ICloseableIterator<V> delegate = getDelegate().reverseIterator(highIndex, lowIndex);
+        return new ResultReferenceCloseableIterator<V>(this, delegate);
     }
 
     @Override
@@ -126,6 +128,36 @@ public class ArrayFileBufferCacheResult<V> extends RefCountReverseCloseableItera
             }
         }
         return highIndex;
+    }
+
+    /**
+     * Keep the reference to the result so that weak eviction is delayed as long as this is used
+     */
+    private static final class ResultReferenceCloseableIterator<V> implements ICloseableIterator<V> {
+        @SuppressWarnings("unused")
+        private final ArrayFileBufferCacheResult<V> result;
+        private final ICloseableIterator<V> delegate;
+
+        private ResultReferenceCloseableIterator(final ArrayFileBufferCacheResult<V> result,
+                final ICloseableIterator<V> delegate) {
+            this.result = result;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return delegate.hasNext();
+        }
+
+        @Override
+        public V next() {
+            return delegate.next();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
     }
 
 }

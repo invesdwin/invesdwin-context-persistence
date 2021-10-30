@@ -9,6 +9,7 @@ import de.invesdwin.util.time.duration.Duration;
 public final class TimeseriesProperties {
 
     public static final boolean FILE_BUFFER_CACHE_SEGMENTS_ENABLED;
+    public static final boolean FILE_BUFFER_CACHE_WEAK_REFERENCES;
     public static final boolean FILE_BUFFER_CACHE_PRELOAD_ENABLED;
     public static final boolean FILE_BUFFER_CACHE_MMAP_ENABLED;
     public static final int FILE_BUFFER_CACHE_MAX_SEGMENTS_COUNT;
@@ -18,6 +19,7 @@ public final class TimeseriesProperties {
     static {
         final SystemProperties systemProperties = new SystemProperties(TimeseriesProperties.class);
         FILE_BUFFER_CACHE_SEGMENTS_ENABLED = systemProperties.getBoolean("FILE_BUFFER_CACHE_SEGMENTS_ENABLED");
+        FILE_BUFFER_CACHE_WEAK_REFERENCES = systemProperties.getBoolean("FILE_BUFFER_CACHE_WEAK_REFERENCES");
         FILE_BUFFER_CACHE_PRELOAD_ENABLED = systemProperties.getBoolean("FILE_BUFFER_CACHE_PRELOAD_ENABLED");
         FILE_BUFFER_CACHE_MMAP_ENABLED = systemProperties.getBoolean("FILE_BUFFER_CACHE_MMAP_ENABLED");
         FILE_BUFFER_CACHE_MAX_SEGMENTS_COUNT = systemProperties.getInteger("FILE_BUFFER_CACHE_MAX_SEGMENTS_COUNT");

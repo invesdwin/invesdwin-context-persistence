@@ -11,6 +11,8 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.checkerframework.checker.nullness.qual.NonNull;
+
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.github.benmanes.caffeine.cache.RemovalCause;
@@ -53,13 +55,18 @@ public final class FileBufferCache {
             TimeseriesProperties.FILE_BUFFER_CACHE_MAX_SEGMENTS_COUNT);
 
     static {
-        RESULT_CACHE = Caffeine.newBuilder()
+        @NonNull
+        final Caffeine<Object, Object> builder = Caffeine.newBuilder()
                 .maximumSize(TimeseriesProperties.FILE_BUFFER_CACHE_MAX_SEGMENTS_COUNT)
                 .expireAfterAccess(
                         TimeseriesProperties.FILE_BUFFER_CACHE_EVICTION_TIMEOUT.longValue(FTimeUnit.MILLISECONDS),
-                        TimeUnit.MILLISECONDS)
-                .weakValues()
-                .removalListener(FileBufferCache::resultCache_onRemoval)
+                        TimeUnit.MILLISECONDS);
+        if (TimeseriesProperties.FILE_BUFFER_CACHE_WEAK_REFERENCES) {
+            builder.weakValues();
+        } else {
+            builder.weakValues();
+        }
+        RESULT_CACHE = builder.removalListener(FileBufferCache::resultCache_onRemoval)
                 .<ResultCacheKey, ArrayFileBufferCacheResult> build(FileBufferCache::resultCache_load);
         FILE_CACHE = Caffeine.newBuilder()
                 .maximumSize(TimeseriesProperties.FILE_BUFFER_CACHE_MAX_MMAP_COUNT)
