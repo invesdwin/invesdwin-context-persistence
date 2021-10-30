@@ -210,7 +210,6 @@ public final class FileBufferCache {
             if (RESULT_CACHE_CLEAR_LOCK.tryLock()) {
                 try {
                     if (RESULT_CACHE.estimatedSize() > CLEAR_CACHE_SEGMENTS_COUNT) {
-                        System.err.println("clear " + RESULT_CACHE.estimatedSize());
                         RESULT_CACHE.asMap().clear();
                     }
                 } finally {
@@ -225,7 +224,6 @@ public final class FileBufferCache {
             if (MEMORY_LIMIT_REACHED_CHECK.check()) {
                 final Runtime runtime = Runtime.getRuntime();
                 final double freeMemoryRate = Doubles.divide(runtime.freeMemory(), runtime.totalMemory());
-                System.out.println("check " + freeMemoryRate);
                 prevMemoryLimitReached = freeMemoryRate < FREE_MEMORY_LIMIT_REACHED_RATE;
             }
             return prevMemoryLimitReached;
