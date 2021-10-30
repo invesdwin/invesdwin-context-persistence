@@ -58,7 +58,7 @@ public final class FileBufferCache {
                 .expireAfterAccess(
                         TimeseriesProperties.FILE_BUFFER_CACHE_EVICTION_TIMEOUT.longValue(FTimeUnit.MILLISECONDS),
                         TimeUnit.MILLISECONDS)
-                .softValues()
+                .weakValues()
                 .removalListener(FileBufferCache::resultCache_onRemoval)
                 .<ResultCacheKey, ArrayFileBufferCacheResult> build(FileBufferCache::resultCache_load);
         FILE_CACHE = Caffeine.newBuilder()
