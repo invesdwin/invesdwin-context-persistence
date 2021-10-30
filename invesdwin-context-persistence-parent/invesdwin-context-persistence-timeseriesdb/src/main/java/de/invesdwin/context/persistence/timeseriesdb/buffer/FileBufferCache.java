@@ -173,7 +173,8 @@ public final class FileBufferCache {
         if (TimeseriesProperties.FILE_BUFFER_CACHE_SEGMENTS_ENABLED) {
             final ResultCacheKey key = new ResultCacheKey(hashKey, summary, source);
             if (MemoryLimit.isMemoryLimitReached()) {
-                MemoryLimit.maybeClearCacheUnchecked(RESULT_CACHE, RESULT_CACHE_CLEAR_LOCK);
+                MemoryLimit.maybeClearCacheUnchecked(FileBufferCache.class, "RESULT_CACHE", RESULT_CACHE,
+                        RESULT_CACHE_CLEAR_LOCK);
                 return getResultNoCache(source);
             } else {
                 final IFileBufferCacheResult value = RESULT_CACHE.get(key);
