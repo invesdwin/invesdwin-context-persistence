@@ -57,9 +57,22 @@ public final class FileBufferCache {
             () -> new ArrayList<>(ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL),
             TimeseriesProperties.FILE_BUFFER_CACHE_MAX_SEGMENTS_COUNT);
 
-    private static final int CLEAR_CACHE_SEGMENTS_COUNT = 10;
+    /**
+     * Only allow one thread at a time to clear the cache.
+     */
     private static final ILock RESULT_CACHE_CLEAR_LOCK = ILockCollectionFactory.getInstance(true)
             .newLock(FileBufferCache.class.getSimpleName() + "_RESULT_CACHE_CLEAR_LOCK");
+    /**
+     * Only clear cache if it would it actually has something to be cleared.
+     */
+    private static final int CLEAR_CACHE_SEGMENTS_COUNT = 10;
+    /**
+     * If free memory is below 10%, clear the file buffer cache and load from file for one check period.
+     */
+    private static final double FREE_MEMORY_LIMIT_REACHED_RATE = 0.1D;
+    /**
+     * Check each 100ms if we can use the cache again or should clear it again.
+     */
     private static final AtomicLoopInterruptedCheck MEMORY_LIMIT_REACHED_CHECK = new AtomicLoopInterruptedCheck(
             new Duration(100, FTimeUnit.MILLISECONDS)) {
         @Override
@@ -67,7 +80,7 @@ public final class FileBufferCache {
             //noop
         }
     };
-    private static boolean prevMemoryLimitReached = false;
+    private static volatile boolean prevMemoryLimitReached = false;
 
     static {
         RESULT_CACHE = Caffeine.newBuilder()
@@ -197,7 +210,7 @@ public final class FileBufferCache {
             if (RESULT_CACHE_CLEAR_LOCK.tryLock()) {
                 try {
                     if (RESULT_CACHE.estimatedSize() > CLEAR_CACHE_SEGMENTS_COUNT) {
-                        System.err.println("clear");
+                        System.err.println("clear " + RESULT_CACHE.estimatedSize());
                         RESULT_CACHE.asMap().clear();
                     }
                 } finally {
@@ -213,7 +226,7 @@ public final class FileBufferCache {
                 final Runtime runtime = Runtime.getRuntime();
                 final double freeMemoryRate = Doubles.divide(runtime.freeMemory(), runtime.totalMemory());
                 System.out.println("check " + freeMemoryRate);
-                prevMemoryLimitReached = freeMemoryRate < 0.1;
+                prevMemoryLimitReached = freeMemoryRate < FREE_MEMORY_LIMIT_REACHED_RATE;
             }
             return prevMemoryLimitReached;
         } catch (final InterruptedException e) {
