@@ -11,8 +11,6 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.checkerframework.checker.nullness.qual.NonNull;
-
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.github.benmanes.caffeine.cache.RemovalCause;
@@ -22,15 +20,20 @@ import de.invesdwin.context.beans.hook.ReinitializationHookSupport;
 import de.invesdwin.context.persistence.timeseriesdb.TimeseriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
+import de.invesdwin.util.concurrent.lock.ILock;
+import de.invesdwin.util.concurrent.loop.AtomicLoopInterruptedCheck;
 import de.invesdwin.util.concurrent.pool.AgronaObjectPool;
 import de.invesdwin.util.concurrent.pool.IObjectPool;
 import de.invesdwin.util.lang.Objects;
+import de.invesdwin.util.math.Doubles;
 import de.invesdwin.util.streams.buffer.MemoryMappedFile;
 import de.invesdwin.util.time.date.FTimeUnit;
+import de.invesdwin.util.time.duration.Duration;
 
 @SuppressWarnings({ "unchecked", "rawtypes" })
 @ThreadSafe
@@ -54,19 +57,26 @@ public final class FileBufferCache {
             () -> new ArrayList<>(ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL),
             TimeseriesProperties.FILE_BUFFER_CACHE_MAX_SEGMENTS_COUNT);
 
+    private static final int CLEAR_CACHE_SEGMENTS_COUNT = 10;
+    private static final ILock RESULT_CACHE_CLEAR_LOCK = ILockCollectionFactory.getInstance(true)
+            .newLock(FileBufferCache.class.getSimpleName() + "_RESULT_CACHE_CLEAR_LOCK");
+    private static final AtomicLoopInterruptedCheck MEMORY_LIMIT_REACHED_CHECK = new AtomicLoopInterruptedCheck(
+            new Duration(100, FTimeUnit.MILLISECONDS)) {
+        @Override
+        protected void onInterval() throws InterruptedException {
+            //noop
+        }
+    };
+    private static boolean prevMemoryLimitReached = false;
+
     static {
-        @NonNull
-        final Caffeine<Object, Object> builder = Caffeine.newBuilder()
+        RESULT_CACHE = Caffeine.newBuilder()
                 .maximumSize(TimeseriesProperties.FILE_BUFFER_CACHE_MAX_SEGMENTS_COUNT)
                 .expireAfterAccess(
                         TimeseriesProperties.FILE_BUFFER_CACHE_EVICTION_TIMEOUT.longValue(FTimeUnit.MILLISECONDS),
-                        TimeUnit.MILLISECONDS);
-        if (TimeseriesProperties.FILE_BUFFER_CACHE_WEAK_REFERENCES) {
-            builder.weakValues();
-        } else {
-            builder.softValues();
-        }
-        RESULT_CACHE = builder.removalListener(FileBufferCache::resultCache_onRemoval)
+                        TimeUnit.MILLISECONDS)
+                .softValues()
+                .removalListener(FileBufferCache::resultCache_onRemoval)
                 .<ResultCacheKey, ArrayFileBufferCacheResult> build(FileBufferCache::resultCache_load);
         FILE_CACHE = Caffeine.newBuilder()
                 .maximumSize(TimeseriesProperties.FILE_BUFFER_CACHE_MAX_MMAP_COUNT)
@@ -170,14 +180,52 @@ public final class FileBufferCache {
             final IFileBufferSource source) {
         if (TimeseriesProperties.FILE_BUFFER_CACHE_SEGMENTS_ENABLED) {
             final ResultCacheKey key = new ResultCacheKey(hashKey, summary, source);
-            final IFileBufferCacheResult value = RESULT_CACHE.get(key);
-            return value;
-        } else {
-            try {
-                return new IterableFileBufferCacheResult(source.getSource());
-            } catch (final IOException e) {
-                throw new RuntimeException(e);
+            if (isMemoryLimitReached()) {
+                maybeClearCache();
+                return getResultNoCache(source);
+            } else {
+                final IFileBufferCacheResult value = RESULT_CACHE.get(key);
+                return value;
             }
+        } else {
+            return getResultNoCache(source);
+        }
+    }
+
+    private static void maybeClearCache() {
+        if (RESULT_CACHE.estimatedSize() > CLEAR_CACHE_SEGMENTS_COUNT) {
+            if (RESULT_CACHE_CLEAR_LOCK.tryLock()) {
+                try {
+                    if (RESULT_CACHE.estimatedSize() > CLEAR_CACHE_SEGMENTS_COUNT) {
+                        System.err.println("clear");
+                        RESULT_CACHE.asMap().clear();
+                    }
+                } finally {
+                    RESULT_CACHE_CLEAR_LOCK.unlock();
+                }
+            }
+        }
+    }
+
+    private static boolean isMemoryLimitReached() {
+        try {
+            if (MEMORY_LIMIT_REACHED_CHECK.check()) {
+                final Runtime runtime = Runtime.getRuntime();
+                final double freeMemoryRate = Doubles.divide(runtime.freeMemory(), runtime.totalMemory());
+                System.out.println("check " + freeMemoryRate);
+                prevMemoryLimitReached = freeMemoryRate < 0.1;
+            }
+            return prevMemoryLimitReached;
+        } catch (final InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static <T> IFileBufferCacheResult<T> getResultNoCache(final IFileBufferSource source) {
+        try {
+            return new IterableFileBufferCacheResult(source.getSource());
+        } catch (final IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
