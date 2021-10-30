@@ -26,14 +26,12 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
 import de.invesdwin.util.concurrent.lock.ILock;
-import de.invesdwin.util.concurrent.loop.AtomicLoopInterruptedCheck;
 import de.invesdwin.util.concurrent.pool.AgronaObjectPool;
 import de.invesdwin.util.concurrent.pool.IObjectPool;
+import de.invesdwin.util.concurrent.pool.MemoryLimit;
 import de.invesdwin.util.lang.Objects;
-import de.invesdwin.util.math.Doubles;
 import de.invesdwin.util.streams.buffer.MemoryMappedFile;
 import de.invesdwin.util.time.date.FTimeUnit;
-import de.invesdwin.util.time.duration.Duration;
 
 @SuppressWarnings({ "unchecked", "rawtypes" })
 @ThreadSafe
@@ -62,25 +60,6 @@ public final class FileBufferCache {
      */
     private static final ILock RESULT_CACHE_CLEAR_LOCK = ILockCollectionFactory.getInstance(true)
             .newLock(FileBufferCache.class.getSimpleName() + "_RESULT_CACHE_CLEAR_LOCK");
-    /**
-     * Only clear cache if it would it actually has something to be cleared.
-     */
-    private static final int CLEAR_CACHE_SEGMENTS_COUNT = 10;
-    /**
-     * If free memory is below 10%, clear the file buffer cache and load from file for one check period.
-     */
-    private static final double FREE_MEMORY_LIMIT_REACHED_RATE = 0.1D;
-    /**
-     * Check each 100ms if we can use the cache again or should clear it again.
-     */
-    private static final AtomicLoopInterruptedCheck MEMORY_LIMIT_REACHED_CHECK = new AtomicLoopInterruptedCheck(
-            new Duration(100, FTimeUnit.MILLISECONDS)) {
-        @Override
-        protected void onInterval() throws InterruptedException {
-            //noop
-        }
-    };
-    private static volatile boolean prevMemoryLimitReached = false;
 
     static {
         RESULT_CACHE = Caffeine.newBuilder()
@@ -193,8 +172,8 @@ public final class FileBufferCache {
             final IFileBufferSource source) {
         if (TimeseriesProperties.FILE_BUFFER_CACHE_SEGMENTS_ENABLED) {
             final ResultCacheKey key = new ResultCacheKey(hashKey, summary, source);
-            if (isMemoryLimitReached()) {
-                maybeClearCache();
+            if (MemoryLimit.isMemoryLimitReached()) {
+                MemoryLimit.maybeClearCacheUnchecked(RESULT_CACHE, RESULT_CACHE_CLEAR_LOCK);
                 return getResultNoCache(source);
             } else {
                 final IFileBufferCacheResult value = RESULT_CACHE.get(key);
@@ -202,33 +181,6 @@ public final class FileBufferCache {
             }
         } else {
             return getResultNoCache(source);
-        }
-    }
-
-    private static void maybeClearCache() {
-        if (RESULT_CACHE.estimatedSize() > CLEAR_CACHE_SEGMENTS_COUNT) {
-            if (RESULT_CACHE_CLEAR_LOCK.tryLock()) {
-                try {
-                    if (RESULT_CACHE.estimatedSize() > CLEAR_CACHE_SEGMENTS_COUNT) {
-                        RESULT_CACHE.asMap().clear();
-                    }
-                } finally {
-                    RESULT_CACHE_CLEAR_LOCK.unlock();
-                }
-            }
-        }
-    }
-
-    private static boolean isMemoryLimitReached() {
-        try {
-            if (MEMORY_LIMIT_REACHED_CHECK.check()) {
-                final Runtime runtime = Runtime.getRuntime();
-                final double freeMemoryRate = Doubles.divide(runtime.freeMemory(), runtime.totalMemory());
-                prevMemoryLimitReached = freeMemoryRate < FREE_MEMORY_LIMIT_REACHED_RATE;
-            }
-            return prevMemoryLimitReached;
-        } catch (final InterruptedException e) {
-            throw new RuntimeException(e);
         }
     }
 
