@@ -64,7 +64,7 @@ public final class FileBufferCache {
         if (TimeseriesProperties.FILE_BUFFER_CACHE_WEAK_REFERENCES) {
             builder.weakValues();
         } else {
-            builder.weakValues();
+            builder.softValues();
         }
         RESULT_CACHE = builder.removalListener(FileBufferCache::resultCache_onRemoval)
                 .<ResultCacheKey, ArrayFileBufferCacheResult> build(FileBufferCache::resultCache_load);
