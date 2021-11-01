@@ -583,7 +583,7 @@ public class SimpleTestDaoTest extends APersistenceTest {
         public void testMultipleReadsInNewTransactionsCausesNewSelect() {
             testMultipleReadsInOneTransactionCausesOnlyOneSelect();
 
-            final SimpleTestEntity newEnt1 = dao.findAll(new QueryConfig().withMaxResults(1)).get(0);
+            final SimpleTestEntity newEnt1 = dao.findAll(new QueryConfig().setMaxResults(1)).get(0);
 
             SimpleTestEntity newEnt2 = new SimpleTestEntity();
             newEnt2.setId(newEnt1.getId());
@@ -597,7 +597,7 @@ public class SimpleTestDaoTest extends APersistenceTest {
             testMultipleReadsInOneTransactionCausesOnlyOneSelect();
 
             final long countLinesBefore = dao.count();
-            final SimpleTestEntity newEnt1 = dao.findAll(new QueryConfig().withMaxResults(1)).get(0);
+            final SimpleTestEntity newEnt1 = dao.findAll(new QueryConfig().setMaxResults(1)).get(0);
 
             newEnt1.setName("newName");
             final SimpleTestEntity updatedEnt1 = dao.save(newEnt1);
@@ -611,7 +611,7 @@ public class SimpleTestDaoTest extends APersistenceTest {
         public void testMultipleReadOfSameObjectCausesChangesToBeReset() {
             testMultipleReadsInOneTransactionCausesOnlyOneSelect();
 
-            SimpleTestEntity newEnt1 = dao.findAll(new QueryConfig().withMaxResults(1)).get(0);
+            SimpleTestEntity newEnt1 = dao.findAll(new QueryConfig().setMaxResults(1)).get(0);
             final String alterName = newEnt1.getName();
             newEnt1.setName("newName");
             newEnt1 = dao.findOne(newEnt1);
@@ -640,7 +640,7 @@ public class SimpleTestDaoTest extends APersistenceTest {
         private SimpleTestEntity testMagicalUpdateWithoutWriteCallInnerTransactionWithManipulationNoWrite(
                 final String newName, final boolean withCloneBeforeManipulation) {
             testMultipleReadsInOneTransactionCausesOnlyOneSelect();
-            SimpleTestEntity newEnt = dao.findAll(new QueryConfig().withMaxResults(1)).get(0);
+            SimpleTestEntity newEnt = dao.findAll(new QueryConfig().setMaxResults(1)).get(0);
             if (withCloneBeforeManipulation) {
                 newEnt = (SimpleTestEntity) newEnt.clone();
             }

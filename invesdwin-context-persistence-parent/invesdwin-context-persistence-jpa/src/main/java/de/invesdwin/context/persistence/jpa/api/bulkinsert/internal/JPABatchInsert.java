@@ -29,7 +29,7 @@ public class JPABatchInsert<E> implements IBulkInsertEntities<E> {
     }
 
     @Override
-    public JPABatchInsert<E> withDisabledChecks(final boolean disabledChecks) {
+    public JPABatchInsert<E> setDisabledChecks(final boolean disabledChecks) {
         return this;
     }
 
@@ -44,7 +44,7 @@ public class JPABatchInsert<E> implements IBulkInsertEntities<E> {
     }
 
     @Override
-    public IBulkInsertEntities<E> withSkipPrepareEntities(final boolean skipPrepareEntities) {
+    public IBulkInsertEntities<E> setSkipPrepareEntities(final boolean skipPrepareEntities) {
         return this;
     }
 

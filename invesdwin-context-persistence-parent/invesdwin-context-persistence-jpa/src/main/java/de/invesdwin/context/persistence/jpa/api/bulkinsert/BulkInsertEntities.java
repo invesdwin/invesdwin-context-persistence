@@ -51,8 +51,8 @@ public class BulkInsertEntities<E> implements IBulkInsertEntities<E> {
     }
 
     @Override
-    public BulkInsertEntities<E> withDisabledChecks(final boolean disabledChecks) {
-        delegate.withDisabledChecks(disabledChecks);
+    public BulkInsertEntities<E> setDisabledChecks(final boolean disabledChecks) {
+        delegate.setDisabledChecks(disabledChecks);
         return this;
     }
 
@@ -62,11 +62,11 @@ public class BulkInsertEntities<E> implements IBulkInsertEntities<E> {
     }
 
     @Override
-    public BulkInsertEntities<E> withSkipPrepareEntities(final boolean skipPrepareEntity) {
+    public BulkInsertEntities<E> setSkipPrepareEntities(final boolean skipPrepareEntity) {
         if (skipPrepareEntity) {
             Assertions.assertThat(genericType).isNotInstanceOf(IEntity.class);
         }
-        delegate.withSkipPrepareEntities(skipPrepareEntity);
+        delegate.setSkipPrepareEntities(skipPrepareEntity);
         return this;
     }
 

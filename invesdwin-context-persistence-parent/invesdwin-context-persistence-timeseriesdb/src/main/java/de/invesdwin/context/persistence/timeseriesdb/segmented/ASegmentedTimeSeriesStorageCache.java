@@ -557,7 +557,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                         }
                         //get one segment earlier
                         nextSegment = getSegmentFinder(key).query()
-                                .withFutureNull()
+                                .setFutureNullEnabled()
                                 .getValue(nextSegment.getFrom().addMilliseconds(-1));
                         return curSegment;
                     }

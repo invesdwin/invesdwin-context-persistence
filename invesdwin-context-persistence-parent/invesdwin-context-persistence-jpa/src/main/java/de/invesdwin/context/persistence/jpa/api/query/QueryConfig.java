@@ -16,17 +16,17 @@ public class QueryConfig {
     private Integer firstResult;
     private Integer maxResults;
 
-    public QueryConfig withCacheable(final Boolean cacheable) {
+    public QueryConfig setCacheable(final Boolean cacheable) {
         this.cacheable = cacheable;
         return this;
     }
 
-    public QueryConfig withFirstResult(final Integer firstResult) {
+    public QueryConfig setFirstResult(final Integer firstResult) {
         this.firstResult = firstResult;
         return this;
     }
 
-    public QueryConfig withMaxResults(final Integer maxResults) {
+    public QueryConfig setMaxResults(final Integer maxResults) {
         this.maxResults = maxResults;
         return this;
     }

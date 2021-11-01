@@ -99,7 +99,7 @@ public class CachedTestDaoTest extends APersistenceTest {
             for (int i = 0; i < 100; i++) {
                 final TestEntity qbe = new TestEntity();
                 qbe.setName(ent.getName());
-                Assertions.assertThat(testDao.findOne(qbe, new QueryConfig().withCacheable(true))).isNotSameAs(ent);
+                Assertions.assertThat(testDao.findOne(qbe, new QueryConfig().setCacheable(true))).isNotSameAs(ent);
             }
         }
 
@@ -138,7 +138,7 @@ public class CachedTestDaoTest extends APersistenceTest {
             for (int i = 0; i < 100; i++) {
                 final CachedTestEntity qbe = new CachedTestEntity();
                 qbe.setName(ent.getName());
-                Assertions.assertThat(cachedTestDao.findOne(qbe, new QueryConfig().withCacheable(true)))
+                Assertions.assertThat(cachedTestDao.findOne(qbe, new QueryConfig().setCacheable(true)))
                         .isNotSameAs(ent);
             }
         }

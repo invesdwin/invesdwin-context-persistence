@@ -11,10 +11,10 @@ public interface IBulkInsertEntities<E> extends Closeable {
 
     boolean isDisabledChecks();
 
-    IBulkInsertEntities<E> withDisabledChecks(boolean disabledChecks);
+    IBulkInsertEntities<E> setDisabledChecks(boolean disabledChecks);
 
     boolean isSkipPrepareEntities();
 
-    IBulkInsertEntities<E> withSkipPrepareEntities(boolean prepareEntityInEntityManager);
+    IBulkInsertEntities<E> setSkipPrepareEntities(boolean prepareEntityInEntityManager);
 
 }

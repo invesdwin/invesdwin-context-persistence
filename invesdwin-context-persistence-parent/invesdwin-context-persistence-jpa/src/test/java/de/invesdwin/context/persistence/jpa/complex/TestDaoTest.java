@@ -573,7 +573,7 @@ public class TestDaoTest extends APersistenceTest {
         public void testMultipleReadsInNewTransactionsCausesNewSelect() {
             testMultipleReadsInOneTransactionCausesOnlyOneSelect();
 
-            final TestEntity newEnt1 = dao.findAll(new QueryConfig().withMaxResults(1)).get(0);
+            final TestEntity newEnt1 = dao.findAll(new QueryConfig().setMaxResults(1)).get(0);
 
             TestEntity newEnt2 = new TestEntity();
             newEnt2.setId(newEnt1.getId());
@@ -587,7 +587,7 @@ public class TestDaoTest extends APersistenceTest {
             testMultipleReadsInOneTransactionCausesOnlyOneSelect();
 
             final long countLinesBefore = dao.count();
-            final TestEntity newEnt1 = dao.findAll(new QueryConfig().withMaxResults(1)).get(0);
+            final TestEntity newEnt1 = dao.findAll(new QueryConfig().setMaxResults(1)).get(0);
 
             newEnt1.setName("newName");
             final TestEntity updatedEnt1 = dao.save(newEnt1);
@@ -602,7 +602,7 @@ public class TestDaoTest extends APersistenceTest {
         public void testMultipleReadOfSameObjectCausesChangesToBeReset() {
             testMultipleReadsInOneTransactionCausesOnlyOneSelect();
 
-            TestEntity newEnt1 = dao.findAll(new QueryConfig().withMaxResults(1)).get(0);
+            TestEntity newEnt1 = dao.findAll(new QueryConfig().setMaxResults(1)).get(0);
             final String alterName = newEnt1.getName();
             newEnt1.setName("newName");
             newEnt1 = dao.findOne(newEnt1);
@@ -631,7 +631,7 @@ public class TestDaoTest extends APersistenceTest {
         private TestEntity testMagicalUpdateWithoutWriteCallInnerTransactionWithManipulationNoWrite(
                 final String newName, final boolean withCloneBeforeManipulation) {
             testMultipleReadsInOneTransactionCausesOnlyOneSelect();
-            TestEntity newEnt = dao.findAll(new QueryConfig().withMaxResults(1)).get(0);
+            TestEntity newEnt = dao.findAll(new QueryConfig().setMaxResults(1)).get(0);
             if (withCloneBeforeManipulation) {
                 newEnt = (TestEntity) newEnt.clone();
             }

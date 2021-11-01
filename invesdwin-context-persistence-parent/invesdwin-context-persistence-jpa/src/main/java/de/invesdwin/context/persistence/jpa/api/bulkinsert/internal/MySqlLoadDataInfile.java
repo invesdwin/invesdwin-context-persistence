@@ -61,7 +61,7 @@ public class MySqlLoadDataInfile<E> implements IBulkInsertEntities<E> {
      * set unique_checks = 0; set foreign_key_checks = 0; set sql_log_bin=0;
      */
     @Override
-    public MySqlLoadDataInfile<E> withDisabledChecks(final boolean disabledChecks) {
+    public MySqlLoadDataInfile<E> setDisabledChecks(final boolean disabledChecks) {
         this.disabledChecks = disabledChecks;
         return this;
     }
@@ -77,7 +77,7 @@ public class MySqlLoadDataInfile<E> implements IBulkInsertEntities<E> {
     }
 
     @Override
-    public IBulkInsertEntities<E> withSkipPrepareEntities(final boolean skipPrepareEntities) {
+    public IBulkInsertEntities<E> setSkipPrepareEntities(final boolean skipPrepareEntities) {
         this.skipPrepareEntities = skipPrepareEntities;
         return this;
     }
