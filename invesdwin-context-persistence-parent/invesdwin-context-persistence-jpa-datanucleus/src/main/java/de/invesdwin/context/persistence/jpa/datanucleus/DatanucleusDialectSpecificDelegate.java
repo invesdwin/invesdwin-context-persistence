@@ -121,9 +121,9 @@ public class DatanucleusDialectSpecificDelegate implements IDialectSpecificDeleg
     }
 
     private void initCaches() {
-        Assertions.checkNotNull(new CacheBuilder<Object, Object>().withName(L2_CACHE_NAME)
-                .withExpireAfterAccess(new Duration(2, FTimeUnit.MINUTES))
-                .withMaximumSize(10000)
+        Assertions.checkNotNull(new CacheBuilder<Object, Object>().setName(L2_CACHE_NAME)
+                .setExpireAfterAccess(new Duration(2, FTimeUnit.MINUTES))
+                .setMaximumSize(10000)
                 .getOrCreate());
     }
 

@@ -105,12 +105,12 @@ public class HibernateDialectSpecificDelegate implements IDialectSpecificDelegat
     }
 
     private void initCaches() {
-        Assertions.checkNotNull(new CacheBuilder<Object, Object>().withName("default-query-results-region")
-                .withExpireAfterAccess(new Duration(2, FTimeUnit.MINUTES))
-                .withMaximumSize(10000)
+        Assertions.checkNotNull(new CacheBuilder<Object, Object>().setName("default-query-results-region")
+                .setExpireAfterAccess(new Duration(2, FTimeUnit.MINUTES))
+                .setMaximumSize(10000)
                 .getOrCreate());
-        Assertions.checkNotNull(new CacheBuilder<Object, Object>().withName("default-update-timestamps-region")
-                .withMaximumSize(1000000)
+        Assertions.checkNotNull(new CacheBuilder<Object, Object>().setName("default-update-timestamps-region")
+                .setMaximumSize(1000000)
                 .getOrCreate());
     }
 
