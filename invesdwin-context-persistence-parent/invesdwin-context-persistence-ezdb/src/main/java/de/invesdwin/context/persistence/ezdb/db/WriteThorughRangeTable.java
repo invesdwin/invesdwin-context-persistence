@@ -133,33 +133,61 @@ public class WriteThorughRangeTable<H, R, V> implements RangeTable<H, R, V> {
     }
 
     @Override
+    public TableIterator<RangeTableRow<H, R, V>> range() {
+        return disk.range();
+    }
+
+    @Override
     public TableIterator<RangeTableRow<H, R, V>> range(final H hashKey) {
+        if (hashKey == null) {
+            return range();
+        }
         return hashKey_loadedMemory.get(hashKey).range(hashKey);
     }
 
     @Override
     public TableIterator<RangeTableRow<H, R, V>> range(final H hashKey, final R fromRangeKey) {
+        if (fromRangeKey == null) {
+            return range(hashKey);
+        }
         return hashKey_loadedMemory.get(hashKey).range(hashKey, fromRangeKey);
     }
 
     @Override
     public TableIterator<RangeTableRow<H, R, V>> range(final H hashKey, final R fromRangeKey, final R toRangeKey) {
+        if (toRangeKey == null) {
+            return range(hashKey, fromRangeKey);
+        }
         return hashKey_loadedMemory.get(hashKey).range(hashKey, fromRangeKey, toRangeKey);
     }
 
     @Override
+    public TableIterator<RangeTableRow<H, R, V>> rangeReverse() {
+        return disk.rangeReverse();
+    }
+
+    @Override
     public TableIterator<RangeTableRow<H, R, V>> rangeReverse(final H hashKey) {
+        if (hashKey == null) {
+            return rangeReverse();
+        }
         return hashKey_loadedMemory.get(hashKey).rangeReverse(hashKey);
     }
 
     @Override
     public TableIterator<RangeTableRow<H, R, V>> rangeReverse(final H hashKey, final R fromRangeKey) {
+        if (fromRangeKey == null) {
+            return rangeReverse(hashKey);
+        }
         return hashKey_loadedMemory.get(hashKey).rangeReverse(hashKey, fromRangeKey);
     }
 
     @Override
     public TableIterator<RangeTableRow<H, R, V>> rangeReverse(final H hashKey, final R fromRangeKey,
             final R toRangeKey) {
+        if (toRangeKey == null) {
+            return rangeReverse(hashKey, fromRangeKey);
+        }
         return hashKey_loadedMemory.get(hashKey).rangeReverse(hashKey, fromRangeKey, toRangeKey);
     }
 

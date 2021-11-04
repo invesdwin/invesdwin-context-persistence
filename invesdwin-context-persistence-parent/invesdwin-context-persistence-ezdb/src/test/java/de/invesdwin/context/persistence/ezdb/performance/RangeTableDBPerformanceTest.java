@@ -25,7 +25,7 @@ import ezdb.table.range.RangeBatch;
 
 @NotThreadSafe
 @Ignore("manual test")
-public class LevelDBPerformanceTest extends ADatabasePerformanceTest {
+public class RangeTableDBPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
     public void testLevelDbPerformance() throws InterruptedException {

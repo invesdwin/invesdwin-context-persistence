@@ -529,6 +529,17 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
     }
 
     @Override
+    public DelegateRangeTableIterator<H, R, V> range() {
+        final RangeTable<H, R, V> table = getTableWithReadLock(false);
+        return new DelegateRangeTableIterator<H, R, V>(name, null, "range()", table.range(), getReadLock(false),
+                allowHasNext());
+    }
+
+    public ICloseableIterator<V> rangeValues() {
+        return new DelegateValueTableIterator<V>(range());
+    }
+
+    @Override
     public DelegateRangeTableIterator<H, R, V> range(final H hashKey) {
         final RangeTable<H, R, V> table = getTableWithReadLock(false);
         return new DelegateRangeTableIterator<H, R, V>(name, hashKey, "range(final H hashKey)", table.range(hashKey),
@@ -560,6 +571,17 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
 
     public ICloseableIterator<V> rangeValues(final H hashKey, final R fromRangeKey, final R toRangeKey) {
         return new DelegateValueTableIterator<V>(range(hashKey, fromRangeKey, toRangeKey));
+    }
+
+    @Override
+    public DelegateRangeTableIterator<H, R, V> rangeReverse() {
+        final RangeTable<H, R, V> table = getTableWithReadLock(false);
+        return new DelegateRangeTableIterator<H, R, V>(name, null, "range()", table.rangeReverse(), getReadLock(false),
+                allowHasNext());
+    }
+
+    public ICloseableIterator<V> rangeReverseValues() {
+        return new DelegateValueTableIterator<V>(rangeReverse());
     }
 
     @Override
