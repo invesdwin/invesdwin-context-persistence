@@ -12,7 +12,6 @@ import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
 import de.invesdwin.context.persistence.ezdb.table.ADelegateTable;
 import de.invesdwin.context.persistence.ezdb.table.TableConcurrentMap;
 import de.invesdwin.util.marshallers.serde.ISerde;
-import de.invesdwin.util.marshallers.serde.basic.VoidSerde;
 import ezdb.table.Batch;
 import ezdb.table.TableRow;
 import ezdb.util.TableIterator;
