@@ -9,8 +9,8 @@ import javax.annotation.concurrent.Immutable;
 import de.invesdwin.context.integration.persistentmap.APersistentMapConfig;
 import de.invesdwin.context.integration.persistentmap.IKeyMatcher;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
+import de.invesdwin.context.persistence.ezdb.table.ADelegateTable;
 import de.invesdwin.context.persistence.ezdb.table.TableConcurrentMap;
-import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.VoidSerde;
 import ezdb.table.Batch;
@@ -22,15 +22,10 @@ public class PersistentEzdbMapFactory<K, V> implements IPersistentMapFactory<K, 
 
     @Override
     public ConcurrentMap<K, V> newPersistentMap(final APersistentMapConfig<K, V> config) {
-        final ADelegateRangeTable<K, Void, V> table = new ADelegateRangeTable<K, Void, V>(config.getName()) {
+        final ADelegateTable<K, V> table = new ADelegateTable<K, V>(config.getName()) {
             @Override
             protected ISerde<K> newHashKeySerde() {
                 return config.newKeySerde();
-            }
-
-            @Override
-            protected ISerde<Void> newRangeKeySerde() {
-                return VoidSerde.GET;
             }
 
             @Override
