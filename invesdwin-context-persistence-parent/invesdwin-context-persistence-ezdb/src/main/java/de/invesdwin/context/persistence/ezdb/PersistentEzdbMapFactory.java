@@ -1,5 +1,6 @@
 package de.invesdwin.context.persistence.ezdb;
 
+import java.io.IOException;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentMap;
 
@@ -12,6 +13,7 @@ import de.invesdwin.context.persistence.ezdb.table.TableConcurrentMap;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.VoidSerde;
+import ezdb.table.Batch;
 import ezdb.table.TableRow;
 import ezdb.util.TableIterator;
 
@@ -48,15 +50,26 @@ public class PersistentEzdbMapFactory<K, V> implements IPersistentMapFactory<K, 
     public void removeAll(final ConcurrentMap<K, V> table, final IKeyMatcher<K> matcher) {
         final TableConcurrentMap<K, V> cTable = (TableConcurrentMap<K, V>) table;
         final TableIterator<? extends TableRow<K, V>> range = cTable.getTable().range();
+        final Batch<K, V> batch = cTable.getTable().newBatch();
         try {
-            while (true) {
-                final TableRow<K, V> next = range.next();
-                if (matcher.matches(next.getHashKey())) {
-                    range.remove();
+            try {
+                while (true) {
+                    final TableRow<K, V> next = range.next();
+                    if (matcher.matches(next.getHashKey())) {
+                        batch.delete(next.getKey());
+                    }
                 }
+            } catch (final NoSuchElementException e) {
+                //end reached
             }
-        } catch (final NoSuchElementException e) {
-            //end reached
+            batch.flush();
+        } finally {
+            range.close();
+            try {
+                batch.close();
+            } catch (final IOException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 
