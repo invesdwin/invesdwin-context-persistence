@@ -22,7 +22,7 @@ import de.invesdwin.util.time.date.FDate;
 @ThreadSafe
 public class TimeSeriesStorage {
 
-    private static final PersistentMapType MAP_TYPE = PersistentMapType.FAST;
+    private static final PersistentMapType MAP_TYPE = PersistentMapType.SAFE;
     private final File directory;
     private final ICompressionFactory compressionFactory;
     private final ADelegateRangeTable<String, FDate, MemoryFileSummary> fileLookupTable;
