@@ -1,5 +1,6 @@
 package de.invesdwin.context.persistence.ezdb;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentMap;
@@ -22,6 +23,17 @@ public class PersistentEzdbMapFactory<K, V> implements IPersistentMapFactory<K, 
     @Override
     public ConcurrentMap<K, V> newPersistentMap(final APersistentMapConfig<K, V> config) {
         final ADelegateTable<K, V> table = new ADelegateTable<K, V>(config.getName()) {
+
+            @Override
+            protected File getBaseDirectory() {
+                return config.getBaseDirectory();
+            }
+
+            @Override
+            protected File getDirectory() {
+                return config.getDirectory();
+            }
+
             @Override
             protected ISerde<K> newHashKeySerde() {
                 return config.newKeySerde();
