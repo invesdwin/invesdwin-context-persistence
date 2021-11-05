@@ -29,7 +29,7 @@ public class PersistentChronicleMapFactory<K, V> implements IPersistentMapFactor
                 .keyMarshaller(new ChronicleMarshaller<K>(config.newKeySerde()))
                 .valueMarshaller(new ChronicleMarshaller<V>(config.newValueSerde()))
                 .maxBloatFactor(1_000)
-                .entries(1_000_000);
+                .entries(100_000);
         builder = configureChronicleMap(config, builder);
         return createChronicleMap(config, builder);
     }
