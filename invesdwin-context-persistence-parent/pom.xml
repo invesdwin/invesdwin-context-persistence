@@ -219,6 +219,13 @@
 				<groupId>com.zaxxer</groupId>
 				<artifactId>HikariCP</artifactId>
 				<version>${version.hikaricp}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>org.slf4j
+				</groupId>
+						<artifactId>slf4j-api</artifactId>
+					</exclusion>
+				</exclusions>
 			</dependency>
 			<dependency>
 				<groupId>com.mchange</groupId>
