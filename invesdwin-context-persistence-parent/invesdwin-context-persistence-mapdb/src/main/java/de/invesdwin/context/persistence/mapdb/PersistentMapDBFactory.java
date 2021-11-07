@@ -47,7 +47,6 @@ public class PersistentMapDBFactory<K, V> implements IPersistentMapFactory<K, V>
     protected Maker configureDB(final APersistentMapConfig<K, V> config, final Maker maker) {
         return maker.fileMmapEnable()
                 .fileMmapPreclearDisable()
-                .cleanerHackEnable()
                 .closeOnJvmShutdownWeakReference()
                 .checksumHeaderBypass();
     }
