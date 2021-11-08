@@ -48,6 +48,7 @@ public class PersistentMapDBFactory<K, V> implements IPersistentMapFactory<K, V>
         return maker.fileMmapEnable()
                 .fileMmapPreclearDisable()
                 .closeOnJvmShutdownWeakReference()
+                .cleanerHackEnable()
                 .checksumHeaderBypass();
     }
 
