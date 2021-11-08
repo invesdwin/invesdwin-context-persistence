@@ -36,7 +36,7 @@ public enum PersistentMapType {
     LARGE_SAFE {
         @Override
         public <K, V> IPersistentMapFactory<K, V> newFactory() {
-            //mapdb has a smaller footprint on disk, thus prefer that for larger entries
+            //mapdb might corrupt data (with lz4) in highly parallel scenarios when mmap is used, for those cases it is better to use the slower file channels
             return new PersistentMapDBFactory<K, V>() {
                 @Override
                 protected Maker configureDB(final APersistentMapConfig<K, V> config, final Maker maker) {
