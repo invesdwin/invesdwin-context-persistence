@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.chronicle.performance;
+package de.invesdwin.context.persistence.tkrzw;
 
 import java.io.File;
 import java.util.Iterator;
@@ -7,32 +7,29 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.persistentmap.APersistentMap;
-import de.invesdwin.context.integration.persistentmap.APersistentMapConfig;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
-import de.invesdwin.context.persistence.chronicle.PersistentChronicleMapFactory;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
+import de.invesdwin.util.lang.Closeables;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.duration.Duration;
-import net.openhft.chronicle.map.ChronicleMapBuilder;
 
 @NotThreadSafe
-@Ignore("manual test")
-public class DelegateChronicleMapPerformanceTest extends ADatabasePerformanceTest {
+//@Ignore("manual test")
+public class PersistentTkrzwMapPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
-    public void testChronicleMapPerformance() throws InterruptedException {
+    public void testTkrzwMapPerformance() throws InterruptedException {
         @SuppressWarnings("resource")
-        final APersistentMap<FDate, FDate> table = new APersistentMap<FDate, FDate>("testChronicleMapPerformance") {
+        final APersistentMap<FDate, FDate> table = new APersistentMap<FDate, FDate>("testTkrzwMapPerformance.tkh") {
             @Override
             public File getBaseDirectory() {
                 return ContextProperties.TEMP_DIRECTORY;
@@ -50,14 +47,7 @@ public class DelegateChronicleMapPerformanceTest extends ADatabasePerformanceTes
 
             @Override
             protected IPersistentMapFactory<FDate, FDate> newFactory() {
-                return new PersistentChronicleMapFactory<FDate, FDate>() {
-                    @SuppressWarnings("rawtypes")
-                    @Override
-                    protected ChronicleMapBuilder configureChronicleMap(final APersistentMapConfig<FDate, FDate> config,
-                            final ChronicleMapBuilder builder) {
-                        return builder.averageKeySize(FDate.BYTES).averageValueSize(FDate.BYTES).entries(VALUES);
-                    }
-                };
+                return new PersistentTkrzwMapFactory<FDate, FDate>();
             }
         };
 
@@ -98,6 +88,7 @@ public class DelegateChronicleMapPerformanceTest extends ADatabasePerformanceTes
                     break;
                 }
             }
+            Closeables.close(range);
             Assertions.checkEquals(count, VALUES);
             printProgress("Reads", readsStart, VALUES * reads, VALUES * READS);
         }

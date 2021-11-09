@@ -35,6 +35,7 @@
 		<module>invesdwin-context-persistence-chronicle</module>
 		<module>invesdwin-context-persistence-questdb</module>
 		<module>invesdwin-context-persistence-indeed</module>
+		<module>invesdwin-context-persistence-tkrzw</module>
 	</modules>
 
 	<properties>
@@ -71,6 +72,8 @@
 
 		<version.chronicle-queue>5.22ea2</version.chronicle-queue>
 		<version.chronicle-map>3.22ea2</version.chronicle-map>
+
+		<version.tkrzw-java>0.1.27</version.tkrzw-java>
 	</properties>
 
 	<dependencyManagement>
@@ -560,6 +563,12 @@
 				<groupId>net.openhft</groupId>
 				<artifactId>chronicle-map</artifactId>
 				<version>${version.chronicle-map}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>com.github.estraier</groupId>
+				<artifactId>tkrzw-java</artifactId>
+				<version>${version.tkrzw-java}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
