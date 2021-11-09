@@ -7,6 +7,7 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
@@ -23,11 +24,14 @@ import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.duration.Duration;
 
 @NotThreadSafe
-//@Ignore("manual test")
+@Ignore("manual test")
 public class PersistentTkrzwMapPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
     public void testTkrzwMapPerformance() throws InterruptedException {
+        //tkh = HashDBM
+        //tkt = TreeDBM
+        //tks = SkipDBM (make sure to call synchronize)
         @SuppressWarnings("resource")
         final APersistentMap<FDate, FDate> table = new APersistentMap<FDate, FDate>("testTkrzwMapPerformance.tkh") {
             @Override
@@ -54,16 +58,20 @@ public class PersistentTkrzwMapPerformanceTest extends ADatabasePerformanceTest 
         final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final Instant writesStart = new Instant();
         int i = 0;
+        final TkrzwMap<FDate, FDate> delegate = (TkrzwMap<FDate, FDate>) table.getPreLockedDelegate();
+        table.getReadLock().unlock();
         for (final FDate date : newValues()) {
             table.put(date, date);
             i++;
             if (i % FLUSH_INTERVAL == 0) {
                 if (loopCheck.check()) {
                     printProgress("Writes", writesStart, i, VALUES);
+                    delegate.getDbm().synchronize(true);
                 }
             }
         }
         printProgress("WritesFinished", writesStart, VALUES, VALUES);
+        delegate.getDbm().synchronize(true);
 
         readIterator(table);
         readGet(table);
