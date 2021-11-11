@@ -1,5 +1,7 @@
 package de.invesdwin.context.persistence.ezdb.table;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
@@ -16,7 +18,7 @@ import ezdb.table.TableRow;
 import ezdb.util.TableIterator;
 
 @ThreadSafe
-public final class TableConcurrentMap<K, V> implements ConcurrentMap<K, V> {
+public final class TableConcurrentMap<K, V> implements ConcurrentMap<K, V>, Closeable {
     private final IDelegateTable<K, V> table;
     private Set<K> keySet;
     private Collection<V> values;
@@ -377,5 +379,10 @@ public final class TableConcurrentMap<K, V> implements ConcurrentMap<K, V> {
         } else {
             return null;
         }
+    }
+
+    @Override
+    public void close() throws IOException {
+        table.close();
     }
 }
