@@ -27,7 +27,7 @@ import net.openhft.chronicle.map.ChronicleMapBuilder;
 
 @NotThreadSafe
 @Ignore("manual test")
-public class DelegateChronicleMapPerformanceTest extends ADatabasePerformanceTest {
+public class PersistentChronicleMapPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
     public void testChronicleMapPerformance() throws InterruptedException {
