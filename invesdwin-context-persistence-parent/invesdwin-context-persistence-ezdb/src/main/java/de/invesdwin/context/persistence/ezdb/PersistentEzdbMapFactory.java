@@ -7,8 +7,8 @@ import java.util.concurrent.ConcurrentMap;
 
 import javax.annotation.concurrent.Immutable;
 
-import de.invesdwin.context.integration.persistentmap.APersistentMapConfig;
 import de.invesdwin.context.integration.persistentmap.IKeyMatcher;
+import de.invesdwin.context.integration.persistentmap.IPersistentMapConfig;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
 import de.invesdwin.context.persistence.ezdb.table.ADelegateTable;
 import de.invesdwin.context.persistence.ezdb.table.TableConcurrentMap;
@@ -21,7 +21,7 @@ import ezdb.util.TableIterator;
 public class PersistentEzdbMapFactory<K, V> implements IPersistentMapFactory<K, V> {
 
     @Override
-    public ConcurrentMap<K, V> newPersistentMap(final APersistentMapConfig<K, V> config) {
+    public ConcurrentMap<K, V> newPersistentMap(final IPersistentMapConfig<K, V> config) {
         final ADelegateTable<K, V> table = new ADelegateTable<K, V>(config.getName()) {
 
             @Override

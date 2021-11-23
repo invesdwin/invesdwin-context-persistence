@@ -7,8 +7,8 @@ import java.util.concurrent.ConcurrentMap;
 
 import javax.annotation.concurrent.Immutable;
 
-import de.invesdwin.context.integration.persistentmap.APersistentMapConfig;
 import de.invesdwin.context.integration.persistentmap.IKeyMatcher;
+import de.invesdwin.context.integration.persistentmap.IPersistentMapConfig;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
 import de.invesdwin.instrument.DynamicInstrumentationReflections;
 import de.invesdwin.util.lang.Files;
@@ -25,7 +25,7 @@ public class PersistentTkrzwMapFactory<K, V> implements IPersistentMapFactory<K,
     }
 
     @Override
-    public ConcurrentMap<K, V> newPersistentMap(final APersistentMapConfig<K, V> config) {
+    public ConcurrentMap<K, V> newPersistentMap(final IPersistentMapConfig<K, V> config) {
         final DBM dbm = new DBM();
         try {
             Files.forceMkdirParent(config.getFile());
@@ -39,7 +39,7 @@ public class PersistentTkrzwMapFactory<K, V> implements IPersistentMapFactory<K,
         return new TkrzwMap<>(dbm, config.newKeySerde(), config.newValueSerde());
     }
 
-    protected Status openDbm(final APersistentMapConfig<K, V> config, final DBM dbm) {
+    protected Status openDbm(final IPersistentMapConfig<K, V> config, final DBM dbm) {
         return dbm.open(config.getFile().getAbsolutePath(), true);
     }
 

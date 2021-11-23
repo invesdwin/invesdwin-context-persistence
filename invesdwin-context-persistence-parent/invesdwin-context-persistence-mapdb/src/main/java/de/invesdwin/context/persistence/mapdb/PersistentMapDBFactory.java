@@ -12,8 +12,8 @@ import org.mapdb.DBMaker;
 import org.mapdb.DBMaker.Maker;
 import org.mapdb.HTreeMap;
 
-import de.invesdwin.context.integration.persistentmap.APersistentMapConfig;
 import de.invesdwin.context.integration.persistentmap.IKeyMatcher;
+import de.invesdwin.context.integration.persistentmap.IPersistentMapConfig;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
 import de.invesdwin.util.lang.Files;
 
@@ -26,7 +26,7 @@ import de.invesdwin.util.lang.Files;
 public class PersistentMapDBFactory<K, V> implements IPersistentMapFactory<K, V> {
 
     @Override
-    public ConcurrentMap<K, V> newPersistentMap(final APersistentMapConfig<K, V> config) {
+    public ConcurrentMap<K, V> newPersistentMap(final IPersistentMapConfig<K, V> config) {
         final Maker fileDB = createDB(config);
         final DB db = configureDB(config, fileDB).make();
         final HashMapMaker<K, V> maker = db.hashMap(config.getName(), new SerdeGroupSerializer<K>(config.newKeySerde()),
@@ -34,7 +34,7 @@ public class PersistentMapDBFactory<K, V> implements IPersistentMapFactory<K, V>
         return configureHashMap(config, maker).createOrOpen();
     }
 
-    protected Maker createDB(final APersistentMapConfig<K, V> config) {
+    protected Maker createDB(final IPersistentMapConfig<K, V> config) {
         final File file = config.getFile();
         try {
             Files.forceMkdirParent(file);
@@ -44,7 +44,7 @@ public class PersistentMapDBFactory<K, V> implements IPersistentMapFactory<K, V>
         return DBMaker.fileDB(file);
     }
 
-    protected Maker configureDB(final APersistentMapConfig<K, V> config, final Maker maker) {
+    protected Maker configureDB(final IPersistentMapConfig<K, V> config, final Maker maker) {
         return maker.fileMmapEnable()
                 .fileMmapPreclearDisable()
                 .closeOnJvmShutdownWeakReference()
@@ -52,7 +52,7 @@ public class PersistentMapDBFactory<K, V> implements IPersistentMapFactory<K, V>
                 .checksumHeaderBypass();
     }
 
-    protected HashMapMaker<K, V> configureHashMap(final APersistentMapConfig<K, V> config,
+    protected HashMapMaker<K, V> configureHashMap(final IPersistentMapConfig<K, V> config,
             final HashMapMaker<K, V> maker) {
         return maker.counterEnable();
     }

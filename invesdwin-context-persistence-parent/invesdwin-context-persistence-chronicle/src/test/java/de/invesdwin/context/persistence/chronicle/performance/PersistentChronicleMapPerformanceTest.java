@@ -12,7 +12,7 @@ import org.junit.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.persistentmap.APersistentMap;
-import de.invesdwin.context.integration.persistentmap.APersistentMapConfig;
+import de.invesdwin.context.integration.persistentmap.IPersistentMapConfig;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
 import de.invesdwin.context.persistence.chronicle.PersistentChronicleMapFactory;
 import de.invesdwin.util.assertions.Assertions;
@@ -53,7 +53,7 @@ public class PersistentChronicleMapPerformanceTest extends ADatabasePerformanceT
                 return new PersistentChronicleMapFactory<FDate, FDate>() {
                     @SuppressWarnings("rawtypes")
                     @Override
-                    protected ChronicleMapBuilder configureChronicleMap(final APersistentMapConfig<FDate, FDate> config,
+                    protected ChronicleMapBuilder configureChronicleMap(final IPersistentMapConfig<FDate, FDate> config,
                             final ChronicleMapBuilder builder) {
                         return builder.averageKeySize(FDate.BYTES).averageValueSize(FDate.BYTES).entries(VALUES);
                     }

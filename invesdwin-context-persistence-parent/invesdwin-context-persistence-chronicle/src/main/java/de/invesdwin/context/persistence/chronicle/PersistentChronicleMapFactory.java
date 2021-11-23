@@ -6,8 +6,8 @@ import java.util.concurrent.ConcurrentMap;
 
 import javax.annotation.concurrent.Immutable;
 
-import de.invesdwin.context.integration.persistentmap.APersistentMapConfig;
 import de.invesdwin.context.integration.persistentmap.IKeyMatcher;
+import de.invesdwin.context.integration.persistentmap.IPersistentMapConfig;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
 import de.invesdwin.util.lang.Files;
 import net.openhft.chronicle.map.ChronicleMap;
@@ -23,7 +23,7 @@ public class PersistentChronicleMapFactory<K, V> implements IPersistentMapFactor
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
-    public ConcurrentMap<K, V> newPersistentMap(final APersistentMapConfig<K, V> config) {
+    public ConcurrentMap<K, V> newPersistentMap(final IPersistentMapConfig<K, V> config) {
         ChronicleMapBuilder builder = ChronicleMapBuilder.of(Object.class, Object.class);
         builder.name(config.getName())
                 .keyMarshaller(new ChronicleMarshaller<K>(config.newKeySerde()))
@@ -35,13 +35,13 @@ public class PersistentChronicleMapFactory<K, V> implements IPersistentMapFactor
     }
 
     @SuppressWarnings("rawtypes")
-    protected ChronicleMapBuilder configureChronicleMap(final APersistentMapConfig<K, V> config,
+    protected ChronicleMapBuilder configureChronicleMap(final IPersistentMapConfig<K, V> config,
             final ChronicleMapBuilder builder) {
         return builder.averageKeySize(100).averageValueSize(200);
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    protected ChronicleMap<K, V> createChronicleMap(final APersistentMapConfig<K, V> config,
+    protected ChronicleMap<K, V> createChronicleMap(final IPersistentMapConfig<K, V> config,
             final ChronicleMapBuilder mapBuilder) {
         if (config.isDiskPersistence()) {
             final File file = config.getFile();

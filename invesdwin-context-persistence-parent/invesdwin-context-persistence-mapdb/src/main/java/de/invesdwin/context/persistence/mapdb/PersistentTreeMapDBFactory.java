@@ -13,8 +13,8 @@ import org.mapdb.DB.TreeMapMaker;
 import org.mapdb.DBMaker;
 import org.mapdb.DBMaker.Maker;
 
-import de.invesdwin.context.integration.persistentmap.APersistentMapConfig;
 import de.invesdwin.context.integration.persistentmap.IKeyMatcher;
+import de.invesdwin.context.integration.persistentmap.IPersistentMapConfig;
 import de.invesdwin.context.integration.persistentmap.navigable.IPersistentNavigableMapFactory;
 import de.invesdwin.util.lang.Files;
 
@@ -27,7 +27,7 @@ import de.invesdwin.util.lang.Files;
 public class PersistentTreeMapDBFactory<K, V> implements IPersistentNavigableMapFactory<K, V> {
 
     @Override
-    public ConcurrentNavigableMap<K, V> newPersistentMap(final APersistentMapConfig<K, V> config) {
+    public ConcurrentNavigableMap<K, V> newPersistentMap(final IPersistentMapConfig<K, V> config) {
         final Maker fileDB = createDB(config);
         final DB db = configureDB(config, fileDB).make();
         final TreeMapMaker<K, V> maker = db.treeMap(config.getName(), new SerdeGroupSerializer<K>(config.newKeySerde()),
@@ -35,7 +35,7 @@ public class PersistentTreeMapDBFactory<K, V> implements IPersistentNavigableMap
         return configureHashMap(config, maker).createOrOpen();
     }
 
-    protected Maker createDB(final APersistentMapConfig<K, V> config) {
+    protected Maker createDB(final IPersistentMapConfig<K, V> config) {
         final File file = config.getFile();
         try {
             Files.forceMkdirParent(file);
@@ -45,11 +45,11 @@ public class PersistentTreeMapDBFactory<K, V> implements IPersistentNavigableMap
         return DBMaker.fileDB(file);
     }
 
-    protected Maker configureDB(final APersistentMapConfig<K, V> config, final Maker maker) {
+    protected Maker configureDB(final IPersistentMapConfig<K, V> config, final Maker maker) {
         return maker.fileMmapEnable().fileMmapPreclearDisable().cleanerHackEnable().closeOnJvmShutdownWeakReference();
     }
 
-    protected TreeMapMaker<K, V> configureHashMap(final APersistentMapConfig<K, V> config,
+    protected TreeMapMaker<K, V> configureHashMap(final IPersistentMapConfig<K, V> config,
             final TreeMapMaker<K, V> maker) {
         return maker.counterEnable();
     }
