@@ -31,13 +31,19 @@ public enum PersistentMapType {
             return new PersistentMapDBFactory<K, V>();
         }
     },
+    LARGE_FAST {
+        @Override
+        public <K, V> IPersistentMapFactory<K, V> newFactory() {
+            return new LargePersistentMapFactory<>(FAST.newFactory());
+        }
+    },
     LARGE_SAFE {
         @Override
         public <K, V> IPersistentMapFactory<K, V> newFactory() {
             return new LargePersistentMapFactory<>(SAFE.newFactory());
         }
     },
-    LARGE_FAST {
+    LARGE_MEDIUM {
         @Override
         public <K, V> IPersistentMapFactory<K, V> newFactory() {
             return new LargePersistentMapFactory<>(FAST.newFactory());
