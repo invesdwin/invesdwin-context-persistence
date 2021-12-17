@@ -92,7 +92,8 @@ public class SimpleTestEntity implements IEntity, Cloneable, Serializable, Compa
     }
 
     @PreUpdate
-    protected void preUpdate() {}
+    protected void preUpdate() {
+    }
 
     public String getName() {
         return name;

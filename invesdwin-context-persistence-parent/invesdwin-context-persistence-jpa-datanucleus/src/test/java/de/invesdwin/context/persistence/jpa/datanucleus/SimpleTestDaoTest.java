@@ -36,6 +36,10 @@ import de.invesdwin.util.error.Throwables;
 //@ContextConfiguration(locations = { APersistenzTest.CTX_TEST_SERVER }, inheritLocations = false)
 public class SimpleTestDaoTest extends APersistenceTest {
 
+    static {
+        Assertions.setMaxStackTraceElementsDisplayed(1000);
+    }
+
     @Inject
     private SimpleTestDao dao;
     @javax.persistence.PersistenceUnit(unitName = PersistenceProperties.DEFAULT_PERSISTENCE_UNIT_NAME)
