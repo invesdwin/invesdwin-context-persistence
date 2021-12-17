@@ -34,6 +34,7 @@ import de.invesdwin.util.error.Throwables;
 
 @ThreadSafe
 //@ContextConfiguration(locations = { APersistenzTest.CTX_TEST_SERVER }, inheritLocations = false)
+@Ignore("https://github.com/spring-projects/spring-data-jpa/issues/2357")
 public class SimpleTestDaoTest extends APersistenceTest {
 
     static {

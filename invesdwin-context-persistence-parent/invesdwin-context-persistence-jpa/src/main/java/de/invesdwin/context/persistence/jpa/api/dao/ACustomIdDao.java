@@ -5,6 +5,7 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 
 import javax.annotation.concurrent.ThreadSafe;
 import javax.persistence.ElementCollection;
@@ -18,6 +19,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.support.SimpleJpaRepository;
+import org.springframework.data.repository.query.FluentQuery.FetchableFluentQuery;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.ReflectionUtils.FieldCallback;
 
@@ -153,6 +155,12 @@ public abstract class ACustomIdDao<E, PK extends Serializable> extends AReposito
     @Override
     public Optional<E> findById(final PK id) {
         return getDelegate().findById(id);
+    }
+
+    @Override
+    public <S extends E, R> R findBy(final Example<S> example,
+            final Function<FetchableFluentQuery<S>, R> queryFunction) {
+        return getDelegate().findBy(example, queryFunction);
     }
 
     @Override
