@@ -4,8 +4,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import javax.inject.Inject;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import de.invesdwin.context.persistence.jpa.complex.TestDao;
 import de.invesdwin.context.persistence.jpa.complex.TestEntity;
@@ -18,8 +16,6 @@ import de.invesdwin.util.time.duration.Duration;
 @ThreadSafe
 //@ContextConfiguration(locations = { APersistenzTest.CTX_TEST_SERVER }, inheritLocations = false)
 public class TestDaoPerformanceTest extends APersistenceTest {
-
-    private static final int FIND_ITERATIONS = 5000;
 
     @Inject
     private TestDao dao;
@@ -37,7 +33,7 @@ public class TestDaoPerformanceTest extends APersistenceTest {
 
     @Test
     public void testReadNormal() {
-        new TransactionalAspectMethods().testReadNormal();
+        new TestDaoPerformanceTransactionalAspectMethods().testReadNormal();
     }
 
     @Test
@@ -45,7 +41,7 @@ public class TestDaoPerformanceTest extends APersistenceTest {
         Assertions.assertTimeout(new Duration(30, FTimeUnit.SECONDS), new Executable() {
             @Override
             public void execute() throws Throwable {
-                new TransactionalAspectMethods().testReadWithDetach();
+                new TestDaoPerformanceTransactionalAspectMethods().testReadWithDetach();
             }
         });
 
@@ -53,7 +49,7 @@ public class TestDaoPerformanceTest extends APersistenceTest {
 
     @Test
     public void testReadWithSerialization() {
-        new TransactionalAspectMethods().testReadWithSerialization();
+        new TestDaoPerformanceTransactionalAspectMethods().testReadWithSerialization();
 
     }
 
@@ -62,7 +58,7 @@ public class TestDaoPerformanceTest extends APersistenceTest {
         Assertions.assertTimeout(new Duration(60, FTimeUnit.SECONDS), new Executable() {
             @Override
             public void execute() throws Throwable {
-                new TransactionalAspectMethods().testNestedTransactions();
+                new TestDaoPerformanceTransactionalAspectMethods().testNestedTransactions();
             }
         });
     }
@@ -72,70 +68,9 @@ public class TestDaoPerformanceTest extends APersistenceTest {
         Assertions.assertTimeout(new Duration(10, FTimeUnit.SECONDS), new Executable() {
             @Override
             public void execute() throws Throwable {
-                new TransactionalAspectMethods().testBatchInsert();
+                new TestDaoPerformanceTransactionalAspectMethods().testBatchInsert();
             }
         });
-    }
-
-    private class TransactionalAspectMethods {
-
-        @Transactional(value = PersistenceProperties.DEFAULT_TRANSACTION_MANAGER_NAME)
-        public void testReadNormal() {
-            final Long id = dao.findOneRandom().getId();
-            for (int i = 0; i < FIND_ITERATIONS; i++) {
-                TestEntity findById = new TestEntity();
-                findById.setId(id);
-                findById = dao.findOne(findById);
-            }
-        }
-
-        /**
-         * every read a select, just the same as pride
-         */
-        public void testReadWithDetach() {
-            final TestEntity findOneRandom = dao.findOneRandom();
-            final Long id = findOneRandom.getId();
-            for (int i = 0; i < FIND_ITERATIONS; i++) {
-                TestEntity findById = new TestEntity();
-                findById.setId(id);
-                findById = dao.findOne(findById);
-            }
-        }
-
-        @Transactional(value = PersistenceProperties.DEFAULT_TRANSACTION_MANAGER_NAME)
-        public void testReadWithSerialization() {
-            final TestEntity findOneRandom = dao.findOneRandom();
-            final Long id = findOneRandom.getId();
-            for (int i = 0; i < FIND_ITERATIONS; i++) {
-                TestEntity findById = new TestEntity();
-                findById.setId(id);
-                findById = (TestEntity) dao.findOne(findById).clone();
-            }
-        }
-
-        public void testNestedTransactions() {
-            //need to test max connection pool size here
-            recursiveTransaction(0, 20); //100 seems to have a hard limit...
-        }
-
-        @Transactional(value = PersistenceProperties.DEFAULT_TRANSACTION_MANAGER_NAME, propagation = Propagation.REQUIRES_NEW)
-        private void recursiveTransaction(final int level, final int maxLevel) {
-            if (level < maxLevel) {
-                recursiveTransaction(level + 1, maxLevel);
-            } else {
-                testReadNormal();
-            }
-        }
-
-        @Transactional(value = PersistenceProperties.DEFAULT_TRANSACTION_MANAGER_NAME)
-        public void testBatchInsert() {
-            for (int i = 0; i < 100; i++) {
-                final TestEntity newEntity = new TestEntity();
-                newEntity.setName("asdf" + i);
-                dao.save(newEntity);
-            }
-        }
-
     }
 
 }

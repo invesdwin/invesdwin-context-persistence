@@ -4,6 +4,7 @@ import java.util.Collection;
 
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.persistence.PersistenceException;
+import javax.persistence.TransactionRequiredException;
 
 import de.invesdwin.context.beans.init.MergedContext;
 import de.invesdwin.context.persistence.jpa.api.util.SqlErr;
@@ -21,14 +22,14 @@ public class PersistenceTestHelper implements IPersistenceTestHelper {
         for (final IClearAllTablesAware dao : allDaos) {
             try {
                 dao.deleteAll();
+            } catch (final TransactionRequiredException e) {
+                throw e;
             } catch (final PersistenceException e) {
                 /*
                  * ConstraintViolation because of foreign keys, thus retry
                  */
-                SqlErr.logSqlException(new RuntimeException(
-                        "Retrying deletion of "
-                                + dao.getClass().getSimpleName()
-                                + ". Only circular dependencies of foreign keys are a problem here and should be fixed by overriding the deleteAll method inside the DAO.",
+                SqlErr.logSqlException(new RuntimeException("Retrying deletion of " + dao.getClass().getSimpleName()
+                        + ". Only circular dependencies of foreign keys are a problem here and should be fixed by overriding the deleteAll method inside the DAO.",
                         e));
                 retry = true;
             }
