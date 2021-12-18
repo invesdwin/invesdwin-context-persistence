@@ -11,7 +11,7 @@ import java.util.List;
 import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.commons.lang3.RandomUtils;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;

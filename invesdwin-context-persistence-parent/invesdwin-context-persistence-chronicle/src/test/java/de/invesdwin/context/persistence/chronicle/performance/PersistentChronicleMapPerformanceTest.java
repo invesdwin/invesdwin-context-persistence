@@ -7,8 +7,8 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.persistentmap.APersistentMap;
@@ -26,7 +26,7 @@ import de.invesdwin.util.time.duration.Duration;
 import net.openhft.chronicle.map.ChronicleMapBuilder;
 
 @NotThreadSafe
-@Ignore("manual test")
+@Disabled("manual test")
 public class PersistentChronicleMapPerformanceTest extends ADatabasePerformanceTest {
 
     @Test

@@ -11,8 +11,8 @@ import javax.persistence.RollbackException;
 import javax.validation.ConstraintViolationException;
 
 import org.assertj.core.api.Fail;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.dao.TransientDataAccessException;
 import org.springframework.transaction.IllegalTransactionStateException;
@@ -34,7 +34,7 @@ import de.invesdwin.util.error.Throwables;
 
 @ThreadSafe
 //@ContextConfiguration(locations = { APersistenzTest.CTX_TEST_SERVER }, inheritLocations = false)
-@Ignore("https://github.com/spring-projects/spring-data-jpa/issues/2357")
+@Disabled("https://github.com/spring-projects/spring-data-jpa/issues/2357")
 public class SimpleTestDaoTest extends APersistenceTest {
 
     static {
@@ -56,7 +56,7 @@ public class SimpleTestDaoTest extends APersistenceTest {
     }
 
     @Test
-    @Ignore("handling without transaction is different in datanucleus compared to hibernate")
+    @Disabled("handling without transaction is different in datanucleus compared to hibernate")
     public void testDeleteWithoutTransaction() {
         new TransactionalAspectMethods().testDeleteWithoutTransaction();
     }
@@ -72,7 +72,7 @@ public class SimpleTestDaoTest extends APersistenceTest {
     }
 
     @Test
-    @Ignore("duplicate deletion throws exception in comparison to hibernate")
+    @Disabled("duplicate deletion throws exception in comparison to hibernate")
     public void testDeleteWithTransaction() {
         try {
             new TransactionalAspectMethods().testDeleteWithTransaction();

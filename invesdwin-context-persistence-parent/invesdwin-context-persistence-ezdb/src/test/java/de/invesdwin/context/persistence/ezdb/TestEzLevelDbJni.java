@@ -1,15 +1,12 @@
 // CHECKSTYLE:OFF
 package de.invesdwin.context.persistence.ezdb;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 import java.io.File;
 import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
@@ -984,16 +981,16 @@ public class TestEzLevelDbJni extends ATest {
     @Test
     public void testNulls() {
         // test nulls
-        assertEquals(null, table.get(1));
-        assertEquals(null, table.get(1, 1));
+        Assertions.checkEquals(null, table.get(1));
+        Assertions.checkEquals(null, table.get(1, 1));
         final TableIterator<RangeTableRow<Integer, Integer, Integer>> range1 = table.range(1);
-        assertTrue(!range1.hasNext());
+        Assertions.checkTrue(!range1.hasNext());
         range1.close();
         final TableIterator<RangeTableRow<Integer, Integer, Integer>> range12 = table.range(1, 2);
-        assertTrue(!range12.hasNext());
+        Assertions.checkTrue(!range12.hasNext());
         range12.close();
         final TableIterator<RangeTableRow<Integer, Integer, Integer>> range112 = table.range(1, 1, 2);
-        assertTrue(!range112.hasNext());
+        Assertions.checkTrue(!range112.hasNext());
         range112.close();
         table.delete(1);
         table.delete(1, 1);

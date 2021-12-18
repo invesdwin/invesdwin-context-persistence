@@ -5,8 +5,8 @@ import java.io.IOException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 
 import com.indeed.lsmtree.recordlog.BlockCompressedRecordFile;
 import com.indeed.lsmtree.recordlog.RecordFile;
@@ -23,7 +23,7 @@ import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.duration.Duration;
 
 @NotThreadSafe
-@Ignore("manual test")
+@Disabled("manual test")
 public class BlockCompressedRecordFilePerformanceTest extends ADatabasePerformanceTest {
 
     @Test

@@ -7,8 +7,8 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
@@ -24,7 +24,7 @@ import de.invesdwin.util.time.duration.Duration;
 import ezdb.table.range.RangeBatch;
 
 @NotThreadSafe
-@Ignore("manual test")
+@Disabled("manual test")
 public class RangeTableDBPerformanceTest extends ADatabasePerformanceTest {
 
     @Test

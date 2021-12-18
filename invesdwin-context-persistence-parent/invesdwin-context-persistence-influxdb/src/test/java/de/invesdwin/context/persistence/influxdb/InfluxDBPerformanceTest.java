@@ -17,8 +17,8 @@ import org.influxdb.dto.Query;
 import org.influxdb.dto.QueryResult;
 import org.influxdb.dto.QueryResult.Result;
 import org.influxdb.dto.QueryResult.Series;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 
 import de.flapdoodle.embed.process.runtime.Network;
 import de.invesdwin.context.log.error.Err;
@@ -39,7 +39,7 @@ import io.apisense.embed.influx.InfluxServer;
 import io.apisense.embed.influx.configuration.InfluxConfigurationWriter;
 
 @NotThreadSafe
-@Ignore("manual test")
+@Disabled("manual test")
 public class InfluxDBPerformanceTest extends ATest {
 
     private static final int READS = 10;
@@ -194,9 +194,9 @@ public class InfluxDBPerformanceTest extends ATest {
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
             FDate prevValue = null;
-            final QueryResult queryResult = influxDB
-                    .query(new Query("Select value from " + measurementName + " where hashKey = '" + HASH_KEY + "'",
-                            dbname), TimeUnit.MILLISECONDS);
+            final QueryResult queryResult = influxDB.query(
+                    new Query("Select value from " + measurementName + " where hashKey = '" + HASH_KEY + "'", dbname),
+                    TimeUnit.MILLISECONDS);
 
             final List<Result> range = queryResult.getResults();
             int count = 0;

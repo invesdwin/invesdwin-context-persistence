@@ -6,8 +6,8 @@ import java.util.List;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.util.assertions.Assertions;
@@ -31,7 +31,7 @@ import io.questdb.griffin.SqlExecutionContextImpl;
  * https://questdb.io/docs/reference/api/java-embedded/
  */
 @NotThreadSafe
-@Ignore("manual test")
+@Disabled("manual test")
 public class QuestDBPerformanceTest extends ADatabasePerformanceTest {
 
     @Test

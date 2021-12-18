@@ -4,8 +4,8 @@ import java.io.File;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.util.assertions.Assertions;
@@ -18,7 +18,7 @@ import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.wire.DocumentContext;
 
 @NotThreadSafe
-@Ignore("manual test")
+@Disabled("manual test")
 public class ChronicleQueuePerformanceTest extends ADatabasePerformanceTest {
 
     @Test
