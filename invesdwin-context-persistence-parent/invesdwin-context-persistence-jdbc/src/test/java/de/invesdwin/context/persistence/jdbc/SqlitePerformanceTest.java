@@ -10,6 +10,7 @@ import java.util.List;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
@@ -29,7 +30,7 @@ import de.invesdwin.util.time.duration.Duration;
  *
  */
 @NotThreadSafe
-//@Disabled("manual test")
+@Disabled("manual test")
 public class SqlitePerformanceTest extends ADatabasePerformanceTest {
 
     @Test
@@ -145,7 +146,8 @@ public class SqlitePerformanceTest extends ADatabasePerformanceTest {
         for (int reads = 0; reads < READS; reads++) {
             FDate prevValue = null;
             int count = 0;
-            try (PreparedStatement select = conn.prepareStatement("SELECT max(value) FROM abc WHERE key <=? LIMIT 1")) {
+            try (PreparedStatement select = conn
+                    .prepareStatement("SELECT value FROM abc WHERE key <=? ORDER BY KEY DESC LIMIT 1")) {
                 for (int i = 0; i < values.size(); i++) {
                     select.setLong(1, values.get(i).millisValue());
                     try (ResultSet results = select.executeQuery()) {

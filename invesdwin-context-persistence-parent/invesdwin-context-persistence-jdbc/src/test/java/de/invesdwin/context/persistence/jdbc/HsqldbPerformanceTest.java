@@ -152,7 +152,8 @@ public class HsqldbPerformanceTest extends ADatabasePerformanceTest {
         for (int reads = 0; reads < READS; reads++) {
             FDate prevValue = null;
             int count = 0;
-            try (PreparedStatement select = conn.prepareStatement("SELECT max(value) FROM abc WHERE key <=? LIMIT 1")) {
+            try (PreparedStatement select = conn
+                    .prepareStatement("SELECT value FROM abc WHERE key <=? ORDER BY KEY DESC LIMIT 1")) {
                 for (int i = 0; i < values.size(); i++) {
                     select.setLong(1, values.get(i).millisValue());
                     try (ResultSet results = select.executeQuery()) {
