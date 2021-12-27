@@ -1,0 +1,86 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>de.invesdwin</groupId>
+		<artifactId>invesdwin-context-persistence-parent</artifactId>
+		<version>1.0.4-SNAPSHOT</version>
+	</parent>
+	<artifactId>invesdwin-context-persistence-jdbc</artifactId>
+	<packaging>jar</packaging>
+
+	<dependencies>
+		<dependency>
+			<groupId>de.invesdwin</groupId>
+			<artifactId>invesdwin-context</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>de.invesdwin</groupId>
+			<artifactId>invesdwin-context-integration</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.duckdb</groupId>
+			<artifactId>duckdb_jdbc</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.xerial</groupId>
+			<artifactId>sqlite-jdbc</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<profiles>
+		<profile>
+			<!-- call with: mvn -Preset-database-schema process-resources -->
+			<id>reset-database-schema</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-antrun-plugin</artifactId>
+						<executions>
+							<execution>
+								<phase>process-resources</phase>
+								<goals>
+									<goal>run</goal>
+								</goals>
+							</execution>
+						</executions>
+						<configuration>
+							<target>
+								<input
+									message="Please specify the schema that should be reset:"
+									addproperty="schema.name" defaultvalue="invesdwin" />
+								<property
+									file="src/main/java/META-INF/env/${user.name}.properties" />
+								<property
+									file="src/main/java/META-INF/de.invesdwin.context.persistence.jpa.properties" />
+								<ac:if xmlns:ac="antlib:net.sf.antcontrib">
+									<isset property="schema.name" />
+									<then>
+										<sql
+											driver="${de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_DRIVER@default_pu}"
+											url="${de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_URL@default_pu}"
+											userid="${de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_USER@default_pu}"
+											password="${de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_PASSWORD@default_pu}">
+											<classpath refid="maven.test.classpath" />
+											<transaction>
+												drop database ${schema.name};
+												create database
+												${schema.name};
+											</transaction>
+										</sql>
+									</then>
+								</ac:if>
+							</target>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
+
+</project>

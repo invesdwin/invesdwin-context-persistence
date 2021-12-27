@@ -89,7 +89,8 @@ public class QuestDBPerformanceTest extends ADatabasePerformanceTest {
             for (int reads = 1; reads <= READS; reads++) {
                 FDate prevValue = null;
                 int count = 0;
-                try (RecordCursorFactory factory = compiler.compile("abc", ctx).getRecordCursorFactory()) {
+                try (RecordCursorFactory factory = compiler.compile("abc ORDER BY key ASC", ctx)
+                        .getRecordCursorFactory()) {
                     try (RecordCursor cursor = factory.getCursor(ctx)) {
                         final io.questdb.cairo.sql.Record record = cursor.getRecord();
                         while (cursor.hasNext()) {

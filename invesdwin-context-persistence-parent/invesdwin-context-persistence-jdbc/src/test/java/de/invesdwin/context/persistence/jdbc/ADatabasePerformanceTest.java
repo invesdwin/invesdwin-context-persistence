@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.questdb;
+package de.invesdwin.context.persistence.jdbc;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -19,10 +19,10 @@ public abstract class ADatabasePerformanceTest extends ATest {
 
     public static final FDate FIRST_DATE = FDateBuilder.newDate(2000);
 
-    protected static final int READS = 1000;
-    protected static final int VALUES = 100_000;
+    protected static final int READS = 100;
+    protected static final int VALUES = 1_000_000;
     protected static final String HASH_KEY = "HASH_KEY";
-    protected static final int FLUSH_INTERVAL = 10_000;
+    protected static final int FLUSH_INTERVAL = 10000;
 
     protected void printProgress(final String action, final Instant start, final long count, final int maxCount) {
         final Duration duration = start.toDuration();

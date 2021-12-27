@@ -34,6 +34,7 @@
 		<module>invesdwin-context-persistence-questdb</module>
 		<module>invesdwin-context-persistence-indeed</module>
 		<module>invesdwin-context-persistence-tkrzw</module>
+		<module>invesdwin-context-persistence-jdbc</module>
 	</modules>
 
 	<properties>
@@ -71,6 +72,8 @@
 		<version.chronicle-map>3.22ea2</version.chronicle-map>
 
 		<version.tkrzw-java>0.1.27</version.tkrzw-java>
+		<version.duckdb>0.3.1</version.duckdb>
+		<version.sqlite>3.36.0.3</version.sqlite>
 	</properties>
 
 	<dependencyManagement>
@@ -141,6 +144,16 @@
 			<dependency>
 				<groupId>de.invesdwin</groupId>
 				<artifactId>invesdwin-context-persistence-indeed</artifactId>
+				<version>${project.version.invesdwin-context-persistence}</version>
+			</dependency>
+			<dependency>
+				<groupId>de.invesdwin</groupId>
+				<artifactId>invesdwin-context-persistence-tkrzw</artifactId>
+				<version>${project.version.invesdwin-context-persistence}</version>
+			</dependency>
+			<dependency>
+				<groupId>de.invesdwin</groupId>
+				<artifactId>invesdwin-context-persistence-jdbc</artifactId>
 				<version>${project.version.invesdwin-context-persistence}</version>
 			</dependency>
 
@@ -538,6 +551,16 @@
 				<groupId>com.github.estraier</groupId>
 				<artifactId>tkrzw-java</artifactId>
 				<version>${version.tkrzw-java}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.duckdb</groupId>
+				<artifactId>duckdb_jdbc</artifactId>
+				<version>${version.duckdb}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.xerial</groupId>
+				<artifactId>sqlite-jdbc</artifactId>
+				<version>${version.sqlite}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
