@@ -10,6 +10,7 @@ import java.util.List;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
@@ -29,11 +30,11 @@ import de.invesdwin.util.time.duration.Duration;
  *
  */
 @NotThreadSafe
-//@Disabled("manual test")
+@Disabled("manual test")
 public class HsqldbPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
-    public void testDuckDbPerformance() throws Exception {
+    public void testHsqldbPerformance() throws Exception {
         final File directory = new File(ContextProperties.getCacheDirectory(),
                 HsqldbPerformanceTest.class.getSimpleName());
         Files.deleteNative(directory);
@@ -41,29 +42,41 @@ public class HsqldbPerformanceTest extends ADatabasePerformanceTest {
         final Instant writesStart = new Instant();
         int i = 0;
 
-        Class.forName("org.duckdb.DuckDBDriver");
-        final Connection conn = DriverManager.getConnection("jdbc:duckdb:" + directory.getAbsolutePath());
+        Class.forName("org.hsqldb.jdbc.JDBCDriver");
+        final Connection conn = DriverManager.getConnection("jdbc:hsqldb:file:" + directory.getAbsolutePath(), "SA",
+                "");
         final Statement create = conn.createStatement();
-        create.execute("CREATE TABLE abc (key TIMESTAMP, value LONG, PRIMARY KEY(key))");
+        create.execute("DROP TABLE abc IF EXISTS");
+        create.execute("CREATE TABLE abc (key BIGINT, value BIGINT, PRIMARY KEY(key))");
+        create.execute("CREATE UNIQUE INDEX idx_abc on abc (key)");
         create.close();
         final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
+        final Statement tx = conn.createStatement();
+        tx.execute("START TRANSACTION");
         final PreparedStatement insert = conn.prepareStatement("INSERT INTO abc VALUES (?,?)");
+        boolean batch = false;
         for (final FDate date : newValues()) {
             final long value = date.longValue(FTimeUnit.MILLISECONDS);
-            insert.setDate(1, date.sqlDateValue());
+            insert.setLong(1, value);
             insert.setLong(2, value);
             insert.addBatch();
             i++;
+            batch = true;
             if (i % FLUSH_INTERVAL == 0) {
                 insert.executeBatch();
+                batch = false;
                 if (loopCheck.check()) {
                     printProgress("Writes", writesStart, i, VALUES);
                 }
             }
         }
-        insert.executeBatch();
-        printProgress("WritesFinished", writesStart, VALUES, VALUES);
+        if (batch) {
+            insert.executeBatch();
+        }
         insert.close();
+        tx.execute("COMMIT");
+        printProgress("WritesFinished", writesStart, VALUES, VALUES);
+        tx.close();
 
         readIterator(conn);
         readGet(conn);
@@ -83,7 +96,7 @@ public class HsqldbPerformanceTest extends ADatabasePerformanceTest {
         for (int reads = 1; reads <= READS; reads++) {
             FDate prevValue = null;
             int count = 0;
-            try (ResultSet results = select.executeQuery("SELECT value FROM abc")) {
+            try (ResultSet results = select.executeQuery("SELECT value FROM abc ORDER BY KEY ASC")) {
                 while (results.next()) {
                     final FDate value = new FDate(results.getLong(1));
                     if (prevValue != null) {
@@ -109,10 +122,9 @@ public class HsqldbPerformanceTest extends ADatabasePerformanceTest {
         for (int reads = 0; reads < READS; reads++) {
             FDate prevValue = null;
             int count = 0;
-            try (PreparedStatement select = conn
-                    .prepareStatement("SELECT value FROM abc where key = cast(? AS TIMESTAMP) LIMIT 1")) {
+            try (PreparedStatement select = conn.prepareStatement("SELECT value FROM abc where key = ? LIMIT 1")) {
                 for (int i = 0; i < values.size(); i++) {
-                    select.setLong(1, i);
+                    select.setLong(1, values.get(i).millisValue());
                     try (ResultSet results = select.executeQuery()) {
                         Assertions.checkTrue(results.next());
                         final FDate value = new FDate(results.getLong(1));
@@ -121,13 +133,13 @@ public class HsqldbPerformanceTest extends ADatabasePerformanceTest {
                         }
                         prevValue = value;
                         count++;
+                        if (loopCheck.check()) {
+                            printProgress("Gets", readsStart, VALUES * reads + count, VALUES * READS);
+                        }
                     }
                 }
             }
             Assertions.checkEquals(count, VALUES);
-            if (loopCheck.check()) {
-                printProgress("Gets", readsStart, VALUES * reads, VALUES * READS);
-            }
         }
 
         printProgress("GetsFinished", readsStart, VALUES * READS, VALUES * READS);
@@ -140,8 +152,7 @@ public class HsqldbPerformanceTest extends ADatabasePerformanceTest {
         for (int reads = 0; reads < READS; reads++) {
             FDate prevValue = null;
             int count = 0;
-            try (PreparedStatement select = conn
-                    .prepareStatement("SELECT max(value) FROM abc WHERE key <= cast(? AS TIMESTAMP) LIMIT 1")) {
+            try (PreparedStatement select = conn.prepareStatement("SELECT max(value) FROM abc WHERE key <=? LIMIT 1")) {
                 for (int i = 0; i < values.size(); i++) {
                     select.setLong(1, values.get(i).millisValue());
                     try (ResultSet results = select.executeQuery()) {

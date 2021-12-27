@@ -9,6 +9,7 @@ import java.util.List;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
@@ -28,7 +29,7 @@ import de.invesdwin.util.time.duration.Duration;
  *
  */
 @NotThreadSafe
-//@Disabled("manual test")
+@Disabled("manual test")
 public class DuckDBPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
@@ -74,7 +75,7 @@ public class DuckDBPerformanceTest extends ADatabasePerformanceTest {
         insert.close();
 
         readIterator(conn);
-//        readGet(conn);
+        readGet(conn);
         readGetLatest(conn);
 
         final Statement drop = conn.createStatement();
@@ -129,7 +130,7 @@ public class DuckDBPerformanceTest extends ADatabasePerformanceTest {
                         prevValue = value;
                         count++;
                         if (loopCheck.check()) {
-                            printProgress("Reads", readsStart, VALUES * reads + count, VALUES * READS);
+                            printProgress("Gets", readsStart, VALUES * reads + count, VALUES * READS);
                         }
                     }
                 }
