@@ -284,7 +284,7 @@ Indeed-BlockCompRecordFile      Writes (Append):      4,273.32/ms  => ~18.7 time
           TreeMapDB              Reads (Get):           627.79/ms  => ~2.6 times as fast
       tkrzw-SkipDBM              Reads (Get):           665.73/ms  => ~2.7 times as fast
                  H2 (Disk)       Reads (Get):           802.57/ms  => ~3.3 times as fast
-	      MapDB              Reads (Get):         1,220.11/ms  => ~5.0 times as fast
+	      MapDB              Reads (Get):         1,220.11/ms  => ~5 times as fast
 	     Hsqldb (Disk)       Reads (Get):         1,570.11/ms  => ~6.4 times as fast
        ezdb-LsmTree              Reads (Get):         1,846.59/ms  => ~7.6 times as fast
       tkrzw-TreeDBM              Reads (Get):         2,047.50/ms  => ~8.4 times as fast
@@ -346,7 +346,7 @@ Indeed-BlockCompRecordFile       Reads (Iterator):    9,285.14/ms  => ~4.37 time
       ezdb-LMDB-JNR              Reads (Iterator):    9,330.80/ms  => ~4.4 times as fast
      ChronicleQueue              Reads (Iterator):   16,583.75/ms  => ~7.8 times as fast
           TreeMapDB              Reads (Iterator):   21,551.72/ms  => ~10.1 times as fast
-	     DuckDB (Disk)       Reads (Iterator):   25,536.26/ms  => ~12.0 times as fast
+	     DuckDB (Disk)       Reads (Iterator):   25,536.26/ms  => ~12 times as fast
        ezdb-TreeMap              Reads (Iterator):   27,463.10/ms  => ~12.9 times as fast
       ezdb-BTreeMap              Reads (Iterator):   30,313.13/ms  => ~14.3 times as fast
 ezdb-ConcurrentSkipListMap       Reads (Iterator):   32,629.62/ms  => ~15.35 times as fast
@@ -359,7 +359,7 @@ ezdb-ConcurrentSkipListMap       Reads (Iterator):   32,629.62/ms  => ~15.35 tim
     FastUtilHashMap              Reads (Iterator):   90,854.03/ms  => ~42.7 times as fast (unordered)
       ATimeSeriesDB (Cached)     Reads (Iterator):   98,872.85/ms  => ~46.5 times as fast (internal FileBufferCache keeps hot segments in memory)
             HashMap              Reads (Iterator):  119,310.39/ms  => ~56.1 times as fast (unordered)
-	    QuestDB              Reads (Iterator):  125,410.57/ms  => ~59.0 times as fast (flyweight pattern)
+	    QuestDB              Reads (Iterator):  125,410.57/ms  => ~59 times as fast (flyweight pattern)
   ConcurrentHashMap              Reads (Iterator):  128,915.82/ms  => ~60.7 times as fast (unordered)
 ```
 - **ATimeSeriesUpdater**: this is a helper class with which one can handle large inserts/updates into an instance of `ATimeSeriesDB`. This handles the creation of separate chunk files and writing them to disk in the most efficient way.
