@@ -41,7 +41,6 @@
 		<project.version.invesdwin-context>1.0.4-SNAPSHOT</project.version.invesdwin-context>
 		<project.version.invesdwin-context-persistence>${project.version}</project.version.invesdwin-context-persistence>
 
-		<version.asm>3.3.1</version.asm>
 		<version.jboss-transaction-api_1.1_spec>1.0.1.Final</version.jboss-transaction-api_1.1_spec>
 		<version.hikaricp>5.0.0</version.hikaricp>
 		<version.c3p0>0.9.5.5</version.c3p0>
@@ -158,11 +157,6 @@
 				<version>${project.version.invesdwin-context-persistence}</version>
 			</dependency>
 
-			<dependency>
-				<groupId>asm</groupId>
-				<artifactId>asm</artifactId>
-				<version>${version.asm}</version>
-			</dependency>
 			<dependency>
 				<groupId>org.jboss.spec.javax.transaction</groupId>
 				<artifactId>jboss-transaction-api_1.1_spec</artifactId>
