@@ -239,6 +239,9 @@ ATimeSeriesDB (High)    1,000,000    Writes:   3,344.48/ms  in     299 ms  =>  ~
 ATimeSeriesDB (High)   10,000,000     Reads:  14,204.55/ms  in     704 ms  =>  ~38 times faster (with High Compression)
 ```
 New Benchmarks (2021, Core i9-9900k with SSD, Java 16):
+- Heap: Plain Old Java Objects (POJOs) on JVM managed Heap memory with an impact on GC. No Persistence.
+- Memory: Serialized bytes on OffHeap memory outside of the JVM without GC impact. No Persistence.
+- Disk: Serialized bytes on Disk (SSD) with Persistence.
 ```
           ezdb-RocksDB-JNI (Disk)        Writes (PutBatch):       44.86/ms  => ~80% slower
                   CQEngine (Disk)        Writes (PutBatch):       48.79/ms  => ~79% slower (uses SQLite internally; expensive I/O and huge size for large databases)
