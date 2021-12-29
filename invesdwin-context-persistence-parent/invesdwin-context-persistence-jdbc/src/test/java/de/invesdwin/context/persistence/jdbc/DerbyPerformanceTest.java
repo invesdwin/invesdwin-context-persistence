@@ -33,7 +33,7 @@ import de.invesdwin.util.time.duration.Duration;
 public class DerbyPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
-    public void testH2Performance() throws Exception {
+    public void testDerbyPerformance() throws Exception {
         final File directory = new File(ContextProperties.getCacheDirectory(),
                 DerbyPerformanceTest.class.getSimpleName());
         Files.deleteNative(directory);
@@ -41,12 +41,11 @@ public class DerbyPerformanceTest extends ADatabasePerformanceTest {
         final Instant writesStart = new Instant();
         int i = 0;
 
-        Class.forName("org.apache.derby.jdbc.EmbeddedDriver");
-        final Connection conn = DriverManager.getConnection("jdbc:derby:" + directory.getAbsolutePath());
+        final Connection conn = DriverManager
+                .getConnection("jdbc:derby:" + directory.getAbsolutePath() + ";create=true");
         final Statement create = conn.createStatement();
-        create.execute("DROP TABLE abc IF EXISTS");
-        create.execute("CREATE TABLE abc (key LONG, value LONG, PRIMARY KEY(key))");
-        create.execute("CREATE UNIQUE INDEX idx_abc on abc (key)");
+        create.execute("CREATE TABLE abc (k LONG, v LONG, PRIMARY KEY(k))");
+        create.execute("CREATE UNIQUE INDEX idx_abc on abc (k)");
         create.close();
         final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final Statement tx = conn.createStatement();
@@ -89,7 +88,7 @@ public class DerbyPerformanceTest extends ADatabasePerformanceTest {
         for (int reads = 1; reads <= READS; reads++) {
             FDate prevValue = null;
             int count = 0;
-            try (ResultSet results = select.executeQuery("SELECT value FROM abc ORDER BY KEY ASC")) {
+            try (ResultSet results = select.executeQuery("SELECT v FROM abc ORDER BY k ASC")) {
                 while (results.next()) {
                     final FDate value = new FDate(results.getLong(1));
                     if (prevValue != null) {
@@ -115,7 +114,7 @@ public class DerbyPerformanceTest extends ADatabasePerformanceTest {
         for (int reads = 0; reads < READS; reads++) {
             FDate prevValue = null;
             int count = 0;
-            try (PreparedStatement select = conn.prepareStatement("SELECT value FROM abc where key = ? LIMIT 1")) {
+            try (PreparedStatement select = conn.prepareStatement("SELECT v FROM abc where k = ? LIMIT 1")) {
                 for (int i = 0; i < values.size(); i++) {
                     select.setLong(1, values.get(i).millisValue());
                     try (ResultSet results = select.executeQuery()) {
@@ -145,7 +144,7 @@ public class DerbyPerformanceTest extends ADatabasePerformanceTest {
         for (int reads = 0; reads < READS; reads++) {
             FDate prevValue = null;
             int count = 0;
-            try (PreparedStatement select = conn.prepareStatement("SELECT max(value) FROM abc WHERE key <=? LIMIT 1")) {
+            try (PreparedStatement select = conn.prepareStatement("SELECT max(v) FROM abc WHERE k <=? LIMIT 1")) {
                 for (int i = 0; i < values.size(); i++) {
                     select.setLong(1, values.get(i).millisValue());
                     try (ResultSet results = select.executeQuery()) {
