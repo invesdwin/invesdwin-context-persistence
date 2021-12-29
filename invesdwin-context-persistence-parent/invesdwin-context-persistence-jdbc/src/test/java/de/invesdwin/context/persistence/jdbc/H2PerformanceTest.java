@@ -59,6 +59,8 @@ public class H2PerformanceTest extends ADatabasePerformanceTest {
             i++;
             if (i % FLUSH_INTERVAL == 0) {
                 insert.executeBatch();
+                tx.execute("COMMIT");
+                tx.execute("BEGIN TRANSACTION");
                 if (loopCheck.check()) {
                     printProgress("Writes", writesStart, i, VALUES);
                 }
