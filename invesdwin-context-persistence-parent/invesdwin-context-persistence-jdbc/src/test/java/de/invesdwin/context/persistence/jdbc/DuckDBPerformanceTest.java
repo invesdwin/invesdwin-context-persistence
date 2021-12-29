@@ -45,7 +45,7 @@ public class DuckDBPerformanceTest extends ADatabasePerformanceTest {
         final Connection conn = DriverManager.getConnection("jdbc:duckdb:" + directory.getAbsolutePath());
         final Statement create = conn.createStatement();
         create.execute("CREATE TABLE abc (key LONG, value LONG, PRIMARY KEY(key))");
-        create.execute("CREATE UNIQUE INDEX idx_abc on abc (key)");
+        create.execute("CREATE UNIQUE INDEX idx_abc on abc (key desc)");
         create.close();
         final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final Statement insert = conn.createStatement();

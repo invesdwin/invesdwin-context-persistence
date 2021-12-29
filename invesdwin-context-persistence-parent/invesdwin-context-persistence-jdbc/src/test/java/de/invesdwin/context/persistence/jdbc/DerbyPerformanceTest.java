@@ -10,6 +10,7 @@ import java.util.List;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
@@ -30,7 +31,7 @@ import de.invesdwin.util.time.duration.Duration;
  *
  */
 @NotThreadSafe
-//@Disabled("manual test")
+@Disabled("manual test")
 public class DerbyPerformanceTest extends ADatabasePerformanceTest {
 
     static {
@@ -53,7 +54,7 @@ public class DerbyPerformanceTest extends ADatabasePerformanceTest {
         conn.setAutoCommit(false); //autocommit is very slow and overrides transactions
         final Statement create = conn.createStatement();
         create.execute("CREATE TABLE abc (k BIGINT, v BIGINT, PRIMARY KEY(k))");
-        create.execute("CREATE UNIQUE INDEX idx_abc on abc (k)");
+        create.execute("CREATE UNIQUE INDEX idx_abc on abc (k desc)");
         create.close();
         final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final Statement tx = conn.createStatement();
@@ -154,7 +155,7 @@ public class DerbyPerformanceTest extends ADatabasePerformanceTest {
             FDate prevValue = null;
             int count = 0;
             try (PreparedStatement select = conn
-                    .prepareStatement("SELECT max(v) FROM abc WHERE k <=? fetch first 1 rows only")) {
+                    .prepareStatement("SELECT v FROM abc WHERE k <=? ORDER BY k DESC fetch first 1 rows only")) {
                 for (int i = 0; i < values.size(); i++) {
                     select.setLong(1, values.get(i).millisValue());
                     try (ResultSet results = select.executeQuery()) {
