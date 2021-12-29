@@ -74,6 +74,7 @@
 		<version.duckdb>0.3.1</version.duckdb>
 		<version.sqlite>3.36.0.3</version.sqlite>
 		<version.hsqldb>2.6.1</version.hsqldb>
+		<version.derby>10.15.2.0</version.derby>
 	</properties>
 
 	<dependencyManagement>
@@ -561,6 +562,11 @@
 				<groupId>org.hsqldb</groupId>
 				<artifactId>hsqldb</artifactId>
 				<version>${version.hsqldb}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.derby</groupId>
+				<artifactId>derby</artifactId>
+				<version>${version.derby}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
