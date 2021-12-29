@@ -230,13 +230,13 @@ This is a custom designed NoSQL database that is optimized for backtesting and l
 
 ### invesdwin-context-persistence-timeseriesdb
 - **ATimeSeriesDB**: this is a binary data system that stores continuous time series data. It uses LevelDB as an index for the file chunks which it saves separately into random access files per 10,000 entries which are compressed via [LZ4](https://github.com/jpountz/lz4-java) (which is the fastest and most compact compression algorithm we could determine for our use cases). By chunking the data and looking up the files to process via LevelDB date range lookup, we can provide even faster iteration over large financialdata tick series than would be possible when storing everything LevelDB. Random access is possible, but you should rather let the in-memory `AGapHistoricalCache` from [invesdwin-util](https://github.com/subes/invesdwin-util#caches) handle that and only use `getLatestValue()` here to hook up the callbacks of that cache. This is because always going to the file storage can be really slow, thus an in-memory cache should be put before it. The raw insert and iteration speed for financial tick data was measured to be about 13 times faster with `ATimeSeriesDB` in comparison to directly using LevelDB (both with performance tuned serializer/deserializer implementations). In 2016 we were able to process more than 2,000,000 ticks per second with this setup instead of just around 150,000 ticks per second with only LevelDB in place. Today there is also a FileBufferCache that replicates the OS file cache for uncompressed and deserialized data. This makes reverse iteration faster and reduces file access significantly in parallel backtesting scenarios. A more synthetic performance test with a single thread and simpler data structures (which are included in the modules test cases) resulted in the below numbers. Though first some terminology:
-  - Heap: Plain Old Java Objects (POJOs) on JVM managed Heap memory with an impact on GC. No serialization overhead. No Persistence.
-  - Memory: Serialized bytes on OffHeap memory outside of the JVM without GC impact. Includes serialization overhead. No Persistence.
-  - Disk: Serialized bytes on Disk/SSD with Persistence enabled. Includes serialization overhead.
-  - Fast: Using LZ4 Fast Compression in ATimeSeriesDB.
-  - High: Using LZ4 High Compression in ATimeSeriesDB.
-  - None: Using Disabled Compression in ATimeSeriesDB.
-  - Cached: Using warmed up Heap memory cache in front of the Disk storage. This uses ATimeSeriedDB's FileBufferCache, not AGapHistoricalCache which is indifferent to the storage and thus not used in the benchmarks.
+  - *Heap*: Plain Old Java Objects (POJOs) on JVM managed Heap memory with an impact on GC. No serialization overhead. No Persistence.
+  - *Memory*: Serialized bytes on OffHeap memory outside of the JVM without GC impact. Includes serialization overhead. No Persistence.
+  - *Disk*: Serialized bytes on Disk/SSD with Persistence enabled. Includes serialization overhead.
+  - *Fast*: Using LZ4 Fast Compression in ATimeSeriesDB.
+  - *High*: Using LZ4 High Compression in ATimeSeriesDB.
+  - *None*: Using Disabled Compression in ATimeSeriesDB.
+  - *Cached*: Using warmed up Heap memory cache in front of the Disk storage. This uses ATimeSeriedDB's FileBufferCache, not AGapHistoricalCache which is indifferent to the storage and thus not used in the benchmarks.
 
 Old Benchmarks (2016, Core i7-4790K with SSD, Java 8):
 ```
