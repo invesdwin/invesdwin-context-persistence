@@ -366,14 +366,13 @@ ezdb-ConcurrentSkipListMap (Heap)         Reads (Iterator):   32,629.62/ms  => ~
 	           QuestDB (Disk)         Reads (Iterator):  125,410.57/ms  => ~59 times as fast (flyweight pattern)
          ConcurrentHashMap (Heap)         Reads (Iterator):  128,915.82/ms  => ~60.7 times as fast (unordered)
 ```
-Legend:
-- Heap: Plain Old Java Objects (POJOs) on JVM managed Heap memory with an impact on GC. No Persistence.
-- Memory: Serialized bytes on OffHeap memory outside of the JVM without GC impact. No Persistence.
-- Disk: Serialized bytes on Disk (SSD) with Persistence.
-- Fast: LZ4 Fast Compression
-- High: LZ4 High Compression
-- None: Disabled Compression
-- Cached: Warmed up Heap memory cache in front of the Disk storage.
+  - Heap: Plain Old Java Objects (POJOs) on JVM managed Heap memory with an impact on GC. No Persistence.
+  - Memory: Serialized bytes on OffHeap memory outside of the JVM without GC impact. No Persistence.
+  - Disk: Serialized bytes on Disk (SSD) with Persistence.
+  - Fast: LZ4 Fast Compression
+  - High: LZ4 High Compression
+  - None: Disabled Compression
+  - Cached: Warmed up Heap memory cache in front of the Disk storage.
 - **ATimeSeriesUpdater**: this is a helper class with which one can handle large inserts/updates into an instance of `ATimeSeriesDB`. This handles the creation of separate chunk files and writing them to disk in the most efficient way.
 - **SerializingCollection**: this collection implementation is used to store and retrieve each file chunk. It supports two modes of serialization. The default and slower one supports variable length objects by Base64 encoding the serialized bytes and putting a delimiter between each element. The second and faster approach can be enabled by overriding `getFixedLength()` which allows the collection to skip the Base64 encoding and instead just count the bytes to separate each element. Though as this suggests, it only works with fixed length serialization/deserialization which you can provide by overriding the `toBytes`/`fromBytes()` callback methods (which use FST per default). You can also deviate from the default LZ4 high compression algorithm by overriding the `newCompressor`/`newDecompressor` callback methods. Despite efficiently storing financial data, this collection can be used to move any kind of data out of memory into a file to preserve precious memory instead of wasting it on metadata that is only rarely used (e.g. during a backtests we can record all sorts of information in a serialized fashion and load it back from file when generating our reports once. This allows us to run more backtests in parallel which would otherwise be limited by tight memory).
 - **ASegmentedTimeSeriesDB**: if it is undesirable to always have the whole time series updated inside the `ATimeSeriesDB`, use this class to split it into segments. You provide an algorithm with which the segment time ranges can be calculated (e.g. monthly via `PeriodicalSegmentFinder.newCache(new Duration(1, FTimeUnit.MONTHS))`) and define the limits of your time series (e.g. from 2001-01-01 to 2018-01-01). The database will request the data for the individual segments when they are first needed. Thus the `ATimeSeriesUpdater` is handled by the database itself. This is helpful when you only need a few parts of the series and require those parts relatively fast without the overhead of calculating segments before or after. For example when calculating bars from ticks for a chart that shows only a small time range. Be aware that segments are immutable once they are created. If you need support for incomplete segments, look at `ALiveSegmentedTimeSeriesDB` next.
