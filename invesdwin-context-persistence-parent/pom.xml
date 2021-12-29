@@ -568,6 +568,11 @@
 				<artifactId>derby</artifactId>
 				<version>${version.derby}</version>
 			</dependency>
+			<dependency>
+				<groupId>org.apache.derby</groupId>
+				<artifactId>derbyclient</artifactId>
+				<version>${version.derby}</version>
+			</dependency>
 		</dependencies>
 	</dependencyManagement>
 
