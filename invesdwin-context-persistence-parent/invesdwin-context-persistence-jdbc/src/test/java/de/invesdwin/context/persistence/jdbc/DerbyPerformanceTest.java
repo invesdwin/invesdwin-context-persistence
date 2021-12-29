@@ -13,6 +13,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
+import de.invesdwin.context.system.properties.SystemProperties;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
@@ -32,6 +33,11 @@ import de.invesdwin.util.time.duration.Duration;
 //@Disabled("manual test")
 public class DerbyPerformanceTest extends ADatabasePerformanceTest {
 
+    static {
+        new SystemProperties().setString("derby.stream.error.file",
+                new File(ContextProperties.getLogDirectory(), "derby.log").getAbsolutePath());
+    }
+
     @Test
     public void testDerbyPerformance() throws Exception {
         final File directory = new File(ContextProperties.getCacheDirectory(),
@@ -41,15 +47,16 @@ public class DerbyPerformanceTest extends ADatabasePerformanceTest {
         final Instant writesStart = new Instant();
         int i = 0;
 
+        Class.forName("org.apache.derby.iapi.jdbc.AutoloadedDriver");
         final Connection conn = DriverManager
                 .getConnection("jdbc:derby:" + directory.getAbsolutePath() + ";create=true");
+        conn.setAutoCommit(false); //autocommit is very slow and overrides transactions
         final Statement create = conn.createStatement();
-        create.execute("CREATE TABLE abc (k LONG, v LONG, PRIMARY KEY(k))");
+        create.execute("CREATE TABLE abc (k BIGINT, v BIGINT, PRIMARY KEY(k))");
         create.execute("CREATE UNIQUE INDEX idx_abc on abc (k)");
         create.close();
         final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final Statement tx = conn.createStatement();
-        tx.execute("BEGIN TRANSACTION");
         final PreparedStatement insert = conn.prepareStatement("INSERT INTO abc VALUES (?,?)");
         for (final FDate date : newValues()) {
             final long value = date.longValue(FTimeUnit.MILLISECONDS);
@@ -59,6 +66,7 @@ public class DerbyPerformanceTest extends ADatabasePerformanceTest {
             i++;
             if (i % FLUSH_INTERVAL == 0) {
                 insert.executeBatch();
+                conn.commit();
                 if (loopCheck.check()) {
                     printProgress("Writes", writesStart, i, VALUES);
                 }
@@ -66,7 +74,7 @@ public class DerbyPerformanceTest extends ADatabasePerformanceTest {
         }
         insert.executeBatch();
         insert.close();
-        tx.execute("COMMIT");
+        conn.commit();
         printProgress("WritesFinished", writesStart, VALUES, VALUES);
         tx.close();
 
@@ -114,7 +122,8 @@ public class DerbyPerformanceTest extends ADatabasePerformanceTest {
         for (int reads = 0; reads < READS; reads++) {
             FDate prevValue = null;
             int count = 0;
-            try (PreparedStatement select = conn.prepareStatement("SELECT v FROM abc where k = ? LIMIT 1")) {
+            try (PreparedStatement select = conn
+                    .prepareStatement("SELECT v FROM abc where k = ?  fetch first 1 rows only")) {
                 for (int i = 0; i < values.size(); i++) {
                     select.setLong(1, values.get(i).millisValue());
                     try (ResultSet results = select.executeQuery()) {
@@ -144,7 +153,8 @@ public class DerbyPerformanceTest extends ADatabasePerformanceTest {
         for (int reads = 0; reads < READS; reads++) {
             FDate prevValue = null;
             int count = 0;
-            try (PreparedStatement select = conn.prepareStatement("SELECT max(v) FROM abc WHERE k <=? LIMIT 1")) {
+            try (PreparedStatement select = conn
+                    .prepareStatement("SELECT max(v) FROM abc WHERE k <=? fetch first 1 rows only")) {
                 for (int i = 0; i < values.size(); i++) {
                     select.setLong(1, values.get(i).millisValue());
                     try (ResultSet results = select.executeQuery()) {

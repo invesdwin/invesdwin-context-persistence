@@ -46,7 +46,8 @@ public class H2PerformanceTest extends ADatabasePerformanceTest {
         final Statement create = conn.createStatement();
         create.execute("DROP TABLE abc IF EXISTS");
         create.execute("CREATE TABLE abc (k LONG, v LONG, PRIMARY KEY(k))");
-        create.execute("CREATE UNIQUE INDEX idx_abc on abc (k)");
+        //asc vs desc index order matters a lot
+        create.execute("CREATE UNIQUE INDEX idx_abc on abc (k desc)");
         create.close();
         final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final Statement tx = conn.createStatement();
@@ -147,7 +148,8 @@ public class H2PerformanceTest extends ADatabasePerformanceTest {
         for (int reads = 0; reads < READS; reads++) {
             FDate prevValue = null;
             int count = 0;
-            try (PreparedStatement select = conn.prepareStatement("SELECT max(v) FROM abc WHERE k <=? LIMIT 1")) {
+            try (PreparedStatement select = conn
+                    .prepareStatement("SELECT v FROM abc WHERE k <=? ORDER BY k DESC LIMIT 1")) {
                 for (int i = 0; i < values.size(); i++) {
                     select.setLong(1, values.get(i).millisValue());
                     try (ResultSet results = select.executeQuery()) {
