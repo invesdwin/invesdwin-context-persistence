@@ -218,9 +218,10 @@ The `invesdwin-context-persistence-ezdb` module provides support for the popular
 	- `TypeDelegateSerde` as the default serializer/deserializer with support for most common types with a fallback to [FST](https://github.com/RuedigerMoeller/fast-serialization) for complex types. To get faster serialization/deserialization you should consider providing your own `Serde` implementation via the `newHashKeySerde`/`newRangeKeySerde`/`newValueSerde()` callbacks. Utilizing `ByteBuffer` for custom serialization/deserialization is in most cases the fastest and most compact way, but requires a few lines of manual coding.
 
 - **APersistentMap/APersistentNavigableMap**: if you need storage of large elements, then LevelDB might not bring the best performance because it will reorganize itself often during insertions which makes it very slow. If you need the ordered values from LevelDB, then you can use it as an index and store your large entries in a [ChronicleMap](https://github.com/OpenHFT/Chronicle-Map) or [MapDB](https://github.com/jankotek/mapdb) with this. It is essentially a persistent map with good performance characteristics. You should consider to compress large values with `FastLZ4CompressionFactory.INSTANCE.maybeWrap(serde)` to reduce the file size at a little cpu cost. Though this should be cancelled out by improved IO speed which is more often the bottleneck. This database performs better than LevelDB for databases with large entries, since no reordering on disk is performed. `ALargePersistentMap` goes a bit further and you can use LevelDB/ChronicleMap/MapDB as an index and store the large values in a custom storage suitable for very large values. You can decide between storing each value in a separate file with `FileChunkStorage` or storing all values in one large random access file `MappedChunkStorage` (default). Here some issues that you might encounter with different approaches for large value storage:
-- ChronicleMap might cause segment overflow exceptions when storing very large values or values of significantly different lengths
-- MapDB might corrupt very large values (can be detected via checksum errors of LZ4)
-- LevelDB gets very slow due to significant write amplification caused by reordering
+  - ChronicleMap might cause segment overflow exceptions when storing very large values or values of significantly different lengths
+  - MapDB might corrupt very large values (can be detected via checksum errors of LZ4)
+  - LevelDB gets very slow due to significant write amplification caused by reordering
+Thus a simpler and thus more robust storage is preferable in such cases.
 
 
 ## Timeseries Module
