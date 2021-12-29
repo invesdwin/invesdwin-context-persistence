@@ -319,7 +319,6 @@ ezdb-ConcurrentSkipListMap (Heap)         Reads (Get):         2,695.42/ms  => ~
                   Caffeine (Heap)         Reads (Get):        58,897.77/ms  => ~241.1 times as fast
 	      
 	             Derby (Disk)         Reads (GetLatest):       0.13/ms  => ~99.9% slower (using "SELECT max(key)" or "ORDER BY key DESC")
-                        H2 (Disk)         Reads (GetLatest):      <0.38/ms  => ~99.8% slower (using "SELECT max(key)" or "ORDER BY key DESC"; slows down further)
 	            DuckDB (Disk)         Reads (GetLatest):       3.30/ms  => ~98.0% slower (using "SELECT max(key)"; "ORDER BY key DESC" is half as fast)
                   CQEngine (Disk)         Reads (GetLatest):       5.59/ms  => ~96.7% slower (using "ORDER BY key DESC")
                    QuestDB (Disk)         Reads (GetLatest):      23.63/ms  => ~86% slower (using "SELECT max(key)"; "ORDER BY key DESC" results in ~91/s which is 99.95% slower)
@@ -330,6 +329,7 @@ ezdb-ConcurrentSkipListMap (Heap)         Reads (Get):         2,695.42/ms  => ~
          ezdb-LevelDB-Java (Disk)         Reads (GetLatest):     167.48/ms  => using this as baseline
                   CQEngine (Memory)       Reads (GetLatest):     300.70/ms  => ~80% faster (using "ORDER BY key DESC")
                   CQEngine (Heap)         Reads (GetLatest):     314.20/ms  => ~90% faster (using "ORDER BY key DESC")
+		        H2 (Disk)         Reads (GetLatest):     578.94/ms  => ~3.4 times as fast (using "ORDER BY key DESC")
                  TreeMapDB (Heap)         Reads (GetLatest):     586.34/ms  => ~3.5 times as fast
 ezdb-ConcurrentSkipListMap (Heap)         Reads (GetLatest):     985.03/ms  => ~5.9 times as fast
               ezdb-LsmTree (Disk)         Reads (GetLatest):   1,202.41/ms  => ~7.2 times as fast
