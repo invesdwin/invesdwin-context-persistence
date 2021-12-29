@@ -236,7 +236,7 @@ This is a custom designed NoSQL database that is optimized for backtesting and l
   - *Fast*: Using LZ4 Fast Compression in ATimeSeriesDB.
   - *High*: Using LZ4 High Compression in ATimeSeriesDB.
   - *None*: Using Disabled Compression in ATimeSeriesDB.
-  - *Cached*: Using warmed up Heap memory cache in front of the Disk storage. This uses ATimeSeriedDB's FileBufferCache, not AGapHistoricalCache which is indifferent to the storage and thus not used in the benchmarks.
+  - *Cached*: Using a warmed up Heap memory cache in front of the Disk storage. This uses ATimeSeriedDB's FileBufferCache, not AGapHistoricalCache which is indifferent to the storage and thus not used in the benchmarks.
 
 Old Benchmarks (2016, Core i7-4790K with SSD, Java 8):
 ```
