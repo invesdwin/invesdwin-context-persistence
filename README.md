@@ -250,6 +250,7 @@ New Benchmarks (2021, Core i9-9900k with SSD, Java 16):
           ezdb-RocksDB-JNI (Disk)         Writes (PutBatch):       44.86/ms  => ~80% slower
                   CQEngine (Disk)         Writes (PutBatch):       48.79/ms  => ~79% slower (uses SQLite internally; expensive I/O and huge size for large databases)
                     DuckDB (Disk)         Writes (PutBatch):       54.62/ms  => ~76% slower
+		     Derby (Disk)         Writes (PutBatch):       64.98/ms  => ~72% slower
           ezdb-LevelDB-JNI (Disk)         Writes (PutBatch):       63.33/ms  => ~72% slower
                   CQEngine (Memory)       Writes (PutBatch):       65.97/ms  => ~71% slower
              ezdb-LMDB-JNR (Disk)         Writes (PutBatch):      152.05/ms  => ~33% slower
@@ -289,6 +290,7 @@ Indeed-BlockCompRecordFile (Disk)         Writes (Append):      4,273.32/ms  => 
                    QuestDB (Disk)         Reads (Get):            49.64/ms  => ~80% slower
           ezdb-RocksDB-JNI (Disk)         Reads (Get):            58.71/ms  => ~76% slower
           ezdb-LevelDB-JNI (Disk)         Reads (Get):            81.00/ms  => ~67% slower
+	             Derby (Disk)         Reads (Get):           112.02/ms  => ~54% slower
                     SQLite (Disk)         Reads (Get):           173.99/ms  => ~29% slower
              ezdb-LMDB-JNR (Disk)         Reads (Get):           186.07/ms  => ~24% slower
          ezdb-LevelDB-Java (Disk)         Reads (Get):           244.29/ms  => using this as baseline
@@ -315,7 +317,8 @@ ezdb-ConcurrentSkipListMap (Heap)         Reads (Get):         2,695.42/ms  => ~
                    HashMap (Heap)         Reads (Get):        40,929.29/ms  => ~167.5 times as fast
          ConcurrentHashMap (Heap)         Reads (Get):        57,822.57/ms  => ~236.7 times as fast
                   Caffeine (Heap)         Reads (Get):        58,897.77/ms  => ~241.1 times as fast
-	   
+	      
+	             Derby (Disk)         Reads (GetLatest):       0.13/ms  => ~99.9% slower (using "SELECT max(key)" or "ORDER BY key DESC")
                         H2 (Disk)         Reads (GetLatest):      <0.38/ms  => ~99.8% slower (using "SELECT max(key)" or "ORDER BY key DESC"; slows down further)
 	            DuckDB (Disk)         Reads (GetLatest):       3.30/ms  => ~98.0% slower (using "SELECT max(key)"; "ORDER BY key DESC" is half as fast)
                   CQEngine (Disk)         Reads (GetLatest):       5.59/ms  => ~96.7% slower (using "ORDER BY key DESC")
@@ -343,6 +346,7 @@ ezdb-ConcurrentSkipListMap (Heap)         Reads (GetLatest):     985.03/ms  => ~
           ezdb-RocksDB-JNI (Disk)         Reads (Iterator):      672.35/ms  => ~68.7% slower
              tkrzw-HashDBM (Disk)         Reads (Iterator):      801.15/ms  => ~62.3% slower
               ezdb-LsmTree (Disk)         Reads (Iterator):      879.74/ms  => ~58.6% slower
+	             Derby (Disk)         Reads (Iterator):    1,146.77/ms  => ~46.1% slower
              tkrzw-TreeDBM (Disk)         Reads (Iterator):    1,697.50/ms  => ~20.1% slower
          ezdb-LevelDB-Java (Disk)         Reads (Iterator):    2,125.29/ms  => using this as baseline
                         H2 (Disk)         Reads (Iterator):    2,365.26/ms  => ~11% faster
