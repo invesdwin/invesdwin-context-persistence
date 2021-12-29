@@ -221,7 +221,7 @@ The `invesdwin-context-persistence-ezdb` module provides support for the popular
   - ChronicleMap might cause segment overflow exceptions when storing very large values or values of significantly different lengths
   - MapDB might corrupt very large values (can be detected via checksum errors of LZ4)
   - LevelDB gets very slow due to significant write amplification caused by reordering
-Thus a simpler and thus more robust storage is preferable in such cases.
+  - => Thus a simpler and thus more robust storage is preferable in such cases.
 
 
 ## Timeseries Module
