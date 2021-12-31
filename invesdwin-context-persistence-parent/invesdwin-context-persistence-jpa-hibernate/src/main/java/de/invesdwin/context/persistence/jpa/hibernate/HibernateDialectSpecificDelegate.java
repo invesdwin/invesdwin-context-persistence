@@ -11,12 +11,15 @@ import javax.persistence.spi.PersistenceProvider;
 import javax.sql.DataSource;
 
 import org.hibernate.cfg.AvailableSettings;
+import org.hibernate.dialect.DerbyTenSevenDialect;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.dialect.H2Dialect;
-import org.hibernate.dialect.MySQL55Dialect;
-import org.hibernate.dialect.Oracle10gDialect;
-import org.hibernate.dialect.PostgreSQL9Dialect;
-import org.hibernate.dialect.SQLServerDialect;
+import org.hibernate.dialect.HSQLDialect;
+import org.hibernate.dialect.MySQL8Dialect;
+import org.hibernate.dialect.Oracle12cDialect;
+import org.hibernate.dialect.PostgreSQL10Dialect;
+import org.hibernate.dialect.SQLServer2016Dialect;
+import org.hibernate.dialect.SybaseASE157Dialect;
 import org.hibernate.jpa.HibernatePersistenceProvider;
 import org.springframework.orm.jpa.JpaDialect;
 import org.springframework.orm.jpa.JpaVendorAdapter;
@@ -134,15 +137,21 @@ public class HibernateDialectSpecificDelegate implements IDialectSpecificDelegat
         final ConnectionDialect dialect = context.getConnectionDialect();
         switch (dialect) {
         case MSSQLSERVER:
-            return SQLServerDialect.class;
+            return SQLServer2016Dialect.class;
         case MYSQL:
-            return MySQL55Dialect.class;
+            return MySQL8Dialect.class;
         case POSTGRESQL:
-            return PostgreSQL9Dialect.class;
+            return PostgreSQL10Dialect.class;
         case ORACLE:
-            return Oracle10gDialect.class;
+            return Oracle12cDialect.class;
         case H2:
             return H2Dialect.class;
+        case HSQLDB:
+            return HSQLDialect.class;
+        case SYBASE:
+            return SybaseASE157Dialect.class;
+        case DERBY:
+            return DerbyTenSevenDialect.class;
         default:
             throw UnknownArgumentException.newInstance(ConnectionDialect.class, dialect);
         }

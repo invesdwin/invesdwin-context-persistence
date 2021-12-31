@@ -10,6 +10,8 @@ public enum ConnectionDialect {
     HSQLDB(true),
     H2(true),
     ORACLE(true),
+    DERBY(true),
+    SYBASE(true),
     CASSANDRA(false),
     HBASE(false),
     MONGODB(false);

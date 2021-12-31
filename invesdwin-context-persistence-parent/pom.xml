@@ -73,8 +73,8 @@
 		<version.tkrzw-java>0.1.27</version.tkrzw-java>
 		<version.duckdb>0.3.1</version.duckdb>
 		<version.sqlite>3.36.0.3</version.sqlite>
-		<version.hsqldb>2.6.1</version.hsqldb>
 		<version.derby>10.15.2.0</version.derby>
+		<version.h2>2.0.204</version.h2>
 	</properties>
 
 	<dependencyManagement>
@@ -559,9 +559,9 @@
 				<version>${version.sqlite}</version>
 			</dependency>
 			<dependency>
-				<groupId>org.hsqldb</groupId>
-				<artifactId>hsqldb</artifactId>
-				<version>${version.hsqldb}</version>
+				<groupId>com.h2database</groupId>
+				<artifactId>h2</artifactId>
+				<version>${version.h2}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.apache.derby</groupId>

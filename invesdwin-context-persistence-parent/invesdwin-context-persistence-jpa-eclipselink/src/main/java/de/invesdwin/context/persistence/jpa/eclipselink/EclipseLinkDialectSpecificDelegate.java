@@ -13,12 +13,14 @@ import javax.sql.DataSource;
 import org.eclipse.persistence.config.PersistenceUnitProperties;
 import org.eclipse.persistence.config.QueryHints;
 import org.eclipse.persistence.platform.database.DatabasePlatform;
+import org.eclipse.persistence.platform.database.DerbyPlatform;
 import org.eclipse.persistence.platform.database.H2Platform;
 import org.eclipse.persistence.platform.database.HSQLPlatform;
 import org.eclipse.persistence.platform.database.MySQLPlatform;
 import org.eclipse.persistence.platform.database.PostgreSQLPlatform;
 import org.eclipse.persistence.platform.database.SQLServerPlatform;
-import org.eclipse.persistence.platform.database.oracle.Oracle12Platform;
+import org.eclipse.persistence.platform.database.SybasePlatform;
+import org.eclipse.persistence.platform.database.oracle.Oracle19Platform;
 import org.springframework.orm.jpa.JpaDialect;
 import org.springframework.orm.jpa.JpaVendorAdapter;
 import org.springframework.orm.jpa.vendor.EclipseLinkJpaDialect;
@@ -94,11 +96,15 @@ public class EclipseLinkDialectSpecificDelegate implements IDialectSpecificDeleg
         case POSTGRESQL:
             return PostgreSQLPlatform.class;
         case ORACLE:
-            return Oracle12Platform.class;
+            return Oracle19Platform.class;
         case H2:
             return H2Platform.class;
         case HSQLDB:
             return HSQLPlatform.class;
+        case DERBY:
+            return DerbyPlatform.class;
+        case SYBASE:
+            return SybasePlatform.class;
         default:
             throw UnknownArgumentException.newInstance(ConnectionDialect.class, dialect);
         }
