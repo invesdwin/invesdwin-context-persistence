@@ -8,7 +8,7 @@
 		<property name="systemProperties">
 			<map>
 				<entry key="de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_DRIVER@default_pu" value="org.hsqldb.jdbc.JDBCDriver" />
-				<entry key="de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_URL@default_pu" value="jdbc:hsqldb:mem:invesdwin;shutdown=false" />
+				<entry key="de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_URL@default_pu" value="jdbc:hsqldb:mem:invesdwin;shutdown=false;hsqldb.default_table_type=cached" />
 				<entry key="de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_USER@default_pu" value="SA" />
 				<entry key="de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_PASSWORD@default_pu" value="" />
 				<entry key="de.invesdwin.context.persistence.jpa.PersistenceUnitContext.CONNECTION_DIALECT@default_pu" value="HSQLDB" />
