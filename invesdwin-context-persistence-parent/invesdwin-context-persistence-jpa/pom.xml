@@ -64,6 +64,13 @@
 			<artifactId>mysql-connector-java</artifactId>
 			<scope>provided</scope>
 		</dependency>
+		<dependency>
+			<groupId>com.google.protobuf</groupId>
+			<artifactId>protobuf-java</artifactId>
+			<!-- upperbound deps for mysql-connector-java -->
+			<scope>provided</scope>
+		</dependency>
+
 
 		<dependency>
 			<!-- dependant modules need to reference this themselves if they want 
