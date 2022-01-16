@@ -26,6 +26,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
 import de.invesdwin.util.collections.iterable.LimitingIterator;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
+import de.invesdwin.util.error.FastEOFException;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.lang.Closeables;
 import de.invesdwin.util.lang.Files;
@@ -364,7 +365,13 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                 }
                 final int size;
                 try {
+                    if (finalizer.inputStream.available() < Integer.BYTES) {
+                        throw FastEOFException.getInstance();
+                    }
                     size = InputStreams.readInt(finalizer.inputStream);
+                    if (finalizer.inputStream.available() < size) {
+                        throw FastEOFException.getInstance();
+                    }
                     finalizer.readBuffer.putBytesTo(0, finalizer.inputStream, size);
                 } catch (final EOFException e) {
                     finalizer.close();
@@ -474,6 +481,9 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                 return null;
             }
             try {
+                if (finalizer.inputStream.available() < fixedLength) {
+                    throw FastEOFException.getInstance();
+                }
                 finalizer.readBuffer.putBytesTo(0, finalizer.inputStream, fixedLength);
             } catch (final IOException e) {
                 //LZ4 can throw ArrayIndexOutOfBounds
