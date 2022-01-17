@@ -26,7 +26,6 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
 import de.invesdwin.util.collections.iterable.LimitingIterator;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
-import de.invesdwin.util.error.FastEOFException;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.lang.Closeables;
 import de.invesdwin.util.lang.Files;
@@ -45,7 +44,6 @@ import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 @NotThreadSafe
 public class SerializingCollection<E> implements Collection<E>, IReverseCloseableIterable<E>, Closeable {
 
-    private static final int MAX_SIZE_CHECK = 100;
     private static final int READ_ONLY_FILE_SIZE = Integer.MAX_VALUE;
     private static final UniqueNameGenerator UNIQUE_NAME_GENERATOR = new UniqueNameGenerator() {
         @Override
@@ -366,13 +364,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                 }
                 final int size;
                 try {
-                    if (finalizer.inputStream.available() < Integer.BYTES) {
-                        throw FastEOFException.getInstance();
-                    }
                     size = InputStreams.readInt(finalizer.inputStream);
-                    if (finalizer.inputStream.available() < Integers.min(MAX_SIZE_CHECK, size)) {
-                        throw FastEOFException.getInstance();
-                    }
                     finalizer.readBuffer.putBytesTo(0, finalizer.inputStream, size);
                 } catch (final EOFException e) {
                     finalizer.close();
@@ -448,13 +440,11 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         private final FixedLengthDeserializingIteratorFinalizer<E> finalizer;
         private final int fixedLength;
-        private final int checkLength;
 
         private FixedLengthDeserializingIterator(final int fixedLength) {
             super(new TextDescription("%s: %s.%s: %s", name, SerializingCollection.class.getSimpleName(),
                     FixedLengthDeserializingIterator.class.getSimpleName(), file));
             this.fixedLength = fixedLength;
-            this.checkLength = Integers.min(MAX_SIZE_CHECK, fixedLength);
             this.finalizer = new FixedLengthDeserializingIteratorFinalizer<>();
             try {
                 this.finalizer.inputStream = newDecompressor(newFileInputStream(file));
@@ -484,9 +474,6 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                 return null;
             }
             try {
-                if (finalizer.inputStream.available() < checkLength) {
-                    throw FastEOFException.getInstance();
-                }
                 finalizer.readBuffer.putBytesTo(0, finalizer.inputStream, fixedLength);
             } catch (final IOException e) {
                 //LZ4 can throw ArrayIndexOutOfBounds
