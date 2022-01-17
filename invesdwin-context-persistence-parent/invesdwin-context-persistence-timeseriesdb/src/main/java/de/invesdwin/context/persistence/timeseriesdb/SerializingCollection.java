@@ -45,6 +45,7 @@ import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 @NotThreadSafe
 public class SerializingCollection<E> implements Collection<E>, IReverseCloseableIterable<E>, Closeable {
 
+    private static final int MAX_SIZE_CHECK = 100;
     private static final int READ_ONLY_FILE_SIZE = Integer.MAX_VALUE;
     private static final UniqueNameGenerator UNIQUE_NAME_GENERATOR = new UniqueNameGenerator() {
         @Override
@@ -369,7 +370,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                         throw FastEOFException.getInstance();
                     }
                     size = InputStreams.readInt(finalizer.inputStream);
-                    if (finalizer.inputStream.available() < size) {
+                    if (finalizer.inputStream.available() < Integers.min(MAX_SIZE_CHECK, size)) {
                         throw FastEOFException.getInstance();
                     }
                     finalizer.readBuffer.putBytesTo(0, finalizer.inputStream, size);
@@ -447,11 +448,13 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         private final FixedLengthDeserializingIteratorFinalizer<E> finalizer;
         private final int fixedLength;
+        private final int checkLength;
 
         private FixedLengthDeserializingIterator(final int fixedLength) {
             super(new TextDescription("%s: %s.%s: %s", name, SerializingCollection.class.getSimpleName(),
                     FixedLengthDeserializingIterator.class.getSimpleName(), file));
             this.fixedLength = fixedLength;
+            this.checkLength = Integers.min(MAX_SIZE_CHECK, fixedLength);
             this.finalizer = new FixedLengthDeserializingIteratorFinalizer<>();
             try {
                 this.finalizer.inputStream = newDecompressor(newFileInputStream(file));
@@ -481,7 +484,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                 return null;
             }
             try {
-                if (finalizer.inputStream.available() < fixedLength) {
+                if (finalizer.inputStream.available() < checkLength) {
                     throw FastEOFException.getInstance();
                 }
                 finalizer.readBuffer.putBytesTo(0, finalizer.inputStream, fixedLength);
