@@ -173,19 +173,27 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
         initLock.lock();
         readLock.unlock();
         try {
-            //otherwise initialize it with write lock (though check again because of lock switch)
-            initializeTable();
-
-            //and return the now not null table with read lock
-            readLock.lock();
-            if (tableFinalizer.table == null) {
-                readLock.unlock();
-                throw new IllegalStateException("table should not be null here");
-            }
-            return tableFinalizer.table;
+            return initializeTableInitLocked(readLock, 0);
         } finally {
             initLock.unlock();
         }
+    }
+
+    private Table<H, V> initializeTableInitLocked(final ILock readLock, final int tries) {
+        //otherwise initialize it with write lock (though check again because of lock switch)
+        initializeTable();
+
+        //and return the now not null table with read lock
+        readLock.lock();
+        if (tableFinalizer.table == null) {
+            readLock.unlock();
+            if (tries < 3) {
+                return initializeTableInitLocked(readLock, tries + 1);
+            } else {
+                throw new IllegalStateException("table should not be null here");
+            }
+        }
+        return tableFinalizer.table;
     }
 
     private void maybePurgeTable() {
