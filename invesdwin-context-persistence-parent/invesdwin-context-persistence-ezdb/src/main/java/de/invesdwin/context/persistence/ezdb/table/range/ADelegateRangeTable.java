@@ -182,10 +182,8 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
         initLock.lock();
         readLock.unlock();
         try {
-            if (tableFinalizer.table == null) {
-                //otherwise initialize it with write lock (though check again because of lock switch)
-                initializeTable();
-            }
+            //otherwise initialize it with write lock (though check again because of lock switch)
+            initializeTable();
 
             //and return the now not null table with read lock
             readLock.lock();
