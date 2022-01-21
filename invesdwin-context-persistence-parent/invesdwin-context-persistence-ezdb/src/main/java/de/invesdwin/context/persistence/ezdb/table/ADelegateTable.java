@@ -169,9 +169,8 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
         if (tableFinalizer.table != null) {
             return tableFinalizer.table;
         }
-        readLock.unlock();
-
         initLock.lock();
+        readLock.unlock();
         try {
             if (tableFinalizer.table == null) {
                 //otherwise initialize it with write lock (though check again because of lock switch)
