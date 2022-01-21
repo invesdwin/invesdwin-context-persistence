@@ -221,45 +221,49 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
         }
         tableLock.writeLock().lock();
         try {
-            if (tableFinalizer.table == null) {
-                if (getTableCreationTime() == null) {
-                    if (getPersistenceMode().isDisk()) {
-                        try {
-                            Files.touch(timestampFile);
-                        } catch (final IOException e) {
-                            throw Err.process(e);
-                        }
+            initializeTableLocked();
+        } finally {
+            tableLock.writeLock().unlock();
+        }
+    }
+
+    private void initializeTableLocked() {
+        if (tableFinalizer.table == null) {
+            if (getTableCreationTime() == null) {
+                if (getPersistenceMode().isDisk()) {
+                    try {
+                        Files.touch(timestampFile);
+                    } catch (final IOException e) {
+                        throw Err.process(e);
                     }
-                    tableCreationTime = new FDate();
                 }
-                try {
+                tableCreationTime = new FDate();
+            }
+            try {
+                tableFinalizer.table = db.getRangeTable(name);
+                if (tableFinalizer.table == null) {
+                    throw new IllegalStateException("table should not be null");
+                }
+                tableFinalizer.register(this);
+                RangeTableCloseManager.register(this);
+            } catch (final Throwable e) {
+                if (Strings.containsIgnoreCase(e.getMessage(), "LOCK")) {
+                    //ezdb.DbException: org.fusesource.leveldbjni.internal.NativeDB$DBException: IO error: lock /home/subes/Dokumente/Entwicklung/invesdwin/invesdwin-trading/invesdwin-trading-parent/invesdwin-trading-modules/invesdwin-trading-backtest/.invesdwin/de.invesdwin.context.persistence.leveldb.ADelegateRangeTable/CachingFinancialdataService_getInstrument/LOCK: Die Ressource ist zur Zeit nicht verfügbar
+                    //at ezdb.leveldb.EzLevelDbTable.<init>(EzLevelDbTable.java:50)
+                    //at ezdb.leveldb.EzLevelDb.getTable(EzLevelDb.java:69)
+                    //at de.invesdwin.context.persistence.leveldb.ADelegateRangeTable.getTableWithReadLock(ADelegateRangeTable.java:144)
+                    throw new RetryLaterRuntimeException(e);
+                } else {
+                    Err.process(new RuntimeException("Table data for [" + getDirectory() + "/" + getName()
+                            + "] is inconsistent. Resetting data and trying again.", e));
+                    innerDeleteTable();
                     tableFinalizer.table = db.getRangeTable(name);
                     if (tableFinalizer.table == null) {
                         throw new IllegalStateException("table should not be null");
                     }
                     tableFinalizer.register(this);
-                    RangeTableCloseManager.register(this);
-                } catch (final Throwable e) {
-                    if (Strings.containsIgnoreCase(e.getMessage(), "LOCK")) {
-                        //ezdb.DbException: org.fusesource.leveldbjni.internal.NativeDB$DBException: IO error: lock /home/subes/Dokumente/Entwicklung/invesdwin/invesdwin-trading/invesdwin-trading-parent/invesdwin-trading-modules/invesdwin-trading-backtest/.invesdwin/de.invesdwin.context.persistence.leveldb.ADelegateRangeTable/CachingFinancialdataService_getInstrument/LOCK: Die Ressource ist zur Zeit nicht verfügbar
-                        //at ezdb.leveldb.EzLevelDbTable.<init>(EzLevelDbTable.java:50)
-                        //at ezdb.leveldb.EzLevelDb.getTable(EzLevelDb.java:69)
-                        //at de.invesdwin.context.persistence.leveldb.ADelegateRangeTable.getTableWithReadLock(ADelegateRangeTable.java:144)
-                        throw new RetryLaterRuntimeException(e);
-                    } else {
-                        Err.process(new RuntimeException("Table data for [" + getDirectory() + "/" + getName()
-                                + "] is inconsistent. Resetting data and trying again.", e));
-                        innerDeleteTable();
-                        tableFinalizer.table = db.getRangeTable(name);
-                        if (tableFinalizer.table == null) {
-                            throw new IllegalStateException("table should not be null");
-                        }
-                        tableFinalizer.register(this);
-                    }
                 }
             }
-        } finally {
-            tableLock.writeLock().unlock();
         }
     }
 
