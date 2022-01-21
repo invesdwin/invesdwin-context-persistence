@@ -51,6 +51,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
     protected final RangeTableInternalMethods internalMethods;
     private final IRangeTableDb db;
     private final IReadWriteLock tableLock;
+    private final ILock initLock;
 
     private final String name;
     private final File timestampFile;
@@ -69,6 +70,8 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
 
         this.tableLock = Locks
                 .newReentrantReadWriteLock(ADelegateRangeTable.class.getSimpleName() + "_" + getName() + "_tableLock");
+        this.initLock = Locks
+                .newReentrantLock(ADelegateRangeTable.class.getSimpleName() + "_" + getName() + "_initLock");
         this.db = newDB();
         this.tableFinalizer = new TableFinalizer<>();
     }
@@ -177,16 +180,23 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
         }
         readLock.unlock();
 
-        //otherwise initialize it with write lock (though check again because of lock switch)
-        initializeTable();
+        initLock.lock();
+        try {
+            if (tableFinalizer.table == null) {
+                //otherwise initialize it with write lock (though check again because of lock switch)
+                initializeTable();
+            }
 
-        //and return the now not null table with read lock
-        readLock.lock();
-        if (tableFinalizer.table == null) {
-            readLock.unlock();
-            throw new IllegalStateException("table should not be null here");
+            //and return the now not null table with read lock
+            readLock.lock();
+            if (tableFinalizer.table == null) {
+                readLock.unlock();
+                throw new IllegalStateException("table should not be null here");
+            }
+            return tableFinalizer.table;
+        } finally {
+            initLock.unlock();
         }
-        return tableFinalizer.table;
     }
 
     private void maybePurgeTable() {
@@ -224,6 +234,9 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
                 }
                 try {
                     tableFinalizer.table = db.getRangeTable(name);
+                    if (tableFinalizer.table == null) {
+                        throw new IllegalStateException("table should not be null");
+                    }
                     tableFinalizer.register(this);
                     RangeTableCloseManager.register(this);
                 } catch (final Throwable e) {
@@ -238,6 +251,9 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
                                 + "] is inconsistent. Resetting data and trying again.", e));
                         innerDeleteTable();
                         tableFinalizer.table = db.getRangeTable(name);
+                        if (tableFinalizer.table == null) {
+                            throw new IllegalStateException("table should not be null");
+                        }
                         tableFinalizer.register(this);
                     }
                 }
