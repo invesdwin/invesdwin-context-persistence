@@ -192,15 +192,21 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
 
     private void maybePurgeTable() {
         if (shouldPurgeTable()) {
-            //only purge if currently not used
-            if (tableLock.writeLock().tryLock()) {
+            if (initLock.tryLock()) {
                 try {
-                    //condition could have changed since lock has been acquired
-                    if (shouldPurgeTable()) {
-                        innerDeleteTable();
+                    //only purge if currently not used
+                    if (tableLock.writeLock().tryLock()) {
+                        try {
+                            //condition could have changed since lock has been acquired
+                            if (shouldPurgeTable()) {
+                                innerDeleteTable();
+                            }
+                        } finally {
+                            tableLock.writeLock().unlock();
+                        }
                     }
                 } finally {
-                    tableLock.writeLock().unlock();
+                    initLock.unlock();
                 }
             }
         }
