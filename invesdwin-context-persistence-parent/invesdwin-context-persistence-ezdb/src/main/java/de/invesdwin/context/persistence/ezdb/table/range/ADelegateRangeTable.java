@@ -178,6 +178,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
         if (tableFinalizer.table != null) {
             return tableFinalizer.table;
         }
+        //we need this overlapping lock to prevent purges from being repeated during init
         initLock.lock();
         readLock.unlock();
         try {

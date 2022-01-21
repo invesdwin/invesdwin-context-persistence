@@ -169,6 +169,7 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
         if (tableFinalizer.table != null) {
             return tableFinalizer.table;
         }
+        //we need this overlapping lock to prevent purges from being repeated during init
         initLock.lock();
         readLock.unlock();
         try {
