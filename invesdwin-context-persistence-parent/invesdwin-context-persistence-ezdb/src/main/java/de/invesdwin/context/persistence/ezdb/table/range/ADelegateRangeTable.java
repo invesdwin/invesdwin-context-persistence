@@ -35,7 +35,6 @@ import de.invesdwin.util.marshallers.serde.SerdeComparator;
 import de.invesdwin.util.marshallers.serde.TypeDelegateSerde;
 import de.invesdwin.util.shutdown.ShutdownHookManager;
 import de.invesdwin.util.time.date.FDate;
-import de.invesdwin.util.time.date.FTimeUnit;
 import ezdb.comparator.ComparableComparator;
 import ezdb.comparator.LexicographicalComparator;
 import ezdb.table.Batch;
@@ -183,13 +182,13 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
         initLock.lock();
         readLock.unlock();
         try {
-            return initializeTableInitLocked(readLock, 0);
+            return initializeTableInitLocked(readLock);
         } finally {
             initLock.unlock();
         }
     }
 
-    private RangeTable<H, R, V> initializeTableInitLocked(final ILock readLock, final int tries) {
+    private RangeTable<H, R, V> initializeTableInitLocked(final ILock readLock) {
         //otherwise initialize it with write lock (though check again because of lock switch)
         initializeTable();
 
@@ -197,12 +196,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
         readLock.lock();
         if (tableFinalizer.table == null) {
             readLock.unlock();
-            if (tries < 3) {
-                FTimeUnit.MILLISECONDS.sleepNoInterrupt(1);
-                return initializeTableInitLocked(readLock, tries + 1);
-            } else {
-                throw new RetryLaterRuntimeException("table should not be null here");
-            }
+            throw new RetryLaterRuntimeException("table should not be null here");
         }
         return tableFinalizer.table;
     }

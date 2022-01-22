@@ -174,13 +174,13 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
         initLock.lock();
         readLock.unlock();
         try {
-            return initializeTableInitLocked(readLock, 0);
+            return initializeTableInitLocked(readLock);
         } finally {
             initLock.unlock();
         }
     }
 
-    private Table<H, V> initializeTableInitLocked(final ILock readLock, final int tries) {
+    private Table<H, V> initializeTableInitLocked(final ILock readLock) {
         //otherwise initialize it with write lock (though check again because of lock switch)
         initializeTable();
 
@@ -188,12 +188,7 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
         readLock.lock();
         if (tableFinalizer.table == null) {
             readLock.unlock();
-            if (tries < 3) {
-                FTimeUnit.MILLISECONDS.sleepNoInterrupt(1);
-                return initializeTableInitLocked(readLock, tries + 1);
-            } else {
-                throw new RetryLaterRuntimeException("table should not be null here");
-            }
+            throw new RetryLaterRuntimeException("table should not be null here");
         }
         return tableFinalizer.table;
     }
