@@ -33,6 +33,7 @@ import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.TypeDelegateSerde;
 import de.invesdwin.util.shutdown.ShutdownHookManager;
 import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.date.FTimeUnit;
 import ezdb.comparator.ComparableComparator;
 import ezdb.comparator.LexicographicalComparator;
 import ezdb.table.Batch;
@@ -188,9 +189,10 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
         if (tableFinalizer.table == null) {
             readLock.unlock();
             if (tries < 3) {
+                FTimeUnit.MILLISECONDS.sleepNoInterrupt(1);
                 return initializeTableInitLocked(readLock, tries + 1);
             } else {
-                throw new IllegalStateException("table should not be null here");
+                throw new RetryLaterRuntimeException("table should not be null here");
             }
         }
         return tableFinalizer.table;
