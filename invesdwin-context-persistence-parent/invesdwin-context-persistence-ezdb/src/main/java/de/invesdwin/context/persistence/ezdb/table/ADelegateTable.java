@@ -33,7 +33,6 @@ import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.TypeDelegateSerde;
 import de.invesdwin.util.shutdown.ShutdownHookManager;
 import de.invesdwin.util.time.date.FDate;
-import de.invesdwin.util.time.date.FTimeUnit;
 import ezdb.comparator.ComparableComparator;
 import ezdb.comparator.LexicographicalComparator;
 import ezdb.table.Batch;
@@ -377,6 +376,7 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
 
     @Override
     public void close() {
+        initLock.lock();
         tableLock.writeLock().lock();
         try {
             if (tableFinalizer.table != null) {
@@ -386,6 +386,7 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
             }
         } finally {
             tableLock.writeLock().unlock();
+            initLock.unlock();
         }
     }
 

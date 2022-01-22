@@ -515,6 +515,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
 
     @Override
     public void close() {
+        initLock.lock();
         tableLock.writeLock().lock();
         try {
             if (tableFinalizer.table != null) {
@@ -524,6 +525,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
             }
         } finally {
             tableLock.writeLock().unlock();
+            initLock.unlock();
         }
     }
 
