@@ -11,6 +11,8 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
+import de.invesdwin.context.integration.retry.task.ARetryCallable;
+import de.invesdwin.context.integration.retry.task.RetryOriginator;
 import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.ezdb.RangeTableCloseManager;
 import de.invesdwin.context.persistence.ezdb.RangeTablePersistenceMode;
@@ -179,7 +181,13 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
             return getTableWithReadLock(forUpdate);
         } else {
             try {
-                return initializeTableInitLocked(readLock);
+                return new ARetryCallable<Table<H, V>>(
+                        new RetryOriginator(ADelegateTable.class, "initializeTableInitLocked", getName())) {
+                    @Override
+                    protected Table<H, V> callRetry() throws Exception {
+                        return initializeTableInitLocked(readLock);
+                    }
+                }.call();
             } finally {
                 initializing.set(false);
             }
