@@ -3,6 +3,7 @@ package de.invesdwin.context.persistence.ezdb.table;
 import java.io.File;
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -33,6 +34,7 @@ import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.TypeDelegateSerde;
 import de.invesdwin.util.shutdown.ShutdownHookManager;
 import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.date.FTimeUnit;
 import ezdb.comparator.ComparableComparator;
 import ezdb.comparator.LexicographicalComparator;
 import ezdb.table.Batch;
@@ -48,7 +50,6 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
     protected final RangeTableInternalMethods internalMethods;
     private final IRangeTableDb db;
     private final IReadWriteLock tableLock;
-    private final ILock initLock;
 
     private final String name;
     private final File timestampFile;
@@ -58,6 +59,8 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
      */
     private volatile FDate tableCreationTime;
 
+    private final AtomicBoolean initializing = new AtomicBoolean();
+
     public ADelegateTable(final String name) {
         this.name = name;
         this.internalMethods = new RangeTableInternalMethods(newHashKeySerde(), null, newValueSerde(),
@@ -66,7 +69,6 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
 
         this.tableLock = Locks
                 .newReentrantReadWriteLock(ADelegateTable.class.getSimpleName() + "_" + getName() + "_tableLock");
-        this.initLock = Locks.newReentrantLock(ADelegateTable.class.getSimpleName() + "_" + getName() + "_initLock");
         this.db = newDB();
         this.tableFinalizer = new TableFinalizer<>();
     }
@@ -169,13 +171,18 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
         if (tableFinalizer.table != null) {
             return tableFinalizer.table;
         }
-        //we need this overlapping lock to prevent purges from being repeated during init
-        initLock.lock();
         readLock.unlock();
-        try {
-            return initializeTableInitLocked(readLock);
-        } finally {
-            initLock.unlock();
+        if (!initializing.compareAndSet(false, true)) {
+            while (initializing.get()) {
+                FTimeUnit.MILLISECONDS.sleepNoInterrupt(1);
+            }
+            return getTableWithReadLock(forUpdate);
+        } else {
+            try {
+                return initializeTableInitLocked(readLock);
+            } finally {
+                initializing.set(false);
+            }
         }
     }
 
@@ -194,21 +201,15 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
 
     private void maybePurgeTable() {
         if (shouldPurgeTable()) {
-            if (initLock.tryLock()) {
+            //only purge if currently not used
+            if (tableLock.writeLock().tryLock()) {
                 try {
-                    //only purge if currently not used
-                    if (tableLock.writeLock().tryLock()) {
-                        try {
-                            //condition could have changed since lock has been acquired
-                            if (shouldPurgeTable()) {
-                                innerDeleteTable();
-                            }
-                        } finally {
-                            tableLock.writeLock().unlock();
-                        }
+                    //condition could have changed since lock has been acquired
+                    if (shouldPurgeTable()) {
+                        innerDeleteTable();
                     }
                 } finally {
-                    initLock.unlock();
+                    tableLock.writeLock().unlock();
                 }
             }
         }
@@ -376,7 +377,9 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
 
     @Override
     public void close() {
-        initLock.lock();
+        if (initializing.get()) {
+            return;
+        }
         tableLock.writeLock().lock();
         try {
             if (tableFinalizer.table != null) {
@@ -386,7 +389,6 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
             }
         } finally {
             tableLock.writeLock().unlock();
-            initLock.unlock();
         }
     }
 
