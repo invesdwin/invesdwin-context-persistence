@@ -173,7 +173,9 @@ public class TimeSeriesStorage {
     public void deleteRange_latestValueLookupTable(final String hashKey) {
         if (MAP_TYPE == PersistentMapType.FAST) {
             //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
-            latestValueLookupTable.deleteTable();
+            if (!latestValueLookupTable.isEmpty()) {
+                latestValueLookupTable.deleteTable();
+            }
         } else {
             latestValueLookupTable.removeAll((key) -> {
                 return hashKey.equals(key.getHashKey());
@@ -187,7 +189,9 @@ public class TimeSeriesStorage {
         } else {
             if (MAP_TYPE == PersistentMapType.FAST) {
                 //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
-                latestValueLookupTable.deleteTable();
+                if (!latestValueLookupTable.isEmpty()) {
+                    latestValueLookupTable.deleteTable();
+                }
             } else {
                 latestValueLookupTable.removeAll((key) -> {
                     return hashKey.equals(key.getHashKey()) && key.getRangeKey().isAfterOrEqualToNotNullSafe(above);
@@ -199,7 +203,9 @@ public class TimeSeriesStorage {
     public void deleteRange_nextValueLookupTable(final String hashKey) {
         if (MAP_TYPE == PersistentMapType.FAST) {
             //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
-            nextValueLookupTable.deleteTable();
+            if (!latestValueLookupTable.isEmpty()) {
+                nextValueLookupTable.deleteTable();
+            }
         } else {
             nextValueLookupTable.removeAll((key) -> {
                 return hashKey.equals(key.getHashKey());
@@ -210,7 +216,9 @@ public class TimeSeriesStorage {
     public void deleteRange_previousValueLookupTable(final String hashKey) {
         if (MAP_TYPE == PersistentMapType.FAST) {
             //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
-            previousValueLookupTable.deleteTable();
+            if (!previousValueLookupTable.isEmpty()) {
+                previousValueLookupTable.deleteTable();
+            }
         } else {
             previousValueLookupTable.removeAll((key) -> {
                 return hashKey.equals(key.getHashKey());
@@ -224,7 +232,9 @@ public class TimeSeriesStorage {
         } else {
             if (MAP_TYPE == PersistentMapType.FAST) {
                 //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
-                previousValueLookupTable.deleteTable();
+                if (!previousValueLookupTable.isEmpty()) {
+                    previousValueLookupTable.deleteTable();
+                }
             } else {
                 previousValueLookupTable.removeAll((key) -> {
                     return hashKey.equals(key.getHashKey()) && key.getRangeKey().isAfterOrEqualToNotNullSafe(above);
