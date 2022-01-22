@@ -210,7 +210,8 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
         readLock.lock();
         if (tableFinalizer.table == null) {
             readLock.unlock();
-            throw new RetryLaterRuntimeException("table should not be null here");
+            throw new RetryLaterRuntimeException(
+                    "table might have been deleted in the mean time, thus retry initialization");
         }
         return tableFinalizer.table;
     }
