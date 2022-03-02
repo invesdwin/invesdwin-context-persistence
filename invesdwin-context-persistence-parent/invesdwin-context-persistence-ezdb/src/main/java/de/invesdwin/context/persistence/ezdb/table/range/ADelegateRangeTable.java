@@ -305,7 +305,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
             Files.deleteQuietly(timestampFile);
             final File tableDirectory = new File(internalMethods.getDirectory(), getName());
             final String[] list = tableDirectory.list();
-            if (list == null || list.length == 0) {
+            if (list != null && list.length > 0) {
                 Files.deleteNative(tableDirectory);
             }
         }

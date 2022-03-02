@@ -297,7 +297,7 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
             Files.deleteQuietly(timestampFile);
             final File tableDirectory = new File(internalMethods.getDirectory(), getName());
             final String[] list = tableDirectory.list();
-            if (list == null || list.length == 0) {
+            if (list != null && list.length > 0) {
                 Files.deleteNative(tableDirectory);
             }
         }
