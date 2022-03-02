@@ -7,6 +7,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Function;
 
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -96,6 +97,11 @@ public final class TableConcurrentMap<K, V> implements ConcurrentMap<K, V>, Clos
             keySet = newKeySet();
         }
         return keySet;
+    }
+
+    @Override
+    public V computeIfAbsent(final K key, final Function<? super K, ? extends V> mappingFunction) {
+        return table.getOrLoad(key, mappingFunction);
     }
 
     private Set<K> newKeySet() {

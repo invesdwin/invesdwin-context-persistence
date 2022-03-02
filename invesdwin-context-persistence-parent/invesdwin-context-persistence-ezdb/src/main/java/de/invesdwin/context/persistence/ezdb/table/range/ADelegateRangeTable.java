@@ -412,7 +412,8 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
         }
     }
 
-    public V getOrLoad(final H hashKey, final Function<H, V> loadable) {
+    @Override
+    public V getOrLoad(final H hashKey, final Function<? super H, ? extends V> loadable) {
         final V cachedValue = get(hashKey);
         if (cachedValue == null) {
             //don't hold read lock while loading value
@@ -427,6 +428,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
         }
     }
 
+    @Override
     public V getOrLoad(final H hashKey, final R rangeKey, final Function<Pair<H, R>, V> loadable) {
         final V cachedValue = get(hashKey, rangeKey);
         if (cachedValue == null) {
@@ -442,6 +444,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
         }
     }
 
+    @Override
     public V getOrLoad(final H hashKey, final Supplier<V> loadable) {
         final V cachedValue = get(hashKey);
         if (cachedValue == null) {
@@ -457,6 +460,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
         }
     }
 
+    @Override
     public V getOrLoad(final H hashKey, final R rangeKey, final Supplier<V> loadable) {
         final V cachedValue = get(hashKey, rangeKey);
         if (cachedValue == null) {

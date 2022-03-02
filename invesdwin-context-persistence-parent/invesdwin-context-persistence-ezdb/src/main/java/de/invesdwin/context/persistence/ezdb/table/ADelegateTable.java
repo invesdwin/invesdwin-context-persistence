@@ -344,7 +344,8 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
         }
     }
 
-    public V getOrLoad(final H hashKey, final Function<H, V> loadable) {
+    @Override
+    public V getOrLoad(final H hashKey, final Function<? super H, ? extends V> loadable) {
         final V cachedValue = get(hashKey);
         if (cachedValue == null) {
             //don't hold read lock while loading value
@@ -359,6 +360,7 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
         }
     }
 
+    @Override
     public V getOrLoad(final H hashKey, final Supplier<V> loadable) {
         final V cachedValue = get(hashKey);
         if (cachedValue == null) {
