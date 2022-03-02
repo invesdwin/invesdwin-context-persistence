@@ -218,7 +218,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
 
     private void maybePurgeTable() {
         if (!initializing.get() && shouldPurgeTable()) {
-            //only purge if currently not used
+            //only purge if currently not used, might happen due to recursive computeIfAbsent with different loading functions
             if (tableLock.writeLock().tryLock()) {
                 try {
                     //condition could have changed since lock has been acquired
