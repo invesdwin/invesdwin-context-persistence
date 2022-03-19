@@ -809,14 +809,12 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 while (cachedFirstValue == null && segment.getFrom().isBeforeOrEqualTo(lastSegment.getFrom())) {
                     final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
                     maybeInitSegment(segmentedKey);
-                    final String segmentedHashKey = segmentedTable.hashKeyToString(segmentedKey);
-                    final MemoryFileSummary latestValue = storage.getFileLookupTable()
-                            .getLatestValue(segmentedHashKey, FDate.MIN_DATE);
+                    final V potentialFirstValue = segmentedTable.getLookupTableCache(segmentedKey).getFirstValue();
                     final V firstValue;
-                    if (latestValue == null) {
+                    if (potentialFirstValue == null) {
                         segment = segmentFinderQuery.getValue(segment.getTo().addMilliseconds(1));
                     } else {
-                        firstValue = latestValue.getFirstValue(valueSerde);
+                        firstValue = potentialFirstValue;
                         cachedFirstValue = Optional.of(firstValue);
                     }
                 }

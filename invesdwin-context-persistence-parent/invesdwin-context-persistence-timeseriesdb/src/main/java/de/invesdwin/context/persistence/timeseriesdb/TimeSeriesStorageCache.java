@@ -36,7 +36,6 @@ import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.FlatteningIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
-import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
 import de.invesdwin.util.collections.iterable.PeekingCloseableIterator;
 import de.invesdwin.util.collections.iterable.collection.ArrayListCloseableIterable;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterator;
@@ -101,7 +100,7 @@ public class TimeSeriesStorageCache<K, V> {
      * through to disk is still better for increased parallelity and for not having to iterate through each element of
      * the other hashkeys.
      */
-    private volatile IReverseCloseableIterable<RangeTableRow<String, FDate, MemoryFileSummary>> cachedAllRangeKeys;
+    private volatile ArrayListCloseableIterable<RangeTableRow<String, FDate, MemoryFileSummary>> cachedAllRangeKeys;
     private final Log log = new Log(this);
 
     public TimeSeriesStorageCache(final TimeSeriesStorage storage, final String hashKey, final ISerde<V> valueSerde,
@@ -198,7 +197,8 @@ public class TimeSeriesStorageCache<K, V> {
                                 return new ASkippingIterator<RangeTableRow<String, FDate, MemoryFileSummary>>(
                                         rangeFiltered) {
                                     @Override
-                                    protected boolean skip(final RangeTableRow<String, FDate, MemoryFileSummary> element) {
+                                    protected boolean skip(
+                                            final RangeTableRow<String, FDate, MemoryFileSummary> element) {
                                         if (!rangeFiltered.hasNext()) {
                                             /*
                                              * cannot optimize this further for multiple segments because we don't know
@@ -294,7 +294,8 @@ public class TimeSeriesStorageCache<K, V> {
                                         rangeFiltered) {
 
                                     @Override
-                                    protected boolean skip(final RangeTableRow<String, FDate, MemoryFileSummary> element) {
+                                    protected boolean skip(
+                                            final RangeTableRow<String, FDate, MemoryFileSummary> element) {
                                         if (!rangeFiltered.hasNext()) {
                                             /*
                                              * cannot optimize this further for multiple segments because we don't know
@@ -491,28 +492,42 @@ public class TimeSeriesStorageCache<K, V> {
 
     public V getFirstValue() {
         if (cachedFirstValue == null) {
-            final MemoryFileSummary latestValue = storage.getFileLookupTable().getLatestValue(hashKey, FDate.MIN_DATE);
-            final V firstValue;
-            if (latestValue == null) {
-                firstValue = null;
+            final ArrayList<? extends RangeTableRow<String, FDate, MemoryFileSummary>> list = getAllRangeKeys(
+                    DisabledLock.INSTANCE).getArrayList();
+            if (list.isEmpty()) {
+                cachedFirstValue = Optional.empty();
             } else {
-                firstValue = latestValue.getFirstValue(valueSerde);
+                final RangeTableRow<String, FDate, MemoryFileSummary> row = list.get(0);
+                final MemoryFileSummary latestValue = row.getValue();
+                final V firstValue;
+                if (latestValue == null) {
+                    firstValue = null;
+                } else {
+                    firstValue = latestValue.getFirstValue(valueSerde);
+                }
+                cachedFirstValue = Optional.ofNullable(firstValue);
             }
-            cachedFirstValue = Optional.ofNullable(firstValue);
         }
         return cachedFirstValue.orElse(null);
     }
 
     public V getLastValue() {
         if (cachedLastValue == null) {
-            final MemoryFileSummary latestValue = storage.getFileLookupTable().getLatestValue(hashKey, FDate.MAX_DATE);
-            final V lastValue;
-            if (latestValue == null) {
-                lastValue = null;
+            final ArrayList<? extends RangeTableRow<String, FDate, MemoryFileSummary>> list = getAllRangeKeys(
+                    DisabledLock.INSTANCE).getArrayList();
+            if (list.isEmpty()) {
+                cachedLastValue = Optional.empty();
             } else {
-                lastValue = latestValue.getLastValue(valueSerde);
+                final RangeTableRow<String, FDate, MemoryFileSummary> row = list.get(list.size() - 1);
+                final MemoryFileSummary latestValue = row.getValue();
+                final V lastValue;
+                if (latestValue == null) {
+                    lastValue = null;
+                } else {
+                    lastValue = latestValue.getLastValue(valueSerde);
+                }
+                cachedLastValue = Optional.ofNullable(lastValue);
             }
-            cachedLastValue = Optional.ofNullable(lastValue);
         }
         return cachedLastValue.orElse(null);
     }
@@ -537,7 +552,11 @@ public class TimeSeriesStorageCache<K, V> {
 
     public V getLatestValue(final FDate date) {
         final SingleValue value = storage.getOrLoad_latestValueLookupTable(hashKey, date, () -> {
-            final MemoryFileSummary summary = storage.getFileLookupTable().getLatestValue(hashKey, date);
+            final RangeTableRow<String, FDate, MemoryFileSummary> row = fileLookupTable_latestRangeKeyCache.get(date);
+            if (row == null) {
+                return null;
+            }
+            final MemoryFileSummary summary = row.getValue();
             if (summary == null) {
                 return null;
             }
@@ -671,8 +690,14 @@ public class TimeSeriesStorageCache<K, V> {
      * get fragmented too much between updates
      */
     public synchronized PrepareForUpdateResult<V> prepareForUpdate(final boolean shouldRedoLastFile) {
-        final RangeTableRow<String, FDate, MemoryFileSummary> latestFile = storage.getFileLookupTable()
-                .getLatest(hashKey, FDate.MAX_DATE);
+        final ArrayList<? extends RangeTableRow<String, FDate, MemoryFileSummary>> list = getAllRangeKeys(
+                DisabledLock.INSTANCE).getArrayList();
+        final RangeTableRow<String, FDate, MemoryFileSummary> latestFile;
+        if (list.isEmpty()) {
+            latestFile = null;
+        } else {
+            latestFile = list.get(list.size() - 1);
+        }
         final FDate updateFrom;
         final List<V> lastValues;
         final long addressOffset;
@@ -721,11 +746,13 @@ public class TimeSeriesStorageCache<K, V> {
         }
     }
 
-    private IReverseCloseableIterable<RangeTableRow<String, FDate, MemoryFileSummary>> getAllRangeKeys(final Lock readLock) {
+    private ArrayListCloseableIterable<RangeTableRow<String, FDate, MemoryFileSummary>> getAllRangeKeys(
+            final Lock readLock) {
         readLock.lock();
         try {
             if (cachedAllRangeKeys == null) {
-                try (ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> range = storage.getFileLookupTable()
+                try (ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> range = storage
+                        .getFileLookupTable()
                         .range(hashKey, FDate.MIN_DATE, FDate.MAX_DATE)) {
                     final ArrayList<RangeTableRow<String, FDate, MemoryFileSummary>> allRangeKeys = new ArrayList<>();
                     Lists.toListWithoutHasNext(range, allRangeKeys);
