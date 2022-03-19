@@ -39,7 +39,7 @@ public class SegmentedTimeSeriesStorage extends TimeSeriesStorage {
 
             @Override
             protected RangeTablePersistenceMode getPersistenceMode() {
-                return RangeTablePersistenceMode.MEMORY_WRITE_THROUGH_DISK;
+                return RangeTablePersistenceMode.DISK_ONLY;
             }
         };
     }
