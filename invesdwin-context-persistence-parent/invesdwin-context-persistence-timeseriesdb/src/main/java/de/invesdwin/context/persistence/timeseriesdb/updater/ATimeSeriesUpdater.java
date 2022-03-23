@@ -22,6 +22,7 @@ import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.lock.FileChannelLock;
 import de.invesdwin.util.concurrent.lock.ILock;
@@ -137,7 +138,20 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         final long initialAddressOffset = prepareForUpdateResult.getAddressOffset();
 
         final ICloseableIterable<? extends V> source = getSource(updateFrom);
-        final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues, source);
+        final ICloseableIterable<? extends V> skippingSource;
+        if (updateFrom != null) {
+            skippingSource = new ASkippingIterable<V>(source) {
+                @Override
+                protected boolean skip(final V element) {
+                    final FDate endTime = extractEndTime(element);
+                    //ensure we add no duplicate values
+                    return endTime.isBeforeNotNullSafe(updateFrom);
+                }
+            };
+        } else {
+            skippingSource = source;
+        }
+        final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues, skippingSource);
         try (ICloseableIterator<UpdateProgress> batchWriterProducer = new ICloseableIterator<UpdateProgress>() {
 
             private final UpdateProgress progress = new UpdateProgress(initialAddressOffset);
@@ -155,12 +169,6 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                     while (true) {
                         final V element = elements.next();
                         final FDate endTime = extractEndTime(element);
-                        if (updateFrom != null) {
-                            if (endTime.isBeforeNotNullSafe(updateFrom)) {
-                                //ensure we add no duplicate values
-                                continue;
-                            }
-                        }
                         if (progress.onElement(element, endTime)) {
                             return progress;
                         }

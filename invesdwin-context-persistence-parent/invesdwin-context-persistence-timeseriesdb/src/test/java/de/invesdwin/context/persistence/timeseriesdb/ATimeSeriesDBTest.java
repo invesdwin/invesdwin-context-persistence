@@ -3,6 +3,7 @@ package de.invesdwin.context.persistence.timeseriesdb;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -14,6 +15,7 @@ import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
+import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.TypeDelegateSerde;
@@ -123,6 +125,135 @@ public class ATimeSeriesDBTest extends ATest {
             final FDate expectedValue = dates.get(dates.size() - 1);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
+    }
+
+    @Test
+    public void testUpdateFile() throws IncompleteUpdateFoundException {
+        final String key = "asdf";
+        final ATimeSeriesDB<String, FDate> table = new ATimeSeriesDB<String, FDate>("testUpdateFile") {
+
+            @Override
+            protected ISerde<FDate> newValueSerde() {
+                return new TypeDelegateSerde<FDate>(FDate.class);
+            }
+
+            @Override
+            protected Integer newValueFixedLength() {
+                return null;
+            }
+
+            @Override
+            protected String innerHashKeyToString(final String key) {
+                return key;
+            }
+
+            @Override
+            protected FDate extractEndTime(final FDate value) {
+                return value;
+            }
+
+            @Override
+            protected File getBaseDirectory() {
+                return ContextProperties.TEMP_DIRECTORY;
+            }
+        };
+        final List<FDate> dates = new ArrayList<>();
+        for (int i = 2000; i <= 2010; i++) {
+            dates.add(FDateBuilder.newDate(i));
+        }
+        new ATimeSeriesUpdater<String, FDate>(key, table) {
+
+            @Override
+            protected ICloseableIterable<? extends FDate> getSource(final FDate updateFrom) {
+                return WrapperCloseableIterable.maybeWrap(dates);
+            }
+
+            @Override
+            protected void onUpdateFinished(final Instant updateStart) {
+            }
+
+            @Override
+            protected void onUpdateStart() {
+            }
+
+            @Override
+            protected FDate extractEndTime(final FDate element) {
+                return element;
+            }
+
+            @Override
+            protected void onFlush(final int flushIndex,
+                    final ATimeSeriesUpdater<String, FDate>.UpdateProgress updateProgress) {
+            }
+
+            @Override
+            public Percent getProgress() {
+                return null;
+            }
+        }.update();
+
+        final List<FDate> dates2 = new ArrayList<>();
+        for (int i = 2010; i <= 2020; i++) {
+            dates2.add(FDateBuilder.newDate(i));
+        }
+
+        final List<FDate> updateDates = new ArrayList<>();
+        for (int i = 1990; i <= 2020; i++) {
+            //update should skip earlier history
+            updateDates.add(FDateBuilder.newDate(i));
+        }
+
+        new ATimeSeriesUpdater<String, FDate>(key, table) {
+
+            @Override
+            protected ICloseableIterable<? extends FDate> getSource(final FDate updateFrom) {
+                return WrapperCloseableIterable.maybeWrap(updateDates);
+            }
+
+            @Override
+            protected void onUpdateFinished(final Instant updateStart) {
+            }
+
+            @Override
+            protected void onUpdateStart() {
+            }
+
+            @Override
+            protected FDate extractEndTime(final FDate element) {
+                return element;
+            }
+
+            @Override
+            protected void onFlush(final int flushIndex,
+                    final ATimeSeriesUpdater<String, FDate>.UpdateProgress updateProgress) {
+            }
+
+            @Override
+            public Percent getProgress() {
+                return null;
+            }
+        }.update();
+
+        final List<FDate> allDates = new ArrayList<>();
+        allDates.addAll(dates.subList(0, dates.size() - 1));
+        allDates.addAll(dates2);
+
+        final ICloseableIterable<FDate> rangeValues = table.rangeValues(key, FDate.MIN_DATE, FDate.MAX_DATE);
+        int foundValues = 0;
+        try (ICloseableIterator<FDate> it = rangeValues.iterator()) {
+            while (true) {
+                final FDate next = it.next();
+                final FDate expected = allDates.get(foundValues);
+                if (!next.equals(expected)) {
+                    throw new IllegalArgumentException(
+                            foundValues + ". expected [" + expected + "] found [" + next + "]");
+                }
+                foundValues++;
+            }
+        } catch (final NoSuchElementException e) {
+            //end reached
+        }
+        Assertions.checkEquals(allDates.size(), foundValues);
     }
 
     @Test
