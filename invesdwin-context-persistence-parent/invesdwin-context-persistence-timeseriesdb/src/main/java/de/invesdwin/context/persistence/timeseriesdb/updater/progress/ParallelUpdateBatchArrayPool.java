@@ -8,11 +8,11 @@ import de.invesdwin.util.time.date.FTimeUnit;
 import de.invesdwin.util.time.duration.Duration;
 
 @ThreadSafe
-final class TimeseriesUpdaterBatchArrayPool extends ATimeoutObjectPool<Object[]> {
+final class ParallelUpdateBatchArrayPool extends ATimeoutObjectPool<Object[]> {
 
-    public static final TimeseriesUpdaterBatchArrayPool INSTANCE = new TimeseriesUpdaterBatchArrayPool();
+    public static final ParallelUpdateBatchArrayPool INSTANCE = new ParallelUpdateBatchArrayPool();
 
-    private TimeseriesUpdaterBatchArrayPool() {
+    private ParallelUpdateBatchArrayPool() {
         super(Duration.ONE_MINUTE, new Duration(10, FTimeUnit.SECONDS));
     }
 

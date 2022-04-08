@@ -65,7 +65,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
         if (firstElement == null) {
             firstElement = element;
             minTime = endTime;
-            batch = TimeseriesUpdaterBatchArrayPool.INSTANCE.borrowObject();
+            batch = ParallelUpdateBatchArrayPool.INSTANCE.borrowObject();
         }
         if (maxTime != null && maxTime.isAfterNotNullSafe(endTime)) {
             throw new IllegalArgumentException("New element end time [" + endTime
@@ -87,7 +87,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
             batch[i] = null;
         }
         collection.close();
-        TimeseriesUpdaterBatchArrayPool.INSTANCE.returnObject(batch);
+        ParallelUpdateBatchArrayPool.INSTANCE.returnObject(batch);
         batch = null;
     }
 
