@@ -281,10 +281,10 @@ Indeed-BlockCompRecordFile (Disk)         Writes (Append):      4,273.32/ms  => 
          ConcurrentHashMap (Heap)         Writes (put):        10,260.62/ms  => ~45 times as fast
                   Caffeine (Heap)         Writes (put):        10,378.83/ms  => ~45.5 times as fast
                    HashMap (Heap)         Writes (put):        14,695.08/ms  => ~64.4 times as fast
-             ATimeSeriesDB (Disk, High)   Writes (Append):     30,935.81/ms  => ~ times as fast (High Compression)
+             ATimeSeriesDB (Disk, High)   Writes (Append):     31,063.62/ms  => ~136.2 times as fast (High Compression)
                    QuestDB (Disk)         Writes (Append):     36,191.23/ms  => ~158.7 times as fast (tested on Java 11; 4x Size of ATimeSeriesDB with Compression)
-             ATimeSeriesDB (Disk, None)   Writes (Append):     48,880.63/ms  => ~ times as fast (Disabled Compression; 2x Size of ATimeSeriesDB with Compression)
-             ATimeSeriesDB (Disk, Fast)   Writes (Append):     51,329.43/ms  => ~ times as fast (Fast Compression)
+             ATimeSeriesDB (Disk, Fast)   Writes (Append):     52,721.10/ms  => ~231.2 times as fast (Fast Compression)
+             ATimeSeriesDB (Disk, None)   Writes (Append):     56,980.06/ms  => ~249.8 times as fast (Disabled Compression; 2x Size of ATimeSeriesDB with Compression)
 
                     DuckDB (Disk)         Reads (Get):             5.44/ms  => ~98% slower
                    QuestDB (Disk)         Reads (Get):            49.64/ms  => ~80% slower
