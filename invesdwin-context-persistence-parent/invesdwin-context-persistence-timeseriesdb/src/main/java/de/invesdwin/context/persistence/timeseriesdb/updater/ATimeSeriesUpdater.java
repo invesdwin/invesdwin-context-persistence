@@ -16,7 +16,9 @@ import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdaterInternalMethods;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ParallelUpdateProgress;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.SequentialUpdateProgress;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
 import de.invesdwin.util.concurrent.lock.FileChannelLock;
@@ -181,11 +183,22 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             }
 
         };
+        final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues, skippingSource);
 
-        ParallelUpdateProgress.doUpdate(internalMethods, lastValues, initialAddressOffset, skippingSource);
+        if (shouldWriteInParallel()) {
+            ParallelUpdateProgress.doUpdate(internalMethods, initialAddressOffset, flatteningSources);
+        } else {
+            SequentialUpdateProgress.doUpdate(internalMethods, initialAddressOffset, flatteningSources);
+        }
+    }
+
+    protected boolean shouldWriteInParallel() {
+        //LZ4HC should be compressed in parallel
+        return true;
     }
 
     protected boolean shouldRedoLastFile() {
+        //redo last file so that we can update an incomplete last bar
         return true;
     }
 

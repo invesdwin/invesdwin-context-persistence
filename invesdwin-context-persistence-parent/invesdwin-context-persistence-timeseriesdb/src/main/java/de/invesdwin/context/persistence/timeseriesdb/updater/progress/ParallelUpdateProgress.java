@@ -6,7 +6,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -15,7 +14,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
-import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.concurrent.AParallelChunkConsumerIterator;
@@ -169,8 +167,8 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
         return firstElement;
     }
 
-    public static <K, V> void doUpdate(final ITimeSeriesUpdaterInternalMethods<K, V> parent, final List<V> lastValues,
-            final long initialAddressOffset, final ICloseableIterable<? extends V> skippingSource) {
+    public static <K, V> void doUpdate(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
+            final long initialAddressOffset, final ICloseableIterable<? extends V> source) {
         final File memoryFile = parent.getLookupTable().getMemoryFile();
         final File tempDir = new File(memoryFile.getParentFile(), ATimeSeriesUpdater.class.getSimpleName());
         Files.deleteQuietly(tempDir);
@@ -182,10 +180,9 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
 
         final AtomicInteger progressIndex = new AtomicInteger();
 
-        final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues, skippingSource);
         try (ICloseableIterator<ParallelUpdateProgress<K, V>> batchWriterProducer = new ICloseableIterator<ParallelUpdateProgress<K, V>>() {
 
-            private final ICloseableIterator<? extends V> elements = flatteningSources.iterator();
+            private final ICloseableIterator<? extends V> elements = source.iterator();
 
             @Override
             public boolean hasNext() {
