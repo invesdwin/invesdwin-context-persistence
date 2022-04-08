@@ -1,13 +1,11 @@
 package de.invesdwin.context.persistence.timeseriesdb.updater;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.TimeUnit;
@@ -170,7 +168,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         final AtomicInteger progressIndex = new AtomicInteger();
 
         final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues, skippingSource);
-        try (final ICloseableIterator<UpdateProgress> batchWriterProducer = new ICloseableIterator<UpdateProgress>() {
+        try (ICloseableIterator<UpdateProgress> batchWriterProducer = new ICloseableIterator<UpdateProgress>() {
 
             private final ICloseableIterator<? extends V> elements = flatteningSources.iterator();
 
@@ -205,14 +203,12 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                 elements.close();
             }
         }) {
-
             final String name = table.hashKeyToString(key);
             try (ACloseableIterator<UpdateProgress> batchProducer = new ProducerQueueIterable<UpdateProgress>(
                     getClass().getSimpleName() + "_batchProducer_" + name, () -> batchWriterProducer, BATCH_QUEUE_SIZE)
                             .iterator()) {
                 try (ACloseableIterator<UpdateProgress> parallelConsumer = new AParallelChunkConsumerIterator<UpdateProgress, UpdateProgress>(
                         getClass().getSimpleName() + "_batchConsumer_" + name, batchProducer, BATCH_WRITER_THREADS) {
-
                     @Override
                     protected UpdateProgress doWork(final UpdateProgress request) {
                         request.writeToTempFile();
@@ -234,7 +230,6 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         final String memoryFilePath = memoryFile.getAbsolutePath();
 
         try (FileOutputStream memoryFileOut = new FileOutputStream(memoryFile, true)) {
-
             if (initialAddressOffset > 0L) {
                 memoryFileOut.getChannel().position(initialAddressOffset);
             }
@@ -249,7 +244,6 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                         minTime = progress.getMinTime();
                     }
                     maxTime = progress.getMaxTime();
-                    progress.close();
                 }
             } catch (final NoSuchElementException e) {
                 //end reached
@@ -273,7 +267,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
 
     protected abstract void onFlush(int flushIndex, UpdateProgress updateProgress);
 
-    public class UpdateProgress implements Closeable {
+    public class UpdateProgress {
 
         private final TextDescription name = new TextDescription("%s[%s]: write",
                 ATimeSeriesUpdater.class.getSimpleName(), key);
@@ -284,7 +278,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         private FDate minTime;
         private V lastElement;
         private FDate maxTime;
-        private List<V> batch;
+        private Object[] batch;
 
         public UpdateProgress(final File tempFile) {
             this.tempFile = tempFile;
@@ -306,7 +300,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             if (firstElement == null) {
                 firstElement = element;
                 minTime = endTime;
-                batch = new ArrayList<>(BATCH_FLUSH_INTERVAL);
+                batch = TimeseriesUpdaterBatchArrayPool.INSTANCE.borrowObject();
             }
             if (maxTime != null && maxTime.isAfterNotNullSafe(endTime)) {
                 throw new IllegalArgumentException(
@@ -315,17 +309,20 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             }
             maxTime = endTime;
             lastElement = element;
-            batch.add(element);
+            batch[valueCount] = element;
             valueCount++;
             return valueCount % BATCH_FLUSH_INTERVAL == 0;
         }
 
+        @SuppressWarnings("unchecked")
         private void writeToTempFile() {
             final ConfiguredSerializingCollection collection = new ConfiguredSerializingCollection(tempFile);
-            for (int i = 0; i < batch.size(); i++) {
-                collection.add(batch.get(i));
+            for (int i = 0; i < valueCount; i++) {
+                collection.add((V) batch[i]);
+                batch[i] = null;
             }
             collection.close();
+            TimeseriesUpdaterBatchArrayPool.INSTANCE.returnObject(batch);
             batch = null;
         }
 
@@ -350,10 +347,6 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
-        }
-
-        @Override
-        public void close() {
         }
 
         private final class ConfiguredSerializingCollection extends SerializingCollection<V> {
