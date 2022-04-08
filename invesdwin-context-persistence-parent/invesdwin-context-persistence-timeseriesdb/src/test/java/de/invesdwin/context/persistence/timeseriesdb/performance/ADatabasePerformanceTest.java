@@ -23,7 +23,7 @@ public abstract class ADatabasePerformanceTest extends ATest {
     //    }
 
     protected static final long READS = 10000;
-    protected static final long VALUES = 1_000_000;
+    protected static final long VALUES = 100_000_000;
     protected static final String HASH_KEY = "HASH_KEY";
     protected static final int FLUSH_INTERVAL = ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL;
 

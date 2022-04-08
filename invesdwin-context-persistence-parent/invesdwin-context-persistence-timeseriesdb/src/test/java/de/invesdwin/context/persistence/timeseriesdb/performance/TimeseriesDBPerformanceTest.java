@@ -6,7 +6,6 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
@@ -26,7 +25,6 @@ import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.duration.Duration;
 
 @NotThreadSafe
-@Disabled("manual test")
 public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
