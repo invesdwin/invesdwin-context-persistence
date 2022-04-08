@@ -19,6 +19,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.concurrent.AParallelChunkConsumerIterator;
 import de.invesdwin.util.collections.iterable.concurrent.ProducerQueueIterable;
 import de.invesdwin.util.concurrent.Executors;
+import de.invesdwin.util.concurrent.WrappedExecutorService;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
@@ -28,7 +29,10 @@ import de.invesdwin.util.time.date.FDate;
 @NotThreadSafe
 public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
 
-    public static final int BATCH_WRITER_THREADS = Executors.getCpuThreadPoolCount();
+    private static final int WRITER_THREADS = Executors.getCpuThreadPoolCount();
+    private static final WrappedExecutorService WRITER_LIMIT_EXECUTOR = Executors
+            .newFixedThreadPool(ParallelUpdateProgress.class.getSimpleName() + "_WRITER_LIMIT", WRITER_THREADS)
+            .setDynamicThreadName(false);
 
     private final ITimeSeriesUpdaterInternalMethods<K, V> parent;
     private final TextDescription name;
@@ -221,7 +225,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                     ATimeSeriesUpdater.BATCH_QUEUE_SIZE).iterator()) {
                 try (ACloseableIterator<ParallelUpdateProgress<K, V>> parallelConsumer = new AParallelChunkConsumerIterator<ParallelUpdateProgress<K, V>, ParallelUpdateProgress<K, V>>(
                         ParallelUpdateProgress.class.getSimpleName() + "_batchConsumer_" + name, batchProducer,
-                        BATCH_WRITER_THREADS) {
+                        WRITER_THREADS, LIMIT_WRITER_EXECUTOR) {
                     @Override
                     protected ParallelUpdateProgress<K, V> doWork(final ParallelUpdateProgress<K, V> request) {
                         request.writeToTempFile();
