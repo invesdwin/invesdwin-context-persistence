@@ -2,12 +2,16 @@ package de.invesdwin.context.persistence.timeseriesdb.updater;
 
 import java.io.Closeable;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -19,9 +23,12 @@ import de.invesdwin.context.persistence.timeseriesdb.PrepareForUpdateResult;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.collections.iterable.concurrent.AParallelChunkConsumerIterator;
+import de.invesdwin.util.collections.iterable.concurrent.ProducerQueueIterable;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.lock.FileChannelLock;
@@ -32,7 +39,6 @@ import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
-import de.invesdwin.util.streams.pool.buffered.BufferedFileDataOutputStream;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 
@@ -151,10 +157,21 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         } else {
             skippingSource = source;
         }
-        final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues, skippingSource);
-        try (ICloseableIterator<UpdateProgress> batchWriterProducer = new ICloseableIterator<UpdateProgress>() {
 
-            private final UpdateProgress progress = new UpdateProgress(initialAddressOffset);
+        final File memoryFile = lookupTable.getMemoryFile();
+        final File tempDir = new File(memoryFile.getParentFile(), ATimeSeriesUpdater.class.getSimpleName());
+        Files.deleteQuietly(tempDir);
+        try {
+            Files.forceMkdir(tempDir);
+        } catch (final IOException e1) {
+            throw new RuntimeException(e1);
+        }
+
+        final AtomicInteger progressIndex = new AtomicInteger();
+
+        final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues, skippingSource);
+        try (final ICloseableIterator<UpdateProgress> batchWriterProducer = new ICloseableIterator<UpdateProgress>() {
+
             private final ICloseableIterator<? extends V> elements = flatteningSources.iterator();
 
             @Override
@@ -164,7 +181,8 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
 
             @Override
             public UpdateProgress next() {
-                progress.reset();
+                final File tempFile = new File(tempDir, progressIndex.incrementAndGet() + ".data");
+                final UpdateProgress progress = new UpdateProgress(tempFile);
                 try {
                     while (true) {
                         final V element = elements.next();
@@ -173,7 +191,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                             return progress;
                         }
                     }
-                } catch (NoSuchElementException e) {
+                } catch (final NoSuchElementException e) {
                     //end reached
                     if (progress.firstElement == null) {
                         throw e;
@@ -185,27 +203,59 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             @Override
             public void close() {
                 elements.close();
-                progress.close();
             }
         }) {
-            flush(batchWriterProducer);
+
+            final String name = table.hashKeyToString(key);
+            try (ACloseableIterator<UpdateProgress> batchProducer = new ProducerQueueIterable<UpdateProgress>(
+                    getClass().getSimpleName() + "_batchProducer_" + name, () -> batchWriterProducer, BATCH_QUEUE_SIZE)
+                            .iterator()) {
+                try (ACloseableIterator<UpdateProgress> parallelConsumer = new AParallelChunkConsumerIterator<UpdateProgress, UpdateProgress>(
+                        getClass().getSimpleName() + "_batchConsumer_" + name, batchProducer, BATCH_WRITER_THREADS) {
+
+                    @Override
+                    protected UpdateProgress doWork(final UpdateProgress request) {
+                        request.writeToTempFile();
+                        return request;
+                    }
+                }) {
+                    flush(initialAddressOffset, parallelConsumer);
+                }
+            }
         }
+        //clean up temp files
+        Files.deleteQuietly(tempDir);
     }
 
-    private void flush(final ICloseableIterator<UpdateProgress> batchWriterProducer) {
+    private void flush(final long initialAddressOffset, final ICloseableIterator<UpdateProgress> batchWriterProducer) {
         int flushIndex = 0;
-        try {
-            while (true) {
-                final UpdateProgress progress = batchWriterProducer.next();
-                progress.write(flushIndex++);
-                count += progress.getValueCount();
-                if (minTime == null) {
-                    minTime = progress.getMinTime();
-                }
-                maxTime = progress.getMaxTime();
+
+        final File memoryFile = lookupTable.getMemoryFile();
+        final String memoryFilePath = memoryFile.getAbsolutePath();
+
+        try (FileOutputStream memoryFileOut = new FileOutputStream(memoryFile, true)) {
+
+            if (initialAddressOffset > 0L) {
+                memoryFileOut.getChannel().position(initialAddressOffset);
             }
-        } catch (final NoSuchElementException e) {
-            //end reached
+
+            try {
+                while (true) {
+                    final UpdateProgress progress = batchWriterProducer.next();
+                    flushIndex++;
+                    progress.transferToMemoryFile(memoryFileOut, memoryFilePath, flushIndex);
+                    count += progress.getValueCount();
+                    if (minTime == null) {
+                        minTime = progress.getMinTime();
+                    }
+                    maxTime = progress.getMaxTime();
+                    progress.close();
+                }
+            } catch (final NoSuchElementException e) {
+                //end reached
+            }
+        } catch (final IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -228,42 +278,20 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         private final TextDescription name = new TextDescription("%s[%s]: write",
                 ATimeSeriesUpdater.class.getSimpleName(), key);
 
-        private long memoryOffset;
-        private final File memoryFile;
-        private final String memoryFilePath;
+        private final File tempFile;
         private int valueCount;
         private V firstElement;
         private FDate minTime;
         private V lastElement;
         private FDate maxTime;
-        private ConfiguredSerializingCollection collection;
-        private BufferedFileDataOutputStream out;
+        private List<V> batch;
 
-        public UpdateProgress(final long initialAddressOffset) {
-            this.memoryOffset = initialAddressOffset;
-            this.memoryFile = lookupTable.getMemoryFile();
-            this.memoryFilePath = memoryFile.getAbsolutePath();
-            try {
-                this.out = new BufferedFileDataOutputStream(memoryFile);
-                if (initialAddressOffset > 0L) {
-                    this.out.seek(initialAddressOffset);
-                }
-            } catch (final IOException e) {
-                throw new RuntimeException(e);
-            }
+        public UpdateProgress(final File tempFile) {
+            this.tempFile = tempFile;
         }
 
         public FDate getMinTime() {
             return minTime;
-        }
-
-        public void reset() {
-            this.valueCount = 0;
-            this.firstElement = null;
-            this.minTime = null;
-            this.lastElement = null;
-            this.maxTime = null;
-            this.collection = null;
         }
 
         public FDate getMaxTime() {
@@ -278,7 +306,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             if (firstElement == null) {
                 firstElement = element;
                 minTime = endTime;
-                collection = new ConfiguredSerializingCollection();
+                batch = new ArrayList<>(BATCH_FLUSH_INTERVAL);
             }
             if (maxTime != null && maxTime.isAfterNotNullSafe(endTime)) {
                 throw new IllegalArgumentException(
@@ -287,20 +315,37 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             }
             maxTime = endTime;
             lastElement = element;
-            collection.add(element);
+            batch.add(element);
             valueCount++;
             return valueCount % BATCH_FLUSH_INTERVAL == 0;
         }
 
-        private void write(final int flushIndex) {
-            try {
-                //close first so that lz4 writes out its footer bytes (a flush is not sufficient)
-                collection.close();
-                final long memoryLength = out.position() - memoryOffset;
-                lookupTable.finishFile(minTime, firstElement, lastElement, valueCount, memoryFilePath, memoryOffset,
-                        memoryLength);
-                memoryOffset += memoryLength;
+        private void writeToTempFile() {
+            final ConfiguredSerializingCollection collection = new ConfiguredSerializingCollection(tempFile);
+            for (int i = 0; i < batch.size(); i++) {
+                collection.add(batch.get(i));
+            }
+            collection.close();
+            batch = null;
+        }
 
+        private void transferToMemoryFile(final FileOutputStream memoryFileOut, final String memoryFilePath,
+                final int flushIndex) {
+            try (FileInputStream tempIn = new FileInputStream(tempFile)) {
+                final long tempFileLength = tempFile.length();
+                long remaining = tempFileLength;
+                long position = 0;
+                final long memoryOffset = memoryFileOut.getChannel().position();
+                while (remaining > 0L) {
+                    final long copied = memoryFileOut.getChannel()
+                            .transferFrom(tempIn.getChannel(), position, remaining);
+                    remaining -= copied;
+                    position += copied;
+                }
+                //close first so that lz4 writes out its footer bytes (a flush is not sufficient)
+                lookupTable.finishFile(minTime, firstElement, lastElement, valueCount, memoryFilePath, memoryOffset,
+                        tempFileLength);
+                Files.deleteQuietly(tempFile);
                 onFlush(flushIndex, this);
             } catch (final IOException e) {
                 throw new RuntimeException(e);
@@ -309,20 +354,12 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
 
         @Override
         public void close() {
-            if (out != null) {
-                try {
-                    out.close();
-                    out = null;
-                } catch (final IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
         }
 
         private final class ConfiguredSerializingCollection extends SerializingCollection<V> {
 
-            private ConfiguredSerializingCollection() {
-                super(name, memoryFile, false);
+            private ConfiguredSerializingCollection(final File tempFile) {
+                super(name, tempFile, false);
             }
 
             @Override
@@ -359,11 +396,6 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             @Override
             protected InputStream newDecompressor(final InputStream inputStream) {
                 return table.getCompressionFactory().newDecompressor(inputStream);
-            }
-
-            @Override
-            protected OutputStream newFileOutputStream(final File file) throws IOException {
-                return out.asNonClosing();
             }
 
             @Override

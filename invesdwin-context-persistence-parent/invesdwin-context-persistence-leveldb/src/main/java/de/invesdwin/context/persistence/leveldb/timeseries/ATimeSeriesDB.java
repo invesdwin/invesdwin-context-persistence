@@ -160,6 +160,6 @@ public abstract class ATimeSeriesDB<K, V> {
         return valueSerde;
     }
 
-    protected abstract String getDatabaseName(final K key);
+    protected abstract String getDatabaseName(K key);
 
 }

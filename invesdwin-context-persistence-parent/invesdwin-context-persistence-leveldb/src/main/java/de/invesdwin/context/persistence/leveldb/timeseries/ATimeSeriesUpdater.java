@@ -13,11 +13,8 @@ import org.apache.commons.io.FileUtils;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
-import de.invesdwin.util.collections.iterable.concurrent.AParallelChunkConsumerIterator;
-import de.invesdwin.util.collections.iterable.concurrent.ProducerQueueIterable;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
@@ -117,32 +114,35 @@ public abstract class ATimeSeriesUpdater<K, V> {
                 }
             };
             //do IO in a different thread than batch filling
-            try (final ACloseableIterator<UpdateProgress> batchProducer = new ProducerQueueIterable<UpdateProgress>(
-                    getClass().getSimpleName() + "_batchProducer_" + table.getDatabaseName(key),
-                    () -> batchWriterProducer, BATCH_QUEUE_SIZE).iterator()) {
-                final AtomicInteger flushIndex = new AtomicInteger();
-                try (final ACloseableIterator<UpdateProgress> parallelConsumer = new AParallelChunkConsumerIterator<UpdateProgress, UpdateProgress>(
-                        getClass().getSimpleName() + "_batchConsumer_" + table.getDatabaseName(key), batchProducer,
-                        BATCH_WRITER_THREADS) {
-
-                    @Override
-                    protected UpdateProgress doWork(final UpdateProgress request) {
-                        request.write(flushIndex.incrementAndGet());
-                        return request;
-                    }
-                }) {
-                    while (parallelConsumer.hasNext()) {
-                        final UpdateProgress progress = parallelConsumer.next();
-                        count += progress.getCount();
-                        if (minTime == null) {
-                            minTime = progress.getMinTime();
-                        }
-                        maxTime = progress.getMaxTime();
-                    }
+            //            try (final ACloseableIterator<UpdateProgress> batchProducer = new ProducerQueueIterable<UpdateProgress>(
+            //                    getClass().getSimpleName() + "_batchProducer_" + table.getDatabaseName(key),
+            //                    () -> batchWriterProducer, BATCH_QUEUE_SIZE).iterator()) {
+            //                final AtomicInteger flushIndex = new AtomicInteger();
+            //                try (final ACloseableIterator<UpdateProgress> parallelConsumer = new AParallelChunkConsumerIterator<UpdateProgress, UpdateProgress>(
+            //                        getClass().getSimpleName() + "_batchConsumer_" + table.getDatabaseName(key), batchProducer,
+            //                        BATCH_WRITER_THREADS) {
+            //
+            //                    @Override
+            //                    protected UpdateProgress doWork(final UpdateProgress request) {
+            //                        request.write();
+            //                        return request;
+            //                    }
+            //                }) {
+            final AtomicInteger flushIndex = new AtomicInteger();
+            while (batchWriterProducer.hasNext()) {
+                final UpdateProgress progress = batchWriterProducer.next();
+                progress.write(flushIndex.incrementAndGet());
+                count += progress.getCount();
+                if (minTime == null) {
+                    minTime = progress.getMinTime();
                 }
+                maxTime = progress.getMaxTime();
             }
-
         }
+        //            }
+
+        //    }
+
     }
 
     protected abstract ICloseableIterable<? extends V> getSource();
