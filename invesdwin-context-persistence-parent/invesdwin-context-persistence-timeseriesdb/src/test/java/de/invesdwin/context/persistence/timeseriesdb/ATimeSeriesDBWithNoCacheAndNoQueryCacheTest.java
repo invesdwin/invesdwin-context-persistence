@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.tuple.Pair;
@@ -124,8 +125,7 @@ public class ATimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest {
             }
 
             @Override
-            protected void onFlush(final int flushIndex,
-                    final ATimeSeriesUpdater<String, FDate>.UpdateProgress updateProgress) {
+            protected void onFlush(final int flushIndex, final IUpdateProgress<String, FDate> updateProgress) {
             }
 
             @Override
@@ -325,22 +325,22 @@ public class ATimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest {
         }
 
         for (int i = 1; i < entities.size(); i++) {
-            final List<FDate> value = Lists.toListWithoutHasNext(
-                    IHistoricalEntry.unwrapEntryValues(cache.query().setFutureEnabled().getNextEntries(entities.get(0), i)));
+            final List<FDate> value = Lists.toListWithoutHasNext(IHistoricalEntry
+                    .unwrapEntryValues(cache.query().setFutureEnabled().getNextEntries(entities.get(0), i)));
             final List<FDate> expectedValue = entities.subList(0, i);
             Assertions.checkEquals(expectedValue.size(), i);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < entities.size(); i++) {
-            final List<FDate> value = Lists.toListWithoutHasNext(
-                    IHistoricalEntry.unwrapEntryValues(cache.query().setFutureEnabled().getNextEntries(FDate.MIN_DATE, i)));
+            final List<FDate> value = Lists.toListWithoutHasNext(IHistoricalEntry
+                    .unwrapEntryValues(cache.query().setFutureEnabled().getNextEntries(FDate.MIN_DATE, i)));
             final List<FDate> expectedValue = entities.subList(0, i);
             Assertions.checkEquals(expectedValue.size(), i);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < entities.size(); i++) {
-            final List<FDate> value = Lists.toListWithoutHasNext(
-                    IHistoricalEntry.unwrapEntryValues(cache.query().setFutureEnabled().getNextEntries(FDate.MAX_DATE, i)));
+            final List<FDate> value = Lists.toListWithoutHasNext(IHistoricalEntry
+                    .unwrapEntryValues(cache.query().setFutureEnabled().getNextEntries(FDate.MAX_DATE, i)));
             final List<FDate> expectedValue = Collections.emptyList(); //filtering query removes the result because it is not a previous result
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
@@ -1040,7 +1040,8 @@ public class ATimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest {
 
     @Test
     public void testNextKeysFilterDuplicateKeys() {
-        Assertions.assertThat(asList(cache.query().setFutureEnabled().getNextKeys(FDate.MIN_DATE, 100)).size()).isSameAs(6);
+        Assertions.assertThat(asList(cache.query().setFutureEnabled().getNextKeys(FDate.MIN_DATE, 100)).size())
+                .isSameAs(6);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
         Assertions.assertThat(asList(cache.query().setFutureEnabled().getNextKeys(FDate.MIN_DATE, 100)).size())
@@ -1062,7 +1063,8 @@ public class ATimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest {
 
     @Test
     public void testNextValuesFilterDuplicateKeys() {
-        Assertions.assertThat(asList(cache.query().setFutureEnabled().getNextValues(FDate.MIN_DATE, 100)).size()).isSameAs(6);
+        Assertions.assertThat(asList(cache.query().setFutureEnabled().getNextValues(FDate.MIN_DATE, 100)).size())
+                .isSameAs(6);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
         Assertions.assertThat(asList(cache.query().setFutureEnabled().getNextValues(FDate.MIN_DATE, 100)).size())

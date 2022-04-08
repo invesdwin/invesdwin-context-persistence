@@ -5,6 +5,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.lang.ProcessedEventsRateString;
 import de.invesdwin.util.math.Integers;
@@ -44,7 +45,7 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
     }
 
     @Override
-    protected synchronized void onFlush(final int flushIndex, final UpdateProgress progress) {
+    protected synchronized void onFlush(final int flushIndex, final IUpdateProgress<K, V> progress) {
         lastFlushIndex = Integers.max(lastFlushIndex, flushIndex);
         flushElementCount += progress.getValueCount();
         lastFlushMaxTime = FDates.max(lastFlushMaxTime, progress.getMaxTime());

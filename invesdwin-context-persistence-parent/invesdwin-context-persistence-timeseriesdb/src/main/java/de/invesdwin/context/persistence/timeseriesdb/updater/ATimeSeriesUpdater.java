@@ -1,15 +1,9 @@
 package de.invesdwin.context.persistence.timeseriesdb.updater;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -18,25 +12,19 @@ import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseriesdb.PrepareForUpdateResult;
-import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdaterInternalMethods;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ParallelUpdateProgress;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.collections.iterable.ACloseableIterator;
-import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
-import de.invesdwin.util.collections.iterable.ICloseableIterator;
-import de.invesdwin.util.collections.iterable.concurrent.AParallelChunkConsumerIterator;
-import de.invesdwin.util.collections.iterable.concurrent.ProducerQueueIterable;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
-import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.lock.FileChannelLock;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
-import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
-import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 
@@ -45,7 +33,6 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
 
     public static final int BATCH_FLUSH_INTERVAL = ADelegateRangeTable.BATCH_FLUSH_INTERVAL;
     public static final int BATCH_QUEUE_SIZE = 500_000 / BATCH_FLUSH_INTERVAL;
-    public static final int BATCH_WRITER_THREADS = Executors.getCpuThreadPoolCount();
     public static final boolean LARGE_COMPRESSOR = true;
 
     private final ISerde<V> valueSerde;
@@ -56,7 +43,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     private final K key;
     private volatile FDate minTime = null;
     private volatile FDate maxTime = null;
-    private int count = 0;
+    private volatile int count = 0;
 
     public ATimeSeriesUpdater(final K key, final ATimeSeriesDB<K, V> table) {
         if (key == null) {
@@ -156,101 +143,46 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             skippingSource = source;
         }
 
-        final File memoryFile = lookupTable.getMemoryFile();
-        final File tempDir = new File(memoryFile.getParentFile(), ATimeSeriesUpdater.class.getSimpleName());
-        Files.deleteQuietly(tempDir);
-        try {
-            Files.forceMkdir(tempDir);
-        } catch (final IOException e1) {
-            throw new RuntimeException(e1);
-        }
-
-        final AtomicInteger progressIndex = new AtomicInteger();
-
-        final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues, skippingSource);
-        try (ICloseableIterator<UpdateProgress> batchWriterProducer = new ICloseableIterator<UpdateProgress>() {
-
-            private final ICloseableIterator<? extends V> elements = flatteningSources.iterator();
+        final ITimeSeriesUpdaterInternalMethods<K, V> internalMethods = new ITimeSeriesUpdaterInternalMethods<K, V>() {
 
             @Override
-            public boolean hasNext() {
-                return elements.hasNext();
+            public K getKey() {
+                return key;
             }
 
             @Override
-            public UpdateProgress next() {
-                final File tempFile = new File(tempDir, progressIndex.incrementAndGet() + ".data");
-                final UpdateProgress progress = new UpdateProgress(tempFile);
-                try {
-                    while (true) {
-                        final V element = elements.next();
-                        final FDate endTime = extractEndTime(element);
-                        if (progress.onElement(element, endTime)) {
-                            return progress;
-                        }
-                    }
-                } catch (final NoSuchElementException e) {
-                    //end reached
-                    if (progress.firstElement == null) {
-                        throw e;
-                    }
-                }
-                return progress;
+            public ISerde<V> getValueSerde() {
+                return valueSerde;
             }
 
             @Override
-            public void close() {
-                elements.close();
+            public TimeSeriesStorageCache<K, V> getLookupTable() {
+                return lookupTable;
             }
-        }) {
-            final String name = table.hashKeyToString(key);
-            try (ACloseableIterator<UpdateProgress> batchProducer = new ProducerQueueIterable<UpdateProgress>(
-                    getClass().getSimpleName() + "_batchProducer_" + name, () -> batchWriterProducer, BATCH_QUEUE_SIZE)
-                            .iterator()) {
-                try (ACloseableIterator<UpdateProgress> parallelConsumer = new AParallelChunkConsumerIterator<UpdateProgress, UpdateProgress>(
-                        getClass().getSimpleName() + "_batchConsumer_" + name, batchProducer, BATCH_WRITER_THREADS) {
-                    @Override
-                    protected UpdateProgress doWork(final UpdateProgress request) {
-                        request.writeToTempFile();
-                        return request;
-                    }
-                }) {
-                    flush(initialAddressOffset, parallelConsumer);
+
+            @Override
+            public ATimeSeriesDB<K, V> getTable() {
+                return table;
+            }
+
+            @Override
+            public FDate extractEndTime(final V element) {
+                return ATimeSeriesUpdater.this.extractEndTime(element);
+            }
+
+            @Override
+            public void onFlush(final int flushIndex, final IUpdateProgress<K, V> progress) {
+                count += progress.getValueCount();
+                if (minTime == null) {
+                    minTime = progress.getMinTime();
                 }
-            }
-        }
-        //clean up temp files
-        Files.deleteQuietly(tempDir);
-    }
-
-    private void flush(final long initialAddressOffset, final ICloseableIterator<UpdateProgress> batchWriterProducer) {
-        int flushIndex = 0;
-
-        final File memoryFile = lookupTable.getMemoryFile();
-        final String memoryFilePath = memoryFile.getAbsolutePath();
-
-        try (FileOutputStream memoryFileOut = new FileOutputStream(memoryFile, true)) {
-            if (initialAddressOffset > 0L) {
-                memoryFileOut.getChannel().position(initialAddressOffset);
+                maxTime = progress.getMaxTime();
+                ATimeSeriesUpdater.this.onFlush(flushIndex, progress);
             }
 
-            try {
-                while (true) {
-                    final UpdateProgress progress = batchWriterProducer.next();
-                    flushIndex++;
-                    progress.transferToMemoryFile(memoryFileOut, memoryFilePath, flushIndex);
-                    count += progress.getValueCount();
-                    if (minTime == null) {
-                        minTime = progress.getMinTime();
-                    }
-                    maxTime = progress.getMaxTime();
-                }
-            } catch (final NoSuchElementException e) {
-                //end reached
-            }
-        } catch (final IOException e) {
-            throw new RuntimeException(e);
-        }
+        };
+
+        ParallelUpdateProgress.doUpdate(internalMethods, lastValues, initialAddressOffset, skippingSource);
     }
 
     protected boolean shouldRedoLastFile() {
@@ -265,139 +197,6 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
 
     protected abstract FDate extractEndTime(V element);
 
-    protected abstract void onFlush(int flushIndex, UpdateProgress updateProgress);
-
-    public class UpdateProgress {
-
-        private final TextDescription name = new TextDescription("%s[%s]: write",
-                ATimeSeriesUpdater.class.getSimpleName(), key);
-
-        private final File tempFile;
-        private int valueCount;
-        private V firstElement;
-        private FDate minTime;
-        private V lastElement;
-        private FDate maxTime;
-        private Object[] batch;
-
-        public UpdateProgress(final File tempFile) {
-            this.tempFile = tempFile;
-        }
-
-        public FDate getMinTime() {
-            return minTime;
-        }
-
-        public FDate getMaxTime() {
-            return maxTime;
-        }
-
-        public int getValueCount() {
-            return valueCount;
-        }
-
-        private boolean onElement(final V element, final FDate endTime) {
-            if (firstElement == null) {
-                firstElement = element;
-                minTime = endTime;
-                batch = TimeseriesUpdaterBatchArrayPool.INSTANCE.borrowObject();
-            }
-            if (maxTime != null && maxTime.isAfterNotNullSafe(endTime)) {
-                throw new IllegalArgumentException(
-                        "New element end time [" + endTime + "] is not after or equal to previous element end time ["
-                                + maxTime + "] for table [" + table.getName() + "] and key [" + key + "]");
-            }
-            maxTime = endTime;
-            lastElement = element;
-            batch[valueCount] = element;
-            valueCount++;
-            return valueCount % BATCH_FLUSH_INTERVAL == 0;
-        }
-
-        @SuppressWarnings("unchecked")
-        private void writeToTempFile() {
-            final ConfiguredSerializingCollection collection = new ConfiguredSerializingCollection(tempFile);
-            for (int i = 0; i < valueCount; i++) {
-                collection.add((V) batch[i]);
-                batch[i] = null;
-            }
-            collection.close();
-            TimeseriesUpdaterBatchArrayPool.INSTANCE.returnObject(batch);
-            batch = null;
-        }
-
-        private void transferToMemoryFile(final FileOutputStream memoryFileOut, final String memoryFilePath,
-                final int flushIndex) {
-            try (FileInputStream tempIn = new FileInputStream(tempFile)) {
-                final long tempFileLength = tempFile.length();
-                long remaining = tempFileLength;
-                long position = 0;
-                final long memoryOffset = memoryFileOut.getChannel().position();
-                while (remaining > 0L) {
-                    final long copied = memoryFileOut.getChannel()
-                            .transferFrom(tempIn.getChannel(), position, remaining);
-                    remaining -= copied;
-                    position += copied;
-                }
-                //close first so that lz4 writes out its footer bytes (a flush is not sufficient)
-                lookupTable.finishFile(minTime, firstElement, lastElement, valueCount, memoryFilePath, memoryOffset,
-                        tempFileLength);
-                Files.deleteQuietly(tempFile);
-                onFlush(flushIndex, this);
-            } catch (final IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        private final class ConfiguredSerializingCollection extends SerializingCollection<V> {
-
-            private ConfiguredSerializingCollection(final File tempFile) {
-                super(name, tempFile, false);
-            }
-
-            @Override
-            protected ISerde<V> newSerde() {
-                return new ISerde<V>() {
-
-                    @Override
-                    public V fromBytes(final byte[] bytes) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public byte[] toBytes(final V obj) {
-                        return valueSerde.toBytes(obj);
-                    }
-
-                    @Override
-                    public V fromBuffer(final IByteBuffer buffer, final int length) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public int toBuffer(final IByteBuffer buffer, final V obj) {
-                        return valueSerde.toBuffer(buffer, obj);
-                    }
-                };
-            }
-
-            @Override
-            protected OutputStream newCompressor(final OutputStream out) {
-                return table.getCompressionFactory().newCompressor(out, LARGE_COMPRESSOR);
-            }
-
-            @Override
-            protected InputStream newDecompressor(final InputStream inputStream) {
-                return table.getCompressionFactory().newDecompressor(inputStream);
-            }
-
-            @Override
-            protected Integer getFixedLength() {
-                return table.getValueFixedLength();
-            }
-
-        }
-
-    }
+    protected abstract void onFlush(int flushIndex, IUpdateProgress<K, V> updateProgress);
 
 }
