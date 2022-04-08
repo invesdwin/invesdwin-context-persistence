@@ -225,7 +225,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                     ATimeSeriesUpdater.BATCH_QUEUE_SIZE).iterator()) {
                 try (ACloseableIterator<ParallelUpdateProgress<K, V>> parallelConsumer = new AParallelChunkConsumerIterator<ParallelUpdateProgress<K, V>, ParallelUpdateProgress<K, V>>(
                         ParallelUpdateProgress.class.getSimpleName() + "_batchConsumer_" + name, batchProducer,
-                        WRITER_THREADS, LIMIT_WRITER_EXECUTOR) {
+                        WRITER_THREADS, WRITER_LIMIT_EXECUTOR) {
                     @Override
                     protected ParallelUpdateProgress<K, V> doWork(final ParallelUpdateProgress<K, V> request) {
                         request.writeToTempFile();
