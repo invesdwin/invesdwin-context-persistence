@@ -34,20 +34,31 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
             .newFixedThreadPool(ParallelUpdateProgress.class.getSimpleName() + "_WRITER_LIMIT", WRITER_THREADS)
             .setDynamicThreadName(false);
 
-    private final ITimeSeriesUpdaterInternalMethods<K, V> parent;
-    private final TextDescription name;
-    private final File tempFile;
+    private ITimeSeriesUpdaterInternalMethods<K, V> parent;
+    private TextDescription name;
+    private File tempFile;
     private int valueCount;
     private V firstElement;
     private FDate minTime;
     private V lastElement;
     private FDate maxTime;
-    private Object[] batch;
+    private final Object[] batch = new Object[ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL];
 
-    public ParallelUpdateProgress(final ITimeSeriesUpdaterInternalMethods<K, V> parent, final File tempFile) {
+    public void init(final ITimeSeriesUpdaterInternalMethods<K, V> parent, final File tempFile) {
         this.parent = parent;
         this.name = new TextDescription("%s[%s]: write", ATimeSeriesUpdater.class.getSimpleName(), parent.getKey());
         this.tempFile = tempFile;
+    }
+
+    public void reset() {
+        parent = null;
+        name = null;
+        tempFile = null;
+        valueCount = 0;
+        firstElement = null;
+        minTime = null;
+        lastElement = null;
+        maxTime = null;
     }
 
     @Override
@@ -69,7 +80,6 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
         if (firstElement == null) {
             firstElement = element;
             minTime = endTime;
-            batch = ParallelUpdateBatchArrayPool.INSTANCE.borrowObject();
         }
         if (maxTime != null && maxTime.isAfterNotNullSafe(endTime)) {
             throw new IllegalArgumentException("New element end time [" + endTime
@@ -91,8 +101,6 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
             batch[i] = null;
         }
         collection.close();
-        ParallelUpdateBatchArrayPool.INSTANCE.returnObject(batch);
-        batch = null;
     }
 
     public void transferToMemoryFile(final FileOutputStream memoryFileOut, final String memoryFilePath,
@@ -193,10 +201,12 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                 return elements.hasNext();
             }
 
+            @SuppressWarnings("unchecked")
             @Override
             public ParallelUpdateProgress<K, V> next() {
                 final File tempFile = new File(tempDir, progressIndex.incrementAndGet() + ".data");
-                final ParallelUpdateProgress<K, V> progress = new ParallelUpdateProgress<K, V>(parent, tempFile);
+                final ParallelUpdateProgress<K, V> progress = ParallelUpdateProgressPool.INSTANCE.borrowObject();
+                progress.init(parent, tempFile);
                 try {
                     while (true) {
                         final V element = elements.next();
@@ -258,6 +268,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                     final ParallelUpdateProgress<K, V> progress = batchWriterProducer.next();
                     flushIndex++;
                     progress.transferToMemoryFile(memoryFileOut, memoryFilePath, flushIndex);
+                    ParallelUpdateProgressPool.INSTANCE.returnObject(progress);
                 }
             } catch (final NoSuchElementException e) {
                 //end reached
