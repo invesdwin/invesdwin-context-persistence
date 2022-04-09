@@ -57,7 +57,7 @@
 		<version.snappy>1.1.8.4</version.snappy>
 		<version.mapdb>3.0.8</version.mapdb>
 		<version.eclipse-collections>7.1.0</version.eclipse-collections>
-		<version.questdb>6.0.5</version.questdb>
+		<version.questdb>6.2.1</version.questdb>
 		<version.cqengine>3.6.0</version.cqengine>
 
 		<version.embed-influxdb>1.2.1</version.embed-influxdb>
