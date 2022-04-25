@@ -34,6 +34,7 @@
 		<module>invesdwin-context-persistence-questdb</module>
 		<module>invesdwin-context-persistence-indeed</module>
 		<module>invesdwin-context-persistence-tkrzw</module>
+		<module>invesdwin-context-persistence-krati</module>
 		<module>invesdwin-context-persistence-jdbc</module>
 	</modules>
 
@@ -75,6 +76,7 @@
 		<version.sqlite>3.36.0.3</version.sqlite>
 		<version.derby>10.15.2.0</version.derby>
 		<version.h2>2.1.210</version.h2>
+		<version.krati>0.4.9</version.krati>
 	</properties>
 
 	<dependencyManagement>
@@ -572,6 +574,11 @@
 				<groupId>org.apache.derby</groupId>
 				<artifactId>derbyclient</artifactId>
 				<version>${version.derby}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.sna-projects.krati</groupId>
+				<artifactId>krati</artifactId>
+				<version>${version.krati}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
