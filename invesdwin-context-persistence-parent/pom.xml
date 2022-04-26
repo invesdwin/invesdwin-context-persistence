@@ -35,6 +35,10 @@
 		<module>invesdwin-context-persistence-indeed</module>
 		<module>invesdwin-context-persistence-tkrzw</module>
 		<module>invesdwin-context-persistence-krati</module>
+		<module>invesdwin-context-persistence-cdb</module>
+		<module>invesdwin-context-persistence-countdb</module>
+		<module>invesdwin-context-persistence-tokyocabinet</module>
+		<module>invesdwin-context-persistence-kyotocabinet</module>
 		<module>invesdwin-context-persistence-jdbc</module>
 	</modules>
 
@@ -78,6 +82,10 @@
 		<version.h2>2.1.210</version.h2>
 		<version.krati>0.4.9</version.krati>
 		<version.sg-cdb>1.0.4</version.sg-cdb>
+		<version.tokyocabinet>1.24.6</version.tokyocabinet>
+		<version.lastcommons-kyoto>1.24.0</version.lastcommons-kyoto>
+		<version.count-db>1.1.12</version.count-db>
+		<version.bow-utils>1.1.12</version.bow-utils>
 	</properties>
 
 	<dependencyManagement>
@@ -597,6 +605,26 @@
 						<artifactId>clojure</artifactId>
 					</exclusion>
 				</exclusions>
+			</dependency>
+			<dependency>
+				<groupId>tokyocabinet</groupId>
+				<artifactId>tokyocabinet</artifactId>
+				<version>${version.tokyocabinet}</version>
+			</dependency>
+			<dependency>
+				<groupId>fm.last.commons</groupId>
+				<artifactId>lastcommons-kyoto</artifactId>
+				<version>${version.lastcommons-kyoto}</version>
+			</dependency>
+			<dependency>
+				<groupId>be.bagofwords</groupId>
+				<artifactId>count-db</artifactId>
+				<version>${version.count-db}</version>
+			</dependency>
+			<dependency>
+				<groupId>be.bagofwords</groupId>
+				<artifactId>bow-utils</artifactId>
+				<version>${version.bow-utils}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
