@@ -614,11 +614,27 @@
 				<groupId>fm.last.commons</groupId>
 				<artifactId>lastcommons-kyoto</artifactId>
 				<version>${version.lastcommons-kyoto}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>log4j</groupId>
+						<artifactId>log4j</artifactId>
+					</exclusion>
+					<exclusion>
+						<groupId>org.slf4j</groupId>
+						<artifactId>slf4j-log4j12</artifactId>
+					</exclusion>
+				</exclusions>
 			</dependency>
 			<dependency>
 				<groupId>com.github.koendeschacht</groupId>
 				<artifactId>count-db</artifactId>
 				<version>${version.count-db}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>com.sparkjava</groupId>
+						<artifactId>spark-core</artifactId>
+					</exclusion>
+				</exclusions>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
