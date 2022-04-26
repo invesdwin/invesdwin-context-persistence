@@ -17,12 +17,8 @@
 		</dependency>
 
 		<dependency>
-			<groupId>be.bagofwords</groupId>
+			<groupId>com.github.koendeschacht</groupId>
 			<artifactId>count-db</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>be.bagofwords</groupId>
-			<artifactId>bow-utils</artifactId>
 		</dependency>
 	</dependencies>
 

@@ -18,19 +18,20 @@ import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
 import de.invesdwin.util.lang.Closeables;
 import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.marshallers.serde.basic.LongSerde;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.duration.Duration;
 
 @NotThreadSafe
-//@Disabled("manual test")
+@Disabled("manual test")
 public class PersistentCountdbMapPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
     public void testCountdbMapPerformance() throws InterruptedException, IOException {
         @SuppressWarnings("resource")
-        final APersistentMap<Long, Long> table = new APersistentMap<Long, Long>("testCountdbMapPerformance.countdb") {
+        final APersistentMap<Long, FDate> table = new APersistentMap<Long, FDate>("testCountdbMapPerformance.countdb") {
             @Override
             public File getBaseDirectory() {
                 return ContextProperties.TEMP_DIRECTORY;
@@ -42,23 +43,23 @@ public class PersistentCountdbMapPerformanceTest extends ADatabasePerformanceTes
             }
 
             @Override
-            public ISerde<Long> newValueSerde() {
-                return LongSerde.GET;
+            public ISerde<FDate> newValueSerde() {
+                return FDateSerde.GET;
             }
 
             @Override
-            protected IPersistentMapFactory<Long, Long> newFactory() {
-                return new PersistentCountdbMapFactory<Long>();
+            protected IPersistentMapFactory<Long, FDate> newFactory() {
+                return new PersistentCountdbMapFactory<FDate>();
             }
         };
 
         final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final Instant writesStart = new Instant();
         int i = 0;
-        final CountdbMap<Long> delegate = (CountdbMap<Long>) table.getPreLockedDelegate();
+        final CountdbMap<FDate> delegate = (CountdbMap<FDate>) table.getPreLockedDelegate();
         table.getReadLock().unlock();
         for (final FDate date : newValues()) {
-            table.put(date.millisValue(), date.millisValue());
+            table.put(date.millisValue(), date);
             i++;
             if (i % FLUSH_INTERVAL == 0) {
                 if (loopCheck.check()) {
@@ -76,15 +77,15 @@ public class PersistentCountdbMapPerformanceTest extends ADatabasePerformanceTes
         table.deleteTable();
     }
 
-    private void readIterator(final APersistentMap<Long, Long> table) {
+    private void readIterator(final APersistentMap<Long, FDate> table) {
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
             //            FDate prevValue = null;
-            final Iterator<Long> range = table.values().iterator();
+            final Iterator<FDate> range = table.values().iterator();
             int count = 0;
             while (true) {
                 try {
-                    final Long value = range.next();
+                    final FDate value = range.next();
                     //                    if (prevValue != null) {
                     //                        Assertions.checkTrue(prevValue.isBefore(value));
                     //                    }
@@ -101,16 +102,16 @@ public class PersistentCountdbMapPerformanceTest extends ADatabasePerformanceTes
         printProgress("ReadsFinished", readsStart, VALUES * READS, VALUES * READS);
     }
 
-    private void readGet(final APersistentMap<Long, Long> table) {
+    private void readGet(final APersistentMap<Long, FDate> table) {
         final List<FDate> values = Lists.toList(newValues());
         final Instant readsStart = new Instant();
         for (int reads = 1; reads <= READS; reads++) {
-            Long prevValue = null;
+            FDate prevValue = null;
             for (int i = 0; i < values.size(); i++) {
                 try {
-                    final Long value = table.get(values.get(i));
+                    final FDate value = table.get(values.get(i).millisValue());
                     if (prevValue != null) {
-                        Assertions.checkTrue(prevValue < value);
+                        Assertions.checkTrue(prevValue.isBefore(value));
                     }
                     prevValue = value;
                 } catch (final NoSuchElementException e) {

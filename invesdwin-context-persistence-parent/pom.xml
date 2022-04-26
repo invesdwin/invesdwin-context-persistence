@@ -84,8 +84,7 @@
 		<version.sg-cdb>1.0.4</version.sg-cdb>
 		<version.tokyocabinet>1.24.6</version.tokyocabinet>
 		<version.lastcommons-kyoto>1.24.0</version.lastcommons-kyoto>
-		<version.count-db>1.1.12</version.count-db>
-		<version.bow-utils>1.1.12</version.bow-utils>
+		<version.count-db>1.1.12-inv</version.count-db>
 	</properties>
 
 	<dependencyManagement>
@@ -617,14 +616,9 @@
 				<version>${version.lastcommons-kyoto}</version>
 			</dependency>
 			<dependency>
-				<groupId>be.bagofwords</groupId>
+				<groupId>com.github.koendeschacht</groupId>
 				<artifactId>count-db</artifactId>
 				<version>${version.count-db}</version>
-			</dependency>
-			<dependency>
-				<groupId>be.bagofwords</groupId>
-				<artifactId>bow-utils</artifactId>
-				<version>${version.bow-utils}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>

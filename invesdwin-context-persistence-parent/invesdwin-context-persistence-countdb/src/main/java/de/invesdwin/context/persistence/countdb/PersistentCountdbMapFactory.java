@@ -9,7 +9,7 @@ import javax.annotation.concurrent.Immutable;
 import be.bagofwords.db.DataInterface;
 import be.bagofwords.db.DataInterfaceFactory;
 import be.bagofwords.db.application.EmbeddedDBContextFactory;
-import be.bagofwords.db.combinator.Combinator;
+import be.bagofwords.db.combinator.OverWriteCombinator;
 import de.invesdwin.context.integration.persistentmap.IKeyMatcher;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapConfig;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
@@ -25,16 +25,10 @@ public class PersistentCountdbMapFactory<V> implements IPersistentMapFactory<Lon
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
-        final DataInterfaceFactory factory = new EmbeddedDBContextFactory(config.getDirectory().getAbsolutePath())
-                .wireApplicationContext()
-                .getBean(DataInterfaceFactory.class);
+        final DataInterfaceFactory factory = EmbeddedDBContextFactory
+                .createDataInterfaceFactory(config.getDirectory().getAbsolutePath());
         final DataInterface<V> dataInterface = factory.createDataInterface(config.getName(), config.getValueType(),
-                new Combinator<V>() {
-                    @Override
-                    public V combine(final V first, final V second) {
-                        return first;
-                    }
-                });
+                new OverWriteCombinator<>(), new SerdeObjectSerializer<>(config.newValueSerde()));
         return new CountdbMap<V>(dataInterface);
     }
 

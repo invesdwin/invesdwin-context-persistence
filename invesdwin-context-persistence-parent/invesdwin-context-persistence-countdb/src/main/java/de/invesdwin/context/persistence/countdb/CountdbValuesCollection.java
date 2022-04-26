@@ -1,10 +1,10 @@
 package de.invesdwin.context.persistence.countdb;
 
 import java.util.Collection;
-import java.util.Iterator;
 
 import javax.annotation.concurrent.Immutable;
 
+import be.bagofwords.iterator.CloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.error.FastNoSuchElementException;
 
@@ -29,7 +29,7 @@ public class CountdbValuesCollection<V> implements Collection<V> {
 
     @Override
     public ICloseableIterator<V> iterator() {
-        final Iterator<V> iterator = parent.getDataInterface().valueIterator();
+        final CloseableIterator<V> iterator = parent.getDataInterface().valueIterator();
         return new ICloseableIterator<V>() {
 
             @Override
@@ -48,6 +48,7 @@ public class CountdbValuesCollection<V> implements Collection<V> {
 
             @Override
             public void close() {
+                iterator.close();
             }
         };
     }

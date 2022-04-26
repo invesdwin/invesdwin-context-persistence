@@ -68,6 +68,7 @@ public class CountdbEntrySet<V> implements Set<Entry<Long, V>> {
 
             @Override
             public void close() {
+                iterator.close();
             }
         };
     }

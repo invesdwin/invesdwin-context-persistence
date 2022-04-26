@@ -49,6 +49,7 @@ public class CountdbKeySet implements Set<Long> {
 
             @Override
             public void close() {
+                iterator.close();
             }
         };
     }
