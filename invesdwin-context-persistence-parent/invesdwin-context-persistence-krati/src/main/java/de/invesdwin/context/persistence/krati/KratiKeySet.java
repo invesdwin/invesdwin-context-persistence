@@ -40,10 +40,10 @@ public class KratiKeySet<K> implements Set<K> {
 
             @Override
             public K next() {
-                final K next = parent.getKeySerde().fromBytes(iterator.next());
                 if (!hasNext()) {
                     throw new FastNoSuchElementException("end reached");
                 }
+                final K next = parent.getKeySerde().fromBytes(iterator.next());
                 return next;
             }
 

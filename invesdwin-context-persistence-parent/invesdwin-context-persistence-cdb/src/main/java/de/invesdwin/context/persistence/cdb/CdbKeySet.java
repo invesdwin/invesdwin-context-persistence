@@ -1,20 +1,24 @@
-package de.invesdwin.context.persistence.krati;
+package de.invesdwin.context.persistence.cdb;
 
+import java.io.IOException;
 import java.util.Collection;
-import java.util.Map.Entry;
+import java.util.Enumeration;
+import java.util.Set;
 
 import javax.annotation.concurrent.Immutable;
 
+import com.strangegizmo.cdb.Cdb;
+import com.strangegizmo.cdb.CdbElement;
+
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.error.FastNoSuchElementException;
-import krati.util.IndexedIterator;
 
 @Immutable
-public class KratiValuesCollection<V> implements Collection<V> {
+public class CdbKeySet<K> implements Set<K> {
 
-    private final KratiMap<?, V> parent;
+    private final CdbMap<K, ?> parent;
 
-    public KratiValuesCollection(final KratiMap<?, V> parent) {
+    public CdbKeySet(final CdbMap<K, ?> parent) {
         this.parent = parent;
     }
 
@@ -29,21 +33,26 @@ public class KratiValuesCollection<V> implements Collection<V> {
     }
 
     @Override
-    public ICloseableIterator<V> iterator() {
-        final IndexedIterator<Entry<byte[], byte[]>> iterator = parent.getDataStore().iterator();
-        return new ICloseableIterator<V>() {
+    public ICloseableIterator<K> iterator() {
+        final Enumeration<CdbElement> iterator;
+        try {
+            iterator = Cdb.elements(parent.getFile().getAbsolutePath());
+        } catch (final IOException e) {
+            throw new RuntimeException(e);
+        }
+        return new ICloseableIterator<K>() {
 
             @Override
             public boolean hasNext() {
-                return iterator.hasNext();
+                return iterator.hasMoreElements();
             }
 
             @Override
-            public V next() {
+            public K next() {
                 if (!hasNext()) {
                     throw new FastNoSuchElementException("end reached");
                 }
-                final V next = parent.getValueSerde().fromBytes(iterator.next().getValue());
+                final K next = parent.getKeySerde().fromBytes(iterator.nextElement().getKey());
                 return next;
             }
 
@@ -94,12 +103,12 @@ public class KratiValuesCollection<V> implements Collection<V> {
     }
 
     @Override
-    public boolean add(final V e) {
+    public boolean add(final K e) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public boolean addAll(final Collection<? extends V> c) {
+    public boolean addAll(final Collection<? extends K> c) {
         throw new UnsupportedOperationException();
     }
 

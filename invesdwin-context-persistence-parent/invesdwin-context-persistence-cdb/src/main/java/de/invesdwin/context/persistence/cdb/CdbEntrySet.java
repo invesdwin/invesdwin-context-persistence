@@ -1,21 +1,25 @@
-package de.invesdwin.context.persistence.krati;
+package de.invesdwin.context.persistence.cdb;
 
+import java.io.IOException;
 import java.util.Collection;
+import java.util.Enumeration;
 import java.util.Map.Entry;
 import java.util.Set;
 
 import javax.annotation.concurrent.Immutable;
 
+import com.strangegizmo.cdb.Cdb;
+import com.strangegizmo.cdb.CdbElement;
+
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.error.FastNoSuchElementException;
-import krati.util.IndexedIterator;
 
 @Immutable
-public class KratiEntrySet<K, V> implements Set<Entry<K, V>> {
+public class CdbEntrySet<K, V> implements Set<Entry<K, V>> {
 
-    private final KratiMap<K, V> parent;
+    private final CdbMap<K, V> parent;
 
-    public KratiEntrySet(final KratiMap<K, V> parent) {
+    public CdbEntrySet(final CdbMap<K, V> parent) {
         this.parent = parent;
     }
 
@@ -29,19 +33,25 @@ public class KratiEntrySet<K, V> implements Set<Entry<K, V>> {
         return parent.isEmpty();
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public ICloseableIterator<Entry<K, V>> iterator() {
-        final IndexedIterator<Entry<byte[], byte[]>> iterator = parent.getDataStore().iterator();
+        final Enumeration<CdbElement> iterator;
+        try {
+            iterator = Cdb.elements(parent.getFile().getAbsolutePath());
+        } catch (final IOException e) {
+            throw new RuntimeException(e);
+        }
         return new ICloseableIterator<Entry<K, V>>() {
 
             @Override
             public boolean hasNext() {
-                return iterator.hasNext();
+                return iterator.hasMoreElements();
             }
 
             @Override
             public Entry<K, V> next() {
-                final Entry<byte[], byte[]> nextEntry = iterator.next();
+                final CdbElement nextEntry = iterator.nextElement();
                 return new Entry<K, V>() {
 
                     @Override
@@ -54,7 +64,7 @@ public class KratiEntrySet<K, V> implements Set<Entry<K, V>> {
                         if (!hasNext()) {
                             throw new FastNoSuchElementException("end reached");
                         }
-                        final V next = parent.getValueSerde().fromBytes(nextEntry.getValue());
+                        final V next = parent.getValueSerde().fromBytes(nextEntry.getData());
                         return next;
                     }
 

@@ -1,6 +1,7 @@
-package de.invesdwin.context.persistence.krati;
+package de.invesdwin.context.persistence.cdb;
 
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
@@ -9,27 +10,34 @@ import java.util.concurrent.ConcurrentMap;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.strangegizmo.cdb.Cdb;
+
 import de.invesdwin.util.marshallers.serde.ISerde;
-import krati.store.DataStore;
 
 @ThreadSafe
-public class KratiMap<K, V> implements ConcurrentMap<K, V>, Closeable {
+public class CdbMap<K, V> implements ConcurrentMap<K, V>, Closeable {
 
-    private DataStore<byte[], byte[]> dataStore;
+    private final File file;
+    private Cdb cdb;
     private final ISerde<K> keySerde;
     private final ISerde<V> valueSerde;
-    private KratiEntrySet<K, V> entrySet;
-    private KratiValuesCollection<V> valuesCollection;
-    private KratiKeySet<K> keySet;
+    private CdbEntrySet<K, V> entrySet;
+    private CdbValuesCollection<V> valuesCollection;
+    private CdbKeySet<K> keySet;
 
-    public KratiMap(final DataStore<byte[], byte[]> dataStore, final ISerde<K> keySerde, final ISerde<V> valueSerde) {
-        this.dataStore = dataStore;
+    public CdbMap(final File file, final Cdb cdb, final ISerde<K> keySerde, final ISerde<V> valueSerde) {
+        this.file = file;
+        this.cdb = cdb;
         this.keySerde = keySerde;
         this.valueSerde = valueSerde;
     }
 
-    public DataStore<byte[], byte[]> getDataStore() {
-        return dataStore;
+    public File getFile() {
+        return file;
+    }
+
+    public Cdb getCdb() {
+        return cdb;
     }
 
     public ISerde<K> getKeySerde() {
@@ -53,7 +61,7 @@ public class KratiMap<K, V> implements ConcurrentMap<K, V>, Closeable {
     @SuppressWarnings("unchecked")
     @Override
     public boolean containsKey(final Object key) {
-        return dataStore.get(keySerde.toBytes((K) key)) != null;
+        return cdb.find(keySerde.toBytes((K) key)) != null;
     }
 
     @Override
@@ -64,29 +72,19 @@ public class KratiMap<K, V> implements ConcurrentMap<K, V>, Closeable {
     @SuppressWarnings("unchecked")
     @Override
     public V get(final Object key) {
-        final byte[] bytes = dataStore.get(keySerde.toBytes((K) key));
+        final byte[] bytes = cdb.find(keySerde.toBytes((K) key));
         return valueSerde.fromBytes(bytes);
     }
 
     @Override
     public V put(final K key, final V value) {
-        try {
-            dataStore.put(keySerde.toBytes(key), valueSerde.toBytes(value));
-        } catch (final Exception e) {
-            throw new RuntimeException(e);
-        }
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public V remove(final Object key) {
-        try {
-            dataStore.delete(keySerde.toBytes((K) key));
-        } catch (final Exception e) {
-            throw new RuntimeException(e);
-        }
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -98,17 +96,13 @@ public class KratiMap<K, V> implements ConcurrentMap<K, V>, Closeable {
 
     @Override
     public void clear() {
-        try {
-            dataStore.clear();
-        } catch (final IOException e) {
-            throw new RuntimeException(e);
-        }
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public Set<K> keySet() {
         if (keySet == null) {
-            keySet = new KratiKeySet<>(this);
+            keySet = new CdbKeySet<>(this);
         }
         return keySet;
     }
@@ -116,7 +110,7 @@ public class KratiMap<K, V> implements ConcurrentMap<K, V>, Closeable {
     @Override
     public Collection<V> values() {
         if (valuesCollection == null) {
-            valuesCollection = new KratiValuesCollection<>(this);
+            valuesCollection = new CdbValuesCollection<>(this);
         }
         return valuesCollection;
     }
@@ -124,15 +118,15 @@ public class KratiMap<K, V> implements ConcurrentMap<K, V>, Closeable {
     @Override
     public Set<Entry<K, V>> entrySet() {
         if (entrySet == null) {
-            entrySet = new KratiEntrySet<>(this);
+            entrySet = new CdbEntrySet<>(this);
         }
         return entrySet;
     }
 
     @Override
     public void close() throws IOException {
-        dataStore.close();
-        dataStore = null;
+        cdb.close();
+        cdb = null;
     }
 
     @Override

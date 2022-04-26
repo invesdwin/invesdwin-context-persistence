@@ -77,6 +77,7 @@
 		<version.derby>10.15.2.0</version.derby>
 		<version.h2>2.1.210</version.h2>
 		<version.krati>0.4.9</version.krati>
+		<version.sg-cdb>1.0.4</version.sg-cdb>
 	</properties>
 
 	<dependencyManagement>
@@ -585,6 +586,11 @@
 						<artifactId>log4j</artifactId>
 					</exclusion>
 				</exclusions>
+			</dependency>
+			<dependency>
+				<groupId>sg-cdb</groupId>
+				<artifactId>sg-cdb</artifactId>
+				<version>${version.sg-cdb}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
