@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.tkrzw;
+package de.invesdwin.context.persistence.kyotocabinet;
 
 import java.io.File;
 import java.util.Iterator;
@@ -7,7 +7,6 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
@@ -24,16 +23,17 @@ import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.duration.Duration;
 
 @NotThreadSafe
-@Disabled("manual test")
-public class PersistentTkrzwMapPerformanceTest extends ADatabasePerformanceTest {
+//@Disabled("manual test")
+public class PersistentKyotocabinetMapPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
-    public void testTkrzwMapPerformance() throws InterruptedException {
+    public void testKyotocabinetMapPerformance() throws InterruptedException {
         //tkh = HashDBM
         //tkt = TreeDBM
         //tks = SkipDBM (make sure to call synchronize)
         @SuppressWarnings("resource")
-        final APersistentMap<FDate, FDate> table = new APersistentMap<FDate, FDate>("testTkrzwMapPerformance.tkh") {
+        final APersistentMap<FDate, FDate> table = new APersistentMap<FDate, FDate>(
+                "testKyotocabinetMapPerformance.tkh") {
             @Override
             public File getBaseDirectory() {
                 return ContextProperties.TEMP_DIRECTORY;
@@ -51,14 +51,14 @@ public class PersistentTkrzwMapPerformanceTest extends ADatabasePerformanceTest 
 
             @Override
             protected IPersistentMapFactory<FDate, FDate> newFactory() {
-                return new PersistentTkrzwMapFactory<FDate, FDate>();
+                return new PersistentKyotocabinetMapFactory<FDate, FDate>();
             }
         };
 
         final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(Duration.ONE_SECOND);
         final Instant writesStart = new Instant();
         int i = 0;
-        final TkrzwMap<FDate, FDate> delegate = (TkrzwMap<FDate, FDate>) table.getPreLockedDelegate();
+        final KyotocabinetMap<FDate, FDate> delegate = (KyotocabinetMap<FDate, FDate>) table.getPreLockedDelegate();
         table.getReadLock().unlock();
         for (final FDate date : newValues()) {
             table.put(date, date);
@@ -66,12 +66,12 @@ public class PersistentTkrzwMapPerformanceTest extends ADatabasePerformanceTest 
             if (i % FLUSH_INTERVAL == 0) {
                 if (loopCheck.check()) {
                     printProgress("Writes", writesStart, i, VALUES);
-                    delegate.getDbm().synchronize(true);
+                    delegate.getDb().synchronize(true, null);
                 }
             }
         }
         printProgress("WritesFinished", writesStart, VALUES, VALUES);
-        delegate.getDbm().synchronize(true);
+        delegate.getDb().synchronize(true, null);
 
         readIterator(table);
         readGet(table);

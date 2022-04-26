@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.tkrzw;
+package de.invesdwin.context.persistence.kyotocabinet;
 
 import java.util.Collection;
 import java.util.Map.Entry;
@@ -8,14 +8,14 @@ import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.error.FastNoSuchElementException;
-import tkrzw.Status;
+import kyotocabinet.Cursor;
 
 @Immutable
-public class TkrzwEntrySet<K, V> implements Set<Entry<K, V>> {
+public class KyotocabinetEntrySet<K, V> implements Set<Entry<K, V>> {
 
-    private final TkrzwMap<K, V> parent;
+    private final KyotocabinetMap<K, V> parent;
 
-    public TkrzwEntrySet(final TkrzwMap<K, V> parent) {
+    public KyotocabinetEntrySet(final KyotocabinetMap<K, V> parent) {
         this.parent = parent;
     }
 
@@ -31,14 +31,14 @@ public class TkrzwEntrySet<K, V> implements Set<Entry<K, V>> {
 
     @Override
     public ICloseableIterator<Entry<K, V>> iterator() {
-        final tkrzw.Iterator iterator = parent.getDbm().makeIterator();
+        final Cursor iterator = parent.getDb().cursor();
         return new ICloseableIterator<Entry<K, V>>() {
 
-            private Status status = iterator.first();
+            private boolean status = iterator.step();
 
             @Override
             public boolean hasNext() {
-                return status.getCode() == Status.SUCCESS;
+                return status;
             }
 
             @Override
@@ -47,13 +47,13 @@ public class TkrzwEntrySet<K, V> implements Set<Entry<K, V>> {
 
                     @Override
                     public K getKey() {
-                        return parent.getKeySerde().fromBytes(iterator.getKey());
+                        return parent.getKeySerde().fromBytes(iterator.get_key(false));
                     }
 
                     @Override
                     public V getValue() {
-                        final V next = parent.getValueSerde().fromBytes(iterator.getValue());
-                        status = iterator.next();
+                        final V next = parent.getValueSerde().fromBytes(iterator.get_value(false));
+                        status = iterator.step();
                         if (!hasNext()) {
                             throw new FastNoSuchElementException("end reached");
                         }
@@ -69,7 +69,7 @@ public class TkrzwEntrySet<K, V> implements Set<Entry<K, V>> {
 
             @Override
             public void close() {
-                iterator.destruct();
+                iterator.disable();
             }
         };
     }

@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.tkrzw;
+package de.invesdwin.context.persistence.kyotocabinet;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -11,26 +11,26 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.math.Integers;
-import tkrzw.DBM;
+import kyotocabinet.DB;
 
 @ThreadSafe
-public class TkrzwMap<K, V> implements ConcurrentMap<K, V>, Closeable {
+public class KyotocabinetMap<K, V> implements ConcurrentMap<K, V>, Closeable {
 
-    private DBM dbm;
+    private DB db;
     private final ISerde<K> keySerde;
     private final ISerde<V> valueSerde;
-    private TkrzwEntrySet<K, V> entrySet;
-    private TkrzwValuesCollection<V> valuesCollection;
-    private TkrzwKeySet<K> keySet;
+    private KyotocabinetEntrySet<K, V> entrySet;
+    private KyotocabinetValuesCollection<V> valuesCollection;
+    private KyotocabinetKeySet<K> keySet;
 
-    public TkrzwMap(final DBM dbm, final ISerde<K> keySerde, final ISerde<V> valueSerde) {
-        this.dbm = dbm;
+    public KyotocabinetMap(final DB db, final ISerde<K> keySerde, final ISerde<V> valueSerde) {
+        this.db = db;
         this.keySerde = keySerde;
         this.valueSerde = valueSerde;
     }
 
-    public DBM getDbm() {
-        return dbm;
+    public DB getDb() {
+        return db;
     }
 
     public ISerde<K> getKeySerde() {
@@ -43,18 +43,18 @@ public class TkrzwMap<K, V> implements ConcurrentMap<K, V>, Closeable {
 
     @Override
     public int size() {
-        return Integers.checkedCast(dbm.count());
+        return Integers.checkedCast(db.count());
     }
 
     @Override
     public boolean isEmpty() {
-        return dbm.count() > 0;
+        return db.count() > 0;
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public boolean containsKey(final Object key) {
-        return dbm.get(keySerde.toBytes((K) key)) != null;
+        return db.get(keySerde.toBytes((K) key)) != null;
     }
 
     @Override
@@ -65,20 +65,20 @@ public class TkrzwMap<K, V> implements ConcurrentMap<K, V>, Closeable {
     @SuppressWarnings("unchecked")
     @Override
     public V get(final Object key) {
-        final byte[] bytes = dbm.get(keySerde.toBytes((K) key));
+        final byte[] bytes = db.get(keySerde.toBytes((K) key));
         return valueSerde.fromBytes(bytes);
     }
 
     @Override
     public V put(final K key, final V value) {
-        dbm.set(keySerde.toBytes(key), valueSerde.toBytes(value));
+        db.set(keySerde.toBytes(key), valueSerde.toBytes(value));
         return null;
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public V remove(final Object key) {
-        dbm.remove(keySerde.toBytes((K) key));
+        db.remove(keySerde.toBytes((K) key));
         return null;
     }
 
@@ -91,13 +91,13 @@ public class TkrzwMap<K, V> implements ConcurrentMap<K, V>, Closeable {
 
     @Override
     public void clear() {
-        dbm.clear();
+        db.clear();
     }
 
     @Override
     public Set<K> keySet() {
         if (keySet == null) {
-            keySet = new TkrzwKeySet<>(this);
+            keySet = new KyotocabinetKeySet<>(this);
         }
         return keySet;
     }
@@ -105,7 +105,7 @@ public class TkrzwMap<K, V> implements ConcurrentMap<K, V>, Closeable {
     @Override
     public Collection<V> values() {
         if (valuesCollection == null) {
-            valuesCollection = new TkrzwValuesCollection<>(this);
+            valuesCollection = new KyotocabinetValuesCollection<>(this);
         }
         return valuesCollection;
     }
@@ -113,16 +113,15 @@ public class TkrzwMap<K, V> implements ConcurrentMap<K, V>, Closeable {
     @Override
     public Set<Entry<K, V>> entrySet() {
         if (entrySet == null) {
-            entrySet = new TkrzwEntrySet<>(this);
+            entrySet = new KyotocabinetEntrySet<>(this);
         }
         return entrySet;
     }
 
     @Override
     public void close() throws IOException {
-        dbm.close();
-        dbm.destruct();
-        dbm = null;
+        db.close();
+        db = null;
     }
 
     @Override

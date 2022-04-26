@@ -1,19 +1,19 @@
-package de.invesdwin.context.persistence.tkrzw;
+package de.invesdwin.context.persistence.tokyocabinet;
 
 import java.util.Collection;
+import java.util.Set;
 
 import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.error.FastNoSuchElementException;
-import tkrzw.Status;
 
 @Immutable
-public class TkrzwValuesCollection<V> implements Collection<V> {
+public class TokyocabinetKeySet<K> implements Set<K> {
 
-    private final TkrzwMap<?, V> parent;
+    private final TokyocabinetMap<K, ?> parent;
 
-    public TkrzwValuesCollection(final TkrzwMap<?, V> parent) {
+    public TokyocabinetKeySet(final TokyocabinetMap<K, ?> parent) {
         this.parent = parent;
     }
 
@@ -28,30 +28,29 @@ public class TkrzwValuesCollection<V> implements Collection<V> {
     }
 
     @Override
-    public ICloseableIterator<V> iterator() {
-        final tkrzw.Iterator iterator = parent.getDbm().makeIterator();
-        return new ICloseableIterator<V>() {
+    public ICloseableIterator<K> iterator() {
+        return new ICloseableIterator<K>() {
 
-            private Status status = iterator.first();
+            private boolean status = parent.getDbm().iterinit();
 
             @Override
             public boolean hasNext() {
-                return status.getCode() == Status.SUCCESS;
+                return status;
             }
 
             @Override
-            public V next() {
-                final V next = parent.getValueSerde().fromBytes(iterator.getValue());
-                status = iterator.next();
+            public K next() {
+                final byte[] key = parent.getDbm().iternext();
+                status = key != null;
                 if (!hasNext()) {
                     throw new FastNoSuchElementException("end reached");
                 }
+                final K next = parent.getKeySerde().fromBytes(key);
                 return next;
             }
 
             @Override
             public void close() {
-                iterator.destruct();
             }
         };
     }
@@ -97,12 +96,12 @@ public class TkrzwValuesCollection<V> implements Collection<V> {
     }
 
     @Override
-    public boolean add(final V e) {
+    public boolean add(final K e) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public boolean addAll(final Collection<? extends V> c) {
+    public boolean addAll(final Collection<? extends K> c) {
         throw new UnsupportedOperationException();
     }
 

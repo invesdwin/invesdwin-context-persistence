@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.tkrzw;
+package de.invesdwin.context.persistence.tokyocabinet;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -11,25 +11,25 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.math.Integers;
-import tkrzw.DBM;
+import tokyocabinet.HDB;
 
 @ThreadSafe
-public class TkrzwMap<K, V> implements ConcurrentMap<K, V>, Closeable {
+public class TokyocabinetMap<K, V> implements ConcurrentMap<K, V>, Closeable {
 
-    private DBM dbm;
+    private HDB dbm;
     private final ISerde<K> keySerde;
     private final ISerde<V> valueSerde;
-    private TkrzwEntrySet<K, V> entrySet;
-    private TkrzwValuesCollection<V> valuesCollection;
-    private TkrzwKeySet<K> keySet;
+    private TokyocabinetEntrySet<K, V> entrySet;
+    private TokyocabinetValuesCollection<V> valuesCollection;
+    private TokyocabinetKeySet<K> keySet;
 
-    public TkrzwMap(final DBM dbm, final ISerde<K> keySerde, final ISerde<V> valueSerde) {
+    public TokyocabinetMap(final HDB dbm, final ISerde<K> keySerde, final ISerde<V> valueSerde) {
         this.dbm = dbm;
         this.keySerde = keySerde;
         this.valueSerde = valueSerde;
     }
 
-    public DBM getDbm() {
+    public HDB getDbm() {
         return dbm;
     }
 
@@ -43,12 +43,12 @@ public class TkrzwMap<K, V> implements ConcurrentMap<K, V>, Closeable {
 
     @Override
     public int size() {
-        return Integers.checkedCast(dbm.count());
+        return Integers.checkedCast(dbm.rnum());
     }
 
     @Override
     public boolean isEmpty() {
-        return dbm.count() > 0;
+        return dbm.rnum() > 0;
     }
 
     @SuppressWarnings("unchecked")
@@ -71,15 +71,13 @@ public class TkrzwMap<K, V> implements ConcurrentMap<K, V>, Closeable {
 
     @Override
     public V put(final K key, final V value) {
-        dbm.set(keySerde.toBytes(key), valueSerde.toBytes(value));
+        dbm.put(keySerde.toBytes(key), valueSerde.toBytes(value));
         return null;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public V remove(final Object key) {
-        dbm.remove(keySerde.toBytes((K) key));
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -91,13 +89,13 @@ public class TkrzwMap<K, V> implements ConcurrentMap<K, V>, Closeable {
 
     @Override
     public void clear() {
-        dbm.clear();
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public Set<K> keySet() {
         if (keySet == null) {
-            keySet = new TkrzwKeySet<>(this);
+            keySet = new TokyocabinetKeySet<>(this);
         }
         return keySet;
     }
@@ -105,7 +103,7 @@ public class TkrzwMap<K, V> implements ConcurrentMap<K, V>, Closeable {
     @Override
     public Collection<V> values() {
         if (valuesCollection == null) {
-            valuesCollection = new TkrzwValuesCollection<>(this);
+            valuesCollection = new TokyocabinetValuesCollection<>(this);
         }
         return valuesCollection;
     }
@@ -113,7 +111,7 @@ public class TkrzwMap<K, V> implements ConcurrentMap<K, V>, Closeable {
     @Override
     public Set<Entry<K, V>> entrySet() {
         if (entrySet == null) {
-            entrySet = new TkrzwEntrySet<>(this);
+            entrySet = new TokyocabinetEntrySet<>(this);
         }
         return entrySet;
     }
@@ -121,7 +119,6 @@ public class TkrzwMap<K, V> implements ConcurrentMap<K, V>, Closeable {
     @Override
     public void close() throws IOException {
         dbm.close();
-        dbm.destruct();
         dbm = null;
     }
 

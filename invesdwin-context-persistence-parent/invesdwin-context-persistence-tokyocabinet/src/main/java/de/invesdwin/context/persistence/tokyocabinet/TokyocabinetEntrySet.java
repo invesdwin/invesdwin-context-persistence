@@ -1,20 +1,20 @@
-package de.invesdwin.context.persistence.tkrzw;
+package de.invesdwin.context.persistence.tokyocabinet;
 
 import java.util.Collection;
+import java.util.Map.Entry;
 import java.util.Set;
 
 import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.error.FastNoSuchElementException;
-import tkrzw.Status;
 
 @Immutable
-public class TkrzwKeySet<K> implements Set<K> {
+public class TokyocabinetEntrySet<K, V> implements Set<Entry<K, V>> {
 
-    private final TkrzwMap<K, ?> parent;
+    private final TokyocabinetMap<K, V> parent;
 
-    public TkrzwKeySet(final TkrzwMap<K, ?> parent) {
+    public TokyocabinetEntrySet(final TokyocabinetMap<K, V> parent) {
         this.parent = parent;
     }
 
@@ -29,30 +29,45 @@ public class TkrzwKeySet<K> implements Set<K> {
     }
 
     @Override
-    public ICloseableIterator<K> iterator() {
-        final tkrzw.Iterator iterator = parent.getDbm().makeIterator();
-        return new ICloseableIterator<K>() {
+    public ICloseableIterator<Entry<K, V>> iterator() {
+        return new ICloseableIterator<Entry<K, V>>() {
 
-            private Status status = iterator.first();
+            private boolean status = parent.getDbm().iterinit();
 
             @Override
             public boolean hasNext() {
-                return status.getCode() == Status.SUCCESS;
+                return status;
             }
 
             @Override
-            public K next() {
-                final K next = parent.getKeySerde().fromBytes(iterator.getKey());
-                status = iterator.next();
+            public Entry<K, V> next() {
+                final byte[] key = parent.getDbm().iternext();
+                status = key != null;
                 if (!hasNext()) {
                     throw new FastNoSuchElementException("end reached");
                 }
-                return next;
+                return new Entry<K, V>() {
+
+                    @Override
+                    public K getKey() {
+                        return parent.getKeySerde().fromBytes(key);
+                    }
+
+                    @Override
+                    public V getValue() {
+                        final V next = parent.getValueSerde().fromBytes(parent.getDbm().get(key));
+                        return next;
+                    }
+
+                    @Override
+                    public V setValue(final V value) {
+                        throw new UnsupportedOperationException();
+                    }
+                };
             }
 
             @Override
             public void close() {
-                iterator.destruct();
             }
         };
     }
@@ -73,12 +88,22 @@ public class TkrzwKeySet<K> implements Set<K> {
     }
 
     @Override
+    public boolean add(final Entry<K, V> e) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public boolean remove(final Object o) {
         throw new UnsupportedOperationException();
     }
 
     @Override
     public boolean containsAll(final Collection<?> c) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean addAll(final Collection<? extends Entry<K, V>> c) {
         throw new UnsupportedOperationException();
     }
 
@@ -94,16 +119,6 @@ public class TkrzwKeySet<K> implements Set<K> {
 
     @Override
     public void clear() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean add(final K e) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean addAll(final Collection<? extends K> c) {
         throw new UnsupportedOperationException();
     }
 

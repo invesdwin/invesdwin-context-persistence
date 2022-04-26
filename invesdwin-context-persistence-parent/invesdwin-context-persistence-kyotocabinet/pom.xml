@@ -17,8 +17,8 @@
 		</dependency>
 
 		<dependency>
-			<groupId>com.github.estraier</groupId>
-			<artifactId>tkrzw-java</artifactId>
+			<groupId>fm.last.commons</groupId>
+			<artifactId>lastcommons-kyoto</artifactId>
 		</dependency>
 	</dependencies>
 

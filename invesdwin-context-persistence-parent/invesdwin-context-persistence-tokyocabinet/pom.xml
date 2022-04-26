@@ -17,8 +17,8 @@
 		</dependency>
 
 		<dependency>
-			<groupId>com.github.estraier</groupId>
-			<artifactId>tkrzw-java</artifactId>
+			<groupId>tokyocabinet</groupId>
+			<artifactId>tokyocabinet</artifactId>
 		</dependency>
 	</dependencies>
 

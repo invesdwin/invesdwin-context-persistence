@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.tkrzw;
+package de.invesdwin.context.persistence.kyotocabinet;
 
 import java.util.Collection;
 import java.util.Set;
@@ -7,14 +7,14 @@ import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.error.FastNoSuchElementException;
-import tkrzw.Status;
+import kyotocabinet.Cursor;
 
 @Immutable
-public class TkrzwKeySet<K> implements Set<K> {
+public class KyotocabinetKeySet<K> implements Set<K> {
 
-    private final TkrzwMap<K, ?> parent;
+    private final KyotocabinetMap<K, ?> parent;
 
-    public TkrzwKeySet(final TkrzwMap<K, ?> parent) {
+    public KyotocabinetKeySet(final KyotocabinetMap<K, ?> parent) {
         this.parent = parent;
     }
 
@@ -30,20 +30,20 @@ public class TkrzwKeySet<K> implements Set<K> {
 
     @Override
     public ICloseableIterator<K> iterator() {
-        final tkrzw.Iterator iterator = parent.getDbm().makeIterator();
+        final Cursor iterator = parent.getDb().cursor();
         return new ICloseableIterator<K>() {
 
-            private Status status = iterator.first();
+            private boolean status = iterator.step();
 
             @Override
             public boolean hasNext() {
-                return status.getCode() == Status.SUCCESS;
+                return status;
             }
 
             @Override
             public K next() {
-                final K next = parent.getKeySerde().fromBytes(iterator.getKey());
-                status = iterator.next();
+                final K next = parent.getKeySerde().fromBytes(iterator.get_key(false));
+                status = iterator.step();
                 if (!hasNext()) {
                     throw new FastNoSuchElementException("end reached");
                 }
@@ -52,7 +52,7 @@ public class TkrzwKeySet<K> implements Set<K> {
 
             @Override
             public void close() {
-                iterator.destruct();
+                iterator.disable();
             }
         };
     }

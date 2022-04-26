@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.tkrzw;
+package de.invesdwin.context.persistence.tokyocabinet;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
