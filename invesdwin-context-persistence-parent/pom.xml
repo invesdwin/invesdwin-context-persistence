@@ -591,6 +591,12 @@
 				<groupId>sg-cdb</groupId>
 				<artifactId>sg-cdb</artifactId>
 				<version>${version.sg-cdb}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>org.clojure</groupId>
+						<artifactId>clojure</artifactId>
+					</exclusion>
+				</exclusions>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
