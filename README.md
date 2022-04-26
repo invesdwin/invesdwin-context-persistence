@@ -247,6 +247,7 @@ ATimeSeriesDB (Disk, High)   10,000,000     Reads:  14,204.55/ms  in     704 ms 
 ```
 New Benchmarks (2021, Core i9-9900k with SSD, Java 16):
 ```
+                       CDB (Disk)         Writes (WriteAll):       39.37/ms  => ~83% slower
           ezdb-RocksDB-JNI (Disk)         Writes (PutBatch):       44.86/ms  => ~80% slower
                   CQEngine (Disk)         Writes (PutBatch):       48.79/ms  => ~79% slower (uses SQLite internally; expensive I/O and huge size for large databases)
                     DuckDB (Disk)         Writes (PutBatch):       54.62/ms  => ~76% slower
@@ -287,6 +288,7 @@ Indeed-BlockCompRecordFile (Disk)         Writes (Append):      4,273.32/ms  => 
              ATimeSeriesDB (Disk, Fast)   Writes (Append):     52,721.10/ms  => ~231.2 times as fast (Fast Compression)
              ATimeSeriesDB (Disk, None)   Writes (Append):     56,980.06/ms  => ~249.8 times as fast (Disabled Compression; 2x Size of ATimeSeriesDB with Compression)
 
+                       CDB (Disk)         Reads (Get):             1.94/ms  => ~99% slower
                     DuckDB (Disk)         Reads (Get):             5.44/ms  => ~98% slower
                    QuestDB (Disk)         Reads (Get):            49.64/ms  => ~80% slower
           ezdb-RocksDB-JNI (Disk)         Reads (Get):            58.71/ms  => ~76% slower
@@ -359,9 +361,10 @@ ezdb-ConcurrentSkipListMap (Heap)         Reads (GetLatest):     985.03/ms  => ~
               ChronicleMap (Memory)       Reads (Iterator):    6,766.36/ms  => ~3.2 times as fast (unordered)
                     Hsqldb (Disk)         Reads (Iterator):    7,038.44/ms  => ~3.3 times as fast
  Indeed-RecordLogDirectory (Disk)         Reads (Iterator):    8,701.71/ms  => ~4.1 times as fast
+                       CDB (Disk)         Reads (Iterator):    9,074.41/ms  => ~4.3 times as fast (unordered)
 Indeed-BlockCompRecordFile (Disk)         Reads (Iterator):    9,285.14/ms  => ~4.37 times as fast
              ezdb-LMDB-JNR (Disk)         Reads (Iterator):    9,330.80/ms  => ~4.4 times as fast
-	             Krati (Disk)         Reads (Iterator):   14,394.70/ms  => ~6.8 times as fast
+	             Krati (Disk)         Reads (Iterator):   14,394.70/ms  => ~6.8 times as fast (unordered)
             ChronicleQueue (Disk)         Reads (Iterator):   16,583.75/ms  => ~7.8 times as fast
                  TreeMapDB (Disk)         Reads (Iterator):   21,551.72/ms  => ~10.1 times as fast
                     DuckDB (Disk)         Reads (Iterator):   25,536.26/ms  => ~12 times as fast
