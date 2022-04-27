@@ -7,7 +7,6 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
@@ -24,17 +23,17 @@ import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.duration.Duration;
 
 @NotThreadSafe
-@Disabled("manual test")
+//@Disabled("manual test")
 public class PersistentTokyocabinetMapPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
     public void testTokyocabinetMapPerformance() throws InterruptedException {
-        //tkh = HashDBM
+        //tch = HashDBM
         //tkt = TreeDBM
         //tks = SkipDBM (make sure to call synchronize)
         @SuppressWarnings("resource")
         final APersistentMap<FDate, FDate> table = new APersistentMap<FDate, FDate>(
-                "testTokyocabinetMapPerformance.tkh") {
+                "testTokyocabinetMapPerformance.tch") {
             @Override
             public File getBaseDirectory() {
                 return ContextProperties.TEMP_DIRECTORY;
@@ -62,7 +61,7 @@ public class PersistentTokyocabinetMapPerformanceTest extends ADatabasePerforman
         final TokyocabinetMap<FDate, FDate> delegate = (TokyocabinetMap<FDate, FDate>) table.getPreLockedDelegate();
         table.getReadLock().unlock();
         for (final FDate date : newValues()) {
-            table.put(date, date);
+            delegate.put(date, date);
             i++;
             if (i % FLUSH_INTERVAL == 0) {
                 if (loopCheck.check()) {

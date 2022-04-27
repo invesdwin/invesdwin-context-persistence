@@ -71,7 +71,9 @@ public class KyotocabinetMap<K, V> implements ConcurrentMap<K, V>, Closeable {
 
     @Override
     public V put(final K key, final V value) {
-        db.set(keySerde.toBytes(key), valueSerde.toBytes(value));
+        if (!db.set(keySerde.toBytes(key), valueSerde.toBytes(value))) {
+            throw db.error();
+        }
         return null;
     }
 

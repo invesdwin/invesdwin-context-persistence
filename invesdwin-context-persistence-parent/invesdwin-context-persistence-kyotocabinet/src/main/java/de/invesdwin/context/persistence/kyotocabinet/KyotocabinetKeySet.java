@@ -33,7 +33,7 @@ public class KyotocabinetKeySet<K> implements Set<K> {
         final Cursor iterator = parent.getDb().cursor();
         return new ICloseableIterator<K>() {
 
-            private boolean status = iterator.step();
+            private boolean status = iterator.jump();
 
             @Override
             public boolean hasNext() {
@@ -42,11 +42,11 @@ public class KyotocabinetKeySet<K> implements Set<K> {
 
             @Override
             public K next() {
-                final K next = parent.getKeySerde().fromBytes(iterator.get_key(false));
-                status = iterator.step();
                 if (!hasNext()) {
                     throw new FastNoSuchElementException("end reached");
                 }
+                final K next = parent.getKeySerde().fromBytes(iterator.get_key(false));
+                status = iterator.step();
                 return next;
             }
 

@@ -28,12 +28,11 @@ public class PersistentKyotocabinetMapPerformanceTest extends ADatabasePerforman
 
     @Test
     public void testKyotocabinetMapPerformance() throws InterruptedException {
-        //tkh = HashDBM
-        //tkt = TreeDBM
-        //tks = SkipDBM (make sure to call synchronize)
+        //kch = HashDBM
+        //kct = TreeDBM
         @SuppressWarnings("resource")
         final APersistentMap<FDate, FDate> table = new APersistentMap<FDate, FDate>(
-                "testKyotocabinetMapPerformance.tkh") {
+                "testKyotocabinetMapPerformance.kch") {
             @Override
             public File getBaseDirectory() {
                 return ContextProperties.TEMP_DIRECTORY;
@@ -61,7 +60,7 @@ public class PersistentKyotocabinetMapPerformanceTest extends ADatabasePerforman
         final KyotocabinetMap<FDate, FDate> delegate = (KyotocabinetMap<FDate, FDate>) table.getPreLockedDelegate();
         table.getReadLock().unlock();
         for (final FDate date : newValues()) {
-            table.put(date, date);
+            delegate.put(date, date);
             i++;
             if (i % FLUSH_INTERVAL == 0) {
                 if (loopCheck.check()) {

@@ -34,7 +34,7 @@ public class KyotocabinetEntrySet<K, V> implements Set<Entry<K, V>> {
         final Cursor iterator = parent.getDb().cursor();
         return new ICloseableIterator<Entry<K, V>>() {
 
-            private boolean status = iterator.step();
+            private boolean status = iterator.jump();
 
             @Override
             public boolean hasNext() {
@@ -52,11 +52,11 @@ public class KyotocabinetEntrySet<K, V> implements Set<Entry<K, V>> {
 
                     @Override
                     public V getValue() {
-                        final V next = parent.getValueSerde().fromBytes(iterator.get_value(false));
-                        status = iterator.step();
                         if (!hasNext()) {
                             throw new FastNoSuchElementException("end reached");
                         }
+                        final V next = parent.getValueSerde().fromBytes(iterator.get_value(false));
+                        status = iterator.step();
                         return next;
                     }
 

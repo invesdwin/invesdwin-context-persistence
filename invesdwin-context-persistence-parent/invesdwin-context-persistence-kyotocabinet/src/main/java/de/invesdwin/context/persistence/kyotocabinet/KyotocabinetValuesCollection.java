@@ -32,7 +32,7 @@ public class KyotocabinetValuesCollection<V> implements Collection<V> {
         final Cursor iterator = parent.getDb().cursor();
         return new ICloseableIterator<V>() {
 
-            private boolean status = iterator.step();
+            private boolean status = iterator.jump();
 
             @Override
             public boolean hasNext() {
@@ -41,11 +41,11 @@ public class KyotocabinetValuesCollection<V> implements Collection<V> {
 
             @Override
             public V next() {
-                final V next = parent.getValueSerde().fromBytes(iterator.get_value(false));
-                status = iterator.step();
                 if (!hasNext()) {
                     throw new FastNoSuchElementException("end reached");
                 }
+                final V next = parent.getValueSerde().fromBytes(iterator.get_value(false));
+                status = iterator.step();
                 return next;
             }
 

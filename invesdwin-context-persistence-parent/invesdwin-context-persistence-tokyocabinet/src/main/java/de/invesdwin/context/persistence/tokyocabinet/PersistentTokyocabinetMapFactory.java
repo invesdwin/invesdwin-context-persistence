@@ -32,14 +32,14 @@ public class PersistentTokyocabinetMapFactory<K, V> implements IPersistentMapFac
             throw new RuntimeException(e);
         }
         final boolean status = openDbm(config, dbm);
-        if (status) {
-            throw new IllegalStateException("could not open db");
+        if (!status) {
+            throw new IllegalStateException("could not open db " + dbm.errmsg());
         }
         return new TokyocabinetMap<>(dbm, config.newKeySerde(), config.newValueSerde());
     }
 
     protected boolean openDbm(final IPersistentMapConfig<K, V> config, final HDB dbm) {
-        return dbm.open(config.getFile().getAbsolutePath());
+        return dbm.open(config.getFile().getAbsolutePath(), HDB.OWRITER | HDB.OCREAT);
     }
 
     @Override

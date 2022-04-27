@@ -33,13 +33,13 @@ public class PersistentKyotocabinetMapFactory<K, V> implements IPersistentMapFac
         }
         final boolean status = openDb(config, dbm);
         if (!status) {
-            throw new IllegalStateException("could not open db");
+            throw new IllegalStateException("could not open db " + dbm.error());
         }
         return new KyotocabinetMap<>(dbm, config.newKeySerde(), config.newValueSerde());
     }
 
     protected boolean openDb(final IPersistentMapConfig<K, V> config, final DB db) {
-        return db.open(config.getFile().getAbsolutePath(), DB.OWRITER);
+        return db.open(config.getFile().getAbsolutePath(), DB.OWRITER | DB.OCREATE);
     }
 
     @Override
