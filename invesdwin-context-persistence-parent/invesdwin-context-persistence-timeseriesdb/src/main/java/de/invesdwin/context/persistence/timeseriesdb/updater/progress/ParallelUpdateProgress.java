@@ -111,7 +111,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
             long position = 0;
             final long memoryOffset = memoryFileOut.getChannel().position();
             while (remaining > 0L) {
-                final long copied = memoryFileOut.getChannel().transferFrom(tempIn.getChannel(), position, remaining);
+                final long copied = tempIn.getChannel().transferTo(position, remaining, memoryFileOut.getChannel());
                 remaining -= copied;
                 position += copied;
             }
