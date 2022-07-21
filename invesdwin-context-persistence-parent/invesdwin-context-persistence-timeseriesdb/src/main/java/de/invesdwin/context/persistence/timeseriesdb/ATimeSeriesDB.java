@@ -8,10 +8,10 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.ContextProperties;
+import de.invesdwin.context.integration.compression.ICompressionFactory;
+import de.invesdwin.context.integration.compression.lz4.LZ4Streams;
 import de.invesdwin.context.integration.retry.Retry;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
-import de.invesdwin.context.integration.streams.compression.ICompressionFactory;
-import de.invesdwin.context.integration.streams.compression.lz4.LZ4Streams;
 import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.timeseriesdb.storage.CorruptedTimeSeriesStorageException;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;

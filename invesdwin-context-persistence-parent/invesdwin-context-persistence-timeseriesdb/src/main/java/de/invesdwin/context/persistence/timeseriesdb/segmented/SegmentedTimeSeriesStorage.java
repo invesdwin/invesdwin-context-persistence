@@ -4,7 +4,7 @@ import java.io.File;
 
 import javax.annotation.concurrent.ThreadSafe;
 
-import de.invesdwin.context.integration.streams.compression.ICompressionFactory;
+import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.persistence.ezdb.RangeTablePersistenceMode;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.storage.CorruptedTimeSeriesStorageException;

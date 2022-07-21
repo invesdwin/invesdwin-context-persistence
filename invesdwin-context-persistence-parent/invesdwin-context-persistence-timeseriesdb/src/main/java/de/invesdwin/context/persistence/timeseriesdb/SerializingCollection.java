@@ -18,7 +18,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.lang3.SerializationException;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.integration.streams.compression.lz4.LZ4Streams;
+import de.invesdwin.context.integration.compression.lz4.LZ4Streams;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;

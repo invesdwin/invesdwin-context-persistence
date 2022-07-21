@@ -7,9 +7,9 @@ import java.util.function.Function;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import de.invesdwin.context.integration.compression.ICompressionFactory;
+import de.invesdwin.context.integration.compression.lz4.LZ4Streams;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
-import de.invesdwin.context.integration.streams.compression.ICompressionFactory;
-import de.invesdwin.context.integration.streams.compression.lz4.LZ4Streams;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
