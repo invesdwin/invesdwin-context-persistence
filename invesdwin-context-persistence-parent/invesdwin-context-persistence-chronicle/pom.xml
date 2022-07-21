@@ -25,6 +25,11 @@
 			<groupId>net.openhft</groupId>
 			<artifactId>chronicle-map</artifactId>
 		</dependency>
+		<dependency>
+			<!-- upperbound deps -->
+			<groupId>net.java.dev.jna</groupId>
+			<artifactId>jna</artifactId>
+		</dependency>
 	</dependencies>
 
 </project>
