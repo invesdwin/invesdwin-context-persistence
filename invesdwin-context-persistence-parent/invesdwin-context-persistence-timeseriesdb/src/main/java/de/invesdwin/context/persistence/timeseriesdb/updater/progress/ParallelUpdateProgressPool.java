@@ -27,8 +27,8 @@ final class ParallelUpdateProgressPool extends ATimeoutObjectPool<ParallelUpdate
     }
 
     @Override
-    protected void passivateObject(final ParallelUpdateProgress obj) {
-        obj.reset();
+    protected void passivateObject(final ParallelUpdateProgress element) {
+        element.reset();
     }
 
 }
