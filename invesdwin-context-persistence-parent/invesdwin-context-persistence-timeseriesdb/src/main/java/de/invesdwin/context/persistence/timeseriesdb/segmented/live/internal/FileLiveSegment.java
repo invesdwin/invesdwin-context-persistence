@@ -237,9 +237,11 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             return firstValue.getHead();
         }
         V nextValue = null;
+        int shiftForwardRemaining = shiftForwardUnits;
         try (ICloseableIterator<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE, null).iterator()) {
-            for (int i = 0; i < shiftForwardUnits; i++) {
+            while (shiftForwardRemaining >= 0) {
                 nextValue = rangeValues.next();
+                shiftForwardRemaining--;
             }
         } catch (final NoSuchElementException e) {
             //ignore
