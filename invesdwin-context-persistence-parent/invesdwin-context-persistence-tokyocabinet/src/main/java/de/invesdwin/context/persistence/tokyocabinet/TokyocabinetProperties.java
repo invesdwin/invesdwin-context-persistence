@@ -1,11 +1,11 @@
 package de.invesdwin.context.persistence.tokyocabinet;
 
-import java.util.Collections;
 import java.util.List;
 
 import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.context.system.properties.SystemProperties;
+import de.invesdwin.util.collections.Collections;
 
 @Immutable
 public final class TokyocabinetProperties {

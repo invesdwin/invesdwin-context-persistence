@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.jpa.api.query;
 
 import java.util.Calendar;
-import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -14,12 +13,14 @@ import javax.persistence.Parameter;
 import javax.persistence.Query;
 import javax.persistence.TemporalType;
 
+import de.invesdwin.util.collections.Collections;
+
 @NotThreadSafe
 public class DummyQuery implements Query {
 
     @Override
     public List<?> getResultList() {
-        return Collections.EMPTY_LIST;
+        return Collections.emptyList();
     }
 
     @Override
@@ -57,10 +58,9 @@ public class DummyQuery implements Query {
         return this;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public Map<String, Object> getHints() {
-        return Collections.EMPTY_MAP;
+        return Collections.emptyMap();
     }
 
     @Override
@@ -108,10 +108,9 @@ public class DummyQuery implements Query {
         return this;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public Set<Parameter<?>> getParameters() {
-        return Collections.EMPTY_SET;
+        return Collections.emptySet();
     }
 
     @Override

@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb.storage.key;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -10,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.collections.Collections;
 import de.invesdwin.util.time.date.FDateBuilder;
 
 @NotThreadSafe

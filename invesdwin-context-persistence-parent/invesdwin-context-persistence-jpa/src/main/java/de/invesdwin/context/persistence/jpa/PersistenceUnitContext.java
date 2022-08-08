@@ -1,6 +1,5 @@
 package de.invesdwin.context.persistence.jpa;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
@@ -28,6 +27,7 @@ import de.invesdwin.context.persistence.jpa.test.internal.ProdPersistenceContext
 import de.invesdwin.context.system.properties.IProperties;
 import de.invesdwin.context.system.properties.SystemProperties;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.collections.Collections;
 import de.invesdwin.util.lang.reflection.Reflections;
 
 @ThreadSafe
@@ -216,8 +216,8 @@ public final class PersistenceUnitContext {
         final Indexes annotation = Reflections.getAnnotation(entityClass, Indexes.class);
         //TODO: discover additional indexes in @Embeddables?
         if (annotation != null) {
-            persistenceUnitContextManager.getDialectSpecificDelegate(getConnectionDialect()).createIndexes(this,
-                    entityClass, annotation);
+            persistenceUnitContextManager.getDialectSpecificDelegate(getConnectionDialect())
+                    .createIndexes(this, entityClass, annotation);
         }
     }
 
@@ -225,14 +225,14 @@ public final class PersistenceUnitContext {
         final Indexes annotation = Reflections.getAnnotation(entityClass, Indexes.class);
         //TODO: discover additional indexes in @Embeddables?
         if (annotation != null) {
-            persistenceUnitContextManager.getDialectSpecificDelegate(getConnectionDialect()).dropIndexes(this,
-                    entityClass, annotation);
+            persistenceUnitContextManager.getDialectSpecificDelegate(getConnectionDialect())
+                    .dropIndexes(this, entityClass, annotation);
         }
     }
 
     public void setCacheable(final IConfigurableQuery query, final boolean cacheable) {
-        persistenceUnitContextManager.getDialectSpecificDelegate(getConnectionDialect()).setCacheable(this, query,
-                cacheable);
+        persistenceUnitContextManager.getDialectSpecificDelegate(getConnectionDialect())
+                .setCacheable(this, query, cacheable);
     }
 
 }

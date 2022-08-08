@@ -1,6 +1,5 @@
 package de.invesdwin.context.persistence.jpa;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -14,6 +13,7 @@ import de.invesdwin.context.persistence.jpa.scanning.internal.PersistenceUnitCon
 import de.invesdwin.context.persistence.jpa.spi.impl.PersistenceUnitAnnotationUtil;
 import de.invesdwin.context.system.properties.SystemProperties;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.collections.Collections;
 import de.invesdwin.util.lang.Strings;
 import de.invesdwin.util.lang.reflection.Reflections;
 
@@ -44,7 +44,8 @@ public final class PersistenceProperties {
                 "DEFAULT_CONNECTION_AUTO_SCHEMA");
     }
 
-    private PersistenceProperties() {}
+    private PersistenceProperties() {
+    }
 
     private static PersistenceUnitContextManager getPersistenceUnitContextManager() {
         return MergedContext.getInstance()

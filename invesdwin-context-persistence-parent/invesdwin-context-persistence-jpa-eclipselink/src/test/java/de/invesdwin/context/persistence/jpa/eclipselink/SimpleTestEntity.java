@@ -9,14 +9,13 @@ import javax.persistence.PrePersist;
 import javax.persistence.PreUpdate;
 import javax.validation.constraints.NotNull;
 
-import org.apache.commons.math3.random.RandomDataGenerator;
-
 import de.invesdwin.context.persistence.jpa.api.dao.entity.IEntity;
 import de.invesdwin.context.persistence.jpa.api.index.Index;
 import de.invesdwin.context.persistence.jpa.api.index.Indexes;
 import de.invesdwin.norva.beanpath.annotation.Hidden;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.lang.Objects;
+import de.invesdwin.util.math.random.PseudoRandomGenerators;
 
 /**
  * Datanucleus Enhancer has problems with APropertySupport having some Norva-Hidden annotations; so we cannot use
@@ -87,12 +86,13 @@ public class SimpleTestEntity implements IEntity, Cloneable, Serializable, Compa
     @PrePersist
     protected void prePersist() {
         if (id == null) {
-            id = new RandomDataGenerator().nextLong(0, Long.MAX_VALUE);
+            id = PseudoRandomGenerators.getThreadLocalPseudoRandom().nextLong(0, Long.MAX_VALUE);
         }
     }
 
     @PreUpdate
-    protected void preUpdate() {}
+    protected void preUpdate() {
+    }
 
     public String getName() {
         return name;

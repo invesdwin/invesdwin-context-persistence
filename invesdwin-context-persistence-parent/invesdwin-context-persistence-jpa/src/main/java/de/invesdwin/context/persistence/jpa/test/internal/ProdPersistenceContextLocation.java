@@ -1,6 +1,5 @@
 package de.invesdwin.context.persistence.jpa.test.internal;
 
-import java.util.Arrays;
 import java.util.List;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -13,6 +12,7 @@ import de.invesdwin.context.beans.init.locations.IContextLocation;
 import de.invesdwin.context.beans.init.locations.IContextLocationValidator;
 import de.invesdwin.context.beans.init.locations.PositionedResource;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.collections.Arrays;
 
 /**
  * This class is relevant for rests, but it is still needed for productive usage. Thus this class resides in src instead
