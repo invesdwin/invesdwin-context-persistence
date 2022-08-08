@@ -15,6 +15,7 @@ import de.invesdwin.util.time.range.TimeRange;
 @NotThreadSafe
 public class PeriodicalSegmentFinderTest extends ATest {
 
+    @SuppressWarnings("deprecation")
     @Test
     public void testTimeZone() {
         final PeriodicalSegmentFinder finder = PeriodicalSegmentFinder.newInstance(Duration.ONE_DAY);
