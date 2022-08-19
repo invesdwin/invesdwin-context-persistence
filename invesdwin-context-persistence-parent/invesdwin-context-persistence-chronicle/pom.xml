@@ -20,9 +20,16 @@
 			<scope>provided</scope>
 			<exclusions>
 				<exclusion>
-					<!-- prevent download from chronicle maven repo (requires authentication) -->
 					<groupId>net.openhft</groupId>
 					<artifactId>chronicle-bytes</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>net.openhft</groupId>
+					<artifactId>chronicle-core</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>net.openhft</groupId>
+					<artifactId>chronicle-algorithms</artifactId>
 				</exclusion>
 			</exclusions>
 		</dependency>
@@ -34,7 +41,30 @@
 					<groupId>net.openhft</groupId>
 					<artifactId>chronicle-bytes</artifactId>
 				</exclusion>
+				<exclusion>
+					<groupId>net.openhft</groupId>
+					<artifactId>chronicle-core</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>net.openhft</groupId>
+					<artifactId>chronicle-algorithms</artifactId>
+				</exclusion>
 			</exclusions>
+		</dependency>
+		<dependency>
+			<!-- upperbound deps -->
+			<groupId>net.openhft</groupId>
+			<artifactId>chronicle-bytes</artifactId>
+		</dependency>
+		<dependency>
+			<!-- upperbound deps -->
+			<groupId>net.openhft</groupId>
+			<artifactId>chronicle-core</artifactId>
+		</dependency>
+		<dependency>
+			<!-- upperbound deps -->
+			<groupId>net.openhft</groupId>
+			<artifactId>chronicle-algorithms</artifactId>
 		</dependency>
 		<dependency>
 			<!-- upperbound deps -->
