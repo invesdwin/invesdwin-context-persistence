@@ -42,15 +42,14 @@ public class TokyocabinetValuesCollection<V> implements Collection<V> {
                 final byte[] key = parent.getDbm().iternext();
                 status = key != null;
                 if (!hasNext()) {
-                    throw new FastNoSuchElementException("end reached");
+                    throw FastNoSuchElementException.getInstance("end reached");
                 }
                 final V next = parent.getValueSerde().fromBytes(parent.getDbm().get(key));
                 return next;
             }
 
             @Override
-            public void close() {
-            }
+            public void close() {}
         };
     }
 

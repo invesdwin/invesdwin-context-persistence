@@ -53,7 +53,7 @@ public class CountdbEntrySet<V> implements Set<Entry<Long, V>> {
                     @Override
                     public V getValue() {
                         if (!hasNext()) {
-                            throw new FastNoSuchElementException("end reached");
+                            throw FastNoSuchElementException.getInstance("end reached");
                         }
                         final V next = nextEntry.getValue();
                         return next;

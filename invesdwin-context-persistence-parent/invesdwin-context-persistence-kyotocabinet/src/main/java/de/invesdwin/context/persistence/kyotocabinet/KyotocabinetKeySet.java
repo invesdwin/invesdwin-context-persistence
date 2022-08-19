@@ -43,7 +43,7 @@ public class KyotocabinetKeySet<K> implements Set<K> {
             @Override
             public K next() {
                 if (!hasNext()) {
-                    throw new FastNoSuchElementException("end reached");
+                    throw FastNoSuchElementException.getInstance("end reached");
                 }
                 final K next = parent.getKeySerde().fromBytes(iterator.get_key(false));
                 status = iterator.step();

@@ -44,7 +44,7 @@ public class TkrzwValuesCollection<V> implements Collection<V> {
                 final V next = parent.getValueSerde().fromBytes(iterator.getValue());
                 status = iterator.next();
                 if (!hasNext()) {
-                    throw new FastNoSuchElementException("end reached");
+                    throw FastNoSuchElementException.getInstance("end reached");
                 }
                 return next;
             }

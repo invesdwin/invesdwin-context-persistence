@@ -40,7 +40,7 @@ public class CountdbValuesCollection<V> implements Collection<V> {
             @Override
             public V next() {
                 if (!hasNext()) {
-                    throw new FastNoSuchElementException("end reached");
+                    throw FastNoSuchElementException.getInstance("end reached");
                 }
                 final V next = iterator.next();
                 return next;

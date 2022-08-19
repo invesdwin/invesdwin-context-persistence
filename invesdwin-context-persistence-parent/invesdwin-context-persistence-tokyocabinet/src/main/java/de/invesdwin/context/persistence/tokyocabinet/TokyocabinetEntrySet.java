@@ -44,7 +44,7 @@ public class TokyocabinetEntrySet<K, V> implements Set<Entry<K, V>> {
                 final byte[] key = parent.getDbm().iternext();
                 status = key != null;
                 if (!hasNext()) {
-                    throw new FastNoSuchElementException("end reached");
+                    throw FastNoSuchElementException.getInstance("end reached");
                 }
                 return new Entry<K, V>() {
 
@@ -67,8 +67,7 @@ public class TokyocabinetEntrySet<K, V> implements Set<Entry<K, V>> {
             }
 
             @Override
-            public void close() {
-            }
+            public void close() {}
         };
     }
 

@@ -37,7 +37,7 @@ public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<
                 protected boolean skip(final V element) {
                     final FDate time = extractEndTime.apply(element);
                     if (time.isAfterNotNullSafe(to)) {
-                        throw new FastNoSuchElementException("getRangeValues reached end");
+                        throw FastNoSuchElementException.getInstance("getRangeValues reached end");
                     }
                     return false;
                 }
@@ -61,7 +61,7 @@ public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<
                     if (time.isBeforeNotNullSafe(from)) {
                         return true;
                     } else if (time.isAfterNotNullSafe(to)) {
-                        throw new FastNoSuchElementException("getRangeValues reached end");
+                        throw FastNoSuchElementException.getInstance("getRangeValues reached end");
                     }
                     return false;
                 }
@@ -85,7 +85,7 @@ public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<
                 protected boolean skip(final V element) {
                     final FDate time = extractEndTime.apply(element);
                     if (time.isBeforeNotNullSafe(to)) {
-                        throw new FastNoSuchElementException("getRangeValues reached end");
+                        throw FastNoSuchElementException.getInstance("getRangeValues reached end");
                     }
                     return false;
                 }
@@ -109,7 +109,7 @@ public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<
                     if (time.isAfterNotNullSafe(from)) {
                         return true;
                     } else if (time.isBeforeNotNullSafe(to)) {
-                        throw new FastNoSuchElementException("getRangeValues reached end");
+                        throw FastNoSuchElementException.getInstance("getRangeValues reached end");
                     }
                     return false;
                 }

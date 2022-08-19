@@ -41,15 +41,14 @@ public class KratiKeySet<K> implements Set<K> {
             @Override
             public K next() {
                 if (!hasNext()) {
-                    throw new FastNoSuchElementException("end reached");
+                    throw FastNoSuchElementException.getInstance("end reached");
                 }
                 final K next = parent.getKeySerde().fromBytes(iterator.next());
                 return next;
             }
 
             @Override
-            public void close() {
-            }
+            public void close() {}
         };
     }
 

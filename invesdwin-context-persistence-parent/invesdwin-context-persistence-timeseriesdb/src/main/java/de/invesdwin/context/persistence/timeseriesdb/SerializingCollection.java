@@ -390,7 +390,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             }
             final E readNext = readNext();
             if (readNext == null) {
-                throw new FastNoSuchElementException(
+                throw FastNoSuchElementException.getInstance(
                         "SerializingCollection.DynamicLengthDeserializingIterator: readnext() returned null");
             }
             return readNext;
@@ -494,7 +494,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             }
             final E readNext = readNext();
             if (readNext == null) {
-                throw new FastNoSuchElementException(
+                throw FastNoSuchElementException.getInstance(
                         "SerializingCollection.FixedLengthDeserializingIterator: readnext() returned null");
             }
             return readNext;

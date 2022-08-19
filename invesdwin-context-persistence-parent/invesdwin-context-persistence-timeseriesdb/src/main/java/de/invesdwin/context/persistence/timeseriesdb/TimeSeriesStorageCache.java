@@ -802,7 +802,7 @@ public class TimeSeriesStorageCache<K, V> {
             if (element.getRangeKey().isAfter(from)) {
                 return true;
             } else if (element.getRangeKey().isBefore(to)) {
-                throw new FastNoSuchElementException("getRangeKeysReverse reached end");
+                throw FastNoSuchElementException.getInstance("getRangeKeysReverse reached end");
             }
             return false;
         }
@@ -826,7 +826,7 @@ public class TimeSeriesStorageCache<K, V> {
             if (element.getRangeKey().isBefore(from)) {
                 return true;
             } else if (element.getRangeKey().isAfter(to)) {
-                throw new FastNoSuchElementException("getRangeKeys reached end");
+                throw FastNoSuchElementException.getInstance("getRangeKeys reached end");
             }
             return false;
         }

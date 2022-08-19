@@ -45,7 +45,7 @@ public class TkrzwKeySet<K> implements Set<K> {
                 final K next = parent.getKeySerde().fromBytes(iterator.getKey());
                 status = iterator.next();
                 if (!hasNext()) {
-                    throw new FastNoSuchElementException("end reached");
+                    throw FastNoSuchElementException.getInstance("end reached");
                 }
                 return next;
             }

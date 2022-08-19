@@ -41,7 +41,7 @@ public class CountdbKeySet implements Set<Long> {
             @Override
             public Long next() {
                 if (!hasNext()) {
-                    throw new FastNoSuchElementException("end reached");
+                    throw FastNoSuchElementException.getInstance("end reached");
                 }
                 final Long next = iterator.next();
                 return next;

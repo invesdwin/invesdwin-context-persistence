@@ -50,15 +50,14 @@ public class CdbKeySet<K> implements Set<K> {
             @Override
             public K next() {
                 if (!hasNext()) {
-                    throw new FastNoSuchElementException("end reached");
+                    throw FastNoSuchElementException.getInstance("end reached");
                 }
                 final K next = parent.getKeySerde().fromBytes(iterator.nextElement().getKey());
                 return next;
             }
 
             @Override
-            public void close() {
-            }
+            public void close() {}
         };
     }
 

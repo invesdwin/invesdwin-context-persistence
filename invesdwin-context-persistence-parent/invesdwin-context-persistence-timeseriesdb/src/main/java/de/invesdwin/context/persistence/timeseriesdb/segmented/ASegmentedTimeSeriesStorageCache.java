@@ -156,8 +156,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                     @Override
                     public TimeRange next() {
                         if (nextSegment == null) {
-                            throw new FastNoSuchElementException(
-                                    "ASegmentedTimeSeriesStorageCache getSegments nextSegment is null");
+                            throw FastNoSuchElementException
+                                    .getInstance("ASegmentedTimeSeriesStorageCache getSegments nextSegment is null");
                         }
                         final TimeRange curSegment = nextSegment;
                         //get one segment later
@@ -196,7 +196,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 final FDate segmentFrom = element.getFrom();
                 if (segmentFrom.isAfter(adjTo)) {
                     //no need to continue going higher
-                    throw new FastNoSuchElementException("ASegmentedTimeSeriesStorageCache getSegments end reached");
+                    throw FastNoSuchElementException
+                            .getInstance("ASegmentedTimeSeriesStorageCache getSegments end reached");
                 }
                 return false;
             }
@@ -552,8 +553,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                     public TimeRange next() {
                         final TimeRange curSegment = nextSegment;
                         if (curSegment == null) {
-                            throw new FastNoSuchElementException(
-                                    "ASegmentedTimeSeriesStorageCache getSegments end reached null");
+                            throw FastNoSuchElementException
+                                    .getInstance("ASegmentedTimeSeriesStorageCache getSegments end reached null");
                         }
                         //get one segment earlier
                         nextSegment = getSegmentFinder(key).query()
@@ -576,8 +577,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 final FDate segmentTo = element.getTo();
                 if (segmentTo.isBefore(adjTo)) {
                     //no need to continue going lower
-                    throw new FastNoSuchElementException(
-                            "ASegmentedTimeSeriesStorageCache getSegments end reached adjTo");
+                    throw FastNoSuchElementException
+                            .getInstance("ASegmentedTimeSeriesStorageCache getSegments end reached adjTo");
                 }
                 //skip last value and continue with earlier ones
                 final FDate segmentFrom = element.getFrom();

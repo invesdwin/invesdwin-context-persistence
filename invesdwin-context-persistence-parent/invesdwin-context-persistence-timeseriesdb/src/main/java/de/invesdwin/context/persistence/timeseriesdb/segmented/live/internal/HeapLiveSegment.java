@@ -95,7 +95,7 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
                 @Override
                 protected boolean skip(final Entry<Long, V> element) {
                     if (element.getKey() > to.millisValue()) {
-                        throw new FastNoSuchElementException("LiveSegment rangeValues end reached");
+                        throw FastNoSuchElementException.getInstance("LiveSegment rangeValues end reached");
                     }
                     return false;
                 }
@@ -152,7 +152,7 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
                 @Override
                 protected boolean skip(final Entry<Long, V> element) {
                     if (element.getKey() < to.millisValue()) {
-                        throw new FastNoSuchElementException("LiveSegment rangeReverseValues end reached");
+                        throw FastNoSuchElementException.getInstance("LiveSegment rangeReverseValues end reached");
                     }
                     return false;
                 }

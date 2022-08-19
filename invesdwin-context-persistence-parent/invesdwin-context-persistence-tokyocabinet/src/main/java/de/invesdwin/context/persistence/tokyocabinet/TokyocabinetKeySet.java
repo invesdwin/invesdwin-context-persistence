@@ -43,15 +43,14 @@ public class TokyocabinetKeySet<K> implements Set<K> {
                 final byte[] key = parent.getDbm().iternext();
                 status = key != null;
                 if (!hasNext()) {
-                    throw new FastNoSuchElementException("end reached");
+                    throw FastNoSuchElementException.getInstance("end reached");
                 }
                 final K next = parent.getKeySerde().fromBytes(key);
                 return next;
             }
 
             @Override
-            public void close() {
-            }
+            public void close() {}
         };
     }
 

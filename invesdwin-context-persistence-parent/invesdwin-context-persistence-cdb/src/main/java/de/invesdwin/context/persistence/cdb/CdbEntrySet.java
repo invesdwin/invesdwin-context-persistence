@@ -62,7 +62,7 @@ public class CdbEntrySet<K, V> implements Set<Entry<K, V>> {
                     @Override
                     public V getValue() {
                         if (!hasNext()) {
-                            throw new FastNoSuchElementException("end reached");
+                            throw FastNoSuchElementException.getInstance("end reached");
                         }
                         final V next = parent.getValueSerde().fromBytes(nextEntry.getData());
                         return next;
@@ -76,8 +76,7 @@ public class CdbEntrySet<K, V> implements Set<Entry<K, V>> {
             }
 
             @Override
-            public void close() {
-            }
+            public void close() {}
         };
     }
 

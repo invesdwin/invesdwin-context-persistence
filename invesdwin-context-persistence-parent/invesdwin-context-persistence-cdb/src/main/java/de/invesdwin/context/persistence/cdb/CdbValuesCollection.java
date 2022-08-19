@@ -50,15 +50,14 @@ public class CdbValuesCollection<V> implements Collection<V> {
             @Override
             public V next() {
                 if (!hasNext()) {
-                    throw new FastNoSuchElementException("end reached");
+                    throw FastNoSuchElementException.getInstance("end reached");
                 }
                 final V next = parent.getValueSerde().fromBytes(iterator.nextElement().getData());
                 return next;
             }
 
             @Override
-            public void close() {
-            }
+            public void close() {}
         };
     }
 
