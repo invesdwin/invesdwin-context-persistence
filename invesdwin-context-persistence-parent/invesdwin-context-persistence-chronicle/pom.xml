@@ -18,6 +18,13 @@
 			<groupId>net.openhft</groupId>
 			<artifactId>chronicle-queue</artifactId>
 			<scope>provided</scope>
+			<exclusions>
+				<exclusion>
+					<!--  Authentication failed for https://nexus.chronicle.software/content/repositories/thirdparty/net/openhft/chronicle-bytes/2.22.22/chronicle-bytes-2.22.22.pom -->
+					<groupId>net.openhft</groupId>
+					<artifactId>chronicle-bytes</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>net.openhft</groupId>
