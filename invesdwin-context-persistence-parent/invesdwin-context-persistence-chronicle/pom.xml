@@ -1,6 +1,4 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
 		<groupId>de.invesdwin</groupId>
@@ -20,10 +18,23 @@
 			<groupId>net.openhft</groupId>
 			<artifactId>chronicle-queue</artifactId>
 			<scope>provided</scope>
+			<exclusions>
+				<exclusion>
+					<!-- prevent download from chronicle maven repo (requires authentication) -->
+					<groupId>net.openhft</groupId>
+					<artifactId>chronicle-bytes</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>net.openhft</groupId>
 			<artifactId>chronicle-map</artifactId>
+			<exclusions>
+				<exclusion>
+					<groupId>net.openhft</groupId>
+					<artifactId>chronicle-bytes</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<!-- upperbound deps -->
