@@ -18,38 +18,10 @@
 			<groupId>net.openhft</groupId>
 			<artifactId>chronicle-queue</artifactId>
 			<scope>provided</scope>
-			<exclusions>
-				<exclusion>
-					<groupId>net.openhft</groupId>
-					<artifactId>chronicle-bytes</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>net.openhft</groupId>
-					<artifactId>chronicle-core</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>net.openhft</groupId>
-					<artifactId>chronicle-algorithms</artifactId>
-				</exclusion>
-			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>net.openhft</groupId>
 			<artifactId>chronicle-map</artifactId>
-			<exclusions>
-				<exclusion>
-					<groupId>net.openhft</groupId>
-					<artifactId>chronicle-bytes</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>net.openhft</groupId>
-					<artifactId>chronicle-core</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>net.openhft</groupId>
-					<artifactId>chronicle-algorithms</artifactId>
-				</exclusion>
-			</exclusions>
 		</dependency>
 		<dependency>
 			<!-- upperbound deps -->
