@@ -78,7 +78,10 @@ public enum PersistentMapType implements IPersistentMapType {
 
         @Override
         public boolean isRemoveFullySupported() {
-            //though MapDB might get fragmented after a while which causes a large compaction
+            /*
+             * MapDB might get fragmented after a while which causes a compaction, though normal deletions will be
+             * reclaimed if possible
+             */
             return true;
         }
     },
@@ -90,7 +93,11 @@ public enum PersistentMapType implements IPersistentMapType {
 
         @Override
         public boolean isRemoveFullySupported() {
-            //the mapped memory value storage does not support removals, items are only removed from the index
+            /*
+             * The mapped memory value storage does not support removals, items are only removed from the index, we
+             * could implement a compaction algorithm for this sometime. Using FileChunkStorage would not be a good
+             * idea.
+             */
             return false;
         }
     },
@@ -102,7 +109,11 @@ public enum PersistentMapType implements IPersistentMapType {
 
         @Override
         public boolean isRemoveFullySupported() {
-            //the mapped memory value storage does not support removals, items are only removed from the index
+            /*
+             * The mapped memory value storage does currently not support removals, items are only removed from the
+             * index, we could implement a compaction algorithm for this sometime. Using FileChunkStorage would not be a
+             * good idea because it can overload the file system with too many files.
+             */
             return false;
         }
     },
@@ -114,7 +125,11 @@ public enum PersistentMapType implements IPersistentMapType {
 
         @Override
         public boolean isRemoveFullySupported() {
-            //the mapped memory value storage does not support removals, items are only removed from the index
+            /*
+             * The mapped memory value storage does currently not support removals, items are only removed from the
+             * index, we could implement a compaction algorithm for this sometime. Using FileChunkStorage would not be a
+             * good idea because it can overload the file system with too many files.
+             */
             return false;
         }
     };
