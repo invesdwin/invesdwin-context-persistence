@@ -33,6 +33,11 @@ public class PersistentCountdbMapFactory<V> implements IPersistentMapFactory<Lon
     }
 
     @Override
+    public boolean isDiskPersistenceSupported() {
+        return true;
+    }
+
+    @Override
     public void removeAll(final ConcurrentMap<Long, V> table, final IKeyMatcher<Long> matcher) {
         for (final Entry<Long, V> e : table.entrySet()) {
             final Long key = e.getKey();

@@ -11,6 +11,7 @@ import de.invesdwin.context.integration.persistentmap.APersistentMap;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
 import de.invesdwin.context.persistence.ezdb.RangeTablePersistenceMode;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
+import de.invesdwin.context.persistence.timeseriesdb.IPersistentMapType;
 import de.invesdwin.context.persistence.timeseriesdb.PersistentMapType;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeKey;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeKeySerde;
@@ -22,7 +23,7 @@ import de.invesdwin.util.time.date.FDate;
 @ThreadSafe
 public class TimeSeriesStorage {
 
-    private static final PersistentMapType MAP_TYPE = PersistentMapType.FAST;
+    private static final IPersistentMapType MAP_TYPE = PersistentMapType.DISK_FAST;
     private final File directory;
     private final ICompressionFactory compressionFactory;
     private final ADelegateRangeTable<String, FDate, MemoryFileSummary> fileLookupTable;
@@ -171,15 +172,15 @@ public class TimeSeriesStorage {
     }
 
     public void deleteRange_latestValueLookupTable(final String hashKey) {
-        if (MAP_TYPE == PersistentMapType.FAST) {
+        if (MAP_TYPE.isRemoveFullySupported()) {
+            latestValueLookupTable.removeAll((key) -> {
+                return hashKey.equals(key.getHashKey());
+            });
+        } else {
             //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
             if (!latestValueLookupTable.isEmpty()) {
                 latestValueLookupTable.deleteTable();
             }
-        } else {
-            latestValueLookupTable.removeAll((key) -> {
-                return hashKey.equals(key.getHashKey());
-            });
         }
     }
 
@@ -187,21 +188,21 @@ public class TimeSeriesStorage {
         if (above == null) {
             deleteRange_latestValueLookupTable(hashKey);
         } else {
-            if (MAP_TYPE == PersistentMapType.FAST) {
+            if (MAP_TYPE.isRemoveFullySupported()) {
+                latestValueLookupTable.removeAll((key) -> {
+                    return hashKey.equals(key.getHashKey()) && key.getRangeKey().isAfterOrEqualToNotNullSafe(above);
+                });
+            } else {
                 //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
                 if (!latestValueLookupTable.isEmpty()) {
                     latestValueLookupTable.deleteTable();
                 }
-            } else {
-                latestValueLookupTable.removeAll((key) -> {
-                    return hashKey.equals(key.getHashKey()) && key.getRangeKey().isAfterOrEqualToNotNullSafe(above);
-                });
             }
         }
     }
 
     public void deleteRange_nextValueLookupTable(final String hashKey) {
-        if (MAP_TYPE == PersistentMapType.FAST) {
+        if (MAP_TYPE == PersistentMapType.DISK_FAST) {
             //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
             if (!latestValueLookupTable.isEmpty()) {
                 nextValueLookupTable.deleteTable();
@@ -214,7 +215,7 @@ public class TimeSeriesStorage {
     }
 
     public void deleteRange_previousValueLookupTable(final String hashKey) {
-        if (MAP_TYPE == PersistentMapType.FAST) {
+        if (MAP_TYPE == PersistentMapType.DISK_FAST) {
             //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
             if (!previousValueLookupTable.isEmpty()) {
                 previousValueLookupTable.deleteTable();
@@ -230,7 +231,7 @@ public class TimeSeriesStorage {
         if (above == null) {
             deleteRange_previousValueLookupTable(hashKey);
         } else {
-            if (MAP_TYPE == PersistentMapType.FAST) {
+            if (MAP_TYPE == PersistentMapType.DISK_FAST) {
                 //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
                 if (!previousValueLookupTable.isEmpty()) {
                     previousValueLookupTable.deleteTable();

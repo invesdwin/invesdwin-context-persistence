@@ -39,6 +39,11 @@ public class PersistentTkrzwMapFactory<K, V> implements IPersistentMapFactory<K,
         return new TkrzwMap<>(dbm, config.newKeySerde(), config.newValueSerde());
     }
 
+    @Override
+    public boolean isDiskPersistenceSupported() {
+        return true;
+    }
+
     protected Status openDbm(final IPersistentMapConfig<K, V> config, final DBM dbm) {
         return dbm.open(config.getFile().getAbsolutePath(), true);
     }

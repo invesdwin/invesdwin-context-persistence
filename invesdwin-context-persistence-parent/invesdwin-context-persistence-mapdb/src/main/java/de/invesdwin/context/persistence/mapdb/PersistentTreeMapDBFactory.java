@@ -35,6 +35,11 @@ public class PersistentTreeMapDBFactory<K, V> implements IPersistentNavigableMap
         return configureHashMap(config, maker).createOrOpen();
     }
 
+    @Override
+    public boolean isDiskPersistenceSupported() {
+        return true;
+    }
+
     protected Maker createDB(final IPersistentMapConfig<K, V> config) {
         final File file = config.getFile();
         try {

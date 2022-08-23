@@ -38,6 +38,11 @@ public class PersistentTokyocabinetMapFactory<K, V> implements IPersistentMapFac
         return new TokyocabinetMap<>(dbm, config.newKeySerde(), config.newValueSerde());
     }
 
+    @Override
+    public boolean isDiskPersistenceSupported() {
+        return true;
+    }
+
     protected boolean openDbm(final IPersistentMapConfig<K, V> config, final HDB dbm) {
         return dbm.open(config.getFile().getAbsolutePath(), HDB.OWRITER | HDB.OCREAT);
     }

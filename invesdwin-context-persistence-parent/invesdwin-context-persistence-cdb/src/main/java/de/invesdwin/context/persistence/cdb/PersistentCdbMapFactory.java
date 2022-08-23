@@ -33,6 +33,11 @@ public class PersistentCdbMapFactory<K, V> implements IPersistentMapFactory<K, V
     }
 
     @Override
+    public boolean isDiskPersistenceSupported() {
+        return true;
+    }
+
+    @Override
     public void removeAll(final ConcurrentMap<K, V> table, final IKeyMatcher<K> matcher) {
         for (final Entry<K, V> e : table.entrySet()) {
             final K key = e.getKey();

@@ -38,6 +38,11 @@ public class PersistentKyotocabinetMapFactory<K, V> implements IPersistentMapFac
         return new KyotocabinetMap<>(dbm, config.newKeySerde(), config.newValueSerde());
     }
 
+    @Override
+    public boolean isDiskPersistenceSupported() {
+        return true;
+    }
+
     protected boolean openDb(final IPersistentMapConfig<K, V> config, final DB db) {
         return db.open(config.getFile().getAbsolutePath(), DB.OWRITER | DB.OCREATE);
     }

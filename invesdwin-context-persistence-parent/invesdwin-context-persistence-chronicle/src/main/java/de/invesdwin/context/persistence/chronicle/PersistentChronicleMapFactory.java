@@ -34,6 +34,11 @@ public class PersistentChronicleMapFactory<K, V> implements IPersistentMapFactor
         return createChronicleMap(config, builder);
     }
 
+    @Override
+    public boolean isDiskPersistenceSupported() {
+        return true;
+    }
+
     @SuppressWarnings("rawtypes")
     protected ChronicleMapBuilder configureChronicleMap(final IPersistentMapConfig<K, V> config,
             final ChronicleMapBuilder builder) {
@@ -52,6 +57,7 @@ public class PersistentChronicleMapFactory<K, V> implements IPersistentMapFactor
                 throw new RuntimeException(e);
             }
         } else {
+            //off-heap
             return mapBuilder.create();
         }
     }

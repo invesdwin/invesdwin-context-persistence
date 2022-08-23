@@ -35,6 +35,11 @@ public class PersistentKratiMapFactory<K, V> implements IPersistentMapFactory<K,
         return new KratiMap<>(dataStore, config.newKeySerde(), config.newValueSerde());
     }
 
+    @Override
+    public boolean isDiskPersistenceSupported() {
+        return true;
+    }
+
     /**
      * https://github.com/jingwei/krati/blob/master/krati-main/src/examples/java/krati/examples/LargeStore.java
      */

@@ -53,6 +53,11 @@ public class PersistentEzdbMapFactory<K, V> implements IPersistentMapFactory<K, 
     }
 
     @Override
+    public boolean isDiskPersistenceSupported() {
+        return true;
+    }
+
+    @Override
     public void removeAll(final ConcurrentMap<K, V> table, final IKeyMatcher<K> matcher) {
         final TableConcurrentMap<K, V> cTable = (TableConcurrentMap<K, V>) table;
         final TableIterator<? extends TableRow<K, V>> range = cTable.getTable().range();
