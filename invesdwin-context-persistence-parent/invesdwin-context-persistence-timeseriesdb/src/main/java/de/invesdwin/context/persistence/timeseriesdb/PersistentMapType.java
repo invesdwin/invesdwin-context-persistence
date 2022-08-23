@@ -11,6 +11,9 @@ import de.invesdwin.context.persistence.mapdb.PersistentMapDBFactory;
 
 @Immutable
 public enum PersistentMapType implements IPersistentMapType {
+    /**
+     * This storage will skip the serialization and directly store objects on the heap.
+     */
     ON_HEAP {
         @Override
         public <K, V> IPersistentMapFactory<K, V> newFactory() {
