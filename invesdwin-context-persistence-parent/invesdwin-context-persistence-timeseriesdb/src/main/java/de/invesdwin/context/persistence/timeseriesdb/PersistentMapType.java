@@ -86,7 +86,8 @@ public enum PersistentMapType implements IPersistentMapType {
 
         @Override
         public boolean isRemoveFullySupported() {
-            return true;
+            //the mapped memory value storage does not support removals, items are only removed from the index
+            return false;
         }
     },
     DISK_LARGE_SAFE {
@@ -97,18 +98,20 @@ public enum PersistentMapType implements IPersistentMapType {
 
         @Override
         public boolean isRemoveFullySupported() {
-            return true;
+            //the mapped memory value storage does not support removals, items are only removed from the index
+            return false;
         }
     },
     DISK_LARGE_MEDIUM {
         @Override
         public <K, V> IPersistentMapFactory<K, V> newFactory() {
-            return new LargePersistentMapFactory<>(DISK_FAST.newFactory());
+            return new LargePersistentMapFactory<>(DISK_MEDIUM.newFactory());
         }
 
         @Override
         public boolean isRemoveFullySupported() {
-            return true;
+            //the mapped memory value storage does not support removals, items are only removed from the index
+            return false;
         }
     };
 
