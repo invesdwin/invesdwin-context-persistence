@@ -64,8 +64,8 @@ public class LevelDBJavaRangeTableDb implements IRangeTableDb {
     }
 
     protected boolean isVerifyChecksums() {
-        //improves performance a bit
-        return false;
+        //improves performance a bit but we rather verify them
+        return true;
     }
 
     protected CompressionType newCompressionType() {

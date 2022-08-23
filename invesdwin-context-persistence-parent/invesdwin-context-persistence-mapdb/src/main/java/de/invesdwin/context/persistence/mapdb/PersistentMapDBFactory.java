@@ -59,7 +59,7 @@ public class PersistentMapDBFactory<K, V> implements IPersistentMapFactory<K, V>
 
     protected HashMapMaker<K, V> configureHashMap(final IPersistentMapConfig<K, V> config,
             final HashMapMaker<K, V> maker) {
-        return maker.counterEnable();
+        return maker.counterEnable().expireCompactThreshold(0.4D);
     }
 
     @Override
