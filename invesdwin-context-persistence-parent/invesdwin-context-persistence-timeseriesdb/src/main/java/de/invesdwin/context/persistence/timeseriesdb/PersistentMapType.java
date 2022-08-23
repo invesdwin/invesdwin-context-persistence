@@ -78,6 +78,7 @@ public enum PersistentMapType implements IPersistentMapType {
 
         @Override
         public boolean isRemoveFullySupported() {
+            //though MapDB might get fragmented after a while which causes a large compaction
             return true;
         }
     },
