@@ -10,10 +10,10 @@ import javax.annotation.concurrent.ThreadSafe;
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.compression.lz4.LZ4Streams;
+import de.invesdwin.context.integration.persistentmap.CorruptedStorageException;
 import de.invesdwin.context.integration.retry.Retry;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.error.Err;
-import de.invesdwin.context.persistence.timeseriesdb.storage.CorruptedTimeSeriesStorageException;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
@@ -96,7 +96,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         try {
             return newStorage(directory, valueFixedLength, compressionFactory);
         } catch (final Throwable t) {
-            if (Throwables.isCausedByType(t, CorruptedTimeSeriesStorageException.class)) {
+            if (Throwables.isCausedByType(t, CorruptedStorageException.class)) {
                 Err.process(new RuntimeException("Resetting " + ATimeSeriesDB.class.getSimpleName() + " ["
                         + getDirectory() + "] because the storage has been corrupted"));
                 deleteCorruptedStorage(directory);

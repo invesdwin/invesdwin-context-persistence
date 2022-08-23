@@ -5,9 +5,9 @@ import java.io.File;
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
+import de.invesdwin.context.integration.persistentmap.CorruptedStorageException;
 import de.invesdwin.context.persistence.ezdb.RangeTablePersistenceMode;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
-import de.invesdwin.context.persistence.timeseriesdb.storage.CorruptedTimeSeriesStorageException;
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.util.time.date.FDate;
@@ -34,7 +34,7 @@ public class SegmentedTimeSeriesStorage extends TimeSeriesStorage {
 
             @Override
             protected void onDeleteTableFinished() {
-                throw new CorruptedTimeSeriesStorageException(getName());
+                throw new CorruptedStorageException(getName());
             }
 
             @Override

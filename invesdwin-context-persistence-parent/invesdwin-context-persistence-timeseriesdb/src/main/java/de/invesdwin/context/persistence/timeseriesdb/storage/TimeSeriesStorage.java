@@ -8,6 +8,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.compression.lz4.FastLZ4CompressionFactory;
 import de.invesdwin.context.integration.persistentmap.APersistentMap;
+import de.invesdwin.context.integration.persistentmap.CorruptedStorageException;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
 import de.invesdwin.context.persistence.ezdb.RangeTablePersistenceMode;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
@@ -49,7 +50,7 @@ public class TimeSeriesStorage {
 
             @Override
             protected void onDeleteTableFinished() {
-                throw new CorruptedTimeSeriesStorageException(getName());
+                throw new CorruptedStorageException(getName());
             }
 
             @Override
