@@ -18,8 +18,7 @@ public final class HashRangeKeySerde implements ISerde<HashRangeKey> {
 
     private static final int HASHKEY_INDEX = RANGEKEY_INDEX + RANGEKEY_SIZE;
 
-    private HashRangeKeySerde() {
-    }
+    private HashRangeKeySerde() {}
 
     @Override
     public HashRangeKey fromBytes(final byte[] bytes) {
@@ -32,9 +31,9 @@ public final class HashRangeKeySerde implements ISerde<HashRangeKey> {
     }
 
     @Override
-    public HashRangeKey fromBuffer(final IByteBuffer buffer, final int length) {
+    public HashRangeKey fromBuffer(final IByteBuffer buffer) {
         final FDate rangeKey = FDateSerde.getFDate(buffer, RANGEKEY_INDEX);
-        final String hashKey = buffer.getStringUtf8(HASHKEY_INDEX, length - HASHKEY_INDEX);
+        final String hashKey = buffer.getStringUtf8(HASHKEY_INDEX, buffer.capacity() - HASHKEY_INDEX);
         return new HashRangeKey(hashKey, rangeKey);
     }
 

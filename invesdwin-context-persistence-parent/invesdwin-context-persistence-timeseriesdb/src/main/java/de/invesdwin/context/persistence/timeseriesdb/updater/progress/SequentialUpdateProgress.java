@@ -143,7 +143,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
                 }
 
                 @Override
-                public V fromBuffer(final IByteBuffer buffer, final int length) {
+                public V fromBuffer(final IByteBuffer buffer) {
                     throw new UnsupportedOperationException();
                 }
 

@@ -41,7 +41,7 @@ public class ChronicleMarshaller<T> implements BytesReader<T>, BytesWriter<T> {
         if (length == 0) {
             return null;
         }
-        final T value = serde.fromBuffer(buffer.newSlice(positionBefore + VALUE_INDEX, length), length);
+        final T value = serde.fromBuffer(buffer.newSlice(positionBefore + VALUE_INDEX, length));
         return value;
     }
 

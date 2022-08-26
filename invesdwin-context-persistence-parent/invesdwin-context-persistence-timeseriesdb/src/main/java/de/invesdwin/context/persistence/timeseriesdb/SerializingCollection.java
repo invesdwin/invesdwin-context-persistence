@@ -373,7 +373,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                 if (size == 0) {
                     throw new IllegalStateException("empty encoded entries should have been filtered by add()");
                 }
-                final E next = serde.fromBuffer(finalizer.readBuffer.slice(0, size), size);
+                final E next = serde.fromBuffer(finalizer.readBuffer.sliceTo(size));
                 return next;
             } catch (final IOException e) {
                 throw new RuntimeException(e);
@@ -480,7 +480,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                 finalizer.close();
                 return null;
             }
-            final E next = serde.fromBuffer(finalizer.readBuffer, fixedLength);
+            final E next = serde.fromBuffer(finalizer.readBuffer.sliceTo(fixedLength));
             return next;
         }
 

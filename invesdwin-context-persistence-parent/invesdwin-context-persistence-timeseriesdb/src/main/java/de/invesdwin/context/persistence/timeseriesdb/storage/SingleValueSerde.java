@@ -11,8 +11,7 @@ public final class SingleValueSerde implements ISerde<SingleValue> {
 
     public static final SingleValueSerde GET = new SingleValueSerde();
 
-    private SingleValueSerde() {
-    }
+    private SingleValueSerde() {}
 
     @Override
     public SingleValue fromBytes(final byte[] bytes) {
@@ -31,11 +30,11 @@ public final class SingleValueSerde implements ISerde<SingleValue> {
     }
 
     @Override
-    public SingleValue fromBuffer(final IByteBuffer buffer, final int length) {
-        if (length == 0) {
+    public SingleValue fromBuffer(final IByteBuffer buffer) {
+        if (buffer.capacity() == 0) {
             return null;
         }
-        final byte[] bytes = buffer.asByteArrayCopyTo(length);
+        final byte[] bytes = buffer.asByteArrayCopy();
         return fromBytes(bytes);
     }
 

@@ -147,7 +147,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                 }
 
                 @Override
-                public V fromBuffer(final IByteBuffer buffer, final int length) {
+                public V fromBuffer(final IByteBuffer buffer) {
                     throw new UnsupportedOperationException();
                 }
 

@@ -21,8 +21,7 @@ public final class RangeShiftUnitsKeySerde implements ISerde<RangeShiftUnitsKey>
 
     public static final int FIXED_LENGTH = SHIFTUNITS_INDEX + SHIFTUNITS_SIZE;
 
-    private RangeShiftUnitsKeySerde() {
-    }
+    private RangeShiftUnitsKeySerde() {}
 
     @Override
     public RangeShiftUnitsKey fromBytes(final byte[] bytes) {
@@ -35,7 +34,7 @@ public final class RangeShiftUnitsKeySerde implements ISerde<RangeShiftUnitsKey>
     }
 
     @Override
-    public RangeShiftUnitsKey fromBuffer(final IByteBuffer buffer, final int length) {
+    public RangeShiftUnitsKey fromBuffer(final IByteBuffer buffer) {
         final FDate rangeKey = FDateSerde.getFDate(buffer, TIME_INDEX);
         final int shiftUnits = buffer.getInt(SHIFTUNITS_INDEX);
         return new RangeShiftUnitsKey(rangeKey, shiftUnits);

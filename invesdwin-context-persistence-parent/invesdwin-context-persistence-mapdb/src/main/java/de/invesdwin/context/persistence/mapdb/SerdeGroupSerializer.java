@@ -47,19 +47,19 @@ public final class SerdeGroupSerializer<T> extends GroupSerializerObjectArray<T>
             final int positionBefore = input.getPos();
             final IByteBuffer buffer = ByteBuffers.wrap(internalByteArray, positionBefore, valueLength);
             input.setPos(positionBefore + valueLength);
-            return serde.fromBuffer(buffer, valueLength);
+            return serde.fromBuffer(buffer);
         }
         final java.nio.ByteBuffer internalByteBuffer = input.internalByteBuffer();
         if (internalByteBuffer != null) {
             final int positionBefore = input.getPos();
             final IByteBuffer buffer = ByteBuffers.wrap(internalByteBuffer, positionBefore, valueLength);
             input.setPos(positionBefore + valueLength);
-            return serde.fromBuffer(buffer, valueLength);
+            return serde.fromBuffer(buffer);
         }
         final IByteBuffer buffer = ByteBuffers.EXPANDABLE_POOL.borrowObject();
         try {
             buffer.putBytesTo(0, input, valueLength);
-            return serde.fromBuffer(buffer, valueLength);
+            return serde.fromBuffer(buffer.sliceTo(valueLength));
         } finally {
             ByteBuffers.EXPANDABLE_POOL.returnObject(buffer);
         }

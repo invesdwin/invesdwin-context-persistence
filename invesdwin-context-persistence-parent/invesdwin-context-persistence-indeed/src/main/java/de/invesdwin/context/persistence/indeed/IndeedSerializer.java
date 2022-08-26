@@ -39,7 +39,7 @@ public final class IndeedSerializer<E> implements Serializer<E> {
         final IByteBuffer buffer = ByteBuffers.EXPANDABLE_POOL.borrowObject();
         try {
             buffer.putBytesTo(0, in, length);
-            return serde.fromBuffer(buffer, length);
+            return serde.fromBuffer(buffer.sliceTo(length));
         } finally {
             ByteBuffers.EXPANDABLE_POOL.returnObject(buffer);
         }

@@ -60,7 +60,7 @@ public final class MemoryFileSummarySerde implements ISerde<MemoryFileSummary> {
     }
 
     @Override
-    public MemoryFileSummary fromBuffer(final IByteBuffer buffer, final int length) {
+    public MemoryFileSummary fromBuffer(final IByteBuffer buffer) {
         final int valueCount = buffer.getInt(VALUECOUNT_INDEX);
         final int memoryResourceUriSize = buffer.getInt(MEMORYRESOURCEURISIZE_INDEX);
         final long memoryOffset = buffer.getLong(MEMORYOFFSET_INDEX);

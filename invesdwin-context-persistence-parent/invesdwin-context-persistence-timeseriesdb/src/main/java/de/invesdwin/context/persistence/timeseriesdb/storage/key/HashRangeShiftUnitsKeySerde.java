@@ -21,8 +21,7 @@ public final class HashRangeShiftUnitsKeySerde implements ISerde<HashRangeShiftU
 
     private static final int HASHKEY_INDEX = SHIFTUNITS_INDEX + SHIFTUNITS_SIZE;
 
-    private HashRangeShiftUnitsKeySerde() {
-    }
+    private HashRangeShiftUnitsKeySerde() {}
 
     @Override
     public HashRangeShiftUnitsKey fromBytes(final byte[] bytes) {
@@ -35,10 +34,10 @@ public final class HashRangeShiftUnitsKeySerde implements ISerde<HashRangeShiftU
     }
 
     @Override
-    public HashRangeShiftUnitsKey fromBuffer(final IByteBuffer buffer, final int length) {
+    public HashRangeShiftUnitsKey fromBuffer(final IByteBuffer buffer) {
         final FDate rangeKey = FDateSerde.getFDate(buffer, RANGEKEY_INDEX);
         final int shiftUnits = buffer.getInt(SHIFTUNITS_INDEX);
-        final String hashKey = buffer.getStringUtf8(HASHKEY_INDEX, length - HASHKEY_INDEX);
+        final String hashKey = buffer.getStringUtf8(HASHKEY_INDEX, buffer.capacity() - HASHKEY_INDEX);
         return new HashRangeShiftUnitsKey(hashKey, rangeKey, shiftUnits);
     }
 
