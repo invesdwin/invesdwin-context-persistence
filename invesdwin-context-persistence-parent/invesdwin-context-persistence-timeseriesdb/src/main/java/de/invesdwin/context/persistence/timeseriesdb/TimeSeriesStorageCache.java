@@ -152,12 +152,12 @@ public class TimeSeriesStorageCache<K, V> {
             throw new IllegalStateException(
                     "memoryFileSize[" + memoryFileSize + "] != expectedMemoryFileSize[" + expectedMemoryFileSize + "]");
         }
-        final long prevMemoryFileSize = getMemoryFileMetadata().getMemoryFileSize();
+        final long prevMemoryFileSize = getMemoryFileMetadata().getExpectedMemoryFileSize();
         if (prevMemoryFileSize > expectedMemoryFileSize) {
             throw new IllegalStateException("memoryFileFize[" + memoryFileSize
                     + "] not be less than prevMemoryFileSize[" + prevMemoryFileSize + "]");
         }
-        getMemoryFileMetadata().setMemoryFileSize(expectedMemoryFileSize);
+        getMemoryFileMetadata().setExpectedMemoryFileSize(expectedMemoryFileSize);
         clearCaches();
     }
 
@@ -685,8 +685,8 @@ public class TimeSeriesStorageCache<K, V> {
         }
         final MemoryFileMetadata metadata = getMemoryFileMetadata();
         final long memoryFileSize = getMemoryFile().length();
-        final long expectedMemoryFileSize = metadata.getMemoryFileSize();
-        if (expectedMemoryFileSize != MemoryFileMetadata.MISSING_MEMORY_FILE_SIZE) {
+        final long expectedMemoryFileSize = metadata.getExpectedMemoryFileSize();
+        if (expectedMemoryFileSize != MemoryFileMetadata.MISSING_EXPECTED_MEMORY_FILE_SIZE) {
             if (memoryFileSize != expectedMemoryFileSize) {
                 log.warn(
                         "Table data for [%s] is inconsistent and needs to be reset. MemoryFileSize[%s] != ExpectedMemoryFileSize[%s]",
