@@ -103,6 +103,8 @@ public class TimeSeriesStorageCache<K, V> {
      */
     private volatile ArrayListCloseableIterable<RangeTableRow<String, FDate, MemoryFileSummary>> cachedAllRangeKeys;
     private final Log log = new Log(this);
+    @GuardedBy("this")
+    private MemoryFileMetadata metadata;
 
     public TimeSeriesStorageCache(final TimeSeriesStorage storage, final String hashKey, final ISerde<V> valueSerde,
             final Integer fixedLength, final Function<V, FDate> extractTime) {
@@ -137,8 +139,11 @@ public class TimeSeriesStorageCache<K, V> {
         return new File(getDataDirectory(), "memory.data");
     }
 
-    public MemoryFileMetadata getMemoryFileMetadata() {
-        return new MemoryFileMetadata(new File(getDataDirectory(), "memory.properties"));
+    public synchronized MemoryFileMetadata getMemoryFileMetadata() {
+        if (metadata == null) {
+            metadata = new MemoryFileMetadata(new File(getDataDirectory(), "memory.properties"));
+        }
+        return metadata;
     }
 
     public void finishFile(final FDate time, final V firstValue, final V lastValue, final int valueCount,
@@ -556,6 +561,7 @@ public class TimeSeriesStorageCache<K, V> {
         storage.deleteRange_previousValueLookupTable(hashKey);
         clearCaches();
         Files.deleteNative(newDataDirectory());
+        metadata = null;
         dataDirectory = null;
     }
 
