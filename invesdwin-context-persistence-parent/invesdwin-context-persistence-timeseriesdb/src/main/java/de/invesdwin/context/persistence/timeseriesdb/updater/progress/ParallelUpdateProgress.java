@@ -119,7 +119,8 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
             parent.getLookupTable()
                     .finishFile(minTime, firstElement, lastElement, valueCount, memoryFilePath, memoryOffset,
                             tempFileLength);
-            Files.deleteQuietly(tempFile);
+            //don't delete segment because we have to wait for memoryFileOut.channel.force to be called so that the sync happens
+            //            Files.deleteQuietly(tempFile);
             parent.onFlush(flushIndex, this);
         } catch (final IOException e) {
             throw new RuntimeException(e);
@@ -246,7 +247,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                 }
             }
         }
-        //clean up temp files
+        //clean up temp files (now that memory file out channel has been synced with filesystem)
         Files.deleteQuietly(tempDir);
     }
 
@@ -273,6 +274,12 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
             } catch (final NoSuchElementException e) {
                 //end reached
             }
+
+            /*
+             * force sync on filesystem:
+             * https://stackoverflow.com/questions/52481281/does-java-nio-file-files-copy-call-sync-on-the-file-system
+             */
+            memoryFileOut.getChannel().force(true);
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
