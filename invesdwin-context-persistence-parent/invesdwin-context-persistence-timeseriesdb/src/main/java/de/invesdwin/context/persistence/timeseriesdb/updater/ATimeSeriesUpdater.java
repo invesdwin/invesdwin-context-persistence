@@ -195,7 +195,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     protected boolean shouldWriteInParallel() {
         //LZ4HC should be compressed in parallel
         //TODO: there must still be a race condition with parallel writes that stops after the first chunk of 10k values
-        return true;
+        return false;
     }
 
     protected boolean shouldRedoLastFile() {
