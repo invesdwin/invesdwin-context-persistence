@@ -24,6 +24,7 @@ import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.FileBufferCache;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.IFileBufferCacheResult;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
+import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileMetadata;
 import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
@@ -136,17 +137,27 @@ public class TimeSeriesStorageCache<K, V> {
         return new File(getDataDirectory(), "memory.data");
     }
 
+    public MemoryFileMetadata getMemoryFileMetadata() {
+        return new MemoryFileMetadata(new File(getDataDirectory(), "memory.properties"));
+    }
+
     public void finishFile(final FDate time, final V firstValue, final V lastValue, final int valueCount,
             final String memoryResourceUri, final long memoryOffset, final long memoryLength) {
         storage.getFileLookupTable()
                 .put(hashKey, time, new MemoryFileSummary(valueSerde, firstValue, lastValue, valueCount,
                         memoryResourceUri, memoryOffset, memoryLength));
         final long memoryFileSize = getMemoryFile().length();
-        final long expectedMemoryFileSIze = memoryOffset + memoryLength;
-        if (memoryFileSize != expectedMemoryFileSIze) {
+        final long expectedMemoryFileSize = memoryOffset + memoryLength;
+        if (memoryFileSize != expectedMemoryFileSize) {
             throw new IllegalStateException(
-                    "memoryFileSize[" + memoryFileSize + "] != expectedMemoryFileSize[" + expectedMemoryFileSIze + "]");
+                    "memoryFileSize[" + memoryFileSize + "] != expectedMemoryFileSize[" + expectedMemoryFileSize + "]");
         }
+        final long prevMemoryFileSize = getMemoryFileMetadata().getMemoryFileSize();
+        if (prevMemoryFileSize > expectedMemoryFileSize) {
+            throw new IllegalStateException("memoryFileFize[" + memoryFileSize
+                    + "] not be less than prevMemoryFileSize[" + prevMemoryFileSize + "]");
+        }
+        getMemoryFileMetadata().setMemoryFileSize(expectedMemoryFileSize);
         clearCaches();
     }
 
@@ -672,6 +683,18 @@ public class TimeSeriesStorageCache<K, V> {
                 throw Throwables.propagate(t);
             }
         }
+        final MemoryFileMetadata metadata = getMemoryFileMetadata();
+        final long memoryFileSize = getMemoryFile().length();
+        final long expectedMemoryFileSize = metadata.getMemoryFileSize();
+        if (expectedMemoryFileSize != MemoryFileMetadata.MISSING_MEMORY_FILE_SIZE) {
+            if (memoryFileSize != expectedMemoryFileSize) {
+                log.warn(
+                        "Table data for [%s] is inconsistent and needs to be reset. MemoryFileSize[%s] != ExpectedMemoryFileSize[%s]",
+                        hashKey, memoryFileSize, expectedMemoryFileSize);
+                return true;
+            }
+        }
+        long calculatedMemoryFileSize = 0;
         try (ICloseableIterator<MemoryFileSummary> summaries = readRangeFiles(null, null, DisabledLock.INSTANCE, null)
                 .iterator()) {
             boolean noFileFound = true;
@@ -679,15 +702,24 @@ public class TimeSeriesStorageCache<K, V> {
                 final MemoryFileSummary summary = summaries.next();
                 final File memoryFile = new File(summary.getMemoryResourceUri());
                 final long memoryFileLength = memoryFile.length();
-                final long segmentLength = summary.getMemoryOffset() + summary.getMemoryLength();
-                if (segmentLength > memoryFileLength) {
+                calculatedMemoryFileSize = summary.getMemoryOffset() + summary.getMemoryLength();
+                if (calculatedMemoryFileSize > memoryFileLength) {
                     log.warn("Table data for [%s] is inconsistent and needs to be reset. Empty file: [%s]", hashKey,
                             summary);
                     return true;
                 }
                 noFileFound = false;
             }
-            return noFileFound;
+            if (noFileFound) {
+                return true;
+            }
+            if (memoryFileSize != calculatedMemoryFileSize) {
+                log.warn(
+                        "Table data for [%s] is inconsistent and needs to be reset. MemoryFileSize[%s] != CalculatedMemoryFileSize[%s]",
+                        hashKey, memoryFileSize, calculatedMemoryFileSize);
+                return true;
+            }
+            return false;
         }
     }
 
