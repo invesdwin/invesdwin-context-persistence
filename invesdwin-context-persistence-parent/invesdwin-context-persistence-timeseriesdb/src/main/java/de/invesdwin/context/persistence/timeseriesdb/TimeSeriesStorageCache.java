@@ -104,7 +104,7 @@ public class TimeSeriesStorageCache<K, V> {
     private volatile ArrayListCloseableIterable<RangeTableRow<String, FDate, MemoryFileSummary>> cachedAllRangeKeys;
     private final Log log = new Log(this);
     @GuardedBy("this")
-    private MemoryFileMetadata metadata;
+    private MemoryFileMetadata memoryFileMetadata;
 
     public TimeSeriesStorageCache(final TimeSeriesStorage storage, final String hashKey, final ISerde<V> valueSerde,
             final Integer fixedLength, final Function<V, FDate> extractTime) {
@@ -140,29 +140,34 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     public synchronized MemoryFileMetadata getMemoryFileMetadata() {
-        if (metadata == null) {
-            metadata = new MemoryFileMetadata(new File(getDataDirectory(), "memory.properties"));
+        if (memoryFileMetadata == null) {
+            memoryFileMetadata = new MemoryFileMetadata(new File(getDataDirectory(), "memory.properties"));
         }
-        return metadata;
+        return memoryFileMetadata;
     }
 
     public void finishFile(final FDate time, final V firstValue, final V lastValue, final int valueCount,
             final String memoryResourceUri, final long memoryOffset, final long memoryLength) {
-        storage.getFileLookupTable()
-                .put(hashKey, time, new MemoryFileSummary(valueSerde, firstValue, lastValue, valueCount,
-                        memoryResourceUri, memoryOffset, memoryLength));
+        final MemoryFileSummary summary = new MemoryFileSummary(valueSerde, firstValue, lastValue, valueCount,
+                memoryResourceUri, memoryOffset, memoryLength);
+        storage.getFileLookupTable().put(hashKey, time, summary);
         final long memoryFileSize = getMemoryFile().length();
         final long expectedMemoryFileSize = memoryOffset + memoryLength;
         if (memoryFileSize != expectedMemoryFileSize) {
             throw new IllegalStateException(
                     "memoryFileSize[" + memoryFileSize + "] != expectedMemoryFileSize[" + expectedMemoryFileSize + "]");
         }
-        final long prevMemoryFileSize = getMemoryFileMetadata().getExpectedMemoryFileSize();
+        final MemoryFileMetadata metadata = getMemoryFileMetadata();
+        final long prevMemoryFileSize = metadata.getExpectedMemoryFileSize();
         if (prevMemoryFileSize > expectedMemoryFileSize) {
             throw new IllegalStateException("memoryFileFize[" + memoryFileSize
                     + "] not be less than prevMemoryFileSize[" + prevMemoryFileSize + "]");
         }
-        getMemoryFileMetadata().setExpectedMemoryFileSize(expectedMemoryFileSize);
+        metadata.setExpectedMemoryFileSize(expectedMemoryFileSize);
+        final FDate firstValueDate = extractEndTime.apply(firstValue);
+        final FDate lastValueDate = extractEndTime.apply(lastValue);
+        metadata.setSummary(time, firstValueDate, lastValueDate, valueCount, memoryResourceUri, memoryOffset,
+                memoryLength);
         clearCaches();
     }
 
@@ -561,7 +566,7 @@ public class TimeSeriesStorageCache<K, V> {
         storage.deleteRange_previousValueLookupTable(hashKey);
         clearCaches();
         Files.deleteNative(newDataDirectory());
-        metadata = null;
+        memoryFileMetadata = null;
         dataDirectory = null;
     }
 
