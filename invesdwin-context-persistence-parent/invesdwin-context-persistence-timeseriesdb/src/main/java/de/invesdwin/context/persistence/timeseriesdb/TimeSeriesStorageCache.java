@@ -141,7 +141,7 @@ public class TimeSeriesStorageCache<K, V> {
 
     public synchronized MemoryFileMetadata getMemoryFileMetadata() {
         if (memoryFileMetadata == null) {
-            memoryFileMetadata = new MemoryFileMetadata(new File(getDataDirectory(), "memory.properties"));
+            memoryFileMetadata = new MemoryFileMetadata(getDataDirectory());
         }
         return memoryFileMetadata;
     }
