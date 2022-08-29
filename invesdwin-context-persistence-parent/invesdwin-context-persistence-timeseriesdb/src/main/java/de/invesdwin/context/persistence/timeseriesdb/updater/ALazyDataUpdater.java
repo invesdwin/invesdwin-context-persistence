@@ -127,6 +127,9 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     }
 
     protected final FDate doUpdate(final FDate estimatedTo) throws IncompleteUpdateFoundException {
+        if (estimatedTo == null) {
+            throw new NullPointerException("estimatedTo should not be null");
+        }
         try {
             final ALoggingTimeSeriesUpdater<K, V> updater = new ALoggingTimeSeriesUpdater<K, V>(key, getTable(), log) {
 
@@ -174,7 +177,17 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 @Override
                 public FDate call() throws Exception {
                     updater.update();
-                    return updater.getMaxTime();
+                    final FDate maxTime = updater.getMaxTime();
+                    if (updater.getCount() == ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
+                        final Duration timegap = new Duration(maxTime, estimatedTo);
+                        if (timegap.isGreaterThan(Duration.ONE_YEAR)) {
+                            //might be a race condition in parallel writes that aborts after the first 10k elements chunk
+                            throw new IncompleteUpdateFoundException(
+                                    "maxTime[" + maxTime + "] is too far away from estimatedTo[" + estimatedTo + "]: "
+                                            + timegap + " > " + Duration.ONE_YEAR);
+                        }
+                    }
+                    return maxTime;
                 }
             };
             final String taskName = "Loading " + getElementsName() + " for " + keyToString(getKey());
