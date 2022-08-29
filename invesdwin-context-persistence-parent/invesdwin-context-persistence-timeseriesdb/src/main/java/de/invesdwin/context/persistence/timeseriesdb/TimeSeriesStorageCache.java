@@ -679,7 +679,9 @@ public class TimeSeriesStorageCache<K, V> {
         }
     }
 
+    //CHECKSTYLE:OFF
     public boolean isEmptyOrInconsistent() {
+        //CHECKSTYLE:ON
         try {
             getFirstValue();
             getLastValue();
@@ -724,11 +726,13 @@ public class TimeSeriesStorageCache<K, V> {
             if (noFileFound) {
                 return true;
             }
-            if (memoryFileSize != calculatedMemoryFileSize) {
-                log.warn(
-                        "Table data for [%s] is inconsistent and needs to be reset. MemoryFileSize[%s] != CalculatedMemoryFileSize[%s]",
-                        hashKey, memoryFileSize, calculatedMemoryFileSize);
-                return true;
+            if (expectedMemoryFileSize != MemoryFileMetadata.MISSING_EXPECTED_MEMORY_FILE_SIZE) {
+                if (memoryFileSize != calculatedMemoryFileSize) {
+                    log.warn(
+                            "Table data for [%s] is inconsistent and needs to be reset. MemoryFileSize[%s] != CalculatedMemoryFileSize[%s]",
+                            hashKey, memoryFileSize, calculatedMemoryFileSize);
+                    return true;
+                }
             }
             return false;
         }
