@@ -18,7 +18,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.SerializationException;
 import org.apache.commons.lang3.mutable.MutableInt;
-import org.assertj.core.api.Assertions;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.Log;
@@ -148,7 +147,6 @@ public class TimeSeriesStorageCache<K, V> {
             throw new IllegalStateException(
                     "memoryFileSize[" + memoryFileSize + "] != expectedMemoryFileSize[" + expectedMemoryFileSIze + "]");
         }
-        Assertions.assertThat(memoryFileSize).isEqualTo(expectedMemoryFileSIze);
         clearCaches();
     }
 
