@@ -7,10 +7,12 @@ import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.github.benmanes.caffeine.cache.AsyncLoadingCache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.github.benmanes.caffeine.cache.RemovalCause;
@@ -25,6 +27,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
+import de.invesdwin.util.concurrent.future.Futures;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.pool.AgronaObjectPool;
 import de.invesdwin.util.concurrent.pool.IObjectPool;
@@ -38,6 +41,7 @@ import de.invesdwin.util.time.date.FTimeUnit;
 public final class FileBufferCache {
 
     private static final WrappedExecutorService PRELOAD_EXECUTOR;
+    private static final WrappedExecutorService LOAD_EXECUTOR;
 
     static {
         if (TimeseriesProperties.FILE_BUFFER_CACHE_SEGMENTS_ENABLED
@@ -46,9 +50,11 @@ public final class FileBufferCache {
         } else {
             PRELOAD_EXECUTOR = null;
         }
+        LOAD_EXECUTOR = Executors.newFixedThreadPool(FileBufferCache.class.getSimpleName() + "_LOAD",
+                Executors.getCpuThreadPoolCount());
     }
 
-    private static final LoadingCache<ResultCacheKey, ArrayFileBufferCacheResult> RESULT_CACHE;
+    private static final AsyncLoadingCache<ResultCacheKey, ArrayFileBufferCacheResult> RESULT_CACHE;
     private static final LoadingCache<FileCacheKey, MemoryMappedFile> FILE_CACHE;
 
     private static final IObjectPool<ArrayList> LIST_POOL = new AgronaObjectPool<ArrayList>(
@@ -69,7 +75,8 @@ public final class FileBufferCache {
                         TimeUnit.MILLISECONDS)
                 .softValues()
                 .removalListener(FileBufferCache::resultCache_onRemoval)
-                .<ResultCacheKey, ArrayFileBufferCacheResult> build(FileBufferCache::resultCache_load);
+                .executor(LOAD_EXECUTOR)
+                .<ResultCacheKey, ArrayFileBufferCacheResult> buildAsync(FileBufferCache::resultCache_load);
         FILE_CACHE = Caffeine.newBuilder()
                 .maximumSize(TimeseriesProperties.FILE_BUFFER_CACHE_MAX_MMAP_COUNT)
                 .expireAfterAccess(
@@ -86,8 +93,7 @@ public final class FileBufferCache {
         });
     }
 
-    private FileBufferCache() {
-    }
+    private FileBufferCache() {}
 
     private static void resultCache_onRemoval(final ResultCacheKey key, final ArrayFileBufferCacheResult value,
             final RemovalCause cause) {
@@ -139,11 +145,13 @@ public final class FileBufferCache {
     }
 
     private static void resultCache_remove(final String hashKey) {
-        final Set<Entry<ResultCacheKey, ArrayFileBufferCacheResult>> entries = RESULT_CACHE.asMap().entrySet();
-        final Iterator<Entry<ResultCacheKey, ArrayFileBufferCacheResult>> iterator = entries.iterator();
+        final Set<Entry<ResultCacheKey, CompletableFuture<ArrayFileBufferCacheResult>>> entries = RESULT_CACHE.asMap()
+                .entrySet();
+        final Iterator<Entry<ResultCacheKey, CompletableFuture<ArrayFileBufferCacheResult>>> iterator = entries
+                .iterator();
         try {
             while (true) {
-                final Entry<ResultCacheKey, ArrayFileBufferCacheResult> next = iterator.next();
+                final Entry<ResultCacheKey, CompletableFuture<ArrayFileBufferCacheResult>> next = iterator.next();
                 if (next.getKey().getHashKey().equals(hashKey)) {
                     iterator.remove();
                 }
@@ -177,7 +185,7 @@ public final class FileBufferCache {
                         RESULT_CACHE_CLEAR_LOCK);
                 return getResultNoCache(source);
             } else {
-                final IFileBufferCacheResult value = RESULT_CACHE.get(key);
+                final IFileBufferCacheResult value = Futures.getNoInterrupt(RESULT_CACHE.get(key));
                 return value;
             }
         } else {
@@ -186,11 +194,7 @@ public final class FileBufferCache {
     }
 
     private static <T> IFileBufferCacheResult<T> getResultNoCache(final IFileBufferSource source) {
-        try {
-            return new IterableFileBufferCacheResult(source.getSource());
-        } catch (final IOException e) {
-            throw new RuntimeException(e);
-        }
+        return new IterableFileBufferCacheResult(source.getSource());
     }
 
     public static MemoryMappedFile getFile(final String hashKey, final String memoryFilePath) {
