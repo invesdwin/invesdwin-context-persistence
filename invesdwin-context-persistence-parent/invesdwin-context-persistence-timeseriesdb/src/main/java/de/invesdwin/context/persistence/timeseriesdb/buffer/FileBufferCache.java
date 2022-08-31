@@ -199,6 +199,7 @@ public final class FileBufferCache {
                 }
                 final ArrayFileBufferCacheResult value = valueHolder.get();
                 if (value == null) {
+                    RESULT_CACHE.asMap().remove(key);
                     return getResultNoCache(source);
                 }
                 return value;
