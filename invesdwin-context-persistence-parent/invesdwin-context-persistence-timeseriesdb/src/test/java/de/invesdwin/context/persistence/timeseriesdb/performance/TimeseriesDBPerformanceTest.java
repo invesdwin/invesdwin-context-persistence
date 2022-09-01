@@ -10,8 +10,12 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
+import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
+import de.invesdwin.context.persistence.timeseriesdb.IPersistentMapType;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
+import de.invesdwin.context.persistence.timeseriesdb.PersistentMapType;
+import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
 import de.invesdwin.util.assertions.Assertions;
@@ -33,6 +37,17 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
     @Test
     public void testTimeSeriesDbPerformance() throws IncompleteUpdateFoundException, InterruptedException {
         final ATimeSeriesDB<String, FDate> table = new ATimeSeriesDB<String, FDate>("testTimeSeriesDbPerformance") {
+
+            @Override
+            protected TimeSeriesStorage newStorage(final File directory, final Integer valueFixedLength,
+                    final ICompressionFactory compressionFactory) {
+                return new TimeSeriesStorage(directory, valueFixedLength, compressionFactory) {
+                    @Override
+                    protected IPersistentMapType getMapType() {
+                        return PersistentMapType.DISK_FAST;
+                    }
+                };
+            }
 
             @Override
             protected File getBaseDirectory() {
@@ -81,8 +96,7 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
             }
 
             @Override
-            protected void onUpdateStart() {
-            }
+            protected void onUpdateStart() {}
 
             @Override
             protected FDate extractEndTime(final FDate element) {
