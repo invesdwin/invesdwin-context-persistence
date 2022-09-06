@@ -51,8 +51,7 @@ public final class FileBufferCache {
         } else {
             PRELOAD_EXECUTOR = null;
         }
-        LOAD_EXECUTOR = Executors.newFixedThreadPool(FileBufferCache.class.getSimpleName() + "_LOAD",
-                Executors.getCpuThreadPoolCount());
+        LOAD_EXECUTOR = Executors.newFixedThreadPool(FileBufferCache.class.getSimpleName() + "_LOAD", 1);
     }
 
     private static final AsyncLoadingCache<ResultCacheKey, SoftReference<ArrayFileBufferCacheResult>> RESULT_CACHE;
