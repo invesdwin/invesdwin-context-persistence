@@ -45,6 +45,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
             return historicalSegmentTable.getLatestValue(key, t);
         }
     };
+    @SuppressWarnings("unchecked")
     private final List<Function<FDate, V>> latestValueProviders = Arrays.asList(liveSegmentLatestValueProvider,
             historicalSegmentLatestValueProvider);
     private final int batchFlushInterval;
