@@ -11,15 +11,17 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.commons.lang3.mutable.MutableInt;
 
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal.ILiveSegment;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal.ReadLockedLiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal.SwitchingLiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.util.collections.Arrays;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
+import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
 import de.invesdwin.util.concurrent.reference.MutableReference;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.range.TimeRange;
@@ -29,7 +31,8 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
 
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
     private final K key;
-    private ILiveSegment<K, V> liveSegment;
+    private final IReadWriteLock liveSegmentLock;
+    private volatile ReadLockedLiveSegment<K, V> liveSegment;
     private final Function<FDate, V> liveSegmentLatestValueProvider = new Function<FDate, V>() {
         @Override
         public V apply(final FDate t) {
@@ -52,6 +55,8 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
         this.historicalSegmentTable = historicalSegmentTable;
         this.key = key;
         this.batchFlushInterval = batchFlushInterval;
+        this.liveSegmentLock = Locks
+                .newReentrantReadWriteLock("liveSegmentLock_" + historicalSegmentTable.hashKeyToString(key));
     }
 
     public boolean isEmptyOrInconsistent() {
@@ -253,34 +258,43 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
     }
 
     public void putNextLiveValue(final V nextLiveValue) {
-        final FDate nextLiveKey = historicalSegmentTable.extractEndTime(nextLiveValue);
-        final FDate lastAvailableHistoricalSegmentTo = historicalSegmentTable.getLastAvailableHistoricalSegmentTo(key,
-                nextLiveKey);
-        final TimeRange segment = historicalSegmentTable.getSegmentFinder(key).query().getValue(nextLiveKey);
-        if (lastAvailableHistoricalSegmentTo.isAfterNotNullSafe(segment.getFrom())
-                /*
-                 * allow equals since on first value of the next bar we might get an overlap for once when the last
-                 * available time was updated beforehand
-                 */
-                && !lastAvailableHistoricalSegmentTo.equalsNotNullSafe(segment.getTo())) {
-            throw new IllegalStateException("lastAvailableHistoricalSegmentTo [" + lastAvailableHistoricalSegmentTo
-                    + "] should be before or equal to liveSegmentFrom [" + segment.getFrom() + "]");
-        }
-        if (liveSegment != null && nextLiveKey.isAfter(liveSegment.getSegmentedKey().getSegment().getTo())) {
-            if (!lastAvailableHistoricalSegmentTo
-                    .isBeforeOrEqualTo(liveSegment.getSegmentedKey().getSegment().getTo())) {
+        final ILock liveWriteLock = liveSegmentLock.writeLock();
+        liveWriteLock.lock();
+        try {
+            final FDate nextLiveKey = historicalSegmentTable.extractEndTime(nextLiveValue);
+            final FDate lastAvailableHistoricalSegmentTo = historicalSegmentTable
+                    .getLastAvailableHistoricalSegmentTo(key, nextLiveKey);
+            final TimeRange segment = historicalSegmentTable.getSegmentFinder(key).query().getValue(nextLiveKey);
+            if (lastAvailableHistoricalSegmentTo.isAfterNotNullSafe(segment.getFrom())
+                    /*
+                     * allow equals since on first value of the next bar we might get an overlap for once when the last
+                     * available time was updated beforehand
+                     */
+                    && !lastAvailableHistoricalSegmentTo.equalsNotNullSafe(segment.getTo())) {
                 throw new IllegalStateException("lastAvailableHistoricalSegmentTo [" + lastAvailableHistoricalSegmentTo
-                        + "] should be before or equal to liveSegmentTo [" + segment.getTo() + "]");
+                        + "] should be before or equal to liveSegmentFrom [" + segment.getFrom() + "]");
             }
-            liveSegment.convertLiveSegmentToHistorical();
-            liveSegment.close();
-            liveSegment = null;
+            if (liveSegment != null && nextLiveKey.isAfter(liveSegment.getSegmentedKey().getSegment().getTo())) {
+                if (!lastAvailableHistoricalSegmentTo
+                        .isBeforeOrEqualTo(liveSegment.getSegmentedKey().getSegment().getTo())) {
+                    throw new IllegalStateException(
+                            "lastAvailableHistoricalSegmentTo [" + lastAvailableHistoricalSegmentTo
+                                    + "] should be before or equal to liveSegmentTo [" + segment.getTo() + "]");
+                }
+                liveSegment.convertLiveSegmentToHistorical();
+                liveSegment.close();
+                liveSegment = null;
+            }
+            if (liveSegment == null) {
+                final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
+                liveSegment = new ReadLockedLiveSegment<K, V>(
+                        new SwitchingLiveSegment<K, V>(segmentedKey, historicalSegmentTable, batchFlushInterval),
+                        liveSegmentLock.readLock());
+            }
+            liveSegment.putNextLiveValue(nextLiveKey, nextLiveValue);
+        } finally {
+            liveWriteLock.unlock();
         }
-        if (liveSegment == null) {
-            final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
-            liveSegment = new SwitchingLiveSegment<K, V>(segmentedKey, historicalSegmentTable, batchFlushInterval);
-        }
-        liveSegment.putNextLiveValue(nextLiveKey, nextLiveValue);
     }
 
     @Override

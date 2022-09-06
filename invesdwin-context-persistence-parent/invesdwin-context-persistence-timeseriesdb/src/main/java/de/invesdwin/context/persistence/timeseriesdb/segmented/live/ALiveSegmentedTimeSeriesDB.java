@@ -230,8 +230,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         return null;
     }
 
-    protected void onSegmentCompleted(final SegmentedKey<K> segmentedKey, final ICloseableIterable<V> segmentValues) {
-    }
+    protected void onSegmentCompleted(final SegmentedKey<K> segmentedKey, final ICloseableIterable<V> segmentValues) {}
 
     protected abstract String getElementsName();
 
@@ -398,12 +397,12 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
     }
 
     public void putNextLiveValue(final K key, final V nextLiveValue) {
-        final Lock writeLock = getTableLock(key).writeLock();
-        writeLock.lock();
+        final Lock readLock = getTableLock(key).readLock();
+        readLock.lock();
         try {
             getLookupTableCache(key).putNextLiveValue(nextLiveValue);
         } finally {
-            writeLock.unlock();
+            readLock.unlock();
         }
     }
 
