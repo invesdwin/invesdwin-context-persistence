@@ -95,7 +95,7 @@ public class ReadLockedLiveSegment<K, V> implements ILiveSegment<K, V> {
     public V getLatestValue(final FDate date) {
         liveReadLock.lock();
         try {
-            return delegate.getLastValue();
+            return delegate.getLatestValue(date);
         } finally {
             liveReadLock.unlock();
         }
