@@ -131,6 +131,9 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         final long initialAddressOffset = prepareForUpdateResult.getAddressOffset();
 
         final ICloseableIterable<? extends V> source = getSource(updateFrom);
+        if (source == null) {
+            throw new NullPointerException("source is null");
+        }
         final ICloseableIterable<? extends V> skippingSource;
         if (updateFrom != null) {
             skippingSource = new ASkippingIterable<V>(source) {
