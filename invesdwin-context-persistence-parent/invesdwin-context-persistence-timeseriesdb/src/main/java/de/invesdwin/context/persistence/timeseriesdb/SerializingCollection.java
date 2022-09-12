@@ -350,8 +350,8 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             } else {
                 try {
                     finalizer.cachedElement = readNext();
-                    return finalizer.cachedElement != null;
-                } catch (final SerializationException e) {
+                    return true;
+                } catch (final SerializationException | NoSuchElementException e) {
                     return false;
                 }
             }
@@ -360,7 +360,8 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         private E readNext() {
             try {
                 if (finalizer.closed) {
-                    return null;
+                    throw FastNoSuchElementException
+                            .getInstance("SerializingCollection.DynamicLengthDeserializingIterator: readNext() closed");
                 }
                 final int size;
                 try {
@@ -368,7 +369,8 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                     finalizer.readBuffer.putBytesTo(0, finalizer.inputStream, size);
                 } catch (final EOFException e) {
                     finalizer.close();
-                    return null;
+                    throw FastNoSuchElementException.getInstance(
+                            "SerializingCollection.DynamicLengthDeserializingIterator: readNext() EOFException", e);
                 }
                 if (size == 0) {
                     throw new IllegalStateException("empty encoded entries should have been filtered by add()");
@@ -390,8 +392,8 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             }
             final E readNext = readNext();
             if (readNext == null) {
-                throw FastNoSuchElementException.getInstance(
-                        "SerializingCollection.DynamicLengthDeserializingIterator: readnext() returned null");
+                throw new NullPointerException(
+                        "SerializingCollection.DynamicLengthDeserializingIterator: readNext() returned null");
             }
             return readNext;
         }
@@ -462,8 +464,8 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             } else {
                 try {
                     finalizer.cachedElement = readNext();
-                    return finalizer.cachedElement != null;
-                } catch (final SerializationException e) {
+                    return true;
+                } catch (final SerializationException | NoSuchElementException e) {
                     return false;
                 }
             }
@@ -471,14 +473,16 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         private E readNext() {
             if (finalizer.cleaned) {
-                return null;
+                throw FastNoSuchElementException
+                        .getInstance("SerializingCollection.FixedLengthDeserializingIterator: readNext() cleaned");
             }
             try {
                 finalizer.readBuffer.putBytesTo(0, finalizer.inputStream, fixedLength);
             } catch (final IOException e) {
                 //LZ4 can throw ArrayIndexOutOfBounds
                 finalizer.close();
-                return null;
+                throw FastNoSuchElementException.getInstance(
+                        "SerializingCollection.FixedLengthDeserializingIterator: readNext() IOException", e);
             }
             final E next = serde.fromBuffer(finalizer.readBuffer.sliceTo(fixedLength));
             return next;
@@ -494,8 +498,8 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             }
             final E readNext = readNext();
             if (readNext == null) {
-                throw FastNoSuchElementException.getInstance(
-                        "SerializingCollection.FixedLengthDeserializingIterator: readnext() returned null");
+                throw new NullPointerException(
+                        "SerializingCollection.FixedLengthDeserializingIterator: readNext() returned null");
             }
             return readNext;
         }
