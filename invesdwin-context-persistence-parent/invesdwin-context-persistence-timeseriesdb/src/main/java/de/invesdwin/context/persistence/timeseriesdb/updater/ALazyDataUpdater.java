@@ -178,14 +178,11 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 public FDate call() throws Exception {
                     updater.update();
                     final FDate maxTime = updater.getMaxTime();
-                    if (updater.getCount() == ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
-                        final Duration timegap = new Duration(maxTime, estimatedTo);
-                        if (timegap.isGreaterThan(Duration.ONE_YEAR)) {
-                            //might be a race condition in parallel writes that aborts after the first 10k elements chunk
-                            throw new IncompleteUpdateFoundException(
-                                    "maxTime[" + maxTime + "] is too far away from estimatedTo[" + estimatedTo + "]: "
-                                            + timegap + " > " + Duration.ONE_YEAR);
-                        }
+                    final Duration timegap = new Duration(maxTime, estimatedTo);
+                    if (timegap.isGreaterThan(Duration.ONE_YEAR)) {
+                        //might be a race condition in parallel writes that aborts after the first 10k elements chunk
+                        throw new IllegalStateException("maxTime[" + maxTime + "] is too far away from estimatedTo["
+                                + estimatedTo + "]: " + timegap + " > " + Duration.ONE_YEAR);
                     }
                     return maxTime;
                 }
