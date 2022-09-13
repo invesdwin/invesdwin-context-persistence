@@ -181,8 +181,10 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                     final Duration timegap = new Duration(maxTime, estimatedTo);
                     if (timegap.isGreaterThan(Duration.ONE_YEAR)) {
                         //might be a race condition in parallel writes that aborts after the first 10k elements chunk
-                        throw new IllegalStateException("maxTime[" + maxTime + "] is too far away from estimatedTo["
-                                + estimatedTo + "]: " + timegap + " > " + Duration.ONE_YEAR);
+                        log.error(
+                                getTable().hashKeyToString(getKey()) + ": Potential problem with data updates: maxTime["
+                                        + maxTime + "] is too far away from estimatedTo[" + estimatedTo + "]: "
+                                        + timegap + " > " + Duration.ONE_YEAR);
                     }
                     return maxTime;
                 }
