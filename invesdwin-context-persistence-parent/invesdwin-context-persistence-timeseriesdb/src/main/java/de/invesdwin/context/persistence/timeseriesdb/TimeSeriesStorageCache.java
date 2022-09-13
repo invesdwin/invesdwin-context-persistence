@@ -38,7 +38,9 @@ import de.invesdwin.util.collections.iterable.FlatteningIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.PeekingCloseableIterator;
-import de.invesdwin.util.collections.iterable.collection.ArrayListCloseableIterable;
+import de.invesdwin.util.collections.iterable.collection.arraylist.ArrayListCloseableIterable;
+import de.invesdwin.util.collections.iterable.collection.arraylist.IArrayListCloseableIterable;
+import de.invesdwin.util.collections.iterable.collection.arraylist.SynchronizedArrayListCloseableIterable;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterator;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
@@ -101,7 +103,7 @@ public class TimeSeriesStorageCache<K, V> {
      * through to disk is still better for increased parallelity and for not having to iterate through each element of
      * the other hashkeys.
      */
-    private volatile ArrayListCloseableIterable<RangeTableRow<String, FDate, MemoryFileSummary>> cachedAllRangeKeys;
+    private volatile IArrayListCloseableIterable<RangeTableRow<String, FDate, MemoryFileSummary>> cachedAllRangeKeys;
     private final Log log = new Log(this);
     @GuardedBy("this")
     private MemoryFileMetadata memoryFileMetadata;
@@ -799,7 +801,7 @@ public class TimeSeriesStorageCache<K, V> {
         }
     }
 
-    private ArrayListCloseableIterable<RangeTableRow<String, FDate, MemoryFileSummary>> getAllRangeKeys(
+    private IArrayListCloseableIterable<RangeTableRow<String, FDate, MemoryFileSummary>> getAllRangeKeys(
             final Lock readLock) {
         readLock.lock();
         try {
@@ -809,8 +811,9 @@ public class TimeSeriesStorageCache<K, V> {
                         .range(hashKey, FDate.MIN_DATE, FDate.MAX_DATE)) {
                     final ArrayList<RangeTableRow<String, FDate, MemoryFileSummary>> allRangeKeys = new ArrayList<>();
                     Lists.toListWithoutHasNext(range, allRangeKeys);
-                    cachedAllRangeKeys = new ArrayListCloseableIterable<RangeTableRow<String, FDate, MemoryFileSummary>>(
-                            allRangeKeys);
+                    cachedAllRangeKeys = new SynchronizedArrayListCloseableIterable<>(
+                            new ArrayListCloseableIterable<RangeTableRow<String, FDate, MemoryFileSummary>>(
+                                    allRangeKeys));
                 }
             }
             return cachedAllRangeKeys;
