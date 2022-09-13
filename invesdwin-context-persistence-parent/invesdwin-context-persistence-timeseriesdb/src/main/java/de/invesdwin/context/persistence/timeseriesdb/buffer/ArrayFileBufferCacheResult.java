@@ -10,6 +10,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.collection.arraylist.ArrayListCloseableIterable;
+import de.invesdwin.util.collections.iterable.collection.arraylist.IArrayListCloseableIterable;
 import de.invesdwin.util.collections.iterable.collection.arraylist.SynchronizedArrayListCloseableIterable;
 import de.invesdwin.util.collections.iterable.refcount.RefCountReverseCloseableIterable;
 import de.invesdwin.util.time.date.FDate;
@@ -28,8 +29,8 @@ public class ArrayFileBufferCacheResult<V> extends RefCountReverseCloseableItera
     }
 
     @Override
-    public ArrayListCloseableIterable<V> getDelegate() {
-        return (ArrayListCloseableIterable<V>) super.getDelegate();
+    public IArrayListCloseableIterable<V> getDelegate() {
+        return (IArrayListCloseableIterable<V>) super.getDelegate();
     }
 
     @Override
