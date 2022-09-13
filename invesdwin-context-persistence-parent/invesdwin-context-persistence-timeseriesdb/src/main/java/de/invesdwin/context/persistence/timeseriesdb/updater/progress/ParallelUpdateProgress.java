@@ -246,6 +246,10 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                     flush(parent, initialAddressOffset, parallelConsumer);
                 }
             }
+            if (batchWriterProducer.hasNext()) {
+                throw new IllegalStateException(
+                        "there are still elements to be processed, but the parallel producer did not feed them");
+            }
         }
         //clean up temp files (now that memory file out channel has been synced with filesystem)
         Files.deleteQuietly(tempDir);

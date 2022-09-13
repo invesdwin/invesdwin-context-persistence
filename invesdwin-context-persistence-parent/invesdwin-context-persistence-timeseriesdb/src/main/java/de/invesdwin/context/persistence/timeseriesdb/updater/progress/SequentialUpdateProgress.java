@@ -216,6 +216,10 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
             }
         }) {
             flush(batchWriterProducer);
+            if (batchWriterProducer.hasNext()) {
+                throw new IllegalStateException(
+                        "there are still elements to be processed, but the parallel producer did not feed them");
+            }
         }
     }
 
