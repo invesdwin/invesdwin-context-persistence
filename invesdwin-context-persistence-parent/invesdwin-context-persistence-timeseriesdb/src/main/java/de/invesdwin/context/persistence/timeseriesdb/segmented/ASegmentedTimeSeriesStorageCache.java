@@ -103,7 +103,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         //adjust dates directly to prevent unnecessary segment calculations
         final FDate adjFrom = FDates.max(from, firstAvailableSegmentFrom);
         final FDate adjTo = FDates.min(to, lastAvailableSegmentTo);
-        final ICloseableIterable<TimeRange> segments = getSegments(adjFrom, adjTo, lastAvailableSegmentTo);
+        final ICloseableIterable<TimeRange> segments = getSegments(adjFrom.withoutTime(), adjTo.withoutTime(),
+                lastAvailableSegmentTo);
         final ATransformingIterable<TimeRange, ICloseableIterable<V>> segmentQueries = new ATransformingIterable<TimeRange, ICloseableIterable<V>>(
                 segments) {
             @Override

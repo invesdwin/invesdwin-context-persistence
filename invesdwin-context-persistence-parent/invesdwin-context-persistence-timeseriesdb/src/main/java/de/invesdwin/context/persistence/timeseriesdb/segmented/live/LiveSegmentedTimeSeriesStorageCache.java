@@ -265,7 +265,9 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
             final FDate nextLiveKey = historicalSegmentTable.extractEndTime(nextLiveValue);
             final FDate lastAvailableHistoricalSegmentTo = historicalSegmentTable
                     .getLastAvailableHistoricalSegmentTo(key, nextLiveKey);
-            final TimeRange segment = historicalSegmentTable.getSegmentFinder(key).query().getValue(nextLiveKey);
+            final TimeRange segment = historicalSegmentTable.getSegmentFinder(key)
+                    .query()
+                    .getValue(nextLiveKey.withoutTime());
             if (lastAvailableHistoricalSegmentTo.isAfterNotNullSafe(segment.getFrom())
                     /*
                      * allow equals since on first value of the next bar we might get an overlap for once when the last
