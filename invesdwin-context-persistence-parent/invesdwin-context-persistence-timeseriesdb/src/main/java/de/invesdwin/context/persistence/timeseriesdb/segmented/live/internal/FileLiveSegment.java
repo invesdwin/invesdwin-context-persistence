@@ -8,7 +8,6 @@ import java.io.OutputStream;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.NoSuchElementException;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
 
@@ -73,8 +72,6 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
     }
 
-    static final AtomicInteger decompressions = new AtomicInteger();
-
     private SerializingCollection<V> newSerializingCollection() {
         final File file = getFile();
         Files.deleteQuietly(file);
@@ -103,7 +100,6 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
             @Override
             protected InputStream newDecompressor(final InputStream inputStream) {
-                System.out.println("******************* " + decompressions.incrementAndGet());
                 return compressionFactory.newDecompressor(inputStream);
             }
 
@@ -502,7 +498,6 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
             @Override
             protected InputStream newDecompressor(final InputStream inputStream) {
-                System.out.println("******************* " + decompressions.incrementAndGet());
                 return compressionFactory.newDecompressor(inputStream);
             }
 
