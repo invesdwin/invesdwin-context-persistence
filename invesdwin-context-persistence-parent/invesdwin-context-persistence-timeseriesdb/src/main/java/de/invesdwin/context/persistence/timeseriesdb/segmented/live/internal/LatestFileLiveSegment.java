@@ -21,6 +21,7 @@ import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSer
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
+import de.invesdwin.util.collections.circular.CircularGenericArray;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -30,15 +31,17 @@ import de.invesdwin.util.collections.iterable.buffer.IBufferingIterator;
 import de.invesdwin.util.collections.iterable.skip.ATimeRangeSkippingIterable;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.lang.Files;
+import de.invesdwin.util.lang.Strings;
 import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.streams.pool.PooledFastByteArrayOutputStream;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
-public class TwoLatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
+public class LatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     private static final boolean LARGE_COMPRESSOR = false;
+    private static final int LAST_VALUE_HISTORY = 10;
     private final String hashKey;
     private final SegmentedKey<K> segmentedKey;
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
@@ -48,18 +51,19 @@ public class TwoLatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
     private boolean needsFlush;
     private FDate firstValueKey;
     private final IBufferingIterator<V> firstValue = new BufferingIterator<>();
-    private FDate prevLastValueKey;
-    private final IBufferingIterator<V> prevLastValue = new BufferingIterator<>();
-    private FDate lastValueKey;
-    private final IBufferingIterator<V> lastValue = new BufferingIterator<>();
+    private final CircularGenericArray<LastValue<V>> lastValues = new CircularGenericArray<LastValue<V>>(
+            LAST_VALUE_HISTORY);
     private File file;
 
-    public TwoLatestFileLiveSegment(final SegmentedKey<K> segmentedKey,
+    public LatestFileLiveSegment(final SegmentedKey<K> segmentedKey,
             final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable) {
         this.hashKey = historicalSegmentTable.hashKeyToString(segmentedKey);
         this.segmentedKey = segmentedKey;
         this.historicalSegmentTable = historicalSegmentTable;
         this.compressionFactory = historicalSegmentTable.getStorage().getCompressionFactory();
+        for (int i = 0; i < LAST_VALUE_HISTORY; i++) {
+            lastValues.add(new LastValue<>());
+        }
     }
 
     private SerializingCollection<V> newSerializingCollection() {
@@ -71,7 +75,7 @@ public class TwoLatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
             throw new RuntimeException(e);
         }
         final TextDescription name = new TextDescription("%s[%s]: newSerializingCollection()",
-                TwoLatestFileLiveSegment.class.getSimpleName(), segmentedKey);
+                LatestFileLiveSegment.class.getSimpleName(), segmentedKey);
         return new SerializingCollection<V>(name, file, false) {
             @Override
             protected ISerde<V> newSerde() {
@@ -117,7 +121,7 @@ public class TwoLatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public V getLastValue() {
-        return lastValue.getTail();
+        return lastValues.getReverse(0).values.getTail();
     }
 
     @Override
@@ -125,18 +129,27 @@ public class TwoLatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
         return segmentedKey;
     }
 
+    //CHECKSTYLE:OFF
     @Override
     public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final Lock readLock,
             final ISkipFileFunction skipFileFunction) {
+        //CHECKSTYLE:ON
         //we expect the read lock to be already locked from the outside
         if (values == null || from != null && to != null && from.isAfterNotNullSafe(to)) {
             return EmptyCloseableIterable.getInstance();
         }
-        if (from != null && !lastValue.isEmpty() && from.isAfterOrEqualToNotNullSafe(lastValueKey)) {
-            return rangeValuesFromLastValue(from);
+        final LastValue<V> lastValue = lastValues.getReverse(0);
+        if (from != null && !lastValue.values.isEmpty() && from.isAfterOrEqualToNotNullSafe(lastValue.key)) {
+            return rangeValuesFromLastValue(from, lastValue);
         }
-        if (from != null && !prevLastValue.isEmpty() && from.isAfterOrEqualToNotNullSafe(prevLastValueKey)) {
-            return rangeValuesFromPrevLastValue(from, to);
+        for (int i = 1; i < LAST_VALUE_HISTORY; i++) {
+            final LastValue<V> prevLastValue = lastValues.getReverse(i);
+            if (prevLastValue.values.isEmpty()) {
+                break;
+            }
+            if (from != null && from.isAfterOrEqualToNotNullSafe(prevLastValue.key)) {
+                return rangeValuesFromPrevLastValue(from, to, i);
+            }
         }
         if (to != null && !firstValue.isEmpty() && to.isBeforeOrEqualToNotNullSafe(firstValueKey)) {
             return rangeValuesToFirstValue(to);
@@ -144,23 +157,37 @@ public class TwoLatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
         return new SkippingRangeValues(from, to, getFlushedValues());
     }
 
-    private ICloseableIterable<V> rangeValuesFromLastValue(final FDate from) {
-        if (from.isAfterNotNullSafe(lastValueKey)) {
+    private ICloseableIterable<V> rangeValuesFromLastValue(final FDate from, final LastValue<V> lastValue) {
+        if (from.isAfterNotNullSafe(lastValue.key)) {
             return EmptyCloseableIterable.getInstance();
         } else {
-            return lastValue.snapshot();
+            return lastValue.values.snapshot();
         }
     }
 
-    private ICloseableIterable<V> rangeValuesFromPrevLastValue(final FDate from, final FDate to) {
-        if (from.isAfterNotNullSafe(prevLastValueKey)) {
-            return new SkippingRangeValues(from, to, lastValue.snapshot());
-        } else if (to != null && to.isBeforeNotNullSafe(lastValueKey)) {
-            return new SkippingRangeValues(from, to, prevLastValue.snapshot());
+    @SuppressWarnings("resource")
+    private ICloseableIterable<V> rangeValuesFromPrevLastValue(final FDate from, final FDate to,
+            final int fromLastValue) {
+        final BufferingIterator<ICloseableIterable<V>> iterablesAscending = new BufferingIterator<>();
+        for (int i = fromLastValue; i >= 0; i--) {
+            final LastValue<V> prevLastValue = lastValues.getReverse(i);
+            if (from.isAfterNotNullSafe(prevLastValue.key)) {
+                //we are below the oldest/min time allowed, we can try the next that is further into the future
+                //try some newer values
+                continue;
+            } else if (to != null && to.isBeforeNotNullSafe(prevLastValue.key)) {
+                //we are above the newest/max time allowed, we can stop as we would go further into the future
+                //don't try newer values
+                break;
+            } else {
+                //add these values
+                iterablesAscending.add(prevLastValue.values.snapshot());
+            }
+        }
+        if (iterablesAscending.size() == 1) {
+            return new SkippingRangeValues(from, to, iterablesAscending.getHead());
         } else {
-            final FlatteningIterable<V> flattening = new FlatteningIterable<>(prevLastValue.snapshot(),
-                    lastValue.snapshot());
-            return new SkippingRangeValues(from, to, flattening);
+            return new SkippingRangeValues(from, to, new FlatteningIterable<>(iterablesAscending));
         }
     }
 
@@ -172,9 +199,11 @@ public class TwoLatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
     }
 
+    //CHECKSTYLE:OFF
     @Override
     public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final Lock readLock,
             final ISkipFileFunction skipFileFunction) {
+        //CHECKSTYLE:ON
         //we expect the read lock to be already locked from the outside
         if (values == null || from != null && to != null && from.isBeforeNotNullSafe(to)) {
             return EmptyCloseableIterable.getInstance();
@@ -182,11 +211,18 @@ public class TwoLatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
         if (from != null && !firstValue.isEmpty() && from.isBeforeOrEqualToNotNullSafe(firstValueKey)) {
             return rangeReverseValuesToFirstValue(from);
         }
-        if (to != null && !lastValue.isEmpty() && to.isAfterOrEqualToNotNullSafe(lastValueKey)) {
-            return rangeReverseValuesFromLastValue(to);
+        final LastValue<V> lastValue = lastValues.getReverse(0);
+        if (to != null && !lastValue.values.isEmpty() && to.isAfterOrEqualToNotNullSafe(lastValue.key)) {
+            return rangeReverseValuesFromLastValue(to, lastValue);
         }
-        if (to != null && !prevLastValue.isEmpty() && to.isAfterOrEqualToNotNullSafe(prevLastValueKey)) {
-            return rangeReverseValuesToPrevLastValue(from, to);
+        for (int i = 1; i < LAST_VALUE_HISTORY; i++) {
+            final LastValue<V> prevLastValue = lastValues.getReverse(i);
+            if (prevLastValue.values.isEmpty()) {
+                break;
+            }
+            if (to != null && to.isAfterOrEqualToNotNullSafe(prevLastValue.key)) {
+                return rangeReverseValuesToPrevLastValue(from, to, i);
+            }
         }
         return new SkippingRangeReverseValues(from, to, getFlushedValues().reverseIterable());
     }
@@ -199,31 +235,46 @@ public class TwoLatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
     }
 
-    private ICloseableIterable<V> rangeReverseValuesFromLastValue(final FDate to) {
-        if (to.isAfterNotNullSafe(lastValueKey)) {
+    private ICloseableIterable<V> rangeReverseValuesFromLastValue(final FDate to, final LastValue<V> lastValue) {
+        if (to.isAfterNotNullSafe(lastValue.key)) {
             return EmptyCloseableIterable.getInstance();
         } else {
-            return lastValue.snapshot();
+            return lastValue.values.snapshot();
         }
     }
 
-    private ICloseableIterable<V> rangeReverseValuesToPrevLastValue(final FDate from, final FDate to) {
-        if (to.isAfterNotNullSafe(prevLastValueKey)) {
-            return new SkippingRangeReverseValues(from, to, lastValue.snapshot());
-        } else if (from != null && from.isBeforeNotNullSafe(lastValueKey)) {
-            return new SkippingRangeReverseValues(from, to, prevLastValue.snapshot());
+    @SuppressWarnings("resource")
+    private ICloseableIterable<V> rangeReverseValuesToPrevLastValue(final FDate from, final FDate to,
+            final int toLastValue) {
+        final BufferingIterator<ICloseableIterable<V>> iterablesDescending = new BufferingIterator<>();
+        for (int i = 0; i <= toLastValue; i++) {
+            final LastValue<V> prevLastValue = lastValues.getReverse(i);
+            if (to.isAfterNotNullSafe(prevLastValue.key)) {
+                //we are below the oldest/min time allowed, we can stop as we would go further into the past
+                //don't try older values
+                break;
+            } else if (from != null && from.isBeforeNotNullSafe(prevLastValue.key)) {
+                //we are above the newest/max time allowed, we can try the next that is further into the past
+                //maybe skip newer values
+                continue;
+            } else {
+                //add these values
+                iterablesDescending.add(prevLastValue.values.snapshot());
+            }
+        }
+        if (iterablesDescending.size() == 1) {
+            return new SkippingRangeReverseValues(from, to, iterablesDescending.getHead());
         } else {
-            final FlatteningIterable<V> flattening = new FlatteningIterable<>(lastValue.snapshot(),
-                    prevLastValue.snapshot());
-            return new SkippingRangeReverseValues(from, to, flattening);
+            return new SkippingRangeReverseValues(from, to, new FlatteningIterable<>(iterablesDescending));
         }
     }
 
     @Override
     public void putNextLiveValue(final FDate nextLiveKey, final V nextLiveValue) {
-        if (!lastValue.isEmpty() && lastValueKey.isAfter(nextLiveKey)) {
+        LastValue<V> lastValue = lastValues.getReverse(0);
+        if (!lastValue.values.isEmpty() && lastValue.key.isAfter(nextLiveKey)) {
             throw new IllegalStateException(segmentedKey + ": nextLiveKey [" + nextLiveKey
-                    + "] should be after or equal to lastLiveKey [" + lastValueKey + "]");
+                    + "] should be after or equal to lastLiveKey [" + lastValue.key + "]");
         }
         synchronized (this) {
             if (values == null) {
@@ -236,51 +287,68 @@ public class TwoLatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
             firstValue.add(nextLiveValue);
             firstValueKey = nextLiveKey;
         }
-        if (!lastValue.isEmpty() && !lastValueKey.equalsNotNullSafe(nextLiveKey)) {
-            prevLastValue.clear();
-            prevLastValue.consume(lastValue);
-            prevLastValueKey = lastValueKey;
+        if (!lastValue.values.isEmpty() && !lastValue.key.equalsNotNullSafe(nextLiveKey)) {
+            //roll over to next
+            lastValues.pretendAdd();
+            lastValue = lastValues.getReverse(0);
+            lastValue.values.clear();
         }
-        lastValue.add(nextLiveValue);
-        lastValueKey = nextLiveKey;
+        lastValue.values.add(nextLiveValue);
+        lastValue.key = nextLiveKey;
     }
 
     @Override
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
-        if (!lastValue.isEmpty() && (date == null || date.isAfterOrEqualToNotNullSafe(lastValueKey))) {
+        final LastValue<V> lastValue = lastValues.getReverse(0);
+        if (!lastValue.values.isEmpty() && (date == null || date.isAfterOrEqualToNotNullSafe(lastValue.key))) {
             //we always return the last last value
-            return lastValue.getTail();
+            return lastValue.values.getTail();
         }
-        if (!prevLastValue.isEmpty() && (date == null || date.isAfterOrEqualToNotNullSafe(prevLastValueKey))) {
-            if (shiftForwardUnits == 0 && date.equalsNotNullSafe(prevLastValueKey)) {
-                return prevLastValue.getTail();
-            } else {
-                return getNextValueFromLastValue(date, shiftForwardUnits);
+        if (date != null) {
+            for (int i = 1; i < LAST_VALUE_HISTORY; i++) {
+                final LastValue<V> prevLastValue = lastValues.getReverse(i);
+                if (prevLastValue.values.isEmpty()) {
+                    break;
+                }
+                if (date.isAfterOrEqualToNotNullSafe(prevLastValue.key)) {
+                    if (shiftForwardUnits == 0 && date.equalsNotNullSafe(prevLastValue.key)) {
+                        return prevLastValue.values.getTail();
+                    } else if (date.isAfterNotNullSafe(prevLastValue.key)) {
+                        return getNextValueFromPrevLastValue(date, shiftForwardUnits, i);
+                    }
+                }
             }
-        }
-        if (!firstValue.isEmpty() && (date != null && date.isBeforeNotNullSafe(firstValueKey))) {
-            //we always return the first first value
-            return firstValue.getHead();
+            if (!firstValue.isEmpty() && date.isBeforeNotNullSafe(firstValueKey)) {
+                //we always return the first first value
+                return firstValue.getHead();
+            }
         }
         return getNextValueFromRangeValues(date, shiftForwardUnits);
     }
 
-    private V getNextValueFromLastValue(final FDate date, final int shiftForwardUnits) {
+    private V getNextValueFromPrevLastValue(final FDate date, final int shiftForwardUnits, final int fromLastValue) {
         V nextValue = null;
         int shiftForwardRemaining = shiftForwardUnits;
-        try (ICloseableIterator<V> rangeValues = lastValue.iterator()) {
-            while (shiftForwardRemaining >= 0) {
-                nextValue = rangeValues.next();
-                shiftForwardRemaining--;
+        for (int i = fromLastValue; i >= 0 && shiftForwardRemaining >= 0; i--) {
+            final LastValue<V> lastValue = lastValues.getReverse(i);
+            if (date.isAfter(lastValue.key)) {
+                //try a newer value
+                continue;
             }
-        } catch (final NoSuchElementException e) {
-            //ignore
+            try (ICloseableIterator<V> rangeValues = lastValue.values.iterator()) {
+                while (shiftForwardRemaining >= 0) {
+                    nextValue = rangeValues.next();
+                    shiftForwardRemaining--;
+                }
+            } catch (final NoSuchElementException e) {
+                //ignore
+            }
         }
         if (nextValue != null) {
             return nextValue;
         } else {
-            throw new IllegalStateException(
-                    "should not get to here: date=" + date + " shiftForwardUnits=" + shiftForwardUnits);
+            throw new IllegalStateException("should not get to here: date=" + date + " shiftForwardUnits="
+                    + shiftForwardUnits + " fromLastValue=" + fromLastValue);
         }
     }
 
@@ -298,19 +366,18 @@ public class TwoLatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
         if (nextValue != null) {
             return nextValue;
         } else {
-            return lastValue.getTail();
+            return lastValues.getReverse(0).values.getTail();
         }
     }
 
     @Override
     public V getLatestValue(final FDate date) {
-        if (!lastValue.isEmpty() && (date == null || date.isAfterOrEqualToNotNullSafe(lastValueKey))) {
-            //we always return the last last value
-            return lastValue.getTail();
-        }
-        if (!prevLastValue.isEmpty() && (date == null || date.isAfterOrEqualToNotNullSafe(prevLastValueKey))) {
-            //we always return the last last value
-            return prevLastValue.getTail();
+        for (int i = 0; i < LAST_VALUE_HISTORY; i++) {
+            final LastValue<V> lastValue = lastValues.getReverse(i);
+            if (!lastValue.values.isEmpty() && (date == null || date.isAfterOrEqualToNotNullSafe(lastValue.key))) {
+                //we always return the last last value
+                return lastValue.values.getTail();
+            }
         }
         if (!firstValue.isEmpty() && date != null && date.isBeforeOrEqualToNotNullSafe(firstValueKey)) {
             //we always return the first first value
@@ -346,10 +413,11 @@ public class TwoLatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
         firstValue.clear();
         firstValueKey = null;
-        prevLastValue.clear();
-        prevLastValueKey = null;
-        lastValue.clear();
-        lastValueKey = null;
+        for (int i = 0; i < LAST_VALUE_HISTORY; i++) {
+            final LastValue<V> lastValue = lastValues.get(i);
+            lastValue.key = null;
+            lastValue.values.clear();
+        }
     }
 
     @Override
@@ -381,7 +449,7 @@ public class TwoLatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
         }
         final TextDescription name = new TextDescription("%s[%s]: getFlushedValues()",
-                TwoLatestFileLiveSegment.class.getSimpleName(), segmentedKey);
+                LatestFileLiveSegment.class.getSimpleName(), segmentedKey);
         return new SerializingCollection<V>(name, values.getFile(), true) {
             @Override
             protected ISerde<V> newSerde() {
@@ -428,7 +496,7 @@ public class TwoLatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public FDate getLastValueKey() {
-        return lastValueKey;
+        return lastValues.getReverse(0).key;
     }
 
     private final class SkippingRangeValues extends ATimeRangeSkippingIterable<V> {
@@ -471,6 +539,16 @@ public class TwoLatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
         @Override
         protected String getName() {
             return "FileLiveSegment rangeReverseValues";
+        }
+    }
+
+    private static class LastValue<V> {
+        private FDate key = null;
+        private final IBufferingIterator<V> values = new BufferingIterator<V>();
+
+        @Override
+        public String toString() {
+            return Strings.asString(key);
         }
     }
 

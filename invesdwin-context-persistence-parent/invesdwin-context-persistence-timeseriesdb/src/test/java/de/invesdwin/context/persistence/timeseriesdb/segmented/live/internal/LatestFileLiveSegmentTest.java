@@ -29,7 +29,7 @@ import de.invesdwin.util.time.date.FDateBuilder;
 import de.invesdwin.util.time.range.TimeRange;
 
 @NotThreadSafe
-public class MultipleLatestFileLiveSegmentTest extends ATest {
+public class LatestFileLiveSegmentTest extends ATest {
 
     @Test
     public void testInverseOrder() {
@@ -99,7 +99,7 @@ public class MultipleLatestFileLiveSegmentTest extends ATest {
                 .ofType(HistoricalSegmentTable.class)
                 .in(timeSeriesDB)
                 .get();
-        final MultipleLatestFileLiveSegment<FDate, Integer> rangeTable = new MultipleLatestFileLiveSegment<FDate, Integer>(segmentedKey,
+        final LatestFileLiveSegment<FDate, Integer> rangeTable = new LatestFileLiveSegment<FDate, Integer>(segmentedKey,
                 historicalSegmentTable);
         final FDate now = FDateBuilder.newDate(2000);
         final FDate oneDate = now.addDays(1);
