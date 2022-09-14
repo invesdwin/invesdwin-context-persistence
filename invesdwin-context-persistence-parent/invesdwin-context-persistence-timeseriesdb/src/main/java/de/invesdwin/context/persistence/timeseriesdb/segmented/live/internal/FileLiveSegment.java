@@ -5,7 +5,10 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 import java.util.NoSuchElementException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
 
@@ -17,6 +20,7 @@ import org.apache.commons.io.IOUtils;
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
+import de.invesdwin.context.persistence.timeseriesdb.buffer.ArrayFileBufferCacheResult;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
@@ -26,9 +30,11 @@ import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.iterable.buffer.IBufferingIterator;
 import de.invesdwin.util.collections.iterable.skip.ATimeRangeSkippingIterable;
+import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Strings;
@@ -38,10 +44,10 @@ import de.invesdwin.util.streams.pool.PooledFastByteArrayOutputStream;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
-public class LatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
+public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     private static final boolean LARGE_COMPRESSOR = false;
-    private static final int LAST_VALUE_HISTORY = 10;
+    private static final int LAST_VALUE_HISTORY = 3;
     private final String hashKey;
     private final SegmentedKey<K> segmentedKey;
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
@@ -54,8 +60,9 @@ public class LatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
     private final CircularGenericArray<LastValue<V>> lastValues = new CircularGenericArray<LastValue<V>>(
             LAST_VALUE_HISTORY);
     private File file;
+    private WeakReference<ArrayFileBufferCacheResult<V>> inMemoryCacheHolder;
 
-    public LatestFileLiveSegment(final SegmentedKey<K> segmentedKey,
+    public FileLiveSegment(final SegmentedKey<K> segmentedKey,
             final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable) {
         this.hashKey = historicalSegmentTable.hashKeyToString(segmentedKey);
         this.segmentedKey = segmentedKey;
@@ -66,6 +73,8 @@ public class LatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
     }
 
+    static final AtomicInteger decompressions = new AtomicInteger();
+
     private SerializingCollection<V> newSerializingCollection() {
         final File file = getFile();
         Files.deleteQuietly(file);
@@ -75,7 +84,7 @@ public class LatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
             throw new RuntimeException(e);
         }
         final TextDescription name = new TextDescription("%s[%s]: newSerializingCollection()",
-                LatestFileLiveSegment.class.getSimpleName(), segmentedKey);
+                FileLiveSegment.class.getSimpleName(), segmentedKey);
         return new SerializingCollection<V>(name, file, false) {
             @Override
             protected ISerde<V> newSerde() {
@@ -94,6 +103,7 @@ public class LatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
             @Override
             protected InputStream newDecompressor(final InputStream inputStream) {
+                System.out.println("******************* " + decompressions.incrementAndGet());
                 return compressionFactory.newDecompressor(inputStream);
             }
 
@@ -154,7 +164,8 @@ public class LatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
         if (to != null && !firstValue.isEmpty() && to.isBeforeOrEqualToNotNullSafe(firstValueKey)) {
             return rangeValuesToFirstValue(to);
         }
-        return new SkippingRangeValues(from, to, getFlushedValues());
+        return new SkippingRangeValues(from, to,
+                getFlushedValues().iterable(historicalSegmentTable::extractEndTime, from, to));
     }
 
     private ICloseableIterable<V> rangeValuesFromLastValue(final FDate from, final LastValue<V> lastValue) {
@@ -224,7 +235,8 @@ public class LatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
                 return rangeReverseValuesToPrevLastValue(from, to, i);
             }
         }
-        return new SkippingRangeReverseValues(from, to, getFlushedValues().reverseIterable());
+        return new SkippingRangeReverseValues(from, to,
+                getFlushedValues().reverseIterable(historicalSegmentTable::extractEndTime, from, to));
     }
 
     private ICloseableIterable<V> rangeReverseValuesToFirstValue(final FDate from) {
@@ -295,6 +307,12 @@ public class LatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
         lastValue.values.add(nextLiveValue);
         lastValue.key = nextLiveKey;
+        if (inMemoryCacheHolder != null) {
+            final ArrayFileBufferCacheResult<V> inMemoryCache = inMemoryCacheHolder.get();
+            if (inMemoryCache != null) {
+                inMemoryCache.getList().add(nextLiveValue);
+            }
+        }
     }
 
     @Override
@@ -418,6 +436,7 @@ public class LatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
             lastValue.key = null;
             lastValue.values.clear();
         }
+        inMemoryCacheHolder = null;
     }
 
     @Override
@@ -441,7 +460,22 @@ public class LatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
     }
 
-    private SerializingCollection<V> getFlushedValues() {
+    private ArrayFileBufferCacheResult<V> getFlushedValues() {
+        if (inMemoryCacheHolder != null) {
+            final ArrayFileBufferCacheResult<V> inMemoryCache = inMemoryCacheHolder.get();
+            if (inMemoryCache != null) {
+                return inMemoryCache;
+            } else {
+                inMemoryCacheHolder = null;
+            }
+        }
+        final ArrayList<V> fromFileList = (ArrayList<V>) Lists.toListWithoutHasNext(getFlushedValuesFromFile());
+        final ArrayFileBufferCacheResult<V> inMemoryCache = new ArrayFileBufferCacheResult<V>(fromFileList);
+        inMemoryCacheHolder = new WeakReference<ArrayFileBufferCacheResult<V>>(inMemoryCache);
+        return inMemoryCache;
+    }
+
+    private IReverseCloseableIterable<V> getFlushedValuesFromFile() {
         synchronized (this) {
             if (needsFlush) {
                 values.flush();
@@ -449,7 +483,7 @@ public class LatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
         }
         final TextDescription name = new TextDescription("%s[%s]: getFlushedValues()",
-                LatestFileLiveSegment.class.getSimpleName(), segmentedKey);
+                FileLiveSegment.class.getSimpleName(), segmentedKey);
         return new SerializingCollection<V>(name, values.getFile(), true) {
             @Override
             protected ISerde<V> newSerde() {
@@ -468,6 +502,7 @@ public class LatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
             @Override
             protected InputStream newDecompressor(final InputStream inputStream) {
+                System.out.println("******************* " + decompressions.incrementAndGet());
                 return compressionFactory.newDecompressor(inputStream);
             }
 

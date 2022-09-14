@@ -44,7 +44,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
             final int batchFlushInterval) {
         this.segmentedKey = segmentedKey;
         this.historicalSegmentTable = historicalSegmentTable;
-        this.inProgress = new LatestFileLiveSegment<>(segmentedKey, historicalSegmentTable);
+        this.inProgress = new FileLiveSegment<>(segmentedKey, historicalSegmentTable);
         this.persistent = new PersistentLiveSegment<>(segmentedKey, historicalSegmentTable);
         this.latestValueProviders = Arrays.asList(inProgress, persistent);
         this.batchFlushInterval = batchFlushInterval;

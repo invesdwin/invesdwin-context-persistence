@@ -21,7 +21,6 @@ import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.compression.lz4.LZ4Streams;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
-import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
 import de.invesdwin.util.collections.iterable.LimitingIterator;
@@ -589,16 +588,6 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             return false;
         }
 
-    }
-
-    public ICloseableIterable<E> reverseIterable() {
-        return new ICloseableIterable<E>() {
-
-            @Override
-            public ICloseableIterator<E> iterator() {
-                return reverseIterator();
-            }
-        };
     }
 
 }
