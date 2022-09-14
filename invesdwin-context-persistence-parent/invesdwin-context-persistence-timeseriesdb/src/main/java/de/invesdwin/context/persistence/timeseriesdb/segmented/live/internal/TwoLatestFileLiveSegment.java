@@ -36,7 +36,7 @@ import de.invesdwin.util.streams.pool.PooledFastByteArrayOutputStream;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
-public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
+public class TwoLatestFileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     private static final boolean LARGE_COMPRESSOR = false;
     private final String hashKey;
@@ -54,7 +54,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     private final IBufferingIterator<V> lastValue = new BufferingIterator<>();
     private File file;
 
-    public FileLiveSegment(final SegmentedKey<K> segmentedKey,
+    public TwoLatestFileLiveSegment(final SegmentedKey<K> segmentedKey,
             final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable) {
         this.hashKey = historicalSegmentTable.hashKeyToString(segmentedKey);
         this.segmentedKey = segmentedKey;
@@ -71,7 +71,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             throw new RuntimeException(e);
         }
         final TextDescription name = new TextDescription("%s[%s]: newSerializingCollection()",
-                FileLiveSegment.class.getSimpleName(), segmentedKey);
+                TwoLatestFileLiveSegment.class.getSimpleName(), segmentedKey);
         return new SerializingCollection<V>(name, file, false) {
             @Override
             protected ISerde<V> newSerde() {
@@ -381,7 +381,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
         }
         final TextDescription name = new TextDescription("%s[%s]: getFlushedValues()",
-                FileLiveSegment.class.getSimpleName(), segmentedKey);
+                TwoLatestFileLiveSegment.class.getSimpleName(), segmentedKey);
         return new SerializingCollection<V>(name, values.getFile(), true) {
             @Override
             protected ISerde<V> newSerde() {

@@ -20,6 +20,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
+import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.IntegerSerde;
@@ -28,10 +29,12 @@ import de.invesdwin.util.time.date.FDateBuilder;
 import de.invesdwin.util.time.range.TimeRange;
 
 @NotThreadSafe
-public class FileLiveSegmentTest extends ATest {
+public class MultipleLatestFileLiveSegmentTest extends ATest {
 
     @Test
     public void testInverseOrder() {
+        Throwables.setDebugStackTraceEnabled(true);
+
         final Map<Integer, FDate> extractTime = new HashMap<>();
         final SegmentedKey<FDate> segmentedKey = new SegmentedKey<FDate>(FDate.MIN_DATE,
                 new TimeRange(FDate.MIN_DATE, FDate.MAX_DATE));
@@ -96,7 +99,7 @@ public class FileLiveSegmentTest extends ATest {
                 .ofType(HistoricalSegmentTable.class)
                 .in(timeSeriesDB)
                 .get();
-        final FileLiveSegment<FDate, Integer> rangeTable = new FileLiveSegment<FDate, Integer>(segmentedKey,
+        final MultipleLatestFileLiveSegment<FDate, Integer> rangeTable = new MultipleLatestFileLiveSegment<FDate, Integer>(segmentedKey,
                 historicalSegmentTable);
         final FDate now = FDateBuilder.newDate(2000);
         final FDate oneDate = now.addDays(1);
