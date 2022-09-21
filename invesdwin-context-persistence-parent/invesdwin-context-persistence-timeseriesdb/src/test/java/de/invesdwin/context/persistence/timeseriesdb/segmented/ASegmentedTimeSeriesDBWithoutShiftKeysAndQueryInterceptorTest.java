@@ -15,6 +15,8 @@ import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.HistoricalCacheSegmentFinder;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.tuple.Pair;
@@ -73,12 +75,13 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        final AHistoricalCache<TimeRange> segmentFinder = PeriodicalSegmentFinder
+        final AHistoricalCache<TimeRange> segmentFinderCache = PeriodicalSegmentFinder
                 .newCache(new Duration(2, FTimeUnit.YEARS), false);
+        final ISegmentFinder segmentFinder = new HistoricalCacheSegmentFinder(segmentFinderCache, null);
         table = new ASegmentedTimeSeriesDB<String, FDate>(getClass().getSimpleName()) {
 
             @Override
-            public AHistoricalCache<TimeRange> getSegmentFinder(final String key) {
+            public ISegmentFinder getSegmentFinder(final String key) {
                 return segmentFinder;
             }
 
@@ -126,7 +129,7 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
                 if (entities.isEmpty()) {
                     return null;
                 }
-                return segmentFinder.query().getValue(entities.get(0)).getFrom();
+                return segmentFinder.getCacheQuery().getValue(entities.get(0)).getFrom();
             }
 
             @Override
@@ -134,7 +137,7 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
                 if (entities.isEmpty()) {
                     return null;
                 }
-                return segmentFinder.query().getValue(entities.get(entities.size() - 1)).getTo();
+                return segmentFinder.getCacheQuery().getValue(entities.get(entities.size() - 1)).getTo();
             }
 
             @Override
@@ -333,22 +336,22 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
         }
 
         for (int i = 1; i < entities.size(); i++) {
-            final List<FDate> value = Lists.toListWithoutHasNext(
-                    IHistoricalEntry.unwrapEntryValues(cache.query().setFutureEnabled().getNextEntries(entities.get(0), i)));
+            final List<FDate> value = Lists.toListWithoutHasNext(IHistoricalEntry
+                    .unwrapEntryValues(cache.query().setFutureEnabled().getNextEntries(entities.get(0), i)));
             final List<FDate> expectedValue = entities.subList(0, i);
             Assertions.checkEquals(expectedValue.size(), i);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < entities.size(); i++) {
-            final List<FDate> value = Lists.toListWithoutHasNext(
-                    IHistoricalEntry.unwrapEntryValues(cache.query().setFutureEnabled().getNextEntries(FDate.MIN_DATE, i)));
+            final List<FDate> value = Lists.toListWithoutHasNext(IHistoricalEntry
+                    .unwrapEntryValues(cache.query().setFutureEnabled().getNextEntries(FDate.MIN_DATE, i)));
             final List<FDate> expectedValue = entities.subList(0, i);
             Assertions.checkEquals(expectedValue.size(), i);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < entities.size(); i++) {
-            final List<FDate> value = Lists.toListWithoutHasNext(
-                    IHistoricalEntry.unwrapEntryValues(cache.query().setFutureEnabled().getNextEntries(FDate.MAX_DATE, i)));
+            final List<FDate> value = Lists.toListWithoutHasNext(IHistoricalEntry
+                    .unwrapEntryValues(cache.query().setFutureEnabled().getNextEntries(FDate.MAX_DATE, i)));
             final List<FDate> expectedValue = Collections.emptyList(); //filtering query removes the result because it is not a previous result
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
@@ -1042,7 +1045,8 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
 
     @Test
     public void testNextKeysFilterDuplicateKeys() {
-        Assertions.assertThat(asList(cache.query().setFutureEnabled().getNextKeys(FDate.MIN_DATE, 100)).size()).isSameAs(6);
+        Assertions.assertThat(asList(cache.query().setFutureEnabled().getNextKeys(FDate.MIN_DATE, 100)).size())
+                .isSameAs(6);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
         Assertions.assertThat(asList(cache.query().setFutureEnabled().getNextKeys(FDate.MIN_DATE, 100)).size())
@@ -1064,7 +1068,8 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
 
     @Test
     public void testNextValuesFilterDuplicateKeys() {
-        Assertions.assertThat(asList(cache.query().setFutureEnabled().getNextValues(FDate.MIN_DATE, 100)).size()).isSameAs(6);
+        Assertions.assertThat(asList(cache.query().setFutureEnabled().getNextValues(FDate.MIN_DATE, 100)).size())
+                .isSameAs(6);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
         Assertions.assertThat(asList(cache.query().setFutureEnabled().getNextValues(FDate.MIN_DATE, 100)).size())
@@ -1604,24 +1609,29 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
                 }
             }
         } catch (final Throwable t) {
-            //CHECKSTYLE:OFF
-            System.out.println(reproduce.size() + ". step: " + t.toString());
-            //CHECKSTYLE:ON
-            cache.clear();
-            for (int step = 1; step <= reproduce.size(); step++) {
-                final Pair<Integer, Integer> keyIndex_shiftBackUnits = reproduce.get(step - 1);
-                final int keyIndex = keyIndex_shiftBackUnits.getFirst();
-                final int shiftBackUnits = keyIndex_shiftBackUnits.getSecond();
-                final FDate key = entities.get(keyIndex);
-                final List<FDate> expectedValues = entities.subList(keyIndex - shiftBackUnits + 1, keyIndex + 1);
-                if (step == reproduce.size()) {
-                    //CHECKSTYLE:OFF
-                    System.out.println("now");
-                    //CHECKSTYLE:ON
-                }
-                final Collection<FDate> previousValues = asList(cache.query().getPreviousValues(key, shiftBackUnits));
-                Assertions.assertThat(previousValues).isEqualTo(expectedValues);
+            reproduce(reproduce, t);
+            throw t;
+        }
+    }
+
+    private void reproduce(final List<Pair<Integer, Integer>> reproduce, final Throwable t) {
+        //CHECKSTYLE:OFF
+        System.out.println(reproduce.size() + ". step: " + t.toString());
+        //CHECKSTYLE:ON
+        cache.clear();
+        for (int step = 1; step <= reproduce.size(); step++) {
+            final Pair<Integer, Integer> keyIndex_shiftBackUnits = reproduce.get(step - 1);
+            final int keyIndex = keyIndex_shiftBackUnits.getFirst();
+            final int shiftBackUnits = keyIndex_shiftBackUnits.getSecond();
+            final FDate key = entities.get(keyIndex);
+            final List<FDate> expectedValues = entities.subList(keyIndex - shiftBackUnits + 1, keyIndex + 1);
+            if (step == reproduce.size()) {
+                //CHECKSTYLE:OFF
+                System.out.println("now");
+                //CHECKSTYLE:ON
             }
+            final Collection<FDate> previousValues = asList(cache.query().getPreviousValues(key, shiftBackUnits));
+            Assertions.assertThat(previousValues).isEqualTo(expectedValues);
         }
     }
 

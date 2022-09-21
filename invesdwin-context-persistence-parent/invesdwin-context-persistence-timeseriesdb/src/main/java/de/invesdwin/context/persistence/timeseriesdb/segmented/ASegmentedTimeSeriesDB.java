@@ -12,6 +12,7 @@ import de.invesdwin.context.integration.compression.lz4.LZ4Streams;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ITimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
@@ -19,7 +20,6 @@ import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
-import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
@@ -28,7 +28,6 @@ import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.time.date.FDate;
-import de.invesdwin.util.time.range.TimeRange;
 
 @ThreadSafe
 public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
@@ -73,7 +72,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
                     }
 
                     @Override
-                    protected AHistoricalCache<TimeRange> getSegmentFinder(final K key) {
+                    protected ISegmentFinder getSegmentFinder(final K key) {
                         return ASegmentedTimeSeriesDB.this.getSegmentFinder(key);
                     }
 
@@ -114,8 +113,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         return null;
     }
 
-    protected void onSegmentCompleted(final SegmentedKey<K> segmentedKey, final ICloseableIterable<V> segmentValues) {
-    }
+    protected void onSegmentCompleted(final SegmentedKey<K> segmentedKey, final ICloseableIterable<V> segmentValues) {}
 
     protected abstract String getElementsName();
 
@@ -134,7 +132,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         directory.delete();
     }
 
-    public abstract AHistoricalCache<TimeRange> getSegmentFinder(K key);
+    public abstract ISegmentFinder getSegmentFinder(K key);
 
     protected SegmentedTimeSeriesStorage getStorage() {
         return (SegmentedTimeSeriesStorage) segmentedTable.getStorage();

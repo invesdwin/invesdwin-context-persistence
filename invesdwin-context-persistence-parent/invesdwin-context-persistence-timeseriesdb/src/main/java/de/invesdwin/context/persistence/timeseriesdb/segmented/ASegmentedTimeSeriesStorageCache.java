@@ -25,6 +25,7 @@ import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.FileBufferCache;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
@@ -39,8 +40,6 @@ import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
 import de.invesdwin.util.collections.list.Lists;
-import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
-import de.invesdwin.util.collections.loadingcache.historical.query.IHistoricalCacheQuery;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
@@ -103,8 +102,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         //adjust dates directly to prevent unnecessary segment calculations
         final FDate adjFrom = FDates.max(from, firstAvailableSegmentFrom);
         final FDate adjTo = FDates.min(to, lastAvailableSegmentTo);
-        final ICloseableIterable<TimeRange> segments = getSegments(adjFrom.withoutTime(), adjTo.withoutTime(),
-                lastAvailableSegmentTo);
+        final ISegmentFinder segmentFinder = getSegmentFinder(key);
+        final ICloseableIterable<TimeRange> segments = getSegments(segmentFinder, segmentFinder.getDay(adjFrom),
+                segmentFinder.getDay(adjTo), lastAvailableSegmentTo);
         final ATransformingIterable<TimeRange, ICloseableIterable<V>> segmentQueries = new ATransformingIterable<TimeRange, ICloseableIterable<V>>(
                 segments) {
             @Override
@@ -128,12 +128,12 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         return rangeValues;
     }
 
-    private ICloseableIterable<TimeRange> getSegments(final FDate from, final FDate to,
-            final FDate lastAvailableSegmentTo) {
+    private ICloseableIterable<TimeRange> getSegments(final ISegmentFinder segmentFinder, final FDate from,
+            final FDate to, final FDate lastAvailableSegmentTo) {
         if (from == null || to == null) {
             return EmptyCloseableIterable.getInstance();
         }
-        final TimeRange nextSegment = getSegmentFinder(key).query().getValue(to.addMilliseconds(1));
+        final TimeRange nextSegment = segmentFinder.getCacheQuery().getValue(to.addMilliseconds(1));
         final FDate adjTo;
         if (to.equalsNotNullSafe(lastAvailableSegmentTo) && nextSegment.getFrom().equalsNotNullSafe(to)) {
             //adjust for overlapping segments
@@ -147,7 +147,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             public ICloseableIterator<TimeRange> iterator() {
                 return new ICloseableIterator<TimeRange>() {
 
-                    private TimeRange nextSegment = getSegmentFinder(key).query().getValue(adjFrom);
+                    private TimeRange nextSegment = segmentFinder.getCacheQuery().getValue(adjFrom);
 
                     @Override
                     public boolean hasNext() {
@@ -168,7 +168,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
                     private TimeRange determineNextSegment(final TimeRange curSegment) {
                         final FDate nextSegmentStart = nextSegment.getTo().addMilliseconds(1);
-                        final TimeRange nextSegment = getSegmentFinder(key).query().getValue(nextSegmentStart);
+                        final TimeRange nextSegment = segmentFinder.getCacheQueryWithFutureNull()
+                                .getValue(nextSegmentStart);
                         if (!curSegment.getTo().equalsNotNullSafe(nextSegment.getFrom())
                                 && !nextSegmentStart.equalsNotNullSafe(nextSegment.getFrom())) {
                             //allow overlapping segments
@@ -206,7 +207,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         return filteredSegments;
     }
 
-    protected abstract AHistoricalCache<TimeRange> getSegmentFinder(K key);
+    protected abstract ISegmentFinder getSegmentFinder(K key);
 
     public void maybeInitSegment(final SegmentedKey<K> segmentedKey) {
         maybeInitSegment(segmentedKey, source);
@@ -400,7 +401,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             final FDate minTime = updater.getMinTime();
             if (minTime != null) {
                 final FDate segmentFrom = segmentedKey.getSegment().getFrom();
-                final TimeRange prevSegment = getSegmentFinder(segmentedKey.getKey()).query()
+                final TimeRange prevSegment = getSegmentFinder(segmentedKey.getKey()).getCacheQuery()
                         .getValue(segmentFrom.addMilliseconds(-1));
                 if (prevSegment.getTo().equalsNotNullSafe(segmentFrom) && minTime.isBeforeOrEqualTo(segmentFrom)) {
                     throw new IllegalStateException(
@@ -498,8 +499,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         //adjust dates directly to prevent unnecessary segment calculations
         final FDate adjFrom = FDates.min(from, lastAvailableSegmentTo);
         final FDate adjTo = FDates.max(to, firstAvailableSegmentFrom);
-        final ICloseableIterable<TimeRange> filteredSegments = getSegmentsReverse(adjFrom, adjTo,
-                lastAvailableSegmentTo);
+        final ISegmentFinder segmentFinder = getSegmentFinder(key);
+        final ICloseableIterable<TimeRange> filteredSegments = getSegmentsReverse(segmentFinder,
+                segmentFinder.getDay(adjFrom), segmentFinder.getDay(adjTo), lastAvailableSegmentTo);
         final ATransformingIterable<TimeRange, ICloseableIterable<V>> segmentQueries = new ATransformingIterable<TimeRange, ICloseableIterable<V>>(
                 filteredSegments) {
             @Override
@@ -524,12 +526,12 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         return rangeValues;
     }
 
-    private ICloseableIterable<TimeRange> getSegmentsReverse(final FDate from, final FDate to,
-            final FDate lastAvailableSegmentTo) {
+    private ICloseableIterable<TimeRange> getSegmentsReverse(final ISegmentFinder segmentFinder, final FDate from,
+            final FDate to, final FDate lastAvailableSegmentTo) {
         if (from == null || to == null) {
             return EmptyCloseableIterable.getInstance();
         }
-        final TimeRange nextSegment = getSegmentFinder(key).query().getValue(from.addMilliseconds(1));
+        final TimeRange nextSegment = segmentFinder.getCacheQuery().getValue(from.addMilliseconds(1));
         final FDate adjFrom;
         if (from.equalsNotNullSafe(lastAvailableSegmentTo) && nextSegment.getFrom().equalsNotNullSafe(from)) {
             //adjust for overlapping segments
@@ -543,7 +545,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             public ICloseableIterator<TimeRange> iterator() {
                 return new ICloseableIterator<TimeRange>() {
 
-                    private TimeRange nextSegment = getSegmentFinder(key).query().getValue(adjFrom);
+                    private TimeRange nextSegment = segmentFinder.getCacheQuery().getValue(adjFrom);
 
                     @Override
                     public boolean hasNext() {
@@ -558,8 +560,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                                     .getInstance("ASegmentedTimeSeriesStorageCache getSegments end reached null");
                         }
                         //get one segment earlier
-                        nextSegment = getSegmentFinder(key).query()
-                                .setFutureNullEnabled()
+                        nextSegment = segmentFinder.getCacheQueryWithFutureNull()
                                 .getValue(nextSegment.getFrom().addMilliseconds(-1));
                         return curSegment;
                     }
@@ -629,8 +630,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             final FDate adjFrom = date;
             final FDate adjTo = firstAvailableSegmentFrom;
             final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key, adjFrom);
-            final ICloseableIterable<TimeRange> segmentsReverse = getSegmentsReverse(adjFrom, adjTo,
-                    lastAvailableSegmentTo);
+            final ISegmentFinder segmentFinder = getSegmentFinder(key);
+            final ICloseableIterable<TimeRange> segmentsReverse = getSegmentsReverse(segmentFinder,
+                    segmentFinder.getDay(adjFrom), segmentFinder.getDay(adjTo), lastAvailableSegmentTo);
             try (ICloseableIterator<TimeRange> it = segmentsReverse.iterator()) {
                 V latestValue = null;
                 while (it.hasNext()) {
@@ -795,15 +797,15 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 cachedFirstValue = Optional.empty();
             } else {
                 FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key, null);
-                final TimeRange nextSegment = getSegmentFinder(key).query()
+                final ISegmentFinder segmentFinder = getSegmentFinder(key);
+                final TimeRange nextSegment = segmentFinder.getCacheQuery()
                         .getValue(lastAvailableSegmentTo.addMilliseconds(1));
                 if (nextSegment.getFrom().equals(lastAvailableSegmentTo)) {
                     //adjust for overlapping segments
                     lastAvailableSegmentTo = lastAvailableSegmentTo.addMilliseconds(-1);
                 }
-                final IHistoricalCacheQuery<TimeRange> segmentFinderQuery = getSegmentFinder(key).query();
-                final TimeRange lastSegment = segmentFinderQuery.getValue(lastAvailableSegmentTo);
-                TimeRange segment = segmentFinderQuery.getValue(firstAvailableSegmentFrom);
+                final TimeRange lastSegment = segmentFinder.getCacheQuery().getValue(lastAvailableSegmentTo);
+                TimeRange segment = segmentFinder.getCacheQuery().getValue(firstAvailableSegmentFrom);
                 if (!segment.getFrom().equalsNotNullSafe(firstAvailableSegmentFrom)) {
                     throw new IllegalStateException("segment.from [" + segment.getFrom()
                             + "] should be equal to firstAvailableSegmentFrom [" + firstAvailableSegmentFrom + "]");
@@ -814,7 +816,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                     final V potentialFirstValue = segmentedTable.getLookupTableCache(segmentedKey).getFirstValue();
                     final V firstValue;
                     if (potentialFirstValue == null) {
-                        segment = segmentFinderQuery.getValue(segment.getTo().addMilliseconds(1));
+                        segment = segmentFinder.getCacheQuery().getValue(segment.getTo().addMilliseconds(1));
                     } else {
                         firstValue = potentialFirstValue;
                         cachedFirstValue = Optional.of(firstValue);

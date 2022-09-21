@@ -11,6 +11,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.commons.lang3.mutable.MutableInt;
 
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal.ReadLockedLiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal.SwitchingLiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
@@ -265,9 +266,8 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
             final FDate nextLiveKey = historicalSegmentTable.extractEndTime(nextLiveValue);
             final FDate lastAvailableHistoricalSegmentTo = historicalSegmentTable
                     .getLastAvailableHistoricalSegmentTo(key, nextLiveKey);
-            final TimeRange segment = historicalSegmentTable.getSegmentFinder(key)
-                    .query()
-                    .getValue(nextLiveKey.withoutTime());
+            final ISegmentFinder segmentFinder = historicalSegmentTable.getSegmentFinder(key);
+            final TimeRange segment = segmentFinder.getCacheQuery().getValue(segmentFinder.getDay(nextLiveKey));
             if (lastAvailableHistoricalSegmentTo.isAfterNotNullSafe(segment.getFrom())
                     /*
                      * allow equals since on first value of the next bar we might get an overlap for once when the last

@@ -16,6 +16,7 @@ import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSer
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedTimeSeriesStorage;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ITimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
@@ -23,7 +24,6 @@ import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
-import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
@@ -32,7 +32,6 @@ import de.invesdwin.util.lang.description.TextDescription;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.time.date.FDate;
-import de.invesdwin.util.time.range.TimeRange;
 
 @ThreadSafe
 public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
@@ -88,7 +87,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         directory.delete();
     }
 
-    public abstract AHistoricalCache<TimeRange> getSegmentFinder(K key);
+    public abstract ISegmentFinder getSegmentFinder(K key);
 
     protected SegmentedTimeSeriesStorage getStorage() {
         return historicalSegmentTable.getStorage();
@@ -200,7 +199,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         }
 
         @Override
-        public AHistoricalCache<TimeRange> getSegmentFinder(final K key) {
+        public ISegmentFinder getSegmentFinder(final K key) {
             return ALiveSegmentedTimeSeriesDB.this.getSegmentFinder(key);
         }
 

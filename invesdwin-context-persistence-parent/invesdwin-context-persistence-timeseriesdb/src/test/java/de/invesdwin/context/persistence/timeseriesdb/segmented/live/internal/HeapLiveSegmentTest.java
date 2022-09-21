@@ -12,13 +12,13 @@ import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB.HistoricalSegmentTable;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
-import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.marshallers.serde.ISerde;
@@ -50,7 +50,7 @@ public class HeapLiveSegmentTest extends ATest {
             }
 
             @Override
-            public AHistoricalCache<TimeRange> getSegmentFinder(final FDate key) {
+            public ISegmentFinder getSegmentFinder(final FDate key) {
                 throw new UnsupportedOperationException();
             }
 
