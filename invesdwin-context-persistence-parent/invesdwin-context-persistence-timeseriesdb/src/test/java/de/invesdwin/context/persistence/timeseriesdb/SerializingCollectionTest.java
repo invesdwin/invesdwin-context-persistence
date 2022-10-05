@@ -12,6 +12,7 @@ import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.lang.Files;
+import de.invesdwin.util.lang.OperatingSystem;
 import de.invesdwin.util.lang.description.TextDescription;
 
 @NotThreadSafe
@@ -19,6 +20,9 @@ public class SerializingCollectionTest extends ATest {
 
     @Test
     public void testSymlinks() throws IOException {
+        if (OperatingSystem.isWindows()) {
+            return;
+        }
         final File file = new File(ContextProperties.TEMP_DIRECTORY, "testSymlinks.bin.lz4");
         final SerializingCollection<String> writer = new SerializingCollection<>(
                 new TextDescription("%s", SerializingCollectionTest.class.getSimpleName()), file, false);
