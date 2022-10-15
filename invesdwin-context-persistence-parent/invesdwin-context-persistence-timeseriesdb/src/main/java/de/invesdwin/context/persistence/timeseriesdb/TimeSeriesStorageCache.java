@@ -50,7 +50,7 @@ import de.invesdwin.util.concurrent.reference.MutableReference;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
-import de.invesdwin.util.lang.description.TextDescription;
+import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.streams.PreLockedDelegateInputStream;
 import de.invesdwin.util.streams.buffer.MemoryMappedFile;

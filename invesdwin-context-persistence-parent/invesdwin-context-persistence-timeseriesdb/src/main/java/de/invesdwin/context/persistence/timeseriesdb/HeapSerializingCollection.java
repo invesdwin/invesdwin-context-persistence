@@ -7,7 +7,7 @@ import java.io.OutputStream;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import de.invesdwin.util.lang.description.TextDescription;
+import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.streams.pool.PooledFastByteArrayOutputStream;
 import it.unimi.dsi.fastutil.io.FastByteArrayInputStream;
 

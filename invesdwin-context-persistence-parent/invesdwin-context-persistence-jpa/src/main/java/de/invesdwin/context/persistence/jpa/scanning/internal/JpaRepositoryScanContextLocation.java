@@ -28,8 +28,8 @@ import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.classpath.FastClassPathScanner;
 import de.invesdwin.util.collections.Arrays;
 import de.invesdwin.util.lang.Files;
-import de.invesdwin.util.lang.Strings;
 import de.invesdwin.util.lang.reflection.Reflections;
+import de.invesdwin.util.lang.string.Strings;
 import io.github.classgraph.ClassInfo;
 import io.github.classgraph.ScanResult;
 

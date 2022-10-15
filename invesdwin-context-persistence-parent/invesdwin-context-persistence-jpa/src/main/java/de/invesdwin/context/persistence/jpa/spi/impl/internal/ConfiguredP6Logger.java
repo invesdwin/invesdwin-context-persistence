@@ -4,7 +4,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import com.p6spy.engine.logging.Category;
 
-import de.invesdwin.util.lang.Strings;
+import de.invesdwin.util.lang.string.Strings;
 
 @ThreadSafe
 public class ConfiguredP6Logger extends com.p6spy.engine.spy.appender.Slf4JLogger {

@@ -7,7 +7,7 @@ import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.lang.ProcessedEventsRateString;
+import de.invesdwin.util.lang.string.ProcessedEventsRateString;
 import de.invesdwin.util.math.Integers;
 import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.math.decimal.scaled.PercentScale;

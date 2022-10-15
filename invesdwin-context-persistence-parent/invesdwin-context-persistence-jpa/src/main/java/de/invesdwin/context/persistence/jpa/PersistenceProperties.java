@@ -14,8 +14,8 @@ import de.invesdwin.context.persistence.jpa.spi.impl.PersistenceUnitAnnotationUt
 import de.invesdwin.context.system.properties.SystemProperties;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.Collections;
-import de.invesdwin.util.lang.Strings;
 import de.invesdwin.util.lang.reflection.Reflections;
+import de.invesdwin.util.lang.string.Strings;
 
 @Immutable
 public final class PersistenceProperties {

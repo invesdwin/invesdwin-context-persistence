@@ -5,7 +5,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
-import de.invesdwin.util.lang.ProcessedEventsRateString;
+import de.invesdwin.util.lang.string.ProcessedEventsRateString;
 import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.math.decimal.scaled.PercentScale;
 import de.invesdwin.util.time.Instant;

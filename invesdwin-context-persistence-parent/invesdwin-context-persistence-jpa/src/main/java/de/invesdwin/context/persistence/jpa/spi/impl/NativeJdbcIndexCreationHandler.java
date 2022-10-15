@@ -17,8 +17,8 @@ import de.invesdwin.context.persistence.jpa.api.util.Attributes;
 import de.invesdwin.context.persistence.jpa.api.util.SqlErr;
 import de.invesdwin.context.persistence.jpa.spi.IIndexCreationHandler;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.lang.Strings;
-import de.invesdwin.util.lang.UniqueNameGenerator;
+import de.invesdwin.util.lang.string.Strings;
+import de.invesdwin.util.lang.string.UniqueNameGenerator;
 
 @NotThreadSafe
 public class NativeJdbcIndexCreationHandler implements IIndexCreationHandler {

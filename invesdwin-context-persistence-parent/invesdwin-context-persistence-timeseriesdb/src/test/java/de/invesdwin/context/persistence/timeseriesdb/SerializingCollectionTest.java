@@ -13,7 +13,7 @@ import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.OperatingSystem;
-import de.invesdwin.util.lang.description.TextDescription;
+import de.invesdwin.util.lang.string.description.TextDescription;
 
 @NotThreadSafe
 public class SerializingCollectionTest extends ATest {

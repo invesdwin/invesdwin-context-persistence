@@ -12,7 +12,7 @@ import org.springframework.transaction.TransactionStatus;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.jpa.PersistenceUnitContext;
 import de.invesdwin.context.persistence.jpa.spi.impl.PersistenceUnitAnnotationUtil;
-import de.invesdwin.util.lang.Strings;
+import de.invesdwin.util.lang.string.Strings;
 import io.netty.util.concurrent.FastThreadLocal;
 
 @ThreadSafe
