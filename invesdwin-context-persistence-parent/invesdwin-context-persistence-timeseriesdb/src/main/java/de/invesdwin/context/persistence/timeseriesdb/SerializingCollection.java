@@ -64,6 +64,12 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         this.finalizer = newFinalizer();
         this.file = new File(getTempFolder(),
                 Files.normalizePath(UNIQUE_NAME_GENERATOR.get(Files.normalizePath(tempFileId) + ".data")));
+        try {
+            Files.forceMkdir(file.getParentFile());
+        } catch (final IOException e) {
+            throw new RuntimeException(e);
+        }
+
         if (file.exists()) {
             throw new IllegalStateException("File [" + file.getAbsolutePath() + "] already exists!");
         }
@@ -96,13 +102,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     }
 
     private File getTempFolder() {
-        final File tempFolder = new File(ContextProperties.TEMP_DIRECTORY, SerializingCollection.class.getSimpleName());
-        try {
-            Files.forceMkdir(tempFolder);
-        } catch (final IOException e) {
-            throw new RuntimeException(e);
-        }
-        return tempFolder;
+        return new File(ContextProperties.TEMP_DIRECTORY, SerializingCollection.class.getSimpleName());
     }
 
     private OutputStream getFos() {
