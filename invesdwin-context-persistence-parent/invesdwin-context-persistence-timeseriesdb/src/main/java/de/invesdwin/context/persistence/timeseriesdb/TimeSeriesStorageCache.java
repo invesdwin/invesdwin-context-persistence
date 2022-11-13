@@ -21,6 +21,7 @@ import org.apache.commons.lang3.mutable.MutableInt;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.Log;
+import de.invesdwin.context.persistence.timeseriesdb.buffer.ArrayFileBufferCacheResult;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.FileBufferCache;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.IFileBufferCacheResult;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
@@ -38,16 +39,12 @@ import de.invesdwin.util.collections.iterable.FlatteningIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.PeekingCloseableIterator;
-import de.invesdwin.util.collections.iterable.collection.arraylist.ArrayListCloseableIterable;
-import de.invesdwin.util.collections.iterable.collection.arraylist.IArrayListCloseableIterable;
-import de.invesdwin.util.collections.iterable.collection.arraylist.SynchronizedArrayListCloseableIterable;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterator;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.concurrent.reference.MutableReference;
-import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.string.description.TextDescription;
@@ -70,6 +67,8 @@ public class TimeSeriesStorageCache<K, V> {
 
     private static final String READ_RANGE_VALUES = "readRangeValues";
     private static final String READ_RANGE_VALUES_REVERSE = "readRangeValuesReverse";
+    private static final Function<RangeTableRow<String, FDate, MemoryFileSummary>, FDate> EXTRACT_END_TIME_FROM_RANGE_KEYS = (
+            r) -> r.getRangeKey();
     private final TimeSeriesStorage storage;
     private final ALoadingCache<FDate, RangeTableRow<String, FDate, MemoryFileSummary>> fileLookupTable_latestRangeKeyCache = new ALoadingCache<FDate, RangeTableRow<String, FDate, MemoryFileSummary>>() {
 
@@ -103,7 +102,7 @@ public class TimeSeriesStorageCache<K, V> {
      * through to disk is still better for increased parallelity and for not having to iterate through each element of
      * the other hashkeys.
      */
-    private volatile IArrayListCloseableIterable<RangeTableRow<String, FDate, MemoryFileSummary>> cachedAllRangeKeys;
+    private volatile ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>> cachedAllRangeKeys;
     private final Log log = new Log(this);
     @GuardedBy("this")
     private MemoryFileMetadata memoryFileMetadata;
@@ -219,9 +218,10 @@ public class TimeSeriesStorageCache<K, V> {
                             final String hashKey, final FDate from, final FDate to) {
                         readLock.lock();
                         try {
-                            final ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> range = getAllRangeKeys(
-                                    readLock).iterator();
-                            final GetRangeKeysIterator rangeFiltered = new GetRangeKeysIterator(range, from, to);
+                            final ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>> rangeSource = getAllRangeKeys(
+                                    readLock);
+                            final ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> rangeFiltered = rangeSource
+                                    .iterator(EXTRACT_END_TIME_FROM_RANGE_KEYS, from, to);
                             if (skipFileFunction != null) {
                                 return new ASkippingIterator<RangeTableRow<String, FDate, MemoryFileSummary>>(
                                         rangeFiltered) {
@@ -314,10 +314,10 @@ public class TimeSeriesStorageCache<K, V> {
                             final String hashKey, final FDate from, final FDate to) {
                         readLock.lock();
                         try {
-                            final ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> range = getAllRangeKeys(
-                                    readLock).reverseIterator();
-                            final GetRangeKeysReverseIterator rangeFiltered = new GetRangeKeysReverseIterator(range,
-                                    from, to);
+                            final ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>> rangeSource = getAllRangeKeys(
+                                    readLock);
+                            final ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> rangeFiltered = rangeSource
+                                    .reverseIterator(EXTRACT_END_TIME_FROM_RANGE_KEYS, from, to);
                             if (skipFileFunction != null) {
                                 return new ASkippingIterator<RangeTableRow<String, FDate, MemoryFileSummary>>(
                                         rangeFiltered) {
@@ -522,7 +522,7 @@ public class TimeSeriesStorageCache<K, V> {
     public V getFirstValue() {
         if (cachedFirstValue == null) {
             final ArrayList<? extends RangeTableRow<String, FDate, MemoryFileSummary>> list = getAllRangeKeys(
-                    DisabledLock.INSTANCE).getArrayList();
+                    DisabledLock.INSTANCE).getList();
             if (list.isEmpty()) {
                 cachedFirstValue = Optional.empty();
             } else {
@@ -543,7 +543,7 @@ public class TimeSeriesStorageCache<K, V> {
     public V getLastValue() {
         if (cachedLastValue == null) {
             final ArrayList<? extends RangeTableRow<String, FDate, MemoryFileSummary>> list = getAllRangeKeys(
-                    DisabledLock.INSTANCE).getArrayList();
+                    DisabledLock.INSTANCE).getList();
             if (list.isEmpty()) {
                 cachedLastValue = Optional.empty();
             } else {
@@ -641,6 +641,7 @@ public class TimeSeriesStorageCache<K, V> {
             });
             return value.getValue(valueSerde);
         }
+
     }
 
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
@@ -746,7 +747,7 @@ public class TimeSeriesStorageCache<K, V> {
      */
     public synchronized PrepareForUpdateResult<V> prepareForUpdate(final boolean shouldRedoLastFile) {
         final ArrayList<? extends RangeTableRow<String, FDate, MemoryFileSummary>> list = getAllRangeKeys(
-                DisabledLock.INSTANCE).getArrayList();
+                DisabledLock.INSTANCE).getList();
         final RangeTableRow<String, FDate, MemoryFileSummary> latestFile;
         if (list.isEmpty()) {
             latestFile = null;
@@ -801,7 +802,7 @@ public class TimeSeriesStorageCache<K, V> {
         }
     }
 
-    private IArrayListCloseableIterable<RangeTableRow<String, FDate, MemoryFileSummary>> getAllRangeKeys(
+    private ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>> getAllRangeKeys(
             final Lock readLock) {
         readLock.lock();
         try {
@@ -811,9 +812,8 @@ public class TimeSeriesStorageCache<K, V> {
                         .range(hashKey, FDate.MIN_DATE, FDate.MAX_DATE)) {
                     final ArrayList<RangeTableRow<String, FDate, MemoryFileSummary>> allRangeKeys = new ArrayList<>();
                     Lists.toListWithoutHasNext(range, allRangeKeys);
-                    cachedAllRangeKeys = new SynchronizedArrayListCloseableIterable<>(
-                            new ArrayListCloseableIterable<RangeTableRow<String, FDate, MemoryFileSummary>>(
-                                    allRangeKeys));
+                    cachedAllRangeKeys = new ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>>(
+                            allRangeKeys);
                 }
             }
             return cachedAllRangeKeys;
@@ -837,54 +837,6 @@ public class TimeSeriesStorageCache<K, V> {
                 mmapFile.decrementRefCount();
                 mmapFile = null;
             }
-        }
-    }
-
-    private static final class GetRangeKeysReverseIterator
-            extends ASkippingIterator<RangeTableRow<String, FDate, MemoryFileSummary>> {
-        private final FDate from;
-        private final FDate to;
-
-        private GetRangeKeysReverseIterator(
-                final ICloseableIterator<? extends RangeTableRow<String, FDate, MemoryFileSummary>> delegate,
-                final FDate from, final FDate to) {
-            super(delegate);
-            this.from = from;
-            this.to = to;
-        }
-
-        @Override
-        protected boolean skip(final RangeTableRow<String, FDate, MemoryFileSummary> element) {
-            if (element.getRangeKey().isAfter(from)) {
-                return true;
-            } else if (element.getRangeKey().isBefore(to)) {
-                throw FastNoSuchElementException.getInstance("getRangeKeysReverse reached end");
-            }
-            return false;
-        }
-    }
-
-    private static final class GetRangeKeysIterator
-            extends ASkippingIterator<RangeTableRow<String, FDate, MemoryFileSummary>> {
-        private final FDate from;
-        private final FDate to;
-
-        private GetRangeKeysIterator(
-                final ICloseableIterator<? extends RangeTableRow<String, FDate, MemoryFileSummary>> delegate,
-                final FDate from, final FDate to) {
-            super(delegate);
-            this.from = from;
-            this.to = to;
-        }
-
-        @Override
-        protected boolean skip(final RangeTableRow<String, FDate, MemoryFileSummary> element) {
-            if (element.getRangeKey().isBefore(from)) {
-                return true;
-            } else if (element.getRangeKey().isAfter(to)) {
-                throw FastNoSuchElementException.getInstance("getRangeKeys reached end");
-            }
-            return false;
         }
     }
 

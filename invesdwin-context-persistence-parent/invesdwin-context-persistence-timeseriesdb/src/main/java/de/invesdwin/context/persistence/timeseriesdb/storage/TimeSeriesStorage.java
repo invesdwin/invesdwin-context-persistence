@@ -64,7 +64,7 @@ public class TimeSeriesStorage {
 
             @Override
             protected RangeTablePersistenceMode getPersistenceMode() {
-                return RangeTablePersistenceMode.DISK_ONLY;
+                return RangeTablePersistenceMode.MEMORY_WRITE_THROUGH_DISK;
             }
 
         };
