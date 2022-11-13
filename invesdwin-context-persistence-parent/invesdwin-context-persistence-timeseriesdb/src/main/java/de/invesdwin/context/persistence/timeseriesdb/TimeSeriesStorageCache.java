@@ -216,35 +216,29 @@ public class TimeSeriesStorageCache<K, V> {
 
                     private ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> getRangeKeys(
                             final String hashKey, final FDate from, final FDate to) {
-                        readLock.lock();
-                        try {
-                            final ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>> rangeSource = getAllRangeKeys(
-                                    readLock);
-                            final ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> rangeFiltered = rangeSource
-                                    .iterator(EXTRACT_END_TIME_FROM_RANGE_KEYS, from, to);
-                            if (skipFileFunction != null) {
-                                return new ASkippingIterator<RangeTableRow<String, FDate, MemoryFileSummary>>(
-                                        rangeFiltered) {
-                                    @Override
-                                    protected boolean skip(
-                                            final RangeTableRow<String, FDate, MemoryFileSummary> element) {
-                                        if (!rangeFiltered.hasNext()) {
-                                            /*
-                                             * cannot optimize this further for multiple segments because we don't know
-                                             * if a segment further back might be empty or not and thus the last segment
-                                             * of interest might have been the previous one from which we skipped the
-                                             * last file falsely
-                                             */
-                                            return false;
-                                        }
-                                        return skipFileFunction.skipFile(element.getValue());
+                        final ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>> rangeSource = getAllRangeKeys(
+                                readLock);
+                        final ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> rangeFiltered = rangeSource
+                                .iterator(EXTRACT_END_TIME_FROM_RANGE_KEYS, from, to);
+                        if (skipFileFunction != null) {
+                            return new ASkippingIterator<RangeTableRow<String, FDate, MemoryFileSummary>>(
+                                    rangeFiltered) {
+                                @Override
+                                protected boolean skip(final RangeTableRow<String, FDate, MemoryFileSummary> element) {
+                                    if (!rangeFiltered.hasNext()) {
+                                        /*
+                                         * cannot optimize this further for multiple segments because we don't know if a
+                                         * segment further back might be empty or not and thus the last segment of
+                                         * interest might have been the previous one from which we skipped the last file
+                                         * falsely
+                                         */
+                                        return false;
                                     }
-                                };
-                            } else {
-                                return rangeFiltered;
-                            }
-                        } finally {
-                            readLock.unlock();
+                                    return skipFileFunction.skipFile(element.getValue());
+                                }
+                            };
+                        } else {
+                            return rangeFiltered;
                         }
                     }
 
@@ -312,36 +306,30 @@ public class TimeSeriesStorageCache<K, V> {
 
                     private ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> getRangeKeysReverse(
                             final String hashKey, final FDate from, final FDate to) {
-                        readLock.lock();
-                        try {
-                            final ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>> rangeSource = getAllRangeKeys(
-                                    readLock);
-                            final ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> rangeFiltered = rangeSource
-                                    .reverseIterator(EXTRACT_END_TIME_FROM_RANGE_KEYS, from, to);
-                            if (skipFileFunction != null) {
-                                return new ASkippingIterator<RangeTableRow<String, FDate, MemoryFileSummary>>(
-                                        rangeFiltered) {
+                        final ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>> rangeSource = getAllRangeKeys(
+                                readLock);
+                        final ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> rangeFiltered = rangeSource
+                                .reverseIterator(EXTRACT_END_TIME_FROM_RANGE_KEYS, from, to);
+                        if (skipFileFunction != null) {
+                            return new ASkippingIterator<RangeTableRow<String, FDate, MemoryFileSummary>>(
+                                    rangeFiltered) {
 
-                                    @Override
-                                    protected boolean skip(
-                                            final RangeTableRow<String, FDate, MemoryFileSummary> element) {
-                                        if (!rangeFiltered.hasNext()) {
-                                            /*
-                                             * cannot optimize this further for multiple segments because we don't know
-                                             * if a segment further back might be empty or not and thus the last segment
-                                             * of interest might have been the previous one from which we skipped the
-                                             * last file falsely
-                                             */
-                                            return false;
-                                        }
-                                        return skipFileFunction.skipFile(element.getValue());
+                                @Override
+                                protected boolean skip(final RangeTableRow<String, FDate, MemoryFileSummary> element) {
+                                    if (!rangeFiltered.hasNext()) {
+                                        /*
+                                         * cannot optimize this further for multiple segments because we don't know if a
+                                         * segment further back might be empty or not and thus the last segment of
+                                         * interest might have been the previous one from which we skipped the last file
+                                         * falsely
+                                         */
+                                        return false;
                                     }
-                                };
-                            } else {
-                                return rangeFiltered;
-                            }
-                        } finally {
-                            readLock.unlock();
+                                    return skipFileFunction.skipFile(element.getValue());
+                                }
+                            };
+                        } else {
+                            return rangeFiltered;
                         }
                     }
 
