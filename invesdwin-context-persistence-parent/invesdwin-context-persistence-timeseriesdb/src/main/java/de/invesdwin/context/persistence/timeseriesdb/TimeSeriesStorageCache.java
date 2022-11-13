@@ -792,22 +792,27 @@ public class TimeSeriesStorageCache<K, V> {
 
     private ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>> getAllRangeKeys(
             final Lock readLock) {
-        readLock.lock();
-        try {
-            if (cachedAllRangeKeys == null) {
-                try (ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> range = storage
-                        .getFileLookupTable()
-                        .range(hashKey, FDate.MIN_DATE, FDate.MAX_DATE)) {
-                    final ArrayList<RangeTableRow<String, FDate, MemoryFileSummary>> allRangeKeys = new ArrayList<>();
-                    Lists.toListWithoutHasNext(range, allRangeKeys);
-                    cachedAllRangeKeys = new ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>>(
-                            allRangeKeys);
+        ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>> cachedAllRangeKeysCopy = cachedAllRangeKeys;
+        if (cachedAllRangeKeysCopy == null) {
+            readLock.lock();
+            try {
+                cachedAllRangeKeysCopy = cachedAllRangeKeys;
+                if (cachedAllRangeKeysCopy == null) {
+                    try (ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> range = storage
+                            .getFileLookupTable()
+                            .range(hashKey, FDate.MIN_DATE, FDate.MAX_DATE)) {
+                        final ArrayList<RangeTableRow<String, FDate, MemoryFileSummary>> allRangeKeys = new ArrayList<>();
+                        Lists.toListWithoutHasNext(range, allRangeKeys);
+                        cachedAllRangeKeysCopy = new ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>>(
+                                allRangeKeys);
+                        cachedAllRangeKeys = cachedAllRangeKeysCopy;
+                    }
                 }
+            } finally {
+                readLock.unlock();
             }
-            return cachedAllRangeKeys;
-        } finally {
-            readLock.unlock();
         }
+        return cachedAllRangeKeysCopy;
     }
 
     private static final class MmapInputStream extends PreLockedDelegateInputStream {
