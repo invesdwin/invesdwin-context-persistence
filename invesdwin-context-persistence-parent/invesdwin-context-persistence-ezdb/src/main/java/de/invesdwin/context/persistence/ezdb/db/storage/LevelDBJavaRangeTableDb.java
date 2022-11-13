@@ -69,7 +69,7 @@ public class LevelDBJavaRangeTableDb implements IRangeTableDb {
     }
 
     protected CompressionType newCompressionType() {
-        return CompressionType.LZ4;
+        return CompressionType.SNAPPY;
     }
 
     @SuppressWarnings("unchecked")

@@ -62,7 +62,7 @@ public class RocksDBRangeTableDb implements IRangeTableDb {
     }
 
     protected CompressionType newCompressionType() {
-        return CompressionType.LZ4HC_COMPRESSION;
+        return CompressionType.SNAPPY_COMPRESSION;
     }
 
     @SuppressWarnings("unchecked")

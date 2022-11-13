@@ -41,7 +41,7 @@ public class PersistentTreeMapDBFactory<K, V> implements IPersistentNavigableMap
     }
 
     protected Maker createDB(final IPersistentMapConfig<K, V> config) {
-        final File file = config.getFile();
+        final File file = new File(config.getFile(), "treemap.db");
         try {
             Files.forceMkdirParent(file);
         } catch (final IOException e) {

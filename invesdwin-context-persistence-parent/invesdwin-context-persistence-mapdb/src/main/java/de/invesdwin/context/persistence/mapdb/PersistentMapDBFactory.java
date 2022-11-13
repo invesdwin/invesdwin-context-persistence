@@ -40,7 +40,7 @@ public class PersistentMapDBFactory<K, V> implements IPersistentMapFactory<K, V>
     }
 
     protected Maker createDB(final IPersistentMapConfig<K, V> config) {
-        final File file = config.getFile();
+        final File file = new File(config.getFile(), "map.db");
         try {
             Files.forceMkdirParent(file);
         } catch (final IOException e) {

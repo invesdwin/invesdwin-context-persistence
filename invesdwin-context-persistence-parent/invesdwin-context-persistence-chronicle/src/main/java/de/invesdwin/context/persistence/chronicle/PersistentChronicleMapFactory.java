@@ -49,7 +49,7 @@ public class PersistentChronicleMapFactory<K, V> implements IPersistentMapFactor
     protected ChronicleMap<K, V> createChronicleMap(final IPersistentMapConfig<K, V> config,
             final ChronicleMapBuilder mapBuilder) {
         if (config.isDiskPersistence()) {
-            final File file = config.getFile();
+            final File file = new File(config.getFile(), "chronicle.map");
             try {
                 Files.forceMkdirParent(file);
                 return mapBuilder.createOrRecoverPersistedTo(file, true);
