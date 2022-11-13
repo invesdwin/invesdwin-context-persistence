@@ -28,7 +28,7 @@ public class TimeSeriesStorage {
      * LevelDB should be smaller on disk than ChronicleMap and supports range removals during updates. Though LevelDB is
      * a lot slower than ChronicleMap.
      */
-    public static final PersistentMapType DEFAULT_MAP_TYPE = PersistentMapType.DISK_SAFE;
+    public static final PersistentMapType DEFAULT_MAP_TYPE = PersistentMapType.DISK_FAST;
     private final File directory;
     private final ICompressionFactory compressionFactory;
     private final ADelegateRangeTable<String, FDate, MemoryFileSummary> fileLookupTable;

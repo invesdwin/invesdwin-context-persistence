@@ -1,14 +1,15 @@
 package de.invesdwin.context.persistence.chronicle;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.context.integration.persistentmap.IKeyMatcher;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapConfig;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
+import de.invesdwin.util.concurrent.lock.FileChannelLock;
 import de.invesdwin.util.lang.Files;
 import net.openhft.chronicle.map.ChronicleMap;
 import net.openhft.chronicle.map.ChronicleMapBuilder;
@@ -52,8 +53,15 @@ public class PersistentChronicleMapFactory<K, V> implements IPersistentMapFactor
             final File file = new File(config.getFile(), "chronicle.map");
             try {
                 Files.forceMkdirParent(file);
-                return mapBuilder.createOrRecoverPersistedTo(file, true);
-            } catch (final IOException e) {
+                //use file lock so that only one process can do a recovery at a time
+                final FileChannelLock lock = new FileChannelLock(new File(config.getFile(), "chronicle.map.lock"));
+                lock.tryLockThrowing(1, TimeUnit.SECONDS);
+                try {
+                    return mapBuilder.createOrRecoverPersistedTo(file, false);
+                } finally {
+                    lock.unlock();
+                }
+            } catch (final Exception e) {
                 throw new RuntimeException(e);
             }
         } else {
