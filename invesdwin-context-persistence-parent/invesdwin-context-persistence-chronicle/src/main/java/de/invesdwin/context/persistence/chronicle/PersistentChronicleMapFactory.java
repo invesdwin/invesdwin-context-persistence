@@ -57,7 +57,7 @@ public class PersistentChronicleMapFactory<K, V> implements IPersistentMapFactor
                 final FileChannelLock lock = new FileChannelLock(new File(config.getFile(), "chronicle.map.lock"));
                 lock.tryLockThrowing(1, TimeUnit.SECONDS);
                 try {
-                    return mapBuilder.createOrRecoverPersistedTo(file, false);
+                    return mapBuilder.createPersistedTo(file);
                 } finally {
                     lock.unlock();
                 }
