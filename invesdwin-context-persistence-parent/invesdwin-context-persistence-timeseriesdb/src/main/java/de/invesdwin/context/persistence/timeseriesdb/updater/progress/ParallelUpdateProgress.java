@@ -283,7 +283,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
              * force sync on filesystem:
              * https://stackoverflow.com/questions/52481281/does-java-nio-file-files-copy-call-sync-on-the-file-system
              */
-            memoryFileOut.getChannel().force(true);
+            //            memoryFileOut.getChannel().force(true);
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
