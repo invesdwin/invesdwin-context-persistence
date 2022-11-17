@@ -441,6 +441,11 @@ public abstract class ACustomIdDao<E, PK extends Serializable> extends AReposito
         getDelegate().deleteAllById(ids);
     }
 
+    @Override
+    public E getReferenceById(final PK id) {
+        return getDelegate().getReferenceById(id);
+    }
+
     /******************* protected **************************************/
 
     /**
