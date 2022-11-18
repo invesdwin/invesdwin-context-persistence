@@ -77,6 +77,7 @@ public abstract class ACustomIdDao<E, PK extends Serializable> extends AReposito
     private synchronized SimpleJpaRepository<E, PK> getDelegate() {
         if (delegate == null) {
             delegate = new SimpleJpaRepository<E, PK>(getGenericType(), getEntityManager());
+            delegate.setRepositoryMethodMetadata(DisabledCrudMethodMetadata.INSTANCE);
         }
         return delegate;
     }
