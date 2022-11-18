@@ -3,18 +3,18 @@ package de.invesdwin.context.persistence.jpa.api.dao.entity.identity;
 import java.util.Set;
 
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.MappedSuperclass;
-import javax.persistence.PrePersist;
-import javax.persistence.PreUpdate;
 
 import de.invesdwin.context.persistence.jpa.api.dao.entity.IEntity;
 import de.invesdwin.norva.beanpath.annotation.Hidden;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.AValueObject;
 import de.invesdwin.util.lang.Objects;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.MappedSuperclass;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 
 /**
  * An Entity is the same as a table row and is persistent as one. These are JPA-Annotated classes that do not contain

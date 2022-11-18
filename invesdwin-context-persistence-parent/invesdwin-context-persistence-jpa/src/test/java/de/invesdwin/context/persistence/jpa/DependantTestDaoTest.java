@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.jpa;
 
 import javax.annotation.concurrent.ThreadSafe;
-import javax.inject.Inject;
 
 import org.junit.jupiter.api.Test;
 
@@ -9,6 +8,7 @@ import de.invesdwin.context.persistence.jpa.complex.TestDao;
 import de.invesdwin.context.persistence.jpa.complex.TestEntity;
 import de.invesdwin.context.persistence.jpa.test.APersistenceTest;
 import de.invesdwin.util.assertions.Assertions;
+import jakarta.inject.Inject;
 
 @ThreadSafe
 public class DependantTestDaoTest extends APersistenceTest {

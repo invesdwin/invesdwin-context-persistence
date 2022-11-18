@@ -3,11 +3,11 @@ package de.invesdwin.context.persistence.jpa.test;
 import java.util.Collection;
 
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.persistence.PersistenceException;
-import javax.persistence.TransactionRequiredException;
 
 import de.invesdwin.context.beans.init.MergedContext;
 import de.invesdwin.context.persistence.jpa.api.util.SqlErr;
+import jakarta.persistence.PersistenceException;
+import jakarta.persistence.TransactionRequiredException;
 
 @NotThreadSafe
 public class PersistenceTestHelper implements IPersistenceTestHelper {

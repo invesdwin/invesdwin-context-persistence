@@ -11,7 +11,7 @@
 	<packaging>jar</packaging>
 
 	<properties>
-		<version.compiler>11</version.compiler>
+		<version.compiler>17</version.compiler>
 	</properties>
 
 	<dependencies>

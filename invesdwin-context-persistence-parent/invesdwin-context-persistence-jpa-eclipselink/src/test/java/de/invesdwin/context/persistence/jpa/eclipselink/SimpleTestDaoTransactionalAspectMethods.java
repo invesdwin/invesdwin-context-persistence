@@ -4,10 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.inject.Inject;
-import javax.persistence.EntityManager;
-import javax.persistence.EntityManagerFactory;
-import javax.validation.ConstraintViolationException;
 
 import org.assertj.core.api.Fail;
 import org.springframework.beans.factory.annotation.Configurable;
@@ -26,6 +22,10 @@ import de.invesdwin.context.persistence.jpa.PersistenceProperties;
 import de.invesdwin.context.persistence.jpa.api.query.QueryConfig;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.error.Throwables;
+import jakarta.inject.Inject;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
+import jakarta.validation.ConstraintViolationException;
 
 @NotThreadSafe
 @Configurable
@@ -35,7 +35,7 @@ public class SimpleTestDaoTransactionalAspectMethods {
 
     @Inject
     private SimpleTestDao dao;
-    @javax.persistence.PersistenceUnit(unitName = PersistenceProperties.DEFAULT_PERSISTENCE_UNIT_NAME)
+    @jakarta.persistence.PersistenceUnit(unitName = PersistenceProperties.DEFAULT_PERSISTENCE_UNIT_NAME)
     private EntityManagerFactory factory;
     @Inject
     private SimpleTestService service;

@@ -13,11 +13,6 @@ import java.util.Set;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-import javax.persistence.EntityManager;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.metamodel.Attribute;
-import javax.persistence.metamodel.EntityType;
 import javax.sql.DataSource;
 
 import org.apache.commons.io.IOUtils;
@@ -31,6 +26,11 @@ import de.invesdwin.context.persistence.jpa.api.util.Attributes;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.time.date.FDate;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.metamodel.Attribute;
+import jakarta.persistence.metamodel.EntityType;
 
 @ThreadSafe
 public class MySqlLoadDataInfile<E> implements IBulkInsertEntities<E> {
@@ -271,7 +271,8 @@ public class MySqlLoadDataInfile<E> implements IBulkInsertEntities<E> {
     @Transactional
     private int internalPersist(final StringBuilder workFileAndOutputStream) throws SQLException {
         try (Connection conn = ds.getConnection()) {
-            try (com.mysql.cj.jdbc.JdbcStatement stmt = conn.createStatement().unwrap(com.mysql.cj.jdbc.JdbcStatement.class)) {
+            try (com.mysql.cj.jdbc.JdbcStatement stmt = conn.createStatement()
+                    .unwrap(com.mysql.cj.jdbc.JdbcStatement.class)) {
                 final boolean prevAutoCommit = conn.getAutoCommit();
                 if (disabledChecks) {
                     if (prevAutoCommit) {

@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented;
 
 import javax.annotation.concurrent.Immutable;
-import javax.persistence.Transient;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
@@ -9,6 +8,7 @@ import de.invesdwin.norva.marker.ISerializableValueObject;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.time.range.TimeRange;
+import jakarta.persistence.Transient;
 
 @Immutable
 public class SegmentedKey<K> implements ISerializableValueObject {

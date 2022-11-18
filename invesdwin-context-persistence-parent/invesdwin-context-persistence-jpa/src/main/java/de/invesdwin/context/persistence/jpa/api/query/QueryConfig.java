@@ -1,13 +1,13 @@
 package de.invesdwin.context.persistence.jpa.api.query;
 
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.persistence.Query;
 
 import com.querydsl.jpa.impl.JPAQuery;
 
 import de.invesdwin.context.persistence.jpa.PersistenceProperties;
 import de.invesdwin.context.persistence.jpa.api.query.internal.ConfigurableJpaQuery;
 import de.invesdwin.context.persistence.jpa.api.query.internal.ConfigurableQueryDslQuery;
+import jakarta.persistence.Query;
 
 @NotThreadSafe
 public class QueryConfig {

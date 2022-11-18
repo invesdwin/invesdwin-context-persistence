@@ -1,10 +1,10 @@
 package de.invesdwin.context.persistence.jpa;
 
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.persistence.Cacheable;
-import javax.persistence.Entity;
 
 import de.invesdwin.context.persistence.jpa.api.dao.entity.AEntity;
+import jakarta.persistence.Cacheable;
+import jakarta.persistence.Entity;
 
 @SuppressWarnings("serial")
 @Entity

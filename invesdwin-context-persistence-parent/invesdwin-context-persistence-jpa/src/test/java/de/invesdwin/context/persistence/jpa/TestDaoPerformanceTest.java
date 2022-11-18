@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.jpa;
 
 import javax.annotation.concurrent.ThreadSafe;
-import javax.inject.Inject;
 
 import org.junit.jupiter.api.Test;
 
@@ -12,6 +11,7 @@ import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.assertions.Executable;
 import de.invesdwin.util.time.date.FTimeUnit;
 import de.invesdwin.util.time.duration.Duration;
+import jakarta.inject.Inject;
 
 @ThreadSafe
 //@ContextConfiguration(locations = { APersistenzTest.CTX_TEST_SERVER }, inheritLocations = false)

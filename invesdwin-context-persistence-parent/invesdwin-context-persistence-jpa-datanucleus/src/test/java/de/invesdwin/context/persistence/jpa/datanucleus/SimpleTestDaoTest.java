@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.jpa.datanucleus;
 
 import javax.annotation.concurrent.ThreadSafe;
-import javax.persistence.RollbackException;
 
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -11,6 +10,7 @@ import org.springframework.transaction.TransactionSystemException;
 import de.invesdwin.context.persistence.jpa.test.APersistenceTest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.error.Throwables;
+import jakarta.persistence.RollbackException;
 
 @ThreadSafe
 //@ContextConfiguration(locations = { APersistenzTest.CTX_TEST_SERVER }, inheritLocations = false)

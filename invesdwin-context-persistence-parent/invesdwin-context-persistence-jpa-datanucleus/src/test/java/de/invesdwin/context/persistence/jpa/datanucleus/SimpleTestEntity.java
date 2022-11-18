@@ -3,11 +3,6 @@ package de.invesdwin.context.persistence.jpa.datanucleus;
 import java.io.Serializable;
 
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.persistence.Entity;
-import javax.persistence.Id;
-import javax.persistence.PrePersist;
-import javax.persistence.PreUpdate;
-import javax.validation.constraints.NotNull;
 
 import de.invesdwin.context.persistence.jpa.api.dao.entity.IEntity;
 import de.invesdwin.context.persistence.jpa.api.index.Index;
@@ -16,6 +11,11 @@ import de.invesdwin.norva.beanpath.annotation.Hidden;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.math.random.PseudoRandomGenerators;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.validation.constraints.NotNull;
 
 /**
  * Datanucleus Enhancer has problems with APropertySupport having some Norva-Hidden annotations; so we cannot use
@@ -91,8 +91,7 @@ public class SimpleTestEntity implements IEntity, Cloneable, Serializable, Compa
     }
 
     @PreUpdate
-    protected void preUpdate() {
-    }
+    protected void preUpdate() {}
 
     public String getName() {
         return name;

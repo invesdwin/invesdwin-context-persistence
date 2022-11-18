@@ -1,12 +1,12 @@
 package de.invesdwin.context.persistence.jpa.api.util;
 
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.persistence.metamodel.Attribute;
-import javax.persistence.metamodel.Attribute.PersistentAttributeType;
-import javax.persistence.metamodel.ManagedType;
 
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.lang.string.Strings;
+import jakarta.persistence.metamodel.Attribute;
+import jakarta.persistence.metamodel.Attribute.PersistentAttributeType;
+import jakarta.persistence.metamodel.ManagedType;
 
 @NotThreadSafe
 public final class Attributes {
@@ -29,7 +29,8 @@ public final class Attributes {
             throw new IllegalArgumentException(PersistentAttributeType.class.getSimpleName() + " ["
                     + attr.getPersistentAttributeType() + "] is not supported!");
         default:
-            throw UnknownArgumentException.newInstance(PersistentAttributeType.class, attr.getPersistentAttributeType());
+            throw UnknownArgumentException.newInstance(PersistentAttributeType.class,
+                    attr.getPersistentAttributeType());
         }
     }
 

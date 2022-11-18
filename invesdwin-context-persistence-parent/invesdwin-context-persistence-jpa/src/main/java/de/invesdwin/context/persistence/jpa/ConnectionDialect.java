@@ -4,6 +4,7 @@ import javax.annotation.concurrent.Immutable;
 
 @Immutable
 public enum ConnectionDialect {
+    MARIADB(true),
     MYSQL(true),
     MSSQLSERVER(true),
     POSTGRESQL(true),

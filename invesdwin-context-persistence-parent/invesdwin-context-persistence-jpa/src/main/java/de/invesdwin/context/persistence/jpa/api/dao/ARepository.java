@@ -3,8 +3,6 @@ package de.invesdwin.context.persistence.jpa.api.dao;
 import java.util.List;
 
 import javax.annotation.concurrent.ThreadSafe;
-import javax.persistence.EntityManager;
-import javax.persistence.Query;
 
 import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import org.springframework.transaction.annotation.Propagation;
@@ -12,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import de.invesdwin.context.persistence.jpa.PersistenceProperties;
 import de.invesdwin.context.persistence.jpa.api.IPersistenceUnitAware;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 
 /**
  * You can use Reposities to do operations over multiple DAOs with multiple Entites. Or just to have another class to

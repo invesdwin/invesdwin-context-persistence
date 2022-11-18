@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.jpa;
 
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.inject.Inject;
 
 import org.springframework.beans.factory.annotation.Configurable;
 import org.springframework.transaction.annotation.Propagation;
@@ -11,6 +10,7 @@ import de.invesdwin.context.persistence.jpa.api.query.QueryConfig;
 import de.invesdwin.context.persistence.jpa.complex.TestDao;
 import de.invesdwin.context.persistence.jpa.complex.TestEntity;
 import de.invesdwin.util.assertions.Assertions;
+import jakarta.inject.Inject;
 
 @NotThreadSafe
 @Configurable

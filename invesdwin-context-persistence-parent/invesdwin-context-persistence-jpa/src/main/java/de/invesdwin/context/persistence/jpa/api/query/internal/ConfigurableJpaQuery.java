@@ -1,9 +1,9 @@
 package de.invesdwin.context.persistence.jpa.api.query.internal;
 
 import javax.annotation.concurrent.Immutable;
-import javax.persistence.Query;
 
 import de.invesdwin.context.persistence.jpa.api.query.IConfigurableQuery;
+import jakarta.persistence.Query;
 
 @Immutable
 public class ConfigurableJpaQuery implements IConfigurableQuery {

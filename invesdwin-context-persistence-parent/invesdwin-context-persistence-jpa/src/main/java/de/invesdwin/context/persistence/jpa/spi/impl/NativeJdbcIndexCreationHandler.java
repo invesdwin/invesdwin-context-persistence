@@ -1,9 +1,6 @@
 package de.invesdwin.context.persistence.jpa.spi.impl;
 
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.persistence.EntityManager;
-import javax.persistence.metamodel.Attribute;
-import javax.persistence.metamodel.ManagedType;
 
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +16,9 @@ import de.invesdwin.context.persistence.jpa.spi.IIndexCreationHandler;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.lang.string.Strings;
 import de.invesdwin.util.lang.string.UniqueNameGenerator;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.metamodel.Attribute;
+import jakarta.persistence.metamodel.ManagedType;
 
 @NotThreadSafe
 public class NativeJdbcIndexCreationHandler implements IIndexCreationHandler {

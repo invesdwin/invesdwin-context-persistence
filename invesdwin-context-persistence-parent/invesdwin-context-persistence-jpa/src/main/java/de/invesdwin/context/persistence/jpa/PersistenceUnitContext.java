@@ -4,9 +4,6 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.concurrent.ThreadSafe;
-import javax.persistence.EntityManager;
-import javax.persistence.EntityManagerFactory;
-import javax.persistence.spi.PersistenceProvider;
 import javax.sql.DataSource;
 
 import org.springframework.orm.jpa.JpaDialect;
@@ -29,6 +26,9 @@ import de.invesdwin.context.system.properties.SystemProperties;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.Collections;
 import de.invesdwin.util.lang.reflection.Reflections;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.spi.PersistenceProvider;
 
 @ThreadSafe
 public final class PersistenceUnitContext {

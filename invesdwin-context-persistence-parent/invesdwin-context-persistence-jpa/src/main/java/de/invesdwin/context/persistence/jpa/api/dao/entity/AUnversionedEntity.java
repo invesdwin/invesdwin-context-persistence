@@ -1,9 +1,9 @@
 package de.invesdwin.context.persistence.jpa.api.dao.entity;
 
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.persistence.MappedSuperclass;
 
 import de.invesdwin.context.persistence.jpa.api.dao.entity.sequence.AUnversionedEntityWithSequence;
+import jakarta.persistence.MappedSuperclass;
 
 /**
  * An Entity is the same as a table row and is persistent as one. These are JPA-Annotated classes that do not contain

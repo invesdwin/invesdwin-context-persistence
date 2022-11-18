@@ -6,8 +6,7 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.concurrent.ThreadSafe;
-import javax.inject.Named;
-import javax.persistence.spi.PersistenceProvider;
+import jakarta.inject.Named;
 import javax.sql.DataSource;
 
 import org.hibernate.cfg.AvailableSettings;
@@ -15,9 +14,10 @@ import org.hibernate.dialect.DerbyTenSevenDialect;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.dialect.H2Dialect;
 import org.hibernate.dialect.HSQLDialect;
+import org.hibernate.dialect.MariaDB106Dialect;
 import org.hibernate.dialect.MySQL8Dialect;
 import org.hibernate.dialect.Oracle12cDialect;
-import org.hibernate.dialect.PostgreSQL10Dialect;
+import org.hibernate.dialect.PostgreSQL95Dialect;
 import org.hibernate.dialect.SQLServer2016Dialect;
 import org.hibernate.dialect.SybaseASE157Dialect;
 import org.hibernate.jpa.HibernatePersistenceProvider;
@@ -40,6 +40,7 @@ import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.time.date.FTimeUnit;
 import de.invesdwin.util.time.duration.Duration;
+import jakarta.persistence.spi.PersistenceProvider;
 
 @Named
 @ThreadSafe
@@ -101,7 +102,6 @@ public class HibernateDialectSpecificDelegate implements IDialectSpecificDelegat
         } else {
             props.put(AvailableSettings.CACHE_REGION_FACTORY, CLASS_JCACHEREGIONFACTORY_NEW);
         }
-        props.put(AvailableSettings.USE_NEW_ID_GENERATOR_MAPPINGS, String.valueOf(true));
         //https://vladmihalcea.com/hibernate-hidden-gem-the-pooled-lo-optimizer/
         props.put(AvailableSettings.PREFERRED_POOLED_OPTIMIZER, "pooled-lo");
         return props;
@@ -138,10 +138,12 @@ public class HibernateDialectSpecificDelegate implements IDialectSpecificDelegat
         switch (dialect) {
         case MSSQLSERVER:
             return SQLServer2016Dialect.class;
+        case MARIADB:
+            return MariaDB106Dialect.class;
         case MYSQL:
             return MySQL8Dialect.class;
         case POSTGRESQL:
-            return PostgreSQL10Dialect.class;
+            return PostgreSQL95Dialect.class;
         case ORACLE:
             return Oracle12cDialect.class;
         case H2:

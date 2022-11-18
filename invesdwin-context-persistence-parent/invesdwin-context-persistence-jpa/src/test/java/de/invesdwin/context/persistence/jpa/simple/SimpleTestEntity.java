@@ -1,12 +1,12 @@
 package de.invesdwin.context.persistence.jpa.simple;
 
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.persistence.Entity;
-import javax.validation.constraints.NotNull;
 
 import de.invesdwin.context.persistence.jpa.api.dao.entity.AUnversionedEntity;
 import de.invesdwin.context.persistence.jpa.api.index.Index;
 import de.invesdwin.context.persistence.jpa.api.index.Indexes;
+import jakarta.persistence.Entity;
+import jakarta.validation.constraints.NotNull;
 
 @NotThreadSafe
 @Entity

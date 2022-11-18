@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.inject.Inject;
 
 import org.junit.jupiter.api.Test;
 
@@ -14,6 +13,7 @@ import de.invesdwin.context.persistence.jpa.test.PersistenceTest;
 import de.invesdwin.context.persistence.jpa.test.PersistenceTestContext;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
+import jakarta.inject.Inject;
 
 @NotThreadSafe
 @PersistenceTest(PersistenceTestContext.SERVER)

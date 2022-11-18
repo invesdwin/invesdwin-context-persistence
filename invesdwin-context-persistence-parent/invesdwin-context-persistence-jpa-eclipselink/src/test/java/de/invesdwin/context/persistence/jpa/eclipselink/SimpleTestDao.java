@@ -1,10 +1,10 @@
 package de.invesdwin.context.persistence.jpa.eclipselink;
 
 import javax.annotation.concurrent.ThreadSafe;
-import javax.inject.Named;
-import javax.persistence.EntityManager;
 
 import de.invesdwin.context.persistence.jpa.api.dao.ADao;
+import jakarta.inject.Named;
+import jakarta.persistence.EntityManager;
 
 @Named
 @ThreadSafe

@@ -1,12 +1,12 @@
 package de.invesdwin.context.persistence.jpa;
 
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.persistence.CascadeType;
-import javax.persistence.Entity;
-import javax.persistence.OneToOne;
 
 import de.invesdwin.context.persistence.jpa.api.dao.entity.AEntity;
 import de.invesdwin.context.persistence.jpa.complex.TestEntity;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Entity;
+import jakarta.persistence.OneToOne;
 
 @SuppressWarnings("serial")
 @Entity

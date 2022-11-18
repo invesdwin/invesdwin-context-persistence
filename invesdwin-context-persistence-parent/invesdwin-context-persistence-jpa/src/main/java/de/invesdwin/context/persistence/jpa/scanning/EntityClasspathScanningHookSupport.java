@@ -1,7 +1,8 @@
 package de.invesdwin.context.persistence.jpa.scanning;
 
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.inject.Named;
+
+import jakarta.inject.Named;
 
 @NotThreadSafe
 @Named

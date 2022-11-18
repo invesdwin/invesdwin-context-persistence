@@ -8,10 +8,6 @@ import java.util.Optional;
 import java.util.function.Function;
 
 import javax.annotation.concurrent.ThreadSafe;
-import javax.persistence.ElementCollection;
-import javax.persistence.Embedded;
-import javax.persistence.Query;
-import javax.persistence.TypedQuery;
 
 import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.springframework.data.domain.Example;
@@ -27,6 +23,10 @@ import de.invesdwin.context.persistence.jpa.PersistenceProperties;
 import de.invesdwin.context.persistence.jpa.api.query.QueryConfig;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.lang.reflection.Reflections;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Embedded;
+import jakarta.persistence.Query;
+import jakarta.persistence.TypedQuery;
 
 /**
  * A DAO (DataAccessObject) is a special Repository that works for only one Entity. It implements default

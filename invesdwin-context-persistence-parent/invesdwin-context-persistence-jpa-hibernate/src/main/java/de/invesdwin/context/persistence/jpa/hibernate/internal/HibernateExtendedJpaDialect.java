@@ -6,13 +6,13 @@ import java.util.Deque;
 import java.util.LinkedList;
 
 import javax.annotation.concurrent.ThreadSafe;
-import javax.persistence.EntityManager;
 
 import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.orm.jpa.vendor.HibernateJpaDialect;
 import org.springframework.transaction.TransactionDefinition;
 
 import io.netty.util.concurrent.FastThreadLocal;
+import jakarta.persistence.EntityManager;
 
 /**
  * http://stackoverflow.com/questions/5234240/hibernatespringjpaisolation-does-not-work

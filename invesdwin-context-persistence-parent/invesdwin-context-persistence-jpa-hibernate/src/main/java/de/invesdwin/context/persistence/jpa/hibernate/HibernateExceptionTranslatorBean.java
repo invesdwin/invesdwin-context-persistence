@@ -1,7 +1,7 @@
 package de.invesdwin.context.persistence.jpa.hibernate;
 
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.inject.Named;
+import jakarta.inject.Named;
 
 @Named
 @NotThreadSafe

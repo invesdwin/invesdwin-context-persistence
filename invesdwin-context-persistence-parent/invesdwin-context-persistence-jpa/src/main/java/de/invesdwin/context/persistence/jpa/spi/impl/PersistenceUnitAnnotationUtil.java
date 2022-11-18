@@ -6,7 +6,6 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.concurrent.Immutable;
-import javax.persistence.Entity;
 
 import de.invesdwin.context.persistence.jpa.PersistenceProperties;
 import de.invesdwin.context.persistence.jpa.api.PersistenceUnitName;
@@ -16,6 +15,7 @@ import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.lang.string.Strings;
 import io.github.classgraph.ClassInfo;
 import io.github.classgraph.ScanResult;
+import jakarta.persistence.Entity;
 
 @Immutable
 public final class PersistenceUnitAnnotationUtil {

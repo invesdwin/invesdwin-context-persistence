@@ -6,8 +6,7 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.concurrent.ThreadSafe;
-import javax.inject.Named;
-import javax.persistence.spi.PersistenceProvider;
+import jakarta.inject.Named;
 import javax.sql.DataSource;
 
 import org.eclipse.persistence.config.PersistenceUnitProperties;
@@ -35,6 +34,7 @@ import de.invesdwin.context.persistence.jpa.spi.delegate.IDialectSpecificDelegat
 import de.invesdwin.context.persistence.jpa.spi.impl.ConfiguredDataSource;
 import de.invesdwin.context.persistence.jpa.spi.impl.NativeJdbcIndexCreationHandler;
 import de.invesdwin.util.error.UnknownArgumentException;
+import jakarta.persistence.spi.PersistenceProvider;
 
 @Named
 @ThreadSafe

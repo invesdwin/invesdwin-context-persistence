@@ -3,15 +3,15 @@ package de.invesdwin.context.persistence.jpa.complex;
 import java.util.List;
 
 import javax.annotation.concurrent.ThreadSafe;
-import javax.inject.Inject;
-import javax.inject.Named;
-import javax.persistence.NonUniqueResultException;
 
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import de.invesdwin.context.persistence.jpa.PersistenceProperties;
 import de.invesdwin.context.persistence.jpa.api.IPersistenceUnitAware;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.persistence.NonUniqueResultException;
 
 @Named
 @ThreadSafe

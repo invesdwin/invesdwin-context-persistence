@@ -5,13 +5,13 @@ import java.util.List;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-import javax.persistence.EntityManager;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.support.SimpleJpaRepository;
 import org.springframework.transaction.annotation.Transactional;
 
 import de.invesdwin.context.persistence.jpa.PersistenceUnitContext;
+import jakarta.persistence.EntityManager;
 
 @ThreadSafe
 public class JPABatchInsert<E> implements IBulkInsertEntities<E> {

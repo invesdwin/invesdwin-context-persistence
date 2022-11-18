@@ -6,13 +6,11 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.inject.Named;
-import javax.persistence.spi.PersistenceProvider;
 import javax.sql.DataSource;
 
 import org.datanucleus.PropertyNames;
-import org.datanucleus.api.jpa.JPAPropertyNames;
-import org.datanucleus.api.jpa.PersistenceProviderImpl;
+import org.datanucleus.api.jakarta.JakartaPropertyNames;
+import org.datanucleus.api.jakarta.PersistenceProviderImpl;
 import org.datanucleus.store.rdbms.RDBMSPropertyNames;
 import org.springframework.orm.jpa.JpaDialect;
 import org.springframework.orm.jpa.JpaVendorAdapter;
@@ -30,6 +28,8 @@ import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.time.date.FTimeUnit;
 import de.invesdwin.util.time.duration.Duration;
+import jakarta.inject.Named;
+import jakarta.persistence.spi.PersistenceProvider;
 
 @Named
 @NotThreadSafe
@@ -99,7 +99,7 @@ public class DatanucleusDialectSpecificDelegate implements IDialectSpecificDeleg
         props.put(RDBMSPropertyNames.PROPERTY_RDBMS_STATEMENT_BATCH_LIMIT,
                 String.valueOf(context.getConnectionBatchSize()));
         //        <prop key="datanucleus.jpa.addClassTransformer">false</prop>
-        props.put(JPAPropertyNames.PROPERTY_JPA_ADD_CLASS_TRANSFORMER, String.valueOf(false));
+        props.put(JakartaPropertyNames.PROPERTY_JAKARTA_ADD_CLASS_TRANSFORMER, String.valueOf(false));
         //        <prop key="datanucleus.connectionPoolingType">ConfiguredDataSource</prop>
         props.put(PropertyNames.PROPERTY_CONNECTION_POOLINGTYPE,
                 PersistenceUnitContextConnectionPoolFactory.class.getSimpleName());

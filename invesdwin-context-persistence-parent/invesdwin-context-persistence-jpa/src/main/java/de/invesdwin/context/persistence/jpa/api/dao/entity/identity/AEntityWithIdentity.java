@@ -4,12 +4,12 @@ import java.util.Date;
 import java.util.Set;
 
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.persistence.Column;
-import javax.persistence.MappedSuperclass;
-import javax.persistence.Version;
 
 import de.invesdwin.norva.beanpath.annotation.Hidden;
 import de.invesdwin.util.time.date.FDate;
+import jakarta.persistence.Column;
+import jakarta.persistence.MappedSuperclass;
+import jakarta.persistence.Version;
 
 /**
  * An Entity is the same as a table row and is persistent as one. These are JPA-Annotated classes that do not contain

@@ -1,8 +1,6 @@
 package de.invesdwin.context.persistence.jpa.complex;
 
 import javax.annotation.concurrent.ThreadSafe;
-import javax.persistence.OptimisticLockException;
-import javax.persistence.RollbackException;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.IllegalTransactionStateException;
@@ -12,6 +10,8 @@ import de.invesdwin.context.persistence.jpa.test.APersistenceTest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.assertions.Executable;
 import de.invesdwin.util.error.Throwables;
+import jakarta.persistence.OptimisticLockException;
+import jakarta.persistence.RollbackException;
 
 @ThreadSafe
 //@ContextConfiguration(locations = { APersistenzTest.CTX_TEST_SERVER }, inheritLocations = false)

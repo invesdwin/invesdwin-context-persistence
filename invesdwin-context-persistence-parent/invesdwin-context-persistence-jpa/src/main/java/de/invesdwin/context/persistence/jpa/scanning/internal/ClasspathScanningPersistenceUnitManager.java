@@ -10,7 +10,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.inject.Inject;
 
 import org.springframework.data.jpa.support.MergingPersistenceUnitManager;
 import org.springframework.orm.jpa.persistenceunit.MutablePersistenceUnitInfo;
@@ -26,6 +25,7 @@ import de.invesdwin.context.persistence.jpa.spi.delegate.IDialectSpecificDelegat
 import de.invesdwin.context.persistence.jpa.spi.impl.PersistenceUnitAnnotationUtil;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.lang.Files;
+import jakarta.inject.Inject;
 
 /**
  * Collects all Entities from CLasspath and creates a complete PersistenceUnit out of them.

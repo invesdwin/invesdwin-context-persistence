@@ -3,7 +3,7 @@ package de.invesdwin.context.persistence.jpa.hibernate;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.inject.Inject;
+import jakarta.inject.Inject;
 
 import org.assertj.core.api.Fail;
 import org.springframework.beans.factory.annotation.Configurable;

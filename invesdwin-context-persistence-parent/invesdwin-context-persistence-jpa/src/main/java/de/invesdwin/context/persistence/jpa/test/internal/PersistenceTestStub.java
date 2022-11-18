@@ -3,7 +3,6 @@ package de.invesdwin.context.persistence.jpa.test.internal;
 import java.util.List;
 
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.inject.Named;
 
 import de.invesdwin.context.beans.init.locations.PositionedResource;
 import de.invesdwin.context.persistence.jpa.test.PersistenceTest;
@@ -11,6 +10,7 @@ import de.invesdwin.context.persistence.jpa.test.PersistenceTestContext;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.context.test.stub.StubSupport;
 import de.invesdwin.util.lang.reflection.Reflections;
+import jakarta.inject.Named;
 
 @Named
 @NotThreadSafe

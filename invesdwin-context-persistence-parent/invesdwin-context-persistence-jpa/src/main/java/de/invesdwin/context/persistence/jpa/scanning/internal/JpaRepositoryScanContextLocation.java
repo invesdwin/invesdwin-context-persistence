@@ -11,7 +11,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import javax.annotation.concurrent.ThreadSafe;
-import javax.inject.Named;
 
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -32,6 +31,7 @@ import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.lang.string.Strings;
 import io.github.classgraph.ClassInfo;
 import io.github.classgraph.ScanResult;
+import jakarta.inject.Named;
 
 @ThreadSafe
 @Named
