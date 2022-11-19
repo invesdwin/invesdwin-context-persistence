@@ -237,9 +237,9 @@ public class SimpleTestDaoTransactionalAspectMethods {
             dao.save(entWithoutName);
             Fail.fail("Exception expected");
         } catch (final Throwable t) {
+            Err.process(t);
             final ConstraintViolationException e = Throwables.getCauseByType(t, ConstraintViolationException.class);
             Assertions.assertThat(e).isNotNull();
-            Err.process(e);
         }
     }
 

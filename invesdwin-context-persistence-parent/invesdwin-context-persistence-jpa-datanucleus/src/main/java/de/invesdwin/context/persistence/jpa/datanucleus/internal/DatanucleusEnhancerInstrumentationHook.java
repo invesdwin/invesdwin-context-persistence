@@ -1,6 +1,8 @@
 package de.invesdwin.context.persistence.jpa.datanucleus.internal;
 
+import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
+import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -22,6 +24,7 @@ import de.invesdwin.util.lang.reflection.Reflections;
 public class DatanucleusEnhancerInstrumentationHook implements IInstrumentationHook {
 
     static {
+        Reflections.disableJavaModuleSystemRestrictions();
         PlatformInitializerProperties
                 .setInitializer(new DelegatePlatformInitializer(PlatformInitializerProperties.getInitializer()) {
                     @Override
@@ -48,7 +51,18 @@ public class DatanucleusEnhancerInstrumentationHook implements IInstrumentationH
 
     @Override
     public void instrument(final Instrumentation instrumentation) {
-        DataNucleusClassFileTransformer.premain("-api=JPA", instrumentation);
+        instrumentation.addTransformer(new DataNucleusClassFileTransformer("-api=Jakarta", null) {
+            @Override
+            public byte[] transform(final ClassLoader loader, final String className, final Class classBeingRedefined,
+                    final ProtectionDomain protectionDomain, final byte[] classfileBuffer)
+                    throws IllegalClassFormatException {
+                final String name = className.replace('/', '.');
+                if (name.startsWith("jakarta.")) {
+                    return null;
+                }
+                return super.transform(loader, className, classBeingRedefined, protectionDomain, classfileBuffer);
+            }
+        });
     }
 
 }
