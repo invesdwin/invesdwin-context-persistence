@@ -6,7 +6,6 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.concurrent.ThreadSafe;
-import jakarta.inject.Named;
 import javax.sql.DataSource;
 
 import org.eclipse.persistence.config.PersistenceUnitProperties;
@@ -16,10 +15,10 @@ import org.eclipse.persistence.platform.database.DerbyPlatform;
 import org.eclipse.persistence.platform.database.H2Platform;
 import org.eclipse.persistence.platform.database.HSQLPlatform;
 import org.eclipse.persistence.platform.database.MySQLPlatform;
+import org.eclipse.persistence.platform.database.Oracle21Platform;
 import org.eclipse.persistence.platform.database.PostgreSQLPlatform;
 import org.eclipse.persistence.platform.database.SQLServerPlatform;
 import org.eclipse.persistence.platform.database.SybasePlatform;
-import org.eclipse.persistence.platform.database.oracle.Oracle19Platform;
 import org.springframework.orm.jpa.JpaDialect;
 import org.springframework.orm.jpa.JpaVendorAdapter;
 import org.springframework.orm.jpa.vendor.EclipseLinkJpaDialect;
@@ -34,6 +33,7 @@ import de.invesdwin.context.persistence.jpa.spi.delegate.IDialectSpecificDelegat
 import de.invesdwin.context.persistence.jpa.spi.impl.ConfiguredDataSource;
 import de.invesdwin.context.persistence.jpa.spi.impl.NativeJdbcIndexCreationHandler;
 import de.invesdwin.util.error.UnknownArgumentException;
+import jakarta.inject.Named;
 import jakarta.persistence.spi.PersistenceProvider;
 
 @Named
@@ -96,7 +96,7 @@ public class EclipseLinkDialectSpecificDelegate implements IDialectSpecificDeleg
         case POSTGRESQL:
             return PostgreSQLPlatform.class;
         case ORACLE:
-            return Oracle19Platform.class;
+            return Oracle21Platform.class;
         case H2:
             return H2Platform.class;
         case HSQLDB:
