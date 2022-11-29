@@ -8,6 +8,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.lang3.mutable.MutableInt;
 
+import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
@@ -25,6 +26,7 @@ import de.invesdwin.util.time.date.FDate;
 @NotThreadSafe
 public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
+    private static final Log LOG = new Log(SwitchingLiveSegment.class);
     private final SegmentedKey<K> segmentedKey;
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
     private final ILiveSegment<K, V> inProgress;
@@ -162,8 +164,11 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
     @Override
     public void putNextLiveValue(final FDate nextLiveKey, final V nextLiveValue) {
         if (!lastValue.isEmpty() && lastValueKey.isAfter(nextLiveKey)) {
-            throw new IllegalStateException(segmentedKey + ": nextLiveKey [" + nextLiveKey
-                    + "] should be after or equal to lastLiveKey [" + lastValueKey + "]");
+            LOG.warn("%s: nextLiveKey [%s] should be after or equal to lastLiveKey [%s]", segmentedKey, nextLiveKey,
+                    lastValueKey);
+            //            throw new IllegalStateException(segmentedKey + ": nextLiveKey [" + nextLiveKey
+            //                    + "] should be after or equal to lastLiveKey [" + lastValueKey + "]");
+            return;
         }
         inProgress.putNextLiveValue(nextLiveKey, nextLiveValue);
         if (firstValue.isEmpty() || firstValueKey.equalsNotNullSafe(nextLiveKey)) {

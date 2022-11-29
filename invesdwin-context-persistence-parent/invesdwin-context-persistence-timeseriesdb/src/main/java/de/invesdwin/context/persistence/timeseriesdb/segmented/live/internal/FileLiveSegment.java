@@ -18,6 +18,7 @@ import org.apache.commons.io.IOUtils;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
+import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.ArrayFileBufferCacheResult;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
@@ -47,6 +48,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     private static final boolean LARGE_COMPRESSOR = false;
     private static final int LAST_VALUE_HISTORY = 3;
+    private static final Log LOG = new Log(FileLiveSegment.class);
     private final String hashKey;
     private final SegmentedKey<K> segmentedKey;
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
@@ -281,8 +283,11 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     public void putNextLiveValue(final FDate nextLiveKey, final V nextLiveValue) {
         LastValue<V> lastValue = lastValues.getReverse(0);
         if (!lastValue.values.isEmpty() && lastValue.key.isAfter(nextLiveKey)) {
-            throw new IllegalStateException(segmentedKey + ": nextLiveKey [" + nextLiveKey
-                    + "] should be after or equal to lastLiveKey [" + lastValue.key + "]");
+            LOG.warn("%s: nextLiveKey [%s] should be after or equal to lastLiveKey [%s]", segmentedKey, nextLiveKey,
+                    lastValue.key);
+            //            throw new IllegalStateException(segmentedKey + ": nextLiveKey [" + nextLiveKey
+            //                    + "] should be after or equal to lastLiveKey [" + lastValue.key + "]");
+            return;
         }
         synchronized (this) {
             if (values == null) {
