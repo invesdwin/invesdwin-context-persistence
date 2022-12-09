@@ -657,9 +657,26 @@ public class TimeSeriesStorageCache<K, V> {
                                 return skip;
                             }
                         })) {
-                    while (shiftForwardRemaining.intValue() >= 0) {
-                        nextValue.set(rangeValues.next());
-                        shiftForwardRemaining.decrement();
+                    if (shiftForwardUnits == 1) {
+                        /*
+                         * workaround for deteremining next key with multiple values at the same millisecond (without
+                         * this workaround we would produce an endless loop)
+                         */
+                        final FDate curKey = date;
+                        while (shiftForwardRemaining.intValue() >= 0) {
+                            final V nextNextValue = rangeValues.next();
+                            final FDate nextNextValueKey = extractEndTime.apply(nextNextValue);
+                            if (curKey.isBeforeNotNullSafe(nextNextValueKey)) {
+                                nextValue.set(nextNextValue);
+                                shiftForwardRemaining.decrement();
+                            }
+                        }
+                    } else {
+                        while (shiftForwardRemaining.intValue() >= 0) {
+                            final V nextNextValue = rangeValues.next();
+                            nextValue.set(nextNextValue);
+                            shiftForwardRemaining.decrement();
+                        }
                     }
                 } catch (final NoSuchElementException e) {
                     //ignore
