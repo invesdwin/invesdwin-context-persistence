@@ -50,8 +50,8 @@ import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.streams.PreLockedDelegateInputStream;
-import de.invesdwin.util.streams.buffer.MemoryMappedFile;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
+import de.invesdwin.util.streams.buffer.file.IMemoryMappedFile;
 import de.invesdwin.util.streams.pool.PooledFastByteArrayOutputStream;
 import de.invesdwin.util.streams.pool.buffered.BufferedFileDataInputStream;
 import de.invesdwin.util.streams.pool.buffered.PreLockedBufferedFileDataInputStream;
@@ -454,7 +454,7 @@ public class TimeSeriesStorageCache<K, V> {
             protected InputStream newFileInputStream(final File file) throws IOException {
                 if (TimeseriesProperties.FILE_BUFFER_CACHE_MMAP_ENABLED) {
                     readLock.lock();
-                    final MemoryMappedFile mmapFile = FileBufferCache.getFile(hashKey, summary.getMemoryResourceUri());
+                    final IMemoryMappedFile mmapFile = FileBufferCache.getFile(hashKey, summary.getMemoryResourceUri());
                     if (mmapFile.incrementRefCount()) {
                         return new MmapInputStream(readLock, summary.newBuffer(mmapFile).asInputStream(), mmapFile);
                     } else {
@@ -832,9 +832,9 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     private static final class MmapInputStream extends PreLockedDelegateInputStream {
-        private MemoryMappedFile mmapFile;
+        private IMemoryMappedFile mmapFile;
 
-        private MmapInputStream(final Lock lock, final InputStream delegate, final MemoryMappedFile mmapFile) {
+        private MmapInputStream(final Lock lock, final InputStream delegate, final IMemoryMappedFile mmapFile) {
             super(lock, delegate);
             this.mmapFile = mmapFile;
         }

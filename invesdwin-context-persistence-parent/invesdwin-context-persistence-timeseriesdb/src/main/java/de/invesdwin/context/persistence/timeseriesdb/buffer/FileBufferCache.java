@@ -34,7 +34,7 @@ import de.invesdwin.util.concurrent.pool.AgronaObjectPool;
 import de.invesdwin.util.concurrent.pool.IObjectPool;
 import de.invesdwin.util.concurrent.pool.MemoryLimit;
 import de.invesdwin.util.lang.Objects;
-import de.invesdwin.util.streams.buffer.MemoryMappedFile;
+import de.invesdwin.util.streams.buffer.file.IMemoryMappedFile;
 import de.invesdwin.util.time.date.FTimeUnit;
 
 @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -55,7 +55,7 @@ public final class FileBufferCache {
     }
 
     private static final AsyncLoadingCache<ResultCacheKey, SoftReference<ArrayFileBufferCacheResult>> RESULT_CACHE;
-    private static final LoadingCache<FileCacheKey, MemoryMappedFile> FILE_CACHE;
+    private static final LoadingCache<FileCacheKey, IMemoryMappedFile> FILE_CACHE;
 
     private static final IObjectPool<ArrayList> LIST_POOL = new AgronaObjectPool<ArrayList>(
             () -> new ArrayList<>(ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL),
@@ -83,7 +83,7 @@ public final class FileBufferCache {
                         TimeseriesProperties.FILE_BUFFER_CACHE_EVICTION_TIMEOUT.longValue(FTimeUnit.MILLISECONDS),
                         TimeUnit.MILLISECONDS)
                 .removalListener(FileBufferCache::fileCache_onRemoval)
-                .<FileCacheKey, MemoryMappedFile> build(FileBufferCache::fileCache_load);
+                .<FileCacheKey, IMemoryMappedFile> build(FileBufferCache::fileCache_load);
         ReinitializationHookManager.register(new ReinitializationHookSupport() {
             @Override
             public void reinitializationStarted() {
@@ -122,7 +122,7 @@ public final class FileBufferCache {
         return new SoftReference<ArrayFileBufferCacheResult>(new ArrayFileBufferCacheResult(list));
     }
 
-    private static void fileCache_onRemoval(final FileCacheKey key, final MemoryMappedFile value,
+    private static void fileCache_onRemoval(final FileCacheKey key, final IMemoryMappedFile value,
             final RemovalCause cause) {
         if (value.getRefCount() == 0) {
             /*
@@ -134,10 +134,10 @@ public final class FileBufferCache {
         }
     }
 
-    private static MemoryMappedFile fileCache_load(final FileCacheKey key) {
+    private static IMemoryMappedFile fileCache_load(final FileCacheKey key) {
         final File memoryFile = key.getMemoryFile();
         try {
-            return new MemoryMappedFile(memoryFile.getAbsolutePath(), memoryFile.length(), true);
+            return IMemoryMappedFile.map(memoryFile.getAbsolutePath(), 0L, memoryFile.length(), true);
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
@@ -168,11 +168,11 @@ public final class FileBufferCache {
     }
 
     private static void fileCache_remove(final String hashKey) {
-        final Set<Entry<FileCacheKey, MemoryMappedFile>> entries = FILE_CACHE.asMap().entrySet();
-        final Iterator<Entry<FileCacheKey, MemoryMappedFile>> iterator = entries.iterator();
+        final Set<Entry<FileCacheKey, IMemoryMappedFile>> entries = FILE_CACHE.asMap().entrySet();
+        final Iterator<Entry<FileCacheKey, IMemoryMappedFile>> iterator = entries.iterator();
         try {
             while (true) {
-                final Entry<FileCacheKey, MemoryMappedFile> next = iterator.next();
+                final Entry<FileCacheKey, IMemoryMappedFile> next = iterator.next();
                 if (next.getKey().getHashKey().equals(hashKey)) {
                     iterator.remove();
                 }
@@ -212,10 +212,10 @@ public final class FileBufferCache {
         return new IterableFileBufferCacheResult(source.getSource());
     }
 
-    public static MemoryMappedFile getFile(final String hashKey, final String memoryFilePath) {
+    public static IMemoryMappedFile getFile(final String hashKey, final String memoryFilePath) {
         if (TimeseriesProperties.FILE_BUFFER_CACHE_MMAP_ENABLED) {
             final FileCacheKey key = new FileCacheKey(hashKey, new File(memoryFilePath));
-            final MemoryMappedFile value = FILE_CACHE.get(key);
+            final IMemoryMappedFile value = FILE_CACHE.get(key);
             return value;
         } else {
             return null;
