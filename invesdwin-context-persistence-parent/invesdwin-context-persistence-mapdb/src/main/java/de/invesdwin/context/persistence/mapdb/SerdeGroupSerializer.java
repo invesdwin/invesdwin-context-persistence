@@ -11,6 +11,7 @@ import org.mapdb.serializer.GroupSerializerObjectArray;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.streams.buffer.bytes.ByteBuffers;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
+import de.invesdwin.util.streams.buffer.bytes.ICloseableByteBuffer;
 import de.invesdwin.util.streams.buffer.bytes.extend.ArrayExpandableByteBuffer;
 
 @Immutable
@@ -56,12 +57,9 @@ public final class SerdeGroupSerializer<T> extends GroupSerializerObjectArray<T>
             input.setPos(positionBefore + valueLength);
             return serde.fromBuffer(buffer);
         }
-        final IByteBuffer buffer = ByteBuffers.EXPANDABLE_POOL.borrowObject();
-        try {
+        try (ICloseableByteBuffer buffer = ByteBuffers.EXPANDABLE_POOL.borrowObject()) {
             buffer.putBytesTo(0, input, valueLength);
             return serde.fromBuffer(buffer.sliceTo(valueLength));
-        } finally {
-            ByteBuffers.EXPANDABLE_POOL.returnObject(buffer);
         }
     }
 

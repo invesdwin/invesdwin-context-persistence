@@ -39,6 +39,7 @@ import de.invesdwin.util.streams.InputStreams;
 import de.invesdwin.util.streams.OutputStreams;
 import de.invesdwin.util.streams.buffer.bytes.ByteBuffers;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
+import de.invesdwin.util.streams.buffer.bytes.ICloseableByteBuffer;
 
 @NotThreadSafe
 public class SerializingCollection<E> implements Collection<E>, IReverseCloseableIterable<E>, Closeable {
@@ -408,7 +409,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         private InputStream inputStream;
         private boolean closed;
         private E cachedElement;
-        private IByteBuffer readBuffer;
+        private ICloseableByteBuffer readBuffer;
 
         @Override
         protected void clean() {
@@ -512,7 +513,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
     private static final class FixedLengthDeserializingIteratorFinalizer<E> extends AFinalizer {
         private InputStream inputStream;
-        private IByteBuffer readBuffer;
+        private ICloseableByteBuffer readBuffer;
         private boolean cleaned;
 
         private E cachedElement;
@@ -567,7 +568,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
         private OutputStream fos;
         private boolean closed;
-        private IByteBuffer writeBuffer;
+        private ICloseableByteBuffer writeBuffer;
 
         @Override
         protected void clean() {
