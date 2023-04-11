@@ -179,8 +179,8 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
     @Override
     public void putNextLiveValue(final FDate nextLiveKey, final V nextLiveValue) {
         if (!lastValue.isEmpty() && lastValueKey.isAfter(nextLiveKey)) {
-            LOG.warn("%s: nextLiveKey [%s] should be after or equal to lastLiveKey [%s]", segmentedKey, nextLiveKey,
-                    lastValueKey);
+            //            LOG.warn("%s: nextLiveKey [%s] should be after or equal to lastLiveKey [%s]", segmentedKey, nextLiveKey,
+            //                    lastValueKey);
             //            throw new IllegalStateException(segmentedKey + ": nextLiveKey [" + nextLiveKey
             //                    + "] should be after or equal to lastLiveKey [" + lastValueKey + "]");
             return;
