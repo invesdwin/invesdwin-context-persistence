@@ -278,7 +278,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
     @Override
     public Object[] toArray() {
-        final List<E> list = new ArrayList<E>(size);
+        final List<E> list = new ArrayList<E>();
         try (ICloseableIterator<E> iterator = iterator()) {
             while (true) {
                 final E next = iterator.next();
