@@ -10,6 +10,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
@@ -277,9 +278,14 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
     @Override
     public Object[] toArray() {
-        final List<E> list = new ArrayList<E>();
-        for (final E e : this) {
-            list.add(e);
+        final List<E> list = new ArrayList<E>(size);
+        try (ICloseableIterator<E> iterator = iterator()) {
+            while (true) {
+                final E next = iterator.next();
+                list.add(next);
+            }
+        } catch (final NoSuchElementException e) {
+            //end reached
         }
         return list.toArray();
     }
@@ -287,8 +293,13 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     @Override
     public <T> T[] toArray(final T[] a) {
         final List<E> list = new ArrayList<E>(Integers.max(10, a.length));
-        for (final E e : this) {
-            list.add(e);
+        try (ICloseableIterator<E> iterator = iterator()) {
+            while (true) {
+                final E next = iterator.next();
+                list.add(next);
+            }
+        } catch (final NoSuchElementException e) {
+            //end reached
         }
         return list.toArray(a);
     }
@@ -305,11 +316,21 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
 
     public boolean addAllIterable(final Iterable<? extends E> c) {
         boolean changed = false;
-        for (final E e : c) {
-            if (add(e)) {
-                changed = true;
+
+        final Iterator<? extends E> iterator = c.iterator();
+        try {
+            while (true) {
+                final E next = iterator.next();
+                if (add(next)) {
+                    changed = true;
+                }
             }
+        } catch (final NoSuchElementException e) {
+            //end reached
+        } finally {
+            Closeables.closeQuietly(iterator);
         }
+
         return changed;
     }
 
