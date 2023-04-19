@@ -516,7 +516,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
                 } catch (final FileNotFoundException e) {
                     //maybe retry because of this in the outer iterator?
                     throw new RetryLaterRuntimeException(
-                            "File might have been deleted in the mean time between read locks: "
+                            hashKey + ": File might have been deleted in the mean time between read locks: "
                                     + file.getAbsolutePath(),
                             e);
                 }
