@@ -13,6 +13,7 @@ import de.invesdwin.util.collections.iterable.collection.arraylist.ArrayListClos
 import de.invesdwin.util.collections.iterable.collection.arraylist.IArrayListCloseableIterable;
 import de.invesdwin.util.collections.iterable.collection.arraylist.SynchronizedArrayListCloseableIterable;
 import de.invesdwin.util.collections.iterable.refcount.RefCountReverseCloseableIterable;
+import de.invesdwin.util.time.date.BisectDuplicateKeyHandling;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
 
@@ -105,7 +106,7 @@ public class ArrayFileBufferCacheResult<V> extends RefCountReverseCloseableItera
         if (low == null || low.isBeforeNotNullSafe(extractEndTime.apply(list.get(0)))) {
             lowIndex = 0;
         } else {
-            final int potentialLowIndex = FDates.bisect(extractEndTime, list, low);
+            final int potentialLowIndex = FDates.bisect(extractEndTime, list, low, BisectDuplicateKeyHandling.LOWEST);
             final FDate potentialLowTime = extractEndTime.apply(list.get(potentialLowIndex));
             if (potentialLowTime.isBeforeNotNullSafe(low)) {
                 lowIndex = potentialLowIndex + 1;
@@ -121,7 +122,8 @@ public class ArrayFileBufferCacheResult<V> extends RefCountReverseCloseableItera
         if (high == null || high.isAfterNotNullSafe(extractEndTime.apply(list.get(lastIndex)))) {
             highIndex = lastIndex;
         } else {
-            final int potentialHighIndex = FDates.bisect(extractEndTime, list, high);
+            final int potentialHighIndex = FDates.bisect(extractEndTime, list, high,
+                    BisectDuplicateKeyHandling.HIGHEST);
             final FDate potentialHighTime = extractEndTime.apply(list.get(potentialHighIndex));
             if (potentialHighTime.isAfterNotNullSafe(high)) {
                 highIndex = potentialHighIndex - 1;
