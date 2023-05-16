@@ -18,6 +18,7 @@ import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.date.FDates;
 import de.invesdwin.util.time.duration.Duration;
 import net.openhft.chronicle.map.ChronicleMap;
 import net.openhft.chronicle.map.ChronicleMapBuilder;
@@ -36,8 +37,8 @@ public class ChronicleMapPerformanceTest extends ADatabasePerformanceTest {
         final Instant writesStart = new Instant();
         final ChronicleMapBuilder<Long, Long> mapBuilder = ChronicleMapBuilder.of(Long.class, Long.class)
                 .name("testChronicleMapPerformance")
-                .constantKeySizeBySample(FDate.MAX_DATE.millisValue())
-                .constantValueSizeBySample(FDate.MAX_DATE.millisValue())
+                .constantKeySizeBySample(FDates.MAX_DATE.millisValue())
+                .constantValueSizeBySample(FDates.MAX_DATE.millisValue())
                 //                .maxBloatFactor(1_000)
                 //                .entries(10_000_000);
                 .entries(VALUES);

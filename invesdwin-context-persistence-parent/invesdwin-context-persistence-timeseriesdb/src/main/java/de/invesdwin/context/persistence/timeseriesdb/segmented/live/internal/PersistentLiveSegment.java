@@ -22,6 +22,7 @@ import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.date.FDates;
 import de.invesdwin.util.time.range.TimeRange;
 
 @NotThreadSafe
@@ -54,22 +55,22 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public V getFirstValue() {
-        return table.getLatestValue(segmentedKey, FDate.MIN_DATE);
+        return table.getLatestValue(segmentedKey, FDates.MIN_DATE);
     }
 
     @Override
     public FDate getFirstValueKey() {
-        return table.getLatestValueKey(segmentedKey, FDate.MIN_DATE);
+        return table.getLatestValueKey(segmentedKey, FDates.MIN_DATE);
     }
 
     @Override
     public V getLastValue() {
-        return table.getLatestValue(segmentedKey, FDate.MAX_DATE);
+        return table.getLatestValue(segmentedKey, FDates.MAX_DATE);
     }
 
     @Override
     public FDate getLastValueKey() {
-        return table.getLatestValueKey(segmentedKey, FDate.MAX_DATE);
+        return table.getLatestValueKey(segmentedKey, FDates.MAX_DATE);
     }
 
     @Override

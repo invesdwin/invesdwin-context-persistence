@@ -32,7 +32,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     protected final Log log = new Log(this);
     private final K key;
     @GuardedBy("getUpdateLock()")
-    private volatile FDate lastUpdateCheck = FDate.MIN_DATE;
+    private volatile FDate lastUpdateCheck = FDates.MIN_DATE;
     @GuardedBy("this")
     private IReentrantLock updateLock;
 

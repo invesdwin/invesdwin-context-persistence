@@ -24,6 +24,7 @@ import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
+import de.invesdwin.util.time.date.FDates;
 import ezdb.table.RangeTableRow;
 import ezdb.table.range.RangeTable;
 import ezdb.util.TableIterator;
@@ -32,8 +33,8 @@ import ezdb.util.TableIterator;
 public class TestStockData extends ATest {
 
     private static final String MSFT = "MSFT";
-    private static final FDate MAX_DATE = FDate.MAX_DATE;
-    private static final FDate MIN_DATE = FDate.MIN_DATE;
+    private static final FDate MAX_DATE = FDates.MAX_DATE;
+    private static final FDate MIN_DATE = FDates.MIN_DATE;
     //    private static final FDate MAX_DATE = new GregorianCalendar(5555, 1, 1).getTime();
     //    private static final FDate MIN_DATE = new GregorianCalendar(1, 1, 1).getTime();
 

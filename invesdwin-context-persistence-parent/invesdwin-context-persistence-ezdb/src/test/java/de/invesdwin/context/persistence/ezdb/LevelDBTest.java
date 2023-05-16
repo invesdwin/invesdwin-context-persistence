@@ -17,6 +17,7 @@ import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
+import de.invesdwin.util.time.date.FDates;
 import ezdb.Db;
 import ezdb.leveldb.EzLevelDbJava;
 import ezdb.leveldb.EzLevelDbJavaFactory;
@@ -89,7 +90,7 @@ public class LevelDBTest extends ATest {
             Assertions.assertThat(e).isNotNull();
         }
 
-        final DelegateRangeTableIterator<String, FDate, Integer> rangeMin = rangeTable.range(HASHKEY, FDate.MIN_DATE);
+        final DelegateRangeTableIterator<String, FDate, Integer> rangeMin = rangeTable.range(HASHKEY, FDates.MIN_DATE);
         Assertions.assertThat(rangeMin.next().getValue()).isEqualTo(1);
         Assertions.assertThat(rangeMin.next().getValue()).isEqualTo(2);
         Assertions.assertThat(rangeMin.next().getValue()).isEqualTo(3);
@@ -101,7 +102,7 @@ public class LevelDBTest extends ATest {
             Assertions.assertThat(e).isNotNull();
         }
 
-        final DelegateRangeTableIterator<String, FDate, Integer> rangeMax = rangeTable.range(HASHKEY, FDate.MAX_DATE);
+        final DelegateRangeTableIterator<String, FDate, Integer> rangeMax = rangeTable.range(HASHKEY, FDates.MAX_DATE);
         Assertions.assertThat(rangeMax.hasNext()).isFalse();
         try {
             rangeMax.next();
@@ -140,8 +141,8 @@ public class LevelDBTest extends ATest {
         Assertions.assertThat(rangeTable.getLatest(HASHKEY, threeDate.addMilliseconds(1)).getValue()).isEqualTo(3);
         Assertions.assertThat(rangeTable.getLatest(HASHKEY, threeDate.addDays(1)).getValue()).isEqualTo(3);
 
-        Assertions.assertThat(rangeTable.getLatest(HASHKEY, FDate.MIN_DATE).getValue()).isEqualTo(1);
-        Assertions.assertThat(rangeTable.getLatest(HASHKEY, FDate.MAX_DATE).getValue()).isEqualTo(3);
+        Assertions.assertThat(rangeTable.getLatest(HASHKEY, FDates.MIN_DATE).getValue()).isEqualTo(1);
+        Assertions.assertThat(rangeTable.getLatest(HASHKEY, FDates.MAX_DATE).getValue()).isEqualTo(3);
     }
 
     private void testReverse(final ADelegateRangeTable<String, FDate, Integer> rangeTable, final FDate oneFDate,
@@ -171,7 +172,8 @@ public class LevelDBTest extends ATest {
             Assertions.assertThat(e).isNotNull();
         }
 
-        final DelegateRangeTableIterator<String, FDate, Integer> range2Reverse = rangeTable.rangeReverse(HASHKEY, twoFDate);
+        final DelegateRangeTableIterator<String, FDate, Integer> range2Reverse = rangeTable.rangeReverse(HASHKEY,
+                twoFDate);
         Assertions.assertThat(range2Reverse.next().getValue()).isEqualTo(2);
         Assertions.assertThat(range2Reverse.next().getValue()).isEqualTo(1);
         Assertions.assertThat(range2Reverse.hasNext()).isFalse();
@@ -194,8 +196,8 @@ public class LevelDBTest extends ATest {
             Assertions.assertThat(e).isNotNull();
         }
 
-        final DelegateRangeTableIterator<String, FDate, Integer> range21Reverse = rangeTable.rangeReverse(HASHKEY, twoFDate,
-                oneFDate);
+        final DelegateRangeTableIterator<String, FDate, Integer> range21Reverse = rangeTable.rangeReverse(HASHKEY,
+                twoFDate, oneFDate);
         Assertions.assertThat(range21Reverse.next().getValue()).isEqualTo(2);
         Assertions.assertThat(range21Reverse.next().getValue()).isEqualTo(1);
         Assertions.assertThat(range21Reverse.hasNext()).isFalse();

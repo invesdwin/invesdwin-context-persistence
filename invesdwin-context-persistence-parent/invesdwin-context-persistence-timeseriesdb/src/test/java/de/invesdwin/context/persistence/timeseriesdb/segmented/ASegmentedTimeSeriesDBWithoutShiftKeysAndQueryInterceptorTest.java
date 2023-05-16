@@ -39,6 +39,7 @@ import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.TypeDelegateSerde;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
+import de.invesdwin.util.time.date.FDates;
 import de.invesdwin.util.time.date.FTimeUnit;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.range.TimeRange;
@@ -162,12 +163,12 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 0; i < entities.size(); i++) {
-            final FDate value = table.getPreviousValue(KEY, FDate.MAX_DATE, i);
+            final FDate value = table.getPreviousValue(KEY, FDates.MAX_DATE, i);
             final FDate expectedValue = entities.get(entities.size() - i - 1);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 0; i < entities.size(); i++) {
-            final FDate value = table.getPreviousValue(KEY, FDate.MIN_DATE, i);
+            final FDate value = table.getPreviousValue(KEY, FDates.MIN_DATE, i);
             final FDate expectedValue = entities.get(0);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
@@ -178,12 +179,12 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 0; i < entities.size(); i++) {
-            final FDate value = table.getNextValue(KEY, FDate.MIN_DATE, i);
+            final FDate value = table.getNextValue(KEY, FDates.MIN_DATE, i);
             final FDate expectedValue = entities.get(i);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 0; i < entities.size(); i++) {
-            final FDate value = table.getNextValue(KEY, FDate.MAX_DATE, i);
+            final FDate value = table.getNextValue(KEY, FDates.MAX_DATE, i);
             final FDate expectedValue = entities.get(entities.size() - 1);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
@@ -197,12 +198,12 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 0; i < entities.size(); i++) {
-            final FDate value = cache.query().getPreviousValue(FDate.MAX_DATE, i);
+            final FDate value = cache.query().getPreviousValue(FDates.MAX_DATE, i);
             final FDate expectedValue = entities.get(entities.size() - i - 1);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 0; i < entities.size(); i++) {
-            final FDate value = cache.query().setFutureEnabled().getPreviousValue(FDate.MIN_DATE, i);
+            final FDate value = cache.query().setFutureEnabled().getPreviousValue(FDates.MIN_DATE, i);
             final FDate expectedValue = null; //filtering query removes the result because it is not a previous result
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
@@ -213,12 +214,12 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 0; i < entities.size(); i++) {
-            final FDate value = cache.query().setFutureEnabled().getNextValue(FDate.MIN_DATE, i);
+            final FDate value = cache.query().setFutureEnabled().getNextValue(FDates.MIN_DATE, i);
             final FDate expectedValue = entities.get(i);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 0; i < entities.size(); i++) {
-            final FDate value = cache.query().setFutureEnabled().getNextValue(FDate.MAX_DATE, i);
+            final FDate value = cache.query().setFutureEnabled().getNextValue(FDates.MAX_DATE, i);
             final FDate expectedValue = null; //filtering query removes the result because it is not a previous result
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
@@ -234,14 +235,14 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < entities.size(); i++) {
-            final List<FDate> value = Lists.toListWithoutHasNext(cache.query().getPreviousValues(FDate.MAX_DATE, i));
+            final List<FDate> value = Lists.toListWithoutHasNext(cache.query().getPreviousValues(FDates.MAX_DATE, i));
             final List<FDate> expectedValue = entities.subList(entities.size() - i, entities.size());
             Assertions.checkEquals(expectedValue.size(), i);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < entities.size(); i++) {
             final List<FDate> value = Lists
-                    .toListWithoutHasNext(cache.query().setFutureEnabled().getPreviousValues(FDate.MIN_DATE, i));
+                    .toListWithoutHasNext(cache.query().setFutureEnabled().getPreviousValues(FDates.MIN_DATE, i));
             final List<FDate> expectedValue = Collections.emptyList(); //filtering query removes the result because it is not a previous result
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
@@ -255,14 +256,14 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
         }
         for (int i = 1; i < entities.size(); i++) {
             final List<FDate> value = Lists
-                    .toListWithoutHasNext(cache.query().setFutureEnabled().getNextValues(FDate.MIN_DATE, i));
+                    .toListWithoutHasNext(cache.query().setFutureEnabled().getNextValues(FDates.MIN_DATE, i));
             final List<FDate> expectedValue = entities.subList(0, i);
             Assertions.checkEquals(expectedValue.size(), i);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < entities.size(); i++) {
             final List<FDate> value = Lists
-                    .toListWithoutHasNext(cache.query().setFutureEnabled().getNextValues(FDate.MAX_DATE, i));
+                    .toListWithoutHasNext(cache.query().setFutureEnabled().getNextValues(FDates.MAX_DATE, i));
             final List<FDate> expectedValue = Collections.emptyList(); //filtering query removes the result because it is not a previous result
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
@@ -278,14 +279,14 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < entities.size(); i++) {
-            final List<FDate> value = Lists.toListWithoutHasNext(cache.query().getPreviousKeys(FDate.MAX_DATE, i));
+            final List<FDate> value = Lists.toListWithoutHasNext(cache.query().getPreviousKeys(FDates.MAX_DATE, i));
             final List<FDate> expectedValue = entities.subList(entities.size() - i, entities.size());
             Assertions.checkEquals(expectedValue.size(), i);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < entities.size(); i++) {
             final List<FDate> value = Lists
-                    .toListWithoutHasNext(cache.query().setFutureEnabled().getPreviousKeys(FDate.MIN_DATE, i));
+                    .toListWithoutHasNext(cache.query().setFutureEnabled().getPreviousKeys(FDates.MIN_DATE, i));
             final List<FDate> expectedValue = Collections.emptyList(); //filtering query removes the result because it is not a previous result
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
@@ -299,14 +300,14 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
         }
         for (int i = 1; i < entities.size(); i++) {
             final List<FDate> value = Lists
-                    .toListWithoutHasNext(cache.query().setFutureEnabled().getNextKeys(FDate.MIN_DATE, i));
+                    .toListWithoutHasNext(cache.query().setFutureEnabled().getNextKeys(FDates.MIN_DATE, i));
             final List<FDate> expectedValue = entities.subList(0, i);
             Assertions.checkEquals(expectedValue.size(), i);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < entities.size(); i++) {
             final List<FDate> value = Lists
-                    .toListWithoutHasNext(cache.query().setFutureEnabled().getNextKeys(FDate.MAX_DATE, i));
+                    .toListWithoutHasNext(cache.query().setFutureEnabled().getNextKeys(FDates.MAX_DATE, i));
             final List<FDate> expectedValue = Collections.emptyList(); //filtering query removes the result because it is not a previous result
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
@@ -323,14 +324,14 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
         }
         for (int i = 1; i < entities.size(); i++) {
             final List<FDate> value = Lists.toListWithoutHasNext(
-                    IHistoricalEntry.unwrapEntryValues(cache.query().getPreviousEntries(FDate.MAX_DATE, i)));
+                    IHistoricalEntry.unwrapEntryValues(cache.query().getPreviousEntries(FDates.MAX_DATE, i)));
             final List<FDate> expectedValue = entities.subList(entities.size() - i, entities.size());
             Assertions.checkEquals(expectedValue.size(), i);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < entities.size(); i++) {
             final List<FDate> value = Lists.toListWithoutHasNext(IHistoricalEntry
-                    .unwrapEntryValues(cache.query().setFutureEnabled().getPreviousEntries(FDate.MIN_DATE, i)));
+                    .unwrapEntryValues(cache.query().setFutureEnabled().getPreviousEntries(FDates.MIN_DATE, i)));
             final List<FDate> expectedValue = Collections.emptyList(); //filtering query removes the result because it is not a previous result
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
@@ -344,14 +345,14 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
         }
         for (int i = 1; i < entities.size(); i++) {
             final List<FDate> value = Lists.toListWithoutHasNext(IHistoricalEntry
-                    .unwrapEntryValues(cache.query().setFutureEnabled().getNextEntries(FDate.MIN_DATE, i)));
+                    .unwrapEntryValues(cache.query().setFutureEnabled().getNextEntries(FDates.MIN_DATE, i)));
             final List<FDate> expectedValue = entities.subList(0, i);
             Assertions.checkEquals(expectedValue.size(), i);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < entities.size(); i++) {
             final List<FDate> value = Lists.toListWithoutHasNext(IHistoricalEntry
-                    .unwrapEntryValues(cache.query().setFutureEnabled().getNextEntries(FDate.MAX_DATE, i)));
+                    .unwrapEntryValues(cache.query().setFutureEnabled().getNextEntries(FDates.MAX_DATE, i)));
             final List<FDate> expectedValue = Collections.emptyList(); //filtering query removes the result because it is not a previous result
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
@@ -365,13 +366,13 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 0; i < entities.size(); i++) {
-            final FDate value = cache.query().getPreviousKey(FDate.MAX_DATE, i);
+            final FDate value = cache.query().getPreviousKey(FDates.MAX_DATE, i);
             final FDate expectedValue = entities.get(entities.size() - i - 1);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 0; i < entities.size(); i++) {
-            final FDate value = cache.query().setFutureEnabled().getPreviousKey(FDate.MIN_DATE, i);
-            final FDate expectedValue = FDate.MIN_DATE; //filtering query removes the result because it is not a previous result
+            final FDate value = cache.query().setFutureEnabled().getPreviousKey(FDates.MIN_DATE, i);
+            final FDate expectedValue = FDates.MIN_DATE; //filtering query removes the result because it is not a previous result
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
 
@@ -381,12 +382,12 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 0; i < entities.size(); i++) {
-            final FDate value = cache.query().setFutureEnabled().getNextKey(FDate.MIN_DATE, i);
+            final FDate value = cache.query().setFutureEnabled().getNextKey(FDates.MIN_DATE, i);
             final FDate expectedValue = entities.get(i);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 0; i < entities.size(); i++) {
-            final FDate value = cache.query().setFutureEnabled().getNextKey(FDate.MAX_DATE, i);
+            final FDate value = cache.query().setFutureEnabled().getNextKey(FDates.MAX_DATE, i);
             final FDate expectedValue = null; //filtering query removes the result because it is not a previous result
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
@@ -401,13 +402,13 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 0; i < entities.size(); i++) {
-            final FDate value = IHistoricalEntry.unwrapEntryValue(cache.query().getPreviousEntry(FDate.MAX_DATE, i));
+            final FDate value = IHistoricalEntry.unwrapEntryValue(cache.query().getPreviousEntry(FDates.MAX_DATE, i));
             final FDate expectedValue = entities.get(entities.size() - i - 1);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 0; i < entities.size(); i++) {
             final FDate value = IHistoricalEntry
-                    .unwrapEntryValue(cache.query().setFutureEnabled().getPreviousEntry(FDate.MIN_DATE, i));
+                    .unwrapEntryValue(cache.query().setFutureEnabled().getPreviousEntry(FDates.MIN_DATE, i));
             final FDate expectedValue = null; //filtering query removes the result because it is not a previous result
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
@@ -420,13 +421,13 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
         }
         for (int i = 0; i < entities.size(); i++) {
             final FDate value = IHistoricalEntry
-                    .unwrapEntryValue(cache.query().setFutureEnabled().getNextEntry(FDate.MIN_DATE, i));
+                    .unwrapEntryValue(cache.query().setFutureEnabled().getNextEntry(FDates.MIN_DATE, i));
             final FDate expectedValue = entities.get(i);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 0; i < entities.size(); i++) {
             final FDate value = IHistoricalEntry
-                    .unwrapEntryValue(cache.query().setFutureEnabled().getNextEntry(FDate.MAX_DATE, i));
+                    .unwrapEntryValue(cache.query().setFutureEnabled().getNextEntry(FDates.MAX_DATE, i));
             final FDate expectedValue = null; //filtering query removes the result because it is not a previous result
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
@@ -623,13 +624,13 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
 
     @Test
     public void testNextKey() {
-        FDate nextKey = cache.query().setFutureEnabled().getNextKey(FDate.MIN_DATE, entities.size());
+        FDate nextKey = cache.query().setFutureEnabled().getNextKey(FDates.MIN_DATE, entities.size());
         Assertions.assertThat(nextKey).isEqualTo(entities.get(entities.size() - 1));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         //loading newest entity is faster than always loading all entities
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
-        nextKey = cache.query().setFutureEnabled().getNextKey(FDate.MIN_DATE, 1);
+        nextKey = cache.query().setFutureEnabled().getNextKey(FDates.MIN_DATE, 1);
         Assertions.assertThat(nextKey).isEqualTo(entities.get(1));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
@@ -651,13 +652,13 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
 
     @Test
     public void testNextValueWithDistance() {
-        FDate nextValue = cache.query().setFutureEnabled().getNextValue(FDate.MIN_DATE, entities.size());
+        FDate nextValue = cache.query().setFutureEnabled().getNextValue(FDates.MIN_DATE, entities.size());
         Assertions.assertThat(nextValue).isEqualTo(entities.get(entities.size() - 1));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         //loading newest entity is faster than always loading all entities
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
-        nextValue = cache.query().setFutureEnabled().getNextValue(FDate.MIN_DATE, 1);
+        nextValue = cache.query().setFutureEnabled().getNextValue(FDates.MIN_DATE, 1);
         Assertions.assertThat(nextValue).isEqualTo(entities.get(1));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
@@ -697,17 +698,17 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
     @Test
     public void testPreviousKeysBeforeFirst() {
         Collection<FDate> previousKeys = asList(
-                cache.query().setFutureEnabled().getPreviousKeys(FDate.MIN_DATE, entities.size()));
+                cache.query().setFutureEnabled().getPreviousKeys(FDates.MIN_DATE, entities.size()));
         Assertions.assertThat(previousKeys).isEmpty();
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(0);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
-        previousKeys = asList(cache.query().setFutureNullEnabled().getPreviousKeys(FDate.MIN_DATE, entities.size()));
+        previousKeys = asList(cache.query().setFutureNullEnabled().getPreviousKeys(FDates.MIN_DATE, entities.size()));
         Assertions.assertThat(previousKeys).isEmpty();
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(0);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
-        previousKeys = asList(cache.query().setFutureEnabled().getPreviousKeys(FDate.MIN_DATE, entities.size()));
+        previousKeys = asList(cache.query().setFutureEnabled().getPreviousKeys(FDates.MIN_DATE, entities.size()));
         Assertions.assertThat(previousKeys).isEmpty();
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(0);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
@@ -715,18 +716,18 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
 
     @Test
     public void testPreviousKeyBeforeFirst() {
-        FDate previousKey = cache.query().setFutureEnabled().getPreviousKey(FDate.MIN_DATE, entities.size());
-        Assertions.assertThat(previousKey).isEqualTo(FDate.MIN_DATE);
+        FDate previousKey = cache.query().setFutureEnabled().getPreviousKey(FDates.MIN_DATE, entities.size());
+        Assertions.assertThat(previousKey).isEqualTo(FDates.MIN_DATE);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(0);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
-        previousKey = cache.query().setFutureNullEnabled().getPreviousKey(FDate.MIN_DATE, entities.size());
-        Assertions.assertThat(previousKey).isEqualTo(FDate.MIN_DATE);
+        previousKey = cache.query().setFutureNullEnabled().getPreviousKey(FDates.MIN_DATE, entities.size());
+        Assertions.assertThat(previousKey).isEqualTo(FDates.MIN_DATE);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(0);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
-        previousKey = cache.query().setFutureEnabled().getPreviousKey(FDate.MIN_DATE, entities.size());
-        Assertions.assertThat(previousKey).isEqualTo(FDate.MIN_DATE);
+        previousKey = cache.query().setFutureEnabled().getPreviousKey(FDates.MIN_DATE, entities.size());
+        Assertions.assertThat(previousKey).isEqualTo(FDates.MIN_DATE);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(0);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
     }
@@ -734,17 +735,17 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
     @Test
     public void testPreviousKeysBeforeFirstReverse() {
         Collection<FDate> previousKeys = asList(
-                cache.query().setFutureNullEnabled().getPreviousKeys(FDate.MIN_DATE, entities.size()));
+                cache.query().setFutureNullEnabled().getPreviousKeys(FDates.MIN_DATE, entities.size()));
         Assertions.assertThat(previousKeys).isEmpty();
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(0);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
-        previousKeys = asList(cache.query().setFutureEnabled().getPreviousKeys(FDate.MIN_DATE, entities.size()));
+        previousKeys = asList(cache.query().setFutureEnabled().getPreviousKeys(FDates.MIN_DATE, entities.size()));
         Assertions.assertThat(previousKeys).isEmpty();
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(0);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
-        previousKeys = asList(cache.query().setFutureNullEnabled().getPreviousKeys(FDate.MIN_DATE, entities.size()));
+        previousKeys = asList(cache.query().setFutureNullEnabled().getPreviousKeys(FDates.MIN_DATE, entities.size()));
         Assertions.assertThat(previousKeys).isEmpty();
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(0);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
@@ -752,18 +753,18 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
 
     @Test
     public void testPreviousKeyBeforeFirstReverse() {
-        FDate previousKey = cache.query().setFutureNullEnabled().getPreviousKey(FDate.MIN_DATE, entities.size());
-        Assertions.assertThat(previousKey).isEqualTo(FDate.MIN_DATE);
+        FDate previousKey = cache.query().setFutureNullEnabled().getPreviousKey(FDates.MIN_DATE, entities.size());
+        Assertions.assertThat(previousKey).isEqualTo(FDates.MIN_DATE);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(0);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
-        previousKey = cache.query().setFutureEnabled().getPreviousKey(FDate.MIN_DATE, entities.size());
-        Assertions.assertThat(previousKey).isEqualTo(FDate.MIN_DATE);
+        previousKey = cache.query().setFutureEnabled().getPreviousKey(FDates.MIN_DATE, entities.size());
+        Assertions.assertThat(previousKey).isEqualTo(FDates.MIN_DATE);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(0);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
-        previousKey = cache.query().setFutureNullEnabled().getPreviousKey(FDate.MIN_DATE, entities.size());
-        Assertions.assertThat(previousKey).isEqualTo(FDate.MIN_DATE);
+        previousKey = cache.query().setFutureNullEnabled().getPreviousKey(FDates.MIN_DATE, entities.size());
+        Assertions.assertThat(previousKey).isEqualTo(FDates.MIN_DATE);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(0);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
     }
@@ -771,7 +772,7 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
     @Test
     public void testNextKeys() {
         final Collection<FDate> nextKeys = asList(
-                cache.query().setFutureEnabled().getNextKeys(FDate.MIN_DATE, entities.size()));
+                cache.query().setFutureEnabled().getNextKeys(FDates.MIN_DATE, entities.size()));
         Assertions.assertThat(nextKeys).isEqualTo(entities);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
@@ -783,7 +784,7 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
 
     @Test
     public void testKeys() {
-        final Iterable<FDate> iterable = cache.query().getKeys(FDate.MIN_DATE, FDate.MAX_DATE);
+        final Iterable<FDate> iterable = cache.query().getKeys(FDates.MIN_DATE, FDates.MAX_DATE);
         final List<FDate> previousKeys = new ArrayList<FDate>();
         for (final FDate d : iterable) {
             previousKeys.add(d);
@@ -795,7 +796,7 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
 
     @Test
     public void testValues() {
-        final Iterable<FDate> iterable = cache.query().getValues(entities.get(0).addMilliseconds(1), FDate.MAX_DATE);
+        final Iterable<FDate> iterable = cache.query().getValues(entities.get(0).addMilliseconds(1), FDates.MAX_DATE);
         final List<FDate> previousKeys = new ArrayList<FDate>();
         for (final FDate d : iterable) {
             previousKeys.add(d);
@@ -809,7 +810,7 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
     public void testKeysWithReturnMaxResults() {
         returnMaxResults = testReturnMaxResultsValue;
 
-        final Iterable<FDate> iterable = cache.query().getKeys(FDate.MIN_DATE, FDate.MAX_DATE);
+        final Iterable<FDate> iterable = cache.query().getKeys(FDates.MIN_DATE, FDates.MAX_DATE);
         final List<FDate> previousKeys = new ArrayList<FDate>();
         for (final FDate d : iterable) {
             previousKeys.add(d);
@@ -830,7 +831,7 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
     @Test
     public void testNextValuesWithDistance() {
         final Collection<FDate> nextValues = asList(
-                cache.query().setFutureEnabled().getNextValues(FDate.MIN_DATE, entities.size()));
+                cache.query().setFutureEnabled().getNextValues(FDates.MIN_DATE, entities.size()));
         Assertions.assertThat(nextValues).isEqualTo(entities);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
@@ -857,7 +858,7 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
     @Test
     public void testPreviousValuesGetsFilledDownWithDistance() {
         final Collection<FDate> previousValues = asList(
-                cache.query().setFutureEnabled().getPreviousValues(FDate.MIN_DATE, entities.size()));
+                cache.query().setFutureEnabled().getPreviousValues(FDates.MIN_DATE, entities.size()));
         Assertions.assertThat(previousValues.size()).isEqualTo(0);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(0);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
@@ -866,7 +867,7 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
     @Test
     public void testNextValuesGetsFilledUpWithDistance() {
         final Collection<FDate> nextValues = asList(
-                cache.query().setFutureEnabled().getNextValues(FDate.MAX_DATE, entities.size()));
+                cache.query().setFutureEnabled().getNextValues(FDates.MAX_DATE, entities.size()));
         Assertions.assertThat(nextValues.size()).isEqualTo(0);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(0);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
@@ -909,7 +910,7 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(18);
 
         //new minKey limit gets tested
-        final Collection<FDate> values = asList(cache.query().getPreviousValues(FDate.MIN_DATE, 5));
+        final Collection<FDate> values = asList(cache.query().getPreviousValues(FDates.MIN_DATE, 5));
         Assertions.assertThat(values).isEmpty();
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(21);
@@ -926,7 +927,7 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
         //new minKey limit gets tested
-        final Collection<FDate> values = asList(cache.query().setFutureEnabled().getPreviousValues(FDate.MIN_DATE, 5));
+        final Collection<FDate> values = asList(cache.query().setFutureEnabled().getPreviousValues(FDates.MIN_DATE, 5));
         for (final FDate d : values) {
             Assertions.assertThat(d).isEqualTo(entities.get(0));
         }
@@ -954,13 +955,13 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
     public void testNextKeyWithAllValues() {
         returnAllInReadAllValuesAscendingFrom = true;
 
-        FDate nextKey = cache.query().setFutureEnabled().getNextKey(FDate.MIN_DATE, entities.size());
+        FDate nextKey = cache.query().setFutureEnabled().getNextKey(FDates.MIN_DATE, entities.size());
         Assertions.assertThat(nextKey).isEqualTo(entities.get(entities.size() - 1));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         //loading newest entity is faster than always loading all entities
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
-        nextKey = cache.query().setFutureEnabled().getNextKey(FDate.MIN_DATE, 1);
+        nextKey = cache.query().setFutureEnabled().getNextKey(FDates.MIN_DATE, 1);
         Assertions.assertThat(nextKey).isEqualTo(entities.get(1));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
@@ -986,13 +987,13 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
     public void testNextKeyWithReturnMaxResults() {
         returnMaxResults = testReturnMaxResultsValue;
 
-        FDate nextKey = cache.query().setFutureEnabled().getNextKey(FDate.MIN_DATE, entities.size());
+        FDate nextKey = cache.query().setFutureEnabled().getNextKey(FDates.MIN_DATE, entities.size());
         Assertions.assertThat(nextKey).isEqualTo(entities.get(entities.size() - 1));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
         //loading newest entity is faster than always loading all entities
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
-        nextKey = cache.query().setFutureEnabled().getNextKey(FDate.MIN_DATE, 1);
+        nextKey = cache.query().setFutureEnabled().getNextKey(FDates.MIN_DATE, 1);
         Assertions.assertThat(nextKey).isEqualTo(entities.get(1));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
@@ -1020,13 +1021,13 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
         returnAllInReadAllValuesAscendingFrom = true;
         returnNullInReadNewestValueTo = true;
 
-        FDate nextKey = cache.query().setFutureEnabled().getNextKey(FDate.MIN_DATE, entities.size());
+        FDate nextKey = cache.query().setFutureEnabled().getNextKey(FDates.MIN_DATE, entities.size());
         Assertions.assertThat(nextKey).isEqualTo(entities.get(entities.size() - 1));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         //loading newest entity is faster than always loading all entities
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
 
-        nextKey = cache.query().setFutureEnabled().getNextKey(FDate.MIN_DATE, 1);
+        nextKey = cache.query().setFutureEnabled().getNextKey(FDates.MIN_DATE, 1);
         Assertions.assertThat(nextKey).isEqualTo(entities.get(1));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
@@ -1045,11 +1046,11 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
 
     @Test
     public void testNextKeysFilterDuplicateKeys() {
-        Assertions.assertThat(asList(cache.query().setFutureEnabled().getNextKeys(FDate.MIN_DATE, 100)).size())
+        Assertions.assertThat(asList(cache.query().setFutureEnabled().getNextKeys(FDates.MIN_DATE, 100)).size())
                 .isSameAs(6);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
-        Assertions.assertThat(asList(cache.query().setFutureEnabled().getNextKeys(FDate.MIN_DATE, 100)).size())
+        Assertions.assertThat(asList(cache.query().setFutureEnabled().getNextKeys(FDates.MIN_DATE, 100)).size())
                 .isEqualTo(entities.size());
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
@@ -1068,11 +1069,11 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
 
     @Test
     public void testNextValuesFilterDuplicateKeys() {
-        Assertions.assertThat(asList(cache.query().setFutureEnabled().getNextValues(FDate.MIN_DATE, 100)).size())
+        Assertions.assertThat(asList(cache.query().setFutureEnabled().getNextValues(FDates.MIN_DATE, 100)).size())
                 .isSameAs(6);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
-        Assertions.assertThat(asList(cache.query().setFutureEnabled().getNextValues(FDate.MIN_DATE, 100)).size())
+        Assertions.assertThat(asList(cache.query().setFutureEnabled().getNextValues(FDates.MIN_DATE, 100)).size())
                 .isEqualTo(entities.size());
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
@@ -1083,7 +1084,7 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
         for (int i = 0; i < entities.size(); i++) {
             final FDate entity = entities.get(i);
             final FDate foundKey = cache.query()
-                    .getPreviousKeyWithSameValueBetween(FDate.MIN_DATE, FDate.MAX_DATE, entity);
+                    .getPreviousKeyWithSameValueBetween(FDates.MIN_DATE, FDates.MAX_DATE, entity);
             Assertions.assertThat(foundKey).isEqualTo(entity);
         }
     }
@@ -1093,7 +1094,7 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
         for (int i = entities.size() - 1; i >= 0; i--) {
             final FDate entity = entities.get(i);
             final FDate foundKey = cache.query()
-                    .getPreviousKeyWithSameValueBetween(FDate.MIN_DATE, FDate.MAX_DATE, entity);
+                    .getPreviousKeyWithSameValueBetween(FDates.MIN_DATE, FDates.MAX_DATE, entity);
             Assertions.assertThat(foundKey).isEqualTo(entity);
         }
     }

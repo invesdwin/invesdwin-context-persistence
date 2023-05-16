@@ -56,6 +56,7 @@ import de.invesdwin.util.streams.pool.PooledFastByteArrayOutputStream;
 import de.invesdwin.util.streams.pool.buffered.BufferedFileDataInputStream;
 import de.invesdwin.util.streams.pool.buffered.PreLockedBufferedFileDataInputStream;
 import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.date.FDates;
 import ezdb.table.RangeTableRow;
 
 // CHECKSTYLE:OFF ClassDataAbstractionCoupling
@@ -816,7 +817,7 @@ public class TimeSeriesStorageCache<K, V> {
                 if (cachedAllRangeKeysCopy == null) {
                     try (ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> range = storage
                             .getFileLookupTable()
-                            .range(hashKey, FDate.MIN_DATE, FDate.MAX_DATE)) {
+                            .range(hashKey, FDates.MIN_DATE, FDates.MAX_DATE)) {
                         final ArrayList<RangeTableRow<String, FDate, MemoryFileSummary>> allRangeKeys = new ArrayList<>();
                         Lists.toListWithoutHasNext(range, allRangeKeys);
                         cachedAllRangeKeysCopy = new ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>>(

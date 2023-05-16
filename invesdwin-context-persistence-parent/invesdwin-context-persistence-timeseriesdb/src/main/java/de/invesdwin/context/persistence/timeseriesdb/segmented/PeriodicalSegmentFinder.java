@@ -9,6 +9,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.math.expression.lambda.IEvaluateGenericFDate;
 import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.date.FDates;
 import de.invesdwin.util.time.date.FTimeUnit;
 import de.invesdwin.util.time.date.FWeekday;
 import de.invesdwin.util.time.duration.Duration;
@@ -17,11 +18,11 @@ import de.invesdwin.util.time.range.TimeRange;
 @ThreadSafe
 public class PeriodicalSegmentFinder {
 
-    public static final TimeRange DUMMY_RANGE = new TimeRange(FDate.MIN_DATE, FDate.MAX_DATE);
-    public static final TimeRange BEFORE_DUMMY_RANGE = new TimeRange(FDate.MIN_DATE.addMilliseconds(-1),
-            FDate.MIN_DATE.addMilliseconds(-1));
-    public static final TimeRange AFTER_DUMMY_RANGE = new TimeRange(FDate.MAX_DATE.addMilliseconds(1),
-            FDate.MAX_DATE.addMilliseconds(1));
+    public static final TimeRange DUMMY_RANGE = new TimeRange(FDates.MIN_DATE, FDates.MAX_DATE);
+    public static final TimeRange BEFORE_DUMMY_RANGE = new TimeRange(FDates.MIN_DATE.addMilliseconds(-1),
+            FDates.MIN_DATE.addMilliseconds(-1));
+    public static final TimeRange AFTER_DUMMY_RANGE = new TimeRange(FDates.MAX_DATE.addMilliseconds(1),
+            FDates.MAX_DATE.addMilliseconds(1));
 
     public static final AHistoricalCache<TimeRange> DUMMY_CACHE = new AHistoricalCache<TimeRange>() {
 

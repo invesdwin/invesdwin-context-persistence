@@ -25,6 +25,7 @@ import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
 import de.invesdwin.util.concurrent.reference.MutableReference;
 import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.date.FDates;
 import de.invesdwin.util.time.range.TimeRange;
 
 @ThreadSafe
@@ -77,7 +78,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
     }
 
     public V getFirstValue() {
-        final V firstHistoricalValue = historicalSegmentTable.getLatestValue(key, FDate.MIN_DATE);
+        final V firstHistoricalValue = historicalSegmentTable.getLatestValue(key, FDates.MIN_DATE);
         if (firstHistoricalValue != null) {
             return firstHistoricalValue;
         } else if (liveSegment != null) {
@@ -93,7 +94,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
                 return lastLiveValue;
             }
         }
-        return historicalSegmentTable.getLatestValue(key, FDate.MAX_DATE);
+        return historicalSegmentTable.getLatestValue(key, FDates.MAX_DATE);
     }
 
     public ICloseableIterable<V> readRangeValues(final FDate from, final FDate to, final Lock readLock,

@@ -25,6 +25,7 @@ import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.IntegerSerde;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
+import de.invesdwin.util.time.date.FDates;
 import de.invesdwin.util.time.range.TimeRange;
 
 @NotThreadSafe
@@ -33,8 +34,8 @@ public class RangeTableLiveSegmentTest extends ATest {
     @Test
     public void testInverseOrder() {
         final Map<Integer, FDate> extractTime = new HashMap<>();
-        final SegmentedKey<FDate> segmentedKey = new SegmentedKey<FDate>(FDate.MIN_DATE,
-                new TimeRange(FDate.MIN_DATE, FDate.MAX_DATE));
+        final SegmentedKey<FDate> segmentedKey = new SegmentedKey<FDate>(FDates.MIN_DATE,
+                new TimeRange(FDates.MIN_DATE, FDates.MAX_DATE));
         final ALiveSegmentedTimeSeriesDB<FDate, Integer> timeSeriesDB = new ALiveSegmentedTimeSeriesDB<FDate, Integer>(
                 "testInverseOrder") {
 
@@ -136,7 +137,7 @@ public class RangeTableLiveSegmentTest extends ATest {
         }
 
         final ICloseableIterator<Integer> rangeMin = rangeTable
-                .rangeValues(FDate.MIN_DATE, null, DisabledLock.INSTANCE, null)
+                .rangeValues(FDates.MIN_DATE, null, DisabledLock.INSTANCE, null)
                 .iterator();
         Assertions.assertThat(rangeMin.next()).isEqualTo(1);
         Assertions.assertThat(rangeMin.next()).isEqualTo(2);
@@ -150,7 +151,7 @@ public class RangeTableLiveSegmentTest extends ATest {
         }
 
         final ICloseableIterator<Integer> rangeMax = rangeTable
-                .rangeValues(FDate.MAX_DATE, null, DisabledLock.INSTANCE, null)
+                .rangeValues(FDates.MAX_DATE, null, DisabledLock.INSTANCE, null)
                 .iterator();
         Assertions.assertThat(rangeMax.hasNext()).isFalse();
         try {
@@ -191,8 +192,8 @@ public class RangeTableLiveSegmentTest extends ATest {
         Assertions.assertThat(rangeTable.getLatestValue(threeDate.addMilliseconds(1))).isEqualTo(3);
         Assertions.assertThat(rangeTable.getLatestValue(threeDate.addDays(1))).isEqualTo(3);
 
-        Assertions.assertThat(rangeTable.getLatestValue(FDate.MIN_DATE)).isEqualTo(1);
-        Assertions.assertThat(rangeTable.getLatestValue(FDate.MAX_DATE)).isEqualTo(3);
+        Assertions.assertThat(rangeTable.getLatestValue(FDates.MIN_DATE)).isEqualTo(1);
+        Assertions.assertThat(rangeTable.getLatestValue(FDates.MAX_DATE)).isEqualTo(3);
     }
 
     private void testReverse(final ILiveSegment<FDate, Integer> rangeTable, final FDate oneFDate, final FDate twoFDate,

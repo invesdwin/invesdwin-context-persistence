@@ -24,6 +24,7 @@ import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
+import de.invesdwin.util.time.date.FDates;
 
 // CHECKSTYLE:OFF
 @NotThreadSafe
@@ -72,12 +73,10 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected void onUpdateFinished(final Instant updateStart) {
-            }
+            protected void onUpdateFinished(final Instant updateStart) {}
 
             @Override
-            protected void onUpdateStart() {
-            }
+            protected void onUpdateStart() {}
 
             @Override
             protected FDate extractEndTime(final FDate element) {
@@ -85,8 +84,7 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected void onFlush(final int flushIndex, final IUpdateProgress<String, FDate> updateProgress) {
-            }
+            protected void onFlush(final int flushIndex, final IUpdateProgress<String, FDate> updateProgress) {}
 
             @Override
             public Percent getProgress() {
@@ -100,12 +98,12 @@ public class ATimeSeriesDBTest extends ATest {
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < dates.size(); i++) {
-            final FDate value = table.getPreviousValue(key, FDate.MAX_DATE, i);
+            final FDate value = table.getPreviousValue(key, FDates.MAX_DATE, i);
             final FDate expectedValue = dates.get(dates.size() - i - 1);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < dates.size(); i++) {
-            final FDate value = table.getPreviousValue(key, FDate.MIN_DATE, i);
+            final FDate value = table.getPreviousValue(key, FDates.MIN_DATE, i);
             final FDate expectedValue = dates.get(0);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
@@ -116,12 +114,12 @@ public class ATimeSeriesDBTest extends ATest {
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < dates.size(); i++) {
-            final FDate value = table.getNextValue(key, FDate.MIN_DATE, i);
+            final FDate value = table.getNextValue(key, FDates.MIN_DATE, i);
             final FDate expectedValue = dates.get(i);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < dates.size(); i++) {
-            final FDate value = table.getNextValue(key, FDate.MAX_DATE, i);
+            final FDate value = table.getNextValue(key, FDates.MAX_DATE, i);
             final FDate expectedValue = dates.get(dates.size() - 1);
             Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
@@ -169,12 +167,10 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected void onUpdateFinished(final Instant updateStart) {
-            }
+            protected void onUpdateFinished(final Instant updateStart) {}
 
             @Override
-            protected void onUpdateStart() {
-            }
+            protected void onUpdateStart() {}
 
             @Override
             protected FDate extractEndTime(final FDate element) {
@@ -182,8 +178,7 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected void onFlush(final int flushIndex, final IUpdateProgress<String, FDate> updateProgress) {
-            }
+            protected void onFlush(final int flushIndex, final IUpdateProgress<String, FDate> updateProgress) {}
 
             @Override
             public Percent getProgress() {
@@ -210,12 +205,10 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected void onUpdateFinished(final Instant updateStart) {
-            }
+            protected void onUpdateFinished(final Instant updateStart) {}
 
             @Override
-            protected void onUpdateStart() {
-            }
+            protected void onUpdateStart() {}
 
             @Override
             protected FDate extractEndTime(final FDate element) {
@@ -223,8 +216,7 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected void onFlush(final int flushIndex, final IUpdateProgress<String, FDate> updateProgress) {
-            }
+            protected void onFlush(final int flushIndex, final IUpdateProgress<String, FDate> updateProgress) {}
 
             @Override
             public Percent getProgress() {
@@ -236,7 +228,7 @@ public class ATimeSeriesDBTest extends ATest {
         allDates.addAll(dates.subList(0, dates.size() - 1));
         allDates.addAll(dates2);
 
-        final ICloseableIterable<FDate> rangeValues = table.rangeValues(key, FDate.MIN_DATE, FDate.MAX_DATE);
+        final ICloseableIterable<FDate> rangeValues = table.rangeValues(key, FDates.MIN_DATE, FDates.MAX_DATE);
         int foundValues = 0;
         try (ICloseableIterator<FDate> it = rangeValues.iterator()) {
             while (true) {
@@ -297,12 +289,10 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected void onUpdateFinished(final Instant updateStart) {
-            }
+            protected void onUpdateFinished(final Instant updateStart) {}
 
             @Override
-            protected void onUpdateStart() {
-            }
+            protected void onUpdateStart() {}
 
             @Override
             protected FDate extractEndTime(final FDate element) {
@@ -332,7 +322,7 @@ public class ATimeSeriesDBTest extends ATest {
         for (int i = 0; i < dates.size(); i += ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
             final FDate expectedValue = dates.get(dates.size() - i - 1);
             final long expectedIndex = expectedValue.millisValue();
-            final FDate value = table.getPreviousValue(key, FDate.MAX_DATE, i);
+            final FDate value = table.getPreviousValue(key, FDates.MAX_DATE, i);
             final long valueIndex = value.millisValue();
             Assertions.checkEquals(valueIndex, expectedIndex,
                     i + ": expected [" + expectedIndex + "] got [" + valueIndex + "]");
@@ -340,7 +330,7 @@ public class ATimeSeriesDBTest extends ATest {
         for (int i = 0; i < dates.size(); i += ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
             final FDate expectedValue = dates.get(0);
             final long expectedIndex = expectedValue.millisValue();
-            final FDate value = table.getPreviousValue(key, FDate.MIN_DATE, i);
+            final FDate value = table.getPreviousValue(key, FDates.MIN_DATE, i);
             final long valueIndex = value.millisValue();
             Assertions.checkEquals(valueIndex, expectedIndex,
                     i + ": expected [" + expectedIndex + "] got [" + valueIndex + "]");
@@ -357,7 +347,7 @@ public class ATimeSeriesDBTest extends ATest {
         for (int i = 0; i < dates.size(); i += ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
             final FDate expectedValue = dates.get(i);
             final long expectedIndex = expectedValue.millisValue();
-            final FDate value = table.getNextValue(key, FDate.MIN_DATE, i);
+            final FDate value = table.getNextValue(key, FDates.MIN_DATE, i);
             final long valueIndex = value.millisValue();
             Assertions.checkEquals(valueIndex, expectedIndex,
                     i + ": expected [" + expectedIndex + "] got [" + valueIndex + "]");
@@ -365,7 +355,7 @@ public class ATimeSeriesDBTest extends ATest {
         for (int i = 0; i < dates.size(); i += ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
             final FDate expectedValue = dates.get(dates.size() - 1);
             final long expectedIndex = expectedValue.millisValue();
-            final FDate value = table.getNextValue(key, FDate.MAX_DATE, i);
+            final FDate value = table.getNextValue(key, FDates.MAX_DATE, i);
             final long valueIndex = value.millisValue();
             Assertions.checkEquals(valueIndex, expectedIndex,
                     i + ": expected [" + expectedIndex + "] got [" + valueIndex + "]");

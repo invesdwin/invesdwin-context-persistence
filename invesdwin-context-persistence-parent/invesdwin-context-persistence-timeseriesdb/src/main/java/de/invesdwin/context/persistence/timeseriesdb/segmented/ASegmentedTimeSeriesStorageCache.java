@@ -839,7 +839,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             if (lastAvailableSegmentTo == null) {
                 cachedLastValue = Optional.empty();
             } else {
-                final V lastValue = getLatestValue(FDate.MAX_DATE);
+                final V lastValue = getLatestValue(FDates.MAX_DATE);
                 cachedLastValue = Optional.ofNullable(lastValue);
             }
         }

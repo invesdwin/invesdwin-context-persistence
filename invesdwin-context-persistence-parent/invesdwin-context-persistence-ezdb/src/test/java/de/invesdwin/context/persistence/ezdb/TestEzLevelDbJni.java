@@ -14,6 +14,7 @@ import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
+import de.invesdwin.util.time.date.FDates;
 import ezdb.table.RangeTableRow;
 import ezdb.table.Table;
 import ezdb.table.range.RawRangeTableRow;
@@ -22,8 +23,8 @@ import ezdb.util.TableIterator;
 @NotThreadSafe
 public class TestEzLevelDbJni extends ATest {
     private static final String HASHKEY_ONE = "1";
-    private static final FDate MAX_DATE = FDate.MAX_DATE;
-    private static final FDate MIN_DATE = FDate.MIN_DATE;
+    private static final FDate MAX_DATE = FDates.MAX_DATE;
+    private static final FDate MIN_DATE = FDates.MIN_DATE;
     final FDate now = FDateBuilder.newDate(2000);
     final FDate oneFDate = now.addDays(1);
     final FDate twoFDate = now.addDays(2);

@@ -30,6 +30,7 @@ import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.date.FDates;
 
 @ThreadSafe
 public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
@@ -175,9 +176,9 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         final Lock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            if (date.isBeforeOrEqualTo(FDate.MIN_DATE)) {
+            if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
                 return getLookupTableCache(key).getFirstValue();
-            } else if (date.isAfterOrEqualTo(FDate.MAX_DATE)) {
+            } else if (date.isAfterOrEqualTo(FDates.MAX_DATE)) {
                 return getLookupTableCache(key).getLastValue();
             } else {
                 return getLookupTableCache(key).getLatestValue(date);
@@ -204,7 +205,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         try {
             if (date == null) {
                 return null;
-            } else if (date.isBeforeOrEqualTo(FDate.MIN_DATE)) {
+            } else if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
                 return getLookupTableCache(key).getFirstValue();
             } else {
                 return getLookupTableCache(key).getPreviousValue(date, shiftBackUnits);
@@ -240,7 +241,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         final Lock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            if (date.isAfterOrEqualTo(FDate.MAX_DATE)) {
+            if (date.isAfterOrEqualTo(FDates.MAX_DATE)) {
                 return getLookupTableCache(key).getLastValue();
             } else {
                 return getLookupTableCache(key).getNextValue(date, shiftForwardUnits);
