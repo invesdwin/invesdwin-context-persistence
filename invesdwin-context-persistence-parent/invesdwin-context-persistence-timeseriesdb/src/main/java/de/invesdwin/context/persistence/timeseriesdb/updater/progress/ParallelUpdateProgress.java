@@ -119,8 +119,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
             parent.getLookupTable()
                     .finishFile(minTime, firstElement, lastElement, valueCount, memoryFilePath, memoryOffset,
                             tempFileLength);
-            //don't delete segment because we have to wait for memoryFileOut.channel.force to be called so that the sync happens
-            //            Files.deleteQuietly(tempFile);
+            Files.deleteQuietly(tempFile);
             parent.onFlush(flushIndex, this);
         } catch (final IOException e) {
             throw new RuntimeException(e);
