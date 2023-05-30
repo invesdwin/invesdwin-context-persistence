@@ -251,7 +251,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
             }).iterator()) {
                 if (shiftForwardUnits == 1) {
                     /*
-                     * workaround for deteremining next key with multiple values at the same millisecond (without this
+                     * workaround for determining next key with multiple values at the same millisecond (without this
                      * workaround we would return a duplicate that might produce an endless loop)
                      */
                     while (shiftForwardRemaining.intValue() >= 0) {

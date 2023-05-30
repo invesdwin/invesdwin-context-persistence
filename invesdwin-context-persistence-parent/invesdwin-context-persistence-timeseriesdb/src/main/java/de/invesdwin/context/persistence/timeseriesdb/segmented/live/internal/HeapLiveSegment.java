@@ -210,11 +210,20 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
         V nextValue = null;
         int shiftForwardRemaining = shiftForwardUnits;
         try (ICloseableIterator<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE, null).iterator()) {
-            if (shiftForwardUnits == 1) {
-                /*
-                 * workaround for deteremining next key with multiple values at the same millisecond (without this
-                 * workaround we would return a duplicate that might produce an endless loop)
-                 */
+            /*
+             * workaround for determining next key with multiple values at the same millisecond (without this workaround
+             * we would return a duplicate that might produce an endless loop)
+             */
+            if (shiftForwardUnits == 0) {
+                while (shiftForwardRemaining == 0) {
+                    final V nextNextValue = rangeValues.next();
+                    final FDate nextNextValueKey = historicalSegmentTable.extractEndTime(nextNextValue);
+                    if (!nextNextValueKey.isBeforeNotNullSafe(date)) {
+                        nextValue = nextNextValue;
+                        shiftForwardRemaining--;
+                    }
+                }
+            } else if (shiftForwardUnits == 1) {
                 while (shiftForwardRemaining >= 0) {
                     final V nextNextValue = rangeValues.next();
                     final FDate nextNextValueKey = historicalSegmentTable.extractEndTime(nextNextValue);

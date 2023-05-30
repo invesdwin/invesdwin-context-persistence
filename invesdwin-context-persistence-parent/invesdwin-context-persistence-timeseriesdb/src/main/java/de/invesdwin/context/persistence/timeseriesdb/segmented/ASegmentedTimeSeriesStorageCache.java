@@ -725,11 +725,20 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                                 return skip;
                             }
                         }).iterator()) {
-                    if (shiftForwardUnits == 1) {
-                        /*
-                         * workaround for deteremining next key with multiple values at the same millisecond (without
-                         * this workaround we would return a duplicate that might produce an endless loop)
-                         */
+                    /*
+                     * workaround for determining next key with multiple values at the same millisecond (without this
+                     * workaround we would return a duplicate that might produce an endless loop)
+                     */
+                    if (shiftForwardUnits == 0) {
+                        while (shiftForwardRemaining.intValue() == 0) {
+                            final V nextNextValue = rangeValues.next();
+                            final FDate nextNextValueKey = segmentedTable.extractEndTime(nextNextValue);
+                            if (!nextNextValueKey.isBeforeNotNullSafe(date)) {
+                                nextValue.set(nextNextValue);
+                                shiftForwardRemaining.decrement();
+                            }
+                        }
+                    } else if (shiftForwardUnits == 1) {
                         while (shiftForwardRemaining.intValue() >= 0) {
                             final V nextNextValue = rangeValues.next();
                             final FDate nextNextValueKey = segmentedTable.extractEndTime(nextNextValue);
