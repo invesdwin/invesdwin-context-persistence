@@ -676,13 +676,13 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             return firstValue;
         } else {
             final SingleValue value = storage.getOrLoad_previousValueLookupTable(hashKey, date, shiftBackUnits, () -> {
-                final MutableReference<V> previousValue = new MutableReference<>();
+                final MutableReference<V> prevValue = new MutableReference<>();
                 final MutableInt shiftBackRemaining = new MutableInt(shiftBackUnits);
                 try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null,
                         DisabledLock.INSTANCE, new ISkipFileFunction() {
                             @Override
                             public boolean skipFile(final MemoryFileSummary file) {
-                                final boolean skip = previousValue.get() != null
+                                final boolean skip = prevValue.get() != null
                                         && file.getValueCount() < shiftBackRemaining.intValue();
                                 if (skip) {
                                     shiftBackRemaining.add(file.getValueCount());
@@ -690,14 +690,39 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                                 return skip;
                             }
                         }).iterator()) {
-                    while (shiftBackRemaining.intValue() >= 0) {
-                        previousValue.set(rangeValuesReverse.next());
-                        shiftBackRemaining.decrement();
+                    /*
+                     * workaround for determining next key with multiple values at the same millisecond (without this
+                     * workaround we would return a duplicate that might produce an endless loop)
+                     */
+                    if (shiftBackUnits == 0) {
+                        while (shiftBackRemaining.intValue() == 0) {
+                            final V prevPrevValue = rangeValuesReverse.next();
+                            final FDate prevPrevValueKey = segmentedTable.extractEndTime(prevPrevValue);
+                            if (!prevPrevValueKey.isAfterNotNullSafe(date)) {
+                                prevValue.set(prevPrevValue);
+                                shiftBackRemaining.decrement();
+                            }
+                        }
+                    } else if (shiftBackUnits == 1) {
+                        while (shiftBackRemaining.intValue() >= 0) {
+                            final V prevPrevValue = rangeValuesReverse.next();
+                            final FDate prevPrevValueKey = segmentedTable.extractEndTime(prevPrevValue);
+                            if (shiftBackRemaining.intValue() == 1 || date.isAfterNotNullSafe(prevPrevValueKey)) {
+                                prevValue.set(prevPrevValue);
+                                shiftBackRemaining.decrement();
+                            }
+                        }
+                    } else {
+                        while (shiftBackRemaining.intValue() >= 0) {
+                            final V prevPrevValue = rangeValuesReverse.next();
+                            prevValue.set(prevPrevValue);
+                            shiftBackRemaining.decrement();
+                        }
                     }
                 } catch (final NoSuchElementException e) {
                     //ignore
                 }
-                return new SingleValue(valueSerde, previousValue.get());
+                return new SingleValue(valueSerde, prevValue.get());
             });
             return value.getValue(valueSerde);
         }
