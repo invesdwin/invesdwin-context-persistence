@@ -661,7 +661,7 @@ public class TimeSeriesStorageCache<K, V> {
                     if (shiftForwardUnits == 1) {
                         /*
                          * workaround for deteremining next key with multiple values at the same millisecond (without
-                         * this workaround we would produce an endless loop)
+                         * this workaround we would return a duplicate that might produce an endless loop)
                          */
                         while (shiftForwardRemaining.intValue() >= 0) {
                             final V nextNextValue = rangeValues.next();

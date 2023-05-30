@@ -355,9 +355,25 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
                 continue;
             }
             try (ICloseableIterator<V> rangeValues = lastValue.values.iterator()) {
-                while (shiftForwardRemaining >= 0) {
-                    nextValue = rangeValues.next();
-                    shiftForwardRemaining--;
+                if (shiftForwardUnits == 1) {
+                    /*
+                     * workaround for deteremining next key with multiple values at the same millisecond (without this
+                     * workaround we would return a duplicate that might produce an endless loop)
+                     */
+                    while (shiftForwardRemaining >= 0) {
+                        final V nextNextValue = rangeValues.next();
+                        final FDate nextNextValueKey = historicalSegmentTable.extractEndTime(nextNextValue);
+                        if (shiftForwardRemaining == 1 || date.isBeforeNotNullSafe(nextNextValueKey)) {
+                            nextValue = nextNextValue;
+                            shiftForwardRemaining--;
+                        }
+                    }
+                } else {
+                    while (shiftForwardRemaining >= 0) {
+                        final V nextNextValue = rangeValues.next();
+                        nextValue = nextNextValue;
+                        shiftForwardRemaining--;
+                    }
                 }
             } catch (final NoSuchElementException e) {
                 //ignore
@@ -375,9 +391,25 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         V nextValue = null;
         int shiftForwardRemaining = shiftForwardUnits;
         try (ICloseableIterator<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE, null).iterator()) {
-            while (shiftForwardRemaining >= 0) {
-                nextValue = rangeValues.next();
-                shiftForwardRemaining--;
+            if (shiftForwardUnits == 1) {
+                /*
+                 * workaround for deteremining next key with multiple values at the same millisecond (without this
+                 * workaround we would return a duplicate that might produce an endless loop)
+                 */
+                while (shiftForwardRemaining >= 0) {
+                    final V nextNextValue = rangeValues.next();
+                    final FDate nextNextValueKey = historicalSegmentTable.extractEndTime(nextNextValue);
+                    if (shiftForwardRemaining == 1 || date.isBeforeNotNullSafe(nextNextValueKey)) {
+                        nextValue = nextNextValue;
+                        shiftForwardRemaining--;
+                    }
+                }
+            } else {
+                while (shiftForwardRemaining >= 0) {
+                    final V nextNextValue = rangeValues.next();
+                    nextValue = nextNextValue;
+                    shiftForwardRemaining--;
+                }
             }
         } catch (final NoSuchElementException e) {
             //ignore
