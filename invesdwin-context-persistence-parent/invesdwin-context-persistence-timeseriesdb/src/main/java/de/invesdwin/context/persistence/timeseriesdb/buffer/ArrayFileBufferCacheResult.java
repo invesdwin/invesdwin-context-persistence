@@ -65,6 +65,20 @@ public class ArrayFileBufferCacheResult<V> extends RefCountReverseCloseableItera
         if (lowIndex > highIndex) {
             return EmptyCloseableIterator.getInstance();
         }
+        if (lowIndex == highIndex) {
+            if (low != null) {
+                final FDate lowIndexTime = extractEndTime.apply(list.get(lowIndex));
+                if (lowIndexTime.isBeforeNotNullSafe(low)) {
+                    return EmptyCloseableIterator.getInstance();
+                }
+            }
+            if (high != null) {
+                final FDate highIndexTime = extractEndTime.apply(list.get(highIndex));
+                if (highIndexTime.isAfterNotNullSafe(high)) {
+                    return EmptyCloseableIterator.getInstance();
+                }
+            }
+        }
         final ICloseableIterator<V> delegate = getDelegate().iterator(lowIndex, highIndex);
         return new ResultReferenceCloseableIterator<V>(this, delegate);
     }
@@ -86,6 +100,20 @@ public class ArrayFileBufferCacheResult<V> extends RefCountReverseCloseableItera
         }
         if (lowIndex > highIndex) {
             return EmptyCloseableIterator.getInstance();
+        }
+        if (lowIndex == highIndex) {
+            if (low != null) {
+                final FDate lowIndexTime = extractEndTime.apply(list.get(lowIndex));
+                if (lowIndexTime.isBeforeNotNullSafe(low)) {
+                    return EmptyCloseableIterator.getInstance();
+                }
+            }
+            if (high != null) {
+                final FDate highIndexTime = extractEndTime.apply(list.get(highIndex));
+                if (highIndexTime.isAfterNotNullSafe(high)) {
+                    return EmptyCloseableIterator.getInstance();
+                }
+            }
         }
         final ICloseableIterator<V> delegate = getDelegate().reverseIterator(highIndex, lowIndex);
         return new ResultReferenceCloseableIterator<V>(this, delegate);
