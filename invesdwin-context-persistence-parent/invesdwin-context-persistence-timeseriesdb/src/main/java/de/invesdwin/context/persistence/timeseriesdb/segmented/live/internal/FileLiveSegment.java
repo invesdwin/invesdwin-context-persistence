@@ -283,8 +283,8 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     public void putNextLiveValue(final FDate nextLiveKey, final V nextLiveValue) {
         LastValue<V> lastValue = lastValues.getReverse(0);
         if (!lastValue.values.isEmpty() && lastValue.key.isAfter(nextLiveKey)) {
-            //            LOG.warn("%s: nextLiveKey [%s] should be after or equal to lastLiveKey [%s]", segmentedKey, nextLiveKey,
-            //                    lastValue.key);
+            LOG.warn("%s: nextLiveKey [%s] should be after or equal to lastLiveKey [%s]", segmentedKey, nextLiveKey,
+                    lastValue.key);
             //            throw new IllegalStateException(segmentedKey + ": nextLiveKey [" + nextLiveKey
             //                    + "] should be after or equal to lastLiveKey [" + lastValue.key + "]");
             return;
