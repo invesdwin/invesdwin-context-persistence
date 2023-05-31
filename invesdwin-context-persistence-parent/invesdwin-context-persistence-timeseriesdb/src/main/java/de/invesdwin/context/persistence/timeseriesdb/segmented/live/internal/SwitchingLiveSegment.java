@@ -1,14 +1,12 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal;
 
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.concurrent.locks.Lock;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.commons.lang3.mutable.MutableInt;
-
 import de.invesdwin.context.log.Log;
+import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftForwardUnitsLoop;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
@@ -16,11 +14,9 @@ import de.invesdwin.util.collections.Arrays;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
-import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.iterable.buffer.IBufferingIterator;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
-import de.invesdwin.util.concurrent.reference.MutableReference;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
@@ -205,48 +201,18 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
             return nextValue;
         } else {
             //use both segments
-            final MutableReference<V> nextValue = new MutableReference<>();
-            final MutableInt shiftForwardRemaining = new MutableInt(shiftForwardUnits);
-            try (ICloseableIterator<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE, file -> {
-                final boolean skip = nextValue.get() != null && file.getValueCount() < shiftForwardRemaining.intValue();
+            final ShiftForwardUnitsLoop<V> shiftForwardLoop = new ShiftForwardUnitsLoop<>(date, shiftForwardUnits,
+                    historicalSegmentTable::extractEndTime);
+            final ICloseableIterable<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE, file -> {
+                final boolean skip = shiftForwardLoop.getNextValue() != null
+                        && file.getValueCount() < shiftForwardLoop.getShiftForwardRemaining();
                 if (skip) {
-                    shiftForwardRemaining.subtract(file.getValueCount());
+                    shiftForwardLoop.skip(file.getValueCount());
                 }
                 return skip;
-            }).iterator()) {
-                /*
-                 * workaround for determining next key with multiple values at the same millisecond (without this
-                 * workaround we would return a duplicate that might produce an endless loop)
-                 */
-                if (shiftForwardUnits == 0) {
-                    while (shiftForwardRemaining.intValue() == 0) {
-                        final V nextNextValue = rangeValues.next();
-                        final FDate nextNextValueKey = historicalSegmentTable.extractEndTime(nextNextValue);
-                        if (!nextNextValueKey.isBeforeNotNullSafe(date)) {
-                            nextValue.set(nextNextValue);
-                            shiftForwardRemaining.decrement();
-                        }
-                    }
-                } else if (shiftForwardUnits == 1) {
-                    while (shiftForwardRemaining.intValue() >= 0) {
-                        final V nextNextValue = rangeValues.next();
-                        final FDate nextNextValueKey = historicalSegmentTable.extractEndTime(nextNextValue);
-                        if (shiftForwardRemaining.intValue() == 1 || date.isBeforeNotNullSafe(nextNextValueKey)) {
-                            nextValue.set(nextNextValue);
-                            shiftForwardRemaining.decrement();
-                        }
-                    }
-                } else {
-                    while (shiftForwardRemaining.intValue() >= 0) {
-                        final V nextNextValue = rangeValues.next();
-                        nextValue.set(nextNextValue);
-                        shiftForwardRemaining.decrement();
-                    }
-                }
-            } catch (final NoSuchElementException e) {
-                //ignore
-            }
-            return nextValue.get();
+            });
+            shiftForwardLoop.loop(rangeValues);
+            return shiftForwardLoop.getNextValue();
         }
     }
 

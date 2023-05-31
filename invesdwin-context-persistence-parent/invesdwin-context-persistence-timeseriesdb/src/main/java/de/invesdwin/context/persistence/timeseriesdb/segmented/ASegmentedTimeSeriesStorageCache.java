@@ -2,7 +2,6 @@ package de.invesdwin.context.persistence.timeseriesdb.segmented;
 
 import java.io.Closeable;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -13,7 +12,6 @@ import java.util.function.Function;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.lang3.SerializationException;
-import org.apache.commons.lang3.mutable.MutableInt;
 import org.springframework.retry.backoff.BackOffPolicy;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
@@ -25,6 +23,8 @@ import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.FileBufferCache;
+import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftBackUnitsLoop;
+import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftForwardUnitsLoop;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
@@ -44,7 +44,6 @@ import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
-import de.invesdwin.util.concurrent.reference.MutableReference;
 import de.invesdwin.util.concurrent.taskinfo.provider.TaskInfoCallable;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.error.Throwables;
@@ -676,53 +675,22 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             return firstValue;
         } else {
             final SingleValue value = storage.getOrLoad_previousValueLookupTable(hashKey, date, shiftBackUnits, () -> {
-                final MutableReference<V> prevValue = new MutableReference<>();
-                final MutableInt shiftBackRemaining = new MutableInt(shiftBackUnits);
-                try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null,
+                final ShiftBackUnitsLoop<V> shiftBackLoop = new ShiftBackUnitsLoop<>(date, shiftBackUnits,
+                        segmentedTable::extractEndTime);
+                final ICloseableIterable<V> rangeValuesReverse = readRangeValuesReverse(date, null,
                         DisabledLock.INSTANCE, new ISkipFileFunction() {
                             @Override
                             public boolean skipFile(final MemoryFileSummary file) {
-                                final boolean skip = prevValue.get() != null
-                                        && file.getValueCount() < shiftBackRemaining.intValue();
+                                final boolean skip = shiftBackLoop.getPrevValue() != null
+                                        && file.getValueCount() < shiftBackLoop.getShiftBackRemaining();
                                 if (skip) {
-                                    shiftBackRemaining.add(file.getValueCount());
+                                    shiftBackLoop.skip(file.getValueCount());
                                 }
                                 return skip;
                             }
-                        }).iterator()) {
-                    /*
-                     * workaround for determining next key with multiple values at the same millisecond (without this
-                     * workaround we would return a duplicate that might produce an endless loop)
-                     */
-                    if (shiftBackUnits == 0) {
-                        while (shiftBackRemaining.intValue() == 0) {
-                            final V prevPrevValue = rangeValuesReverse.next();
-                            final FDate prevPrevValueKey = segmentedTable.extractEndTime(prevPrevValue);
-                            if (!prevPrevValueKey.isAfterNotNullSafe(date)) {
-                                prevValue.set(prevPrevValue);
-                                shiftBackRemaining.decrement();
-                            }
-                        }
-                    } else if (shiftBackUnits == 1) {
-                        while (shiftBackRemaining.intValue() >= 0) {
-                            final V prevPrevValue = rangeValuesReverse.next();
-                            final FDate prevPrevValueKey = segmentedTable.extractEndTime(prevPrevValue);
-                            if (shiftBackRemaining.intValue() == 1 || date.isAfterNotNullSafe(prevPrevValueKey)) {
-                                prevValue.set(prevPrevValue);
-                                shiftBackRemaining.decrement();
-                            }
-                        }
-                    } else {
-                        while (shiftBackRemaining.intValue() >= 0) {
-                            final V prevPrevValue = rangeValuesReverse.next();
-                            prevValue.set(prevPrevValue);
-                            shiftBackRemaining.decrement();
-                        }
-                    }
-                } catch (final NoSuchElementException e) {
-                    //ignore
-                }
-                return new SingleValue(valueSerde, prevValue.get());
+                        });
+                shiftBackLoop.loop(rangeValuesReverse);
+                return new SingleValue(valueSerde, shiftBackLoop.getPrevValue());
             });
             return value.getValue(valueSerde);
         }
@@ -736,53 +704,22 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             return lastValue;
         } else {
             final SingleValue value = storage.getOrLoad_nextValueLookupTable(hashKey, date, shiftForwardUnits, () -> {
-                final MutableReference<V> nextValue = new MutableReference<>();
-                final MutableInt shiftForwardRemaining = new MutableInt(shiftForwardUnits);
-                try (ICloseableIterator<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,
+                final ShiftForwardUnitsLoop<V> shiftForwardLoop = new ShiftForwardUnitsLoop<>(date, shiftForwardUnits,
+                        segmentedTable::extractEndTime);
+                final ICloseableIterable<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,
                         new ISkipFileFunction() {
                             @Override
                             public boolean skipFile(final MemoryFileSummary file) {
-                                final boolean skip = nextValue.get() != null
-                                        && file.getValueCount() < shiftForwardRemaining.intValue();
+                                final boolean skip = shiftForwardLoop.getNextValue() != null
+                                        && file.getValueCount() < shiftForwardLoop.getShiftForwardRemaining();
                                 if (skip) {
-                                    shiftForwardRemaining.subtract(file.getValueCount());
+                                    shiftForwardLoop.skip(file.getValueCount());
                                 }
                                 return skip;
                             }
-                        }).iterator()) {
-                    /*
-                     * workaround for determining next key with multiple values at the same millisecond (without this
-                     * workaround we would return a duplicate that might produce an endless loop)
-                     */
-                    if (shiftForwardUnits == 0) {
-                        while (shiftForwardRemaining.intValue() == 0) {
-                            final V nextNextValue = rangeValues.next();
-                            final FDate nextNextValueKey = segmentedTable.extractEndTime(nextNextValue);
-                            if (!nextNextValueKey.isBeforeNotNullSafe(date)) {
-                                nextValue.set(nextNextValue);
-                                shiftForwardRemaining.decrement();
-                            }
-                        }
-                    } else if (shiftForwardUnits == 1) {
-                        while (shiftForwardRemaining.intValue() >= 0) {
-                            final V nextNextValue = rangeValues.next();
-                            final FDate nextNextValueKey = segmentedTable.extractEndTime(nextNextValue);
-                            if (shiftForwardRemaining.intValue() == 1 || date.isBeforeNotNullSafe(nextNextValueKey)) {
-                                nextValue.set(nextNextValue);
-                                shiftForwardRemaining.decrement();
-                            }
-                        }
-                    } else {
-                        while (shiftForwardRemaining.intValue() >= 0) {
-                            final V nextNextValue = rangeValues.next();
-                            nextValue.set(nextNextValue);
-                            shiftForwardRemaining.decrement();
-                        }
-                    }
-                } catch (final NoSuchElementException e) {
-                    //ignore
-                }
-                return new SingleValue(valueSerde, nextValue.get());
+                        });
+                shiftForwardLoop.loop(rangeValues);
+                return new SingleValue(valueSerde, shiftForwardLoop.getNextValue());
             });
             return value.getValue(valueSerde);
         }

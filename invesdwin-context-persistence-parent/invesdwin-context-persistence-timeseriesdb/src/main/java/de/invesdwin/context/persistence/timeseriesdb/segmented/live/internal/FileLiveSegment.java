@@ -21,6 +21,7 @@ import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.ArrayFileBufferCacheResult;
+import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftForwardUnitsLoop;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
@@ -346,50 +347,18 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     private V getNextValueFromPrevLastValue(final FDate date, final int shiftForwardUnits, final int fromLastValue) {
-        V nextValue = null;
-        int shiftForwardRemaining = shiftForwardUnits;
-        for (int i = fromLastValue; i >= 0 && shiftForwardRemaining >= 0; i--) {
+        final ShiftForwardUnitsLoop<V> shiftForwardLoop = new ShiftForwardUnitsLoop<>(date, shiftForwardUnits,
+                historicalSegmentTable::extractEndTime);
+        for (int i = fromLastValue; i >= 0 && shiftForwardLoop.getShiftForwardRemaining() >= 0; i--) {
             final LastValue<V> lastValue = lastValues.getReverse(i);
             if (date.isAfter(lastValue.key)) {
                 //try a newer value
                 continue;
             }
-            try (ICloseableIterator<V> rangeValues = lastValue.values.iterator()) {
-                /*
-                 * workaround for determining next key with multiple values at the same millisecond (without this
-                 * workaround we would return a duplicate that might produce an endless loop)
-                 */
-                if (shiftForwardUnits == 0) {
-                    while (shiftForwardRemaining == 0) {
-                        final V nextNextValue = rangeValues.next();
-                        final FDate nextNextValueKey = historicalSegmentTable.extractEndTime(nextNextValue);
-                        if (!nextNextValueKey.isBeforeNotNullSafe(date)) {
-                            nextValue = nextNextValue;
-                            shiftForwardRemaining--;
-                        }
-                    }
-                } else if (shiftForwardUnits == 1) {
-                    while (shiftForwardRemaining >= 0) {
-                        final V nextNextValue = rangeValues.next();
-                        final FDate nextNextValueKey = historicalSegmentTable.extractEndTime(nextNextValue);
-                        if (shiftForwardRemaining == 1 || date.isBeforeNotNullSafe(nextNextValueKey)) {
-                            nextValue = nextNextValue;
-                            shiftForwardRemaining--;
-                        }
-                    }
-                } else {
-                    while (shiftForwardRemaining >= 0) {
-                        final V nextNextValue = rangeValues.next();
-                        nextValue = nextNextValue;
-                        shiftForwardRemaining--;
-                    }
-                }
-            } catch (final NoSuchElementException e) {
-                //ignore
-            }
+            shiftForwardLoop.loop(lastValue.values.iterator());
         }
-        if (nextValue != null) {
-            return nextValue;
+        if (shiftForwardLoop.getNextValue() != null) {
+            return shiftForwardLoop.getNextValue();
         } else {
             throw new IllegalStateException("should not get to here: date=" + date + " shiftForwardUnits="
                     + shiftForwardUnits + " fromLastValue=" + fromLastValue);
@@ -397,43 +366,12 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     private V getNextValueFromRangeValues(final FDate date, final int shiftForwardUnits) {
-        V nextValue = null;
-        int shiftForwardRemaining = shiftForwardUnits;
-        try (ICloseableIterator<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE, null).iterator()) {
-            /*
-             * workaround for determining next key with multiple values at the same millisecond (without this workaround
-             * we would return a duplicate that might produce an endless loop)
-             */
-            if (shiftForwardUnits == 0) {
-                while (shiftForwardRemaining == 0) {
-                    final V nextNextValue = rangeValues.next();
-                    final FDate nextNextValueKey = historicalSegmentTable.extractEndTime(nextNextValue);
-                    if (!nextNextValueKey.isBeforeNotNullSafe(date)) {
-                        nextValue = nextNextValue;
-                        shiftForwardRemaining--;
-                    }
-                }
-            } else if (shiftForwardUnits == 1) {
-                while (shiftForwardRemaining >= 0) {
-                    final V nextNextValue = rangeValues.next();
-                    final FDate nextNextValueKey = historicalSegmentTable.extractEndTime(nextNextValue);
-                    if (shiftForwardRemaining == 1 || date.isBeforeNotNullSafe(nextNextValueKey)) {
-                        nextValue = nextNextValue;
-                        shiftForwardRemaining--;
-                    }
-                }
-            } else {
-                while (shiftForwardRemaining >= 0) {
-                    final V nextNextValue = rangeValues.next();
-                    nextValue = nextNextValue;
-                    shiftForwardRemaining--;
-                }
-            }
-        } catch (final NoSuchElementException e) {
-            //ignore
-        }
-        if (nextValue != null) {
-            return nextValue;
+        final ShiftForwardUnitsLoop<V> shiftForwardLoop = new ShiftForwardUnitsLoop<>(date, shiftForwardUnits,
+                historicalSegmentTable::extractEndTime);
+        final ICloseableIterable<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE, null);
+        shiftForwardLoop.loop(rangeValues);
+        if (shiftForwardLoop.getNextValue() != null) {
+            return shiftForwardLoop.getNextValue();
         } else {
             return lastValues.getReverse(0).values.getTail();
         }

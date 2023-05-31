@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal;
 
 import java.io.File;
-import java.util.NoSuchElementException;
 import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
 
@@ -9,6 +8,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
+import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftForwardUnitsLoop;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
@@ -187,43 +187,12 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
             //we always return the first first value
             return firstValue.getHead();
         }
-        V nextValue = null;
-        int shiftForwardRemaining = shiftForwardUnits;
-        try (ICloseableIterator<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE, null).iterator()) {
-            /*
-             * workaround for determining next key with multiple values at the same millisecond (without this workaround
-             * we would return a duplicate that might produce an endless loop)
-             */
-            if (shiftForwardUnits == 0) {
-                while (shiftForwardRemaining == 0) {
-                    final V nextNextValue = rangeValues.next();
-                    final FDate nextNextValueKey = historicalSegmentTable.extractEndTime(nextNextValue);
-                    if (!nextNextValueKey.isBeforeNotNullSafe(date)) {
-                        nextValue = nextNextValue;
-                        shiftForwardRemaining--;
-                    }
-                }
-            } else if (shiftForwardUnits == 1) {
-                while (shiftForwardRemaining >= 0) {
-                    final V nextNextValue = rangeValues.next();
-                    final FDate nextNextValueKey = historicalSegmentTable.extractEndTime(nextNextValue);
-                    if (shiftForwardRemaining == 1 || date.isBeforeNotNullSafe(nextNextValueKey)) {
-                        nextValue = nextNextValue;
-                        shiftForwardRemaining--;
-                    }
-                }
-            } else {
-                while (shiftForwardRemaining >= 0) {
-                    final V nextNextValue = rangeValues.next();
-                    nextValue = nextNextValue;
-                    shiftForwardRemaining--;
-                }
-            }
-        } catch (final NoSuchElementException e) {
-            //ignore
-        }
-        if (nextValue != null) {
-            return nextValue;
+        final ShiftForwardUnitsLoop<V> shiftForwardLoop = new ShiftForwardUnitsLoop<>(date, shiftForwardUnits,
+                historicalSegmentTable::extractEndTime);
+        final ICloseableIterable<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE, null);
+        shiftForwardLoop.loop(rangeValues);
+        if (shiftForwardLoop.getNextValue() != null) {
+            return shiftForwardLoop.getNextValue();
         } else {
             return lastValue.getTail();
         }
