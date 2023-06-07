@@ -63,11 +63,9 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
         return segmentedKey;
     }
 
-    //CHECKSTYLE:OFF
     @Override
     public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final Lock readLock,
             final ISkipFileFunction skipFileFunction) {
-        //CHECKSTYLE:ON
         //we expect the read lock to be already locked from the outside
         if (isEmpty() || from != null && to != null && from.isAfterNotNullSafe(to)) {
             return EmptyCloseableIterable.getInstance();
@@ -110,11 +108,9 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
     }
 
-    //CHECKSTYLE:OFF
     @Override
     public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final Lock readLock,
             final ISkipFileFunction skipFileFunction) {
-        //CHECKSTYLE:ON
         //we expect the read lock to be already locked from the outside
         if (isEmpty() || from != null && to != null && from.isBeforeNotNullSafe(to)) {
             return EmptyCloseableIterable.getInstance();
@@ -216,10 +212,8 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
     }
 
-    //CHECKSTYLE:OFF
     @Override
     public V getLatestValue(final FDate date) {
-        //CHECKSTYLE:ON
         if (!lastValue.isEmpty() && (date == null || date.isAfterOrEqualToNotNullSafe(lastValueKey))) {
             //we always return the last last value
             return lastValue.getTail();

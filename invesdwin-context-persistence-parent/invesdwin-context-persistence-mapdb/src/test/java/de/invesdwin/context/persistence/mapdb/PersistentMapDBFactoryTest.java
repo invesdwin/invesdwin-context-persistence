@@ -13,10 +13,8 @@ import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.error.Throwables;
 
-// CHECKSTYLE:OFF
 @NotThreadSafe
 public class PersistentMapDBFactoryTest extends ATest {
-    //CHECKSTYLE:ON
 
     @Test
     public void testItWorks() {

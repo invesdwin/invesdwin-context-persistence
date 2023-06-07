@@ -59,10 +59,8 @@ import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
 import ezdb.table.RangeTableRow;
 
-// CHECKSTYLE:OFF ClassDataAbstractionCoupling
 @NotThreadSafe
 public class TimeSeriesStorageCache<K, V> {
-    //CHECKSTYLE:ON
     public static final Integer MAXIMUM_SIZE = 1_000;
     public static final EvictionMode EVICTION_MODE = AHistoricalCache.EVICTION_MODE;
 
@@ -659,9 +657,7 @@ public class TimeSeriesStorageCache<K, V> {
         }
     }
 
-    //CHECKSTYLE:OFF
     public boolean isEmptyOrInconsistent() {
-        //CHECKSTYLE:ON
         try {
             getFirstValue();
             getLastValue();

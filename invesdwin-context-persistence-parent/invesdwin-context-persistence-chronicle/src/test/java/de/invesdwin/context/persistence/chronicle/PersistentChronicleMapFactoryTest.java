@@ -16,10 +16,8 @@ import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.IntegerSerde;
 import de.invesdwin.util.marshallers.serde.basic.StringUtf8Serde;
 
-// CHECKSTYLE:OFF
 @NotThreadSafe
 public class PersistentChronicleMapFactoryTest extends ATest {
-    //CHECKSTYLE:ON
 
     @Test
     public void testItWorks() {
