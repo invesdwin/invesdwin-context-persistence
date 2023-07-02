@@ -69,8 +69,8 @@
 		<version.mph-table>1.0.5</version.mph-table>
 		<version.lsmtree>1.0.7</version.lsmtree>
 
-		<version.chronicle-queue>5.22.21</version.chronicle-queue>
-		<version.chronicle-map>3.22.8</version.chronicle-map>
+		<version.chronicle-queue>5.24ea19</version.chronicle-queue>
+		<version.chronicle-map>3.24ea3</version.chronicle-map>
 
 		<version.tkrzw-java>0.1.27</version.tkrzw-java>
 		<version.duckdb>0.3.1</version.duckdb>
