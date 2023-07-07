@@ -76,7 +76,7 @@
 		<version.duckdb>0.3.1</version.duckdb>
 		<version.sqlite>3.36.0.3</version.sqlite>
 		<version.derby>10.15.2.0</version.derby>
-		<version.h2>2.1.210</version.h2>
+		<version.h2>2.2.220</version.h2>
 		<version.krati>0.4.9</version.krati>
 		<version.sg-cdb>1.0.4</version.sg-cdb>
 		<version.tokyocabinet>1.24.6</version.tokyocabinet>
