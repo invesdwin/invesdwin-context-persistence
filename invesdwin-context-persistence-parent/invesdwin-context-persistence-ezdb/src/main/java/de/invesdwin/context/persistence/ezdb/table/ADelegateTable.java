@@ -266,7 +266,7 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
                     Err.process(new RuntimeException("Table data for [" + getDirectory() + "/" + getName()
                             + "] is inconsistent. Resetting data and trying again.", e));
                     innerDeleteTable();
-                    tableFinalizer.table = db.getRangeTable(name);
+                    tableFinalizer.table = db.getTable(name);
                     if (tableFinalizer.table == null) {
                         throw new IllegalStateException("table should not be null");
                     }
@@ -305,8 +305,7 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
         onDeleteTableFinished();
     }
 
-    protected void onDeleteTableFinished() {
-    }
+    protected void onDeleteTableFinished() {}
 
     protected boolean shouldPurgeTable() {
         return false;
