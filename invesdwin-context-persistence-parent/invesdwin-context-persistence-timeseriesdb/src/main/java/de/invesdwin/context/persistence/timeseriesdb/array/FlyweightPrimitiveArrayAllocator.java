@@ -14,6 +14,7 @@ import de.invesdwin.util.collections.array.buffer.BufferBooleanArray;
 import de.invesdwin.util.collections.array.buffer.BufferDoubleArray;
 import de.invesdwin.util.collections.array.buffer.BufferIntegerArray;
 import de.invesdwin.util.collections.array.buffer.BufferLongArray;
+import de.invesdwin.util.collections.bitset.IBitSet;
 import de.invesdwin.util.math.BitSets;
 import de.invesdwin.util.streams.buffer.bytes.FakeAllocatorBuffer;
 
@@ -39,6 +40,16 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
     @Override
     public IBooleanArray getBooleanArray(final String id) {
         return (IBooleanArray) map.get(id);
+    }
+
+    @Override
+    public IBitSet getBitSet(final String id) {
+        final BufferBooleanArray booleanArray = (BufferBooleanArray) getBooleanArray(id);
+        if (booleanArray != null) {
+            return booleanArray.getDelegate().getBitSet();
+        } else {
+            return null;
+        }
     }
 
     @Override
@@ -68,6 +79,12 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
         final IBooleanArray instance = (IBooleanArray) map.get(id);
         Assertions.checkNotNull(instance);
         return instance;
+    }
+
+    @Override
+    public IBitSet newBitSet(final String id, final int size) {
+        final BufferBooleanArray booleanArray = (BufferBooleanArray) newBooleanArray(id, size);
+        return booleanArray.getDelegate().getBitSet();
     }
 
     @Override
