@@ -17,6 +17,7 @@ import de.invesdwin.util.collections.array.buffer.BufferLongArray;
 import de.invesdwin.util.collections.bitset.IBitSet;
 import de.invesdwin.util.math.BitSets;
 import de.invesdwin.util.streams.buffer.bytes.FakeAllocatorBuffer;
+import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 
 @ThreadSafe
 public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocator {
@@ -25,6 +26,11 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
 
     public FlyweightPrimitiveArrayAllocator(final String name, final File directory) {
         this.map = new FlyweightPrimitiveArrayPersistentMap<>(name, directory);
+    }
+
+    @Override
+    public IByteBuffer getByteBuffer(final String id) {
+        return (IByteBuffer) map.get(id);
     }
 
     @Override
@@ -55,6 +61,14 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
     @Override
     public ILongArray getLongArray(final String id) {
         return (ILongArray) map.get(id);
+    }
+
+    @Override
+    public IByteBuffer newByteBuffer(final String id, final int size) {
+        Assertions.checkNull(map.put(id, new FakeAllocatorBuffer(size)));
+        final IByteBuffer instance = (IByteBuffer) map.get(id);
+        Assertions.checkNotNull(instance);
+        return instance;
     }
 
     @Override

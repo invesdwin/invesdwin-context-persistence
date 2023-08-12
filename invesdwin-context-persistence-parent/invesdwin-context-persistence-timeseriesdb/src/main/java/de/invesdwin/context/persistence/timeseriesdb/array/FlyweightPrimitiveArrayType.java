@@ -4,6 +4,7 @@ import javax.annotation.concurrent.Immutable;
 
 @Immutable
 public enum FlyweightPrimitiveArrayType {
+    Byte,
     Boolean,
     Double,
     Long,

@@ -42,6 +42,8 @@ public class FlyweightPrimitiveArraySerde implements ISerde<IPrimitiveArray> {
         final IByteBuffer arrayBuffer = buffer.sliceFrom(ARRAY_INDEX);
         final FlyweightPrimitiveArrayType type = FlyweightPrimitiveArrayType.values()[typeOrdinal];
         switch (type) {
+        case Byte:
+            return arrayBuffer;
         case Boolean:
             return new BufferBooleanArray(arrayBuffer);
         case Double:
@@ -57,7 +59,9 @@ public class FlyweightPrimitiveArraySerde implements ISerde<IPrimitiveArray> {
 
     @Override
     public int toBuffer(final IByteBuffer buffer, final IPrimitiveArray obj) {
-        if (obj instanceof IBooleanArray) {
+        if (obj instanceof IByteBuffer) {
+            buffer.putByte(TYPE_INDEX, (byte) FlyweightPrimitiveArrayType.Byte.ordinal());
+        } else if (obj instanceof IBooleanArray) {
             buffer.putByte(TYPE_INDEX, (byte) FlyweightPrimitiveArrayType.Boolean.ordinal());
         } else if (obj instanceof IDoubleArray) {
             buffer.putByte(TYPE_INDEX, (byte) FlyweightPrimitiveArrayType.Double.ordinal());
