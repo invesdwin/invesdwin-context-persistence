@@ -134,4 +134,14 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
         }
     }
 
+    @SuppressWarnings("unchecked")
+    @Override
+    public <T> T unwrap(final Class<T> type) {
+        if (type.isAssignableFrom(getClass())) {
+            return (T) this;
+        } else {
+            return null;
+        }
+    }
+
 }
