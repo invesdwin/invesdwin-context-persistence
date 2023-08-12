@@ -28,6 +28,10 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
         this.map = new FlyweightPrimitiveArrayPersistentMap<>(name, directory);
     }
 
+    public File getDirectory() {
+        return map.getDirectory();
+    }
+
     @Override
     public IByteBuffer getByteBuffer(final String id) {
         return (IByteBuffer) map.get(id);
