@@ -15,6 +15,7 @@ import de.invesdwin.util.collections.array.buffer.BufferDoubleArray;
 import de.invesdwin.util.collections.array.buffer.BufferIntegerArray;
 import de.invesdwin.util.collections.array.buffer.BufferLongArray;
 import de.invesdwin.util.collections.bitset.IBitSet;
+import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.math.BitSets;
 import de.invesdwin.util.streams.buffer.bytes.FakeAllocatorBuffer;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
@@ -111,6 +112,26 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
         final ILongArray instance = (ILongArray) map.get(id);
         Assertions.checkNotNull(instance);
         return instance;
+    }
+
+    @Override
+    public String toString() {
+        return Objects.toStringHelper(this).addValue(getDirectory()).toString();
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(FlyweightPrimitiveArrayAllocator.class, getDirectory());
+    }
+
+    @Override
+    public boolean equals(final Object obj) {
+        if (obj instanceof FlyweightPrimitiveArrayAllocator) {
+            final FlyweightPrimitiveArrayAllocator cObj = (FlyweightPrimitiveArrayAllocator) obj;
+            return Objects.equals(getDirectory(), cObj.getDirectory());
+        } else {
+            return false;
+        }
     }
 
 }
