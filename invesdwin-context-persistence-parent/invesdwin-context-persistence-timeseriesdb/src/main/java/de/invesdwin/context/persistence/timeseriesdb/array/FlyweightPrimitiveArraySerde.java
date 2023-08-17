@@ -1,5 +1,7 @@
 package de.invesdwin.context.persistence.timeseriesdb.array;
 
+import java.io.IOException;
+
 import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.util.collections.array.IBooleanArray;
@@ -72,8 +74,12 @@ public class FlyweightPrimitiveArraySerde implements ISerde<IPrimitiveArray> {
         } else {
             throw UnknownArgumentException.newInstance(Class.class, obj.getClass());
         }
-        final int length = obj.toBuffer(buffer.sliceFrom(ARRAY_INDEX));
-        return ARRAY_INDEX + length;
+        try {
+            final int length = obj.getBuffer(buffer.sliceFrom(ARRAY_INDEX));
+            return ARRAY_INDEX + length;
+        } catch (final IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
 }
