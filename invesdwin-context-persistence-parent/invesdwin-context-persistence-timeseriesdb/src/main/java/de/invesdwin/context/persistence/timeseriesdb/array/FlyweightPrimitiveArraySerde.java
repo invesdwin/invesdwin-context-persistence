@@ -24,7 +24,8 @@ public class FlyweightPrimitiveArraySerde implements ISerde<IPrimitiveArray> {
     public static final FlyweightPrimitiveArraySerde GET = new FlyweightPrimitiveArraySerde();
 
     private static final int TYPE_INDEX = 0;
-    private static final int TYPE_LENGTH = Byte.BYTES;
+    //use integer for memory alignment instead of byte (which would suffice)
+    private static final int TYPE_LENGTH = Integer.BYTES;
 
     private static final int ARRAY_INDEX = TYPE_INDEX + TYPE_LENGTH;
 
@@ -40,7 +41,7 @@ public class FlyweightPrimitiveArraySerde implements ISerde<IPrimitiveArray> {
 
     @Override
     public IPrimitiveArray fromBuffer(final IByteBuffer buffer) {
-        final byte typeOrdinal = buffer.getByte(TYPE_INDEX);
+        final int typeOrdinal = buffer.getInt(TYPE_INDEX);
         final IByteBuffer arrayBuffer = buffer.sliceFrom(ARRAY_INDEX);
         final FlyweightPrimitiveArrayType type = FlyweightPrimitiveArrayType.values()[typeOrdinal];
         switch (type) {
@@ -62,15 +63,15 @@ public class FlyweightPrimitiveArraySerde implements ISerde<IPrimitiveArray> {
     @Override
     public int toBuffer(final IByteBuffer buffer, final IPrimitiveArray obj) {
         if (obj instanceof IByteBuffer) {
-            buffer.putByte(TYPE_INDEX, (byte) FlyweightPrimitiveArrayType.Byte.ordinal());
+            buffer.putInt(TYPE_INDEX, (byte) FlyweightPrimitiveArrayType.Byte.ordinal());
         } else if (obj instanceof IBooleanArray) {
-            buffer.putByte(TYPE_INDEX, (byte) FlyweightPrimitiveArrayType.Boolean.ordinal());
+            buffer.putInt(TYPE_INDEX, (byte) FlyweightPrimitiveArrayType.Boolean.ordinal());
         } else if (obj instanceof IDoubleArray) {
-            buffer.putByte(TYPE_INDEX, (byte) FlyweightPrimitiveArrayType.Double.ordinal());
+            buffer.putInt(TYPE_INDEX, (byte) FlyweightPrimitiveArrayType.Double.ordinal());
         } else if (obj instanceof IIntegerArray) {
-            buffer.putByte(TYPE_INDEX, (byte) FlyweightPrimitiveArrayType.Int.ordinal());
+            buffer.putInt(TYPE_INDEX, (byte) FlyweightPrimitiveArrayType.Int.ordinal());
         } else if (obj instanceof ILongArray) {
-            buffer.putByte(TYPE_INDEX, (byte) FlyweightPrimitiveArrayType.Long.ordinal());
+            buffer.putInt(TYPE_INDEX, (byte) FlyweightPrimitiveArrayType.Long.ordinal());
         } else {
             throw UnknownArgumentException.newInstance(Class.class, obj.getClass());
         }
