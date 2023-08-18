@@ -94,7 +94,8 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
 
     @Override
     public IBooleanArray newBooleanArray(final String id, final int size) {
-        Assertions.checkNull(map.put(id, new BufferBooleanArray(new FakeAllocatorBuffer(BitSets.wordIndex(size)))));
+        Assertions.checkNull(map.put(id,
+                new BufferBooleanArray(new FakeAllocatorBuffer((BitSets.wordIndex(size) + 1) * Long.BYTES))));
         final IBooleanArray instance = (IBooleanArray) map.get(id);
         Assertions.checkNotNull(instance);
         return instance;
