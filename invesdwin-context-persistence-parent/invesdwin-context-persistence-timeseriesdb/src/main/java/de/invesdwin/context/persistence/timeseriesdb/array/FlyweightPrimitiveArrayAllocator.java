@@ -14,6 +14,8 @@ import de.invesdwin.util.collections.array.buffer.BufferBooleanArray;
 import de.invesdwin.util.collections.array.buffer.BufferDoubleArray;
 import de.invesdwin.util.collections.array.buffer.BufferIntegerArray;
 import de.invesdwin.util.collections.array.buffer.BufferLongArray;
+import de.invesdwin.util.collections.attributes.AttributesMap;
+import de.invesdwin.util.collections.attributes.IAttributesMap;
 import de.invesdwin.util.collections.bitset.IBitSet;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.math.BitSets;
@@ -24,6 +26,7 @@ import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocator {
 
     private final FlyweightPrimitiveArrayPersistentMap<String> map;
+    private AttributesMap attributes;
 
     public FlyweightPrimitiveArrayAllocator(final String name, final File directory) {
         this.map = new FlyweightPrimitiveArrayPersistentMap<>(name, directory);
@@ -143,6 +146,18 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
         } else {
             return null;
         }
+    }
+
+    @Override
+    public IAttributesMap getAttributes() {
+        if (attributes == null) {
+            synchronized (this) {
+                if (attributes == null) {
+                    attributes = new AttributesMap();
+                }
+            }
+        }
+        return attributes;
     }
 
 }
