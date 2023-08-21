@@ -4,12 +4,15 @@ import java.io.File;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import de.invesdwin.context.system.array.IPrimitiveArrayAllocator;
+import de.invesdwin.context.system.properties.CachingDelegateProperties;
+import de.invesdwin.context.system.properties.FileProperties;
+import de.invesdwin.context.system.properties.IProperties;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.array.IBooleanArray;
 import de.invesdwin.util.collections.array.IDoubleArray;
 import de.invesdwin.util.collections.array.IIntegerArray;
 import de.invesdwin.util.collections.array.ILongArray;
-import de.invesdwin.util.collections.array.allocator.IPrimitiveArrayAllocator;
 import de.invesdwin.util.collections.array.buffer.BufferBooleanArray;
 import de.invesdwin.util.collections.array.buffer.BufferDoubleArray;
 import de.invesdwin.util.collections.array.buffer.BufferIntegerArray;
@@ -27,6 +30,7 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
 
     private final FlyweightPrimitiveArrayPersistentMap<String> map;
     private AttributesMap attributes;
+    private IProperties properties;
 
     public FlyweightPrimitiveArrayAllocator(final String name, final File directory) {
         this.map = new FlyweightPrimitiveArrayPersistentMap<>(name, directory);
@@ -158,6 +162,19 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
             }
         }
         return attributes;
+    }
+
+    @Override
+    public IProperties getProperties() {
+        if (properties == null) {
+            synchronized (this) {
+                if (properties == null) {
+                    properties = new CachingDelegateProperties(
+                            new FileProperties(new File(getDirectory(), map.getName() + ".properties")));
+                }
+            }
+        }
+        return properties;
     }
 
 }
