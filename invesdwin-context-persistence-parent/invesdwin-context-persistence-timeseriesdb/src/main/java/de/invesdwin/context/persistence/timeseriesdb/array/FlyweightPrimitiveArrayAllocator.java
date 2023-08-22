@@ -10,7 +10,6 @@ import de.invesdwin.context.system.properties.CachingDelegateProperties;
 import de.invesdwin.context.system.properties.FileProperties;
 import de.invesdwin.context.system.properties.IProperties;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.array.IBooleanArray;
 import de.invesdwin.util.collections.array.IDoubleArray;
 import de.invesdwin.util.collections.array.IIntegerArray;
@@ -22,7 +21,6 @@ import de.invesdwin.util.collections.array.buffer.BufferLongArray;
 import de.invesdwin.util.collections.attributes.AttributesMap;
 import de.invesdwin.util.collections.attributes.IAttributesMap;
 import de.invesdwin.util.collections.bitset.IBitSet;
-import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.math.BitSets;
 import de.invesdwin.util.streams.buffer.bytes.FakeAllocatorBuffer;
@@ -31,18 +29,11 @@ import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 @ThreadSafe
 public final class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Closeable {
 
-    private static final ALoadingCache<Pair<String, File>, FlyweightPrimitiveArrayAllocator> INSTANCES = new ALoadingCache<Pair<String, File>, FlyweightPrimitiveArrayAllocator>() {
-        @Override
-        protected FlyweightPrimitiveArrayAllocator loadValue(final Pair<String, File> key) {
-            return new FlyweightPrimitiveArrayAllocator(key.getFirst(), key.getSecond());
-        }
-    };
-
     private final FlyweightPrimitiveArrayPersistentMap<String> map;
     private AttributesMap attributes;
     private IProperties properties;
 
-    private FlyweightPrimitiveArrayAllocator(final String name, final File directory) {
+    public FlyweightPrimitiveArrayAllocator(final String name, final File directory) {
         this.map = new FlyweightPrimitiveArrayPersistentMap<>(name, directory);
     }
 
@@ -207,17 +198,4 @@ public final class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAl
         map.close();
     }
 
-    public static FlyweightPrimitiveArrayAllocator getInstance(final String name, final File directory) {
-        return INSTANCES.get(Pair.of(name, directory));
-    }
-
-    public static void reset() {
-        if (!INSTANCES.isEmpty()) {
-            for (final FlyweightPrimitiveArrayAllocator instance : INSTANCES.values()) {
-                instance.clear();
-                instance.close();
-            }
-            INSTANCES.clear();
-        }
-    }
 }
