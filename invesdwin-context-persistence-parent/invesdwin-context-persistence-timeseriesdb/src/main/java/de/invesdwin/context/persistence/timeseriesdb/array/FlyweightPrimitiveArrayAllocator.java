@@ -1,5 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb.array;
 
+import java.io.Closeable;
 import java.io.File;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -26,7 +27,7 @@ import de.invesdwin.util.streams.buffer.bytes.FakeAllocatorBuffer;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 
 @ThreadSafe
-public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocator {
+public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Closeable {
 
     private final FlyweightPrimitiveArrayPersistentMap<String> map;
     private AttributesMap attributes;
@@ -169,12 +170,31 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
         if (properties == null) {
             synchronized (this) {
                 if (properties == null) {
-                    properties = new CachingDelegateProperties(
-                            new FileProperties(new File(getDirectory(), map.getName() + ".properties")));
+                    properties = new CachingDelegateProperties(new FileProperties(newPropertiesFile()));
                 }
             }
         }
         return properties;
+    }
+
+    private File newPropertiesFile() {
+        return new File(getDirectory(), map.getName() + ".properties");
+    }
+
+    @Override
+    public void clear() {
+        map.clear();
+        final AttributesMap attributesCopy = attributes;
+        if (attributesCopy != null) {
+            attributesCopy.clear();
+            attributes = null;
+        }
+        properties = null;
+    }
+
+    @Override
+    public void close() {
+        map.close();
     }
 
 }
