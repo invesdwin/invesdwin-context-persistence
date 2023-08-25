@@ -48,9 +48,9 @@ import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.string.description.TextDescription;
+import de.invesdwin.util.marshallers.serde.FromBufferDelegateSerde;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.streams.PreLockedDelegateInputStream;
-import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 import de.invesdwin.util.streams.buffer.file.IMemoryMappedFile;
 import de.invesdwin.util.streams.pool.PooledFastByteArrayOutputStream;
 import de.invesdwin.util.streams.pool.buffered.BufferedFileDataInputStream;
@@ -426,27 +426,7 @@ public class TimeSeriesStorageCache<K, V> {
 
             @Override
             protected ISerde<V> newSerde() {
-                return new ISerde<V>() {
-                    @Override
-                    public V fromBytes(final byte[] bytes) {
-                        return valueSerde.fromBytes(bytes);
-                    }
-
-                    @Override
-                    public V fromBuffer(final IByteBuffer buffer) {
-                        return valueSerde.fromBuffer(buffer);
-                    }
-
-                    @Override
-                    public int toBuffer(final IByteBuffer buffer, final V obj) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public byte[] toBytes(final V obj) {
-                        throw new UnsupportedOperationException();
-                    }
-                };
+                return new FromBufferDelegateSerde<V>(valueSerde);
             }
 
             @Override

@@ -20,6 +20,7 @@ import de.invesdwin.util.collections.iterable.bytebuffer.AByteBufferCloseableIte
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterator;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.error.FastNoSuchElementException;
+import de.invesdwin.util.marshallers.serde.IFlyweightSerdeProvider;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.streams.buffer.bytes.ByteBuffers;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
@@ -62,9 +63,23 @@ public class ArrayAllocatorFileBufferCacheResult<V> extends AByteBufferCloseable
                 pooledBuffer.close();
             }
         }
-        this.serde = delegate.getSerde();
+        this.serde = extractSerde(delegate);
         this.fixedLength = delegate.getFixedLength();
         Assertions.checkTrue(fixedLength > 0);
+    }
+
+    @SuppressWarnings("unchecked")
+    private ISerde<V> extractSerde(final IDeserializingCloseableIterable<V> delegate) {
+        final ISerde<V> serdeProvider = delegate.getSerde();
+        if (serdeProvider instanceof IFlyweightSerdeProvider) {
+            final IFlyweightSerdeProvider<V> flyweightSerdeProvider = (IFlyweightSerdeProvider<V>) serdeProvider;
+            final ISerde<V> flyweightSerde = flyweightSerdeProvider.asFlyweightSerde();
+            if (flyweightSerde != null) {
+                return flyweightSerde;
+            }
+        }
+        System.err.println("not flyweight: " + serdeProvider.toString());
+        return serdeProvider;
     }
 
     @Override
