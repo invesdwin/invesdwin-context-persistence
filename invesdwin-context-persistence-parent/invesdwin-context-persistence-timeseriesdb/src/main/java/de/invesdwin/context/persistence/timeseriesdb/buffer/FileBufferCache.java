@@ -20,11 +20,11 @@ import com.github.benmanes.caffeine.cache.RemovalCause;
 
 import de.invesdwin.context.beans.hook.ReinitializationHookManager;
 import de.invesdwin.context.beans.hook.ReinitializationHookSupport;
+import de.invesdwin.context.persistence.timeseriesdb.IDeserializingCloseableIterable;
 import de.invesdwin.context.persistence.timeseriesdb.TimeseriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
-import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
@@ -109,17 +109,23 @@ public final class FileBufferCache {
     }
 
     private static SoftReference resultCache_load(final ResultCacheKey key) throws Exception {
-        final ICloseableIterable values = key.getSource().getSource();
-        key.setSource(null);
-        final ArrayList list = LIST_POOL.borrowObject();
-        try (ICloseableIterator it = values.iterator()) {
-            while (true) {
-                list.add(it.next());
+        final IDeserializingCloseableIterable values = key.getSource().getSource();
+        if (TimeseriesProperties.FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR != null && values.getFixedLength() != null
+                && values.getFixedLength() > 0) {
+            return new SoftReference<ArrayAllocatorFileBufferCacheResult>(new ArrayAllocatorFileBufferCacheResult<>(
+                    TimeseriesProperties.FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR, values));
+        } else {
+            key.setSource(null);
+            final ArrayList list = LIST_POOL.borrowObject();
+            try (ICloseableIterator it = values.iterator()) {
+                while (true) {
+                    list.add(it.next());
+                }
+            } catch (final NoSuchElementException e) {
+                //end reached
             }
-        } catch (final NoSuchElementException e) {
-            //end reached
+            return new SoftReference<ArrayFileBufferCacheResult>(new ArrayFileBufferCacheResult(list));
         }
-        return new SoftReference<ArrayFileBufferCacheResult>(new ArrayFileBufferCacheResult(list));
     }
 
     private static void fileCache_onRemoval(final FileCacheKey key, final IMemoryMappedFile value,
