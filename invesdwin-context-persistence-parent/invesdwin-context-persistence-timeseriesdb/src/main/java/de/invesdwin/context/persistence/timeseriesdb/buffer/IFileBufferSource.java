@@ -1,11 +1,11 @@
 package de.invesdwin.context.persistence.timeseriesdb.buffer;
 
-import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
+import de.invesdwin.context.persistence.timeseriesdb.IDeserializingCloseableIterable;
 
 @FunctionalInterface
 public interface IFileBufferSource {
 
     @SuppressWarnings("rawtypes")
-    IReverseCloseableIterable getSource();
+    IDeserializingCloseableIterable getSource();
 
 }

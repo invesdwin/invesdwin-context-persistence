@@ -419,7 +419,7 @@ public class TimeSeriesStorageCache<K, V> {
 
     private SerializingCollection<V> newResult(final String method, final MemoryFileSummary summary,
             final Lock readLock) {
-        final TextDescription name = new TextDescription("%s[%s]: %s(%s)", ATimeSeriesUpdater.class.getSimpleName(),
+        final TextDescription name = new TextDescription("%s[%s]: %s(%s)", TimeSeriesStorageCache.class.getSimpleName(),
                 hashKey, method, summary);
         final File memoryFile = new File(summary.getMemoryResourceUri());
         return new SerializingCollection<V>(name, memoryFile, true) {

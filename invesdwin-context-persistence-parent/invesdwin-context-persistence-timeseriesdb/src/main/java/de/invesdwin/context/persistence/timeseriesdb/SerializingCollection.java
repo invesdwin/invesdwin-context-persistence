@@ -23,7 +23,6 @@ import de.invesdwin.context.integration.compression.lz4.LZ4Streams;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
-import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
 import de.invesdwin.util.collections.iterable.LimitingIterator;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.error.FastNoSuchElementException;
@@ -43,7 +42,7 @@ import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 import de.invesdwin.util.streams.buffer.bytes.ICloseableByteBuffer;
 
 @NotThreadSafe
-public class SerializingCollection<E> implements Collection<E>, IReverseCloseableIterable<E>, Closeable {
+public class SerializingCollection<E> implements Collection<E>, IDeserializingCloseableIterable<E>, Closeable {
 
     private static final int READ_ONLY_FILE_SIZE = Integer.MAX_VALUE;
     private static final UniqueNameGenerator UNIQUE_NAME_GENERATOR = new UniqueNameGenerator() {
@@ -91,14 +90,22 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         }
     }
 
+    @Override
+    public String getName() {
+        return name.toString();
+    }
+
+    @Override
     public ISerde<E> getSerde() {
         return serde;
     }
 
+    @Override
     public Integer getFixedLength() {
         return fixedLength;
     }
 
+    @Override
     public final InputStream newInputStream() throws IOException {
         return newDecompressor(newFileInputStream(file));
     }
