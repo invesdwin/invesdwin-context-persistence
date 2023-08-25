@@ -54,7 +54,7 @@ public final class FileBufferCache {
         LOAD_EXECUTOR = Executors.newFixedThreadPool(FileBufferCache.class.getSimpleName() + "_LOAD", 1);
     }
 
-    private static final AsyncLoadingCache<ResultCacheKey, SoftReference<ArrayFileBufferCacheResult>> RESULT_CACHE;
+    private static final AsyncLoadingCache<ResultCacheKey, SoftReference<IFileBufferCacheResult>> RESULT_CACHE;
     private static final LoadingCache<FileCacheKey, IMemoryMappedFile> FILE_CACHE;
 
     private static final IObjectPool<ArrayList> LIST_POOL = new AgronaObjectPool<ArrayList>(
@@ -75,8 +75,7 @@ public final class FileBufferCache {
                         TimeUnit.MILLISECONDS)
                 .removalListener(FileBufferCache::resultCache_onRemoval)
                 .executor(LOAD_EXECUTOR)
-                .<ResultCacheKey, SoftReference<ArrayFileBufferCacheResult>> buildAsync(
-                        FileBufferCache::resultCache_load);
+                .<ResultCacheKey, SoftReference<IFileBufferCacheResult>> buildAsync(FileBufferCache::resultCache_load);
         FILE_CACHE = Caffeine.newBuilder()
                 .maximumSize(TimeseriesProperties.FILE_BUFFER_CACHE_MAX_MMAP_COUNT)
                 .expireAfterAccess(
@@ -96,15 +95,18 @@ public final class FileBufferCache {
     private FileBufferCache() {}
 
     private static void resultCache_onRemoval(final ResultCacheKey key,
-            final SoftReference<ArrayFileBufferCacheResult> valueHolder, final RemovalCause cause) {
+            final SoftReference<IFileBufferCacheResult> valueHolder, final RemovalCause cause) {
         if (valueHolder == null) {
             return;
         }
-        final ArrayFileBufferCacheResult value = valueHolder.get();
-        if (value != null && value.isUsed() && value.getRefCount().get() == 0) {
-            final ArrayList arrayList = value.getList();
-            arrayList.clear();
-            LIST_POOL.returnObject(arrayList);
+        final IFileBufferCacheResult value = valueHolder.get();
+        if (value instanceof ArrayFileBufferCacheResult) {
+            final ArrayFileBufferCacheResult cValue = (ArrayFileBufferCacheResult) value;
+            if (cValue.isUsed() && cValue.getRefCount().get() == 0) {
+                final ArrayList arrayList = cValue.getList();
+                arrayList.clear();
+                LIST_POOL.returnObject(arrayList);
+            }
         }
     }
 
@@ -112,7 +114,7 @@ public final class FileBufferCache {
         final IDeserializingCloseableIterable values = key.getSource().getSource();
         if (TimeseriesProperties.FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR != null && values.getFixedLength() != null
                 && values.getFixedLength() > 0) {
-            return new SoftReference<ArrayAllocatorFileBufferCacheResult>(new ArrayAllocatorFileBufferCacheResult<>(
+            return new SoftReference<IFileBufferCacheResult>(new ArrayAllocatorFileBufferCacheResult<>(
                     TimeseriesProperties.FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR, values));
         } else {
             key.setSource(null);
@@ -124,7 +126,7 @@ public final class FileBufferCache {
             } catch (final NoSuchElementException e) {
                 //end reached
             }
-            return new SoftReference<ArrayFileBufferCacheResult>(new ArrayFileBufferCacheResult(list));
+            return new SoftReference<IFileBufferCacheResult>(new ArrayFileBufferCacheResult(list));
         }
     }
 
@@ -155,14 +157,14 @@ public final class FileBufferCache {
     }
 
     private static void resultCache_remove(final String hashKey) {
-        final Set<Entry<ResultCacheKey, CompletableFuture<SoftReference<ArrayFileBufferCacheResult>>>> entries = RESULT_CACHE
+        final Set<Entry<ResultCacheKey, CompletableFuture<SoftReference<IFileBufferCacheResult>>>> entries = RESULT_CACHE
                 .asMap()
                 .entrySet();
-        final Iterator<Entry<ResultCacheKey, CompletableFuture<SoftReference<ArrayFileBufferCacheResult>>>> iterator = entries
+        final Iterator<Entry<ResultCacheKey, CompletableFuture<SoftReference<IFileBufferCacheResult>>>> iterator = entries
                 .iterator();
         try {
             while (true) {
-                final Entry<ResultCacheKey, CompletableFuture<SoftReference<ArrayFileBufferCacheResult>>> next = iterator
+                final Entry<ResultCacheKey, CompletableFuture<SoftReference<IFileBufferCacheResult>>> next = iterator
                         .next();
                 if (next.getKey().getHashKey().equals(hashKey)) {
                     iterator.remove();
@@ -197,12 +199,11 @@ public final class FileBufferCache {
                         RESULT_CACHE_CLEAR_LOCK);
                 return getResultNoCache(source);
             } else {
-                final SoftReference<ArrayFileBufferCacheResult> valueHolder = Futures
-                        .getNoInterrupt(RESULT_CACHE.get(key));
+                final SoftReference<IFileBufferCacheResult> valueHolder = Futures.getNoInterrupt(RESULT_CACHE.get(key));
                 if (valueHolder == null) {
                     return getResultNoCache(source);
                 }
-                final ArrayFileBufferCacheResult value = valueHolder.get();
+                final IFileBufferCacheResult value = valueHolder.get();
                 if (value == null) {
                     RESULT_CACHE.asMap().remove(key);
                     return getResultNoCache(source);
