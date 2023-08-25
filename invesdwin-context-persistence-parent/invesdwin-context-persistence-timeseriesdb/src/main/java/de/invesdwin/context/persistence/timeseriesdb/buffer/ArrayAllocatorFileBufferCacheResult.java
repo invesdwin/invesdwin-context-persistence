@@ -4,17 +4,20 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.function.Function;
 
 import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.commons.compress.utils.IOUtils;
 
+import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.IDeserializingCloseableIterable;
 import de.invesdwin.context.system.array.IPrimitiveArrayAllocator;
 import de.invesdwin.context.system.array.OnHeapPrimitiveArrayAllocator;
 import de.invesdwin.norva.beanpath.IntCountingOutputStream;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.bytebuffer.AByteBufferCloseableIterable;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterator;
@@ -30,6 +33,10 @@ import de.invesdwin.util.time.date.FDate;
 @ThreadSafe
 public class ArrayAllocatorFileBufferCacheResult<V> extends AByteBufferCloseableIterable<V>
         implements IFileBufferCacheResult<V> {
+
+    private static final Set<String> FLYWEIGHT_SERDE_WARNINGS = ILockCollectionFactory.getInstance(true)
+            .newConcurrentSet();
+    private static final Log LOG = new Log(ArrayAllocatorFileBufferCacheResult.class);
 
     private final IByteBuffer buffer;
     private final ISerde<V> serde;
@@ -78,7 +85,10 @@ public class ArrayAllocatorFileBufferCacheResult<V> extends AByteBufferCloseable
                 return flyweightSerde;
             }
         }
-        System.err.println("not flyweight: " + serdeProvider.toString());
+        final String str = serdeProvider.toString();
+        if (FLYWEIGHT_SERDE_WARNINGS.add(str)) {
+            LOG.warn("Not a %s: %s", IFlyweightSerdeProvider.class.getSimpleName(), str);
+        }
         return serdeProvider;
     }
 
