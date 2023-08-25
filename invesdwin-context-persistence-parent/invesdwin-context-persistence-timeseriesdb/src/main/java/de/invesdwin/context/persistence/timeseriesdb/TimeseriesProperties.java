@@ -25,7 +25,6 @@ public final class TimeseriesProperties {
         FILE_BUFFER_CACHE_MAX_SEGMENTS_COUNT = systemProperties.getInteger("FILE_BUFFER_CACHE_MAX_SEGMENTS_COUNT");
         FILE_BUFFER_CACHE_MAX_MMAP_COUNT = systemProperties.getInteger("FILE_BUFFER_CACHE_MAX_MMAP_COUNT");
         FILE_BUFFER_CACHE_EVICTION_TIMEOUT = systemProperties.getDuration("FILE_BUFFER_CACHE_EVICTION_TIMEOUT");
-        //System.out.println("test some alternatives");
         FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR = null;
     }
 
