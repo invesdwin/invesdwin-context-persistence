@@ -170,7 +170,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         }
 
         @Override
-        protected Integer getFixedLength() {
+        protected Integer newFixedLength() {
             return parent.getTable().getValueFixedLength();
         }
 

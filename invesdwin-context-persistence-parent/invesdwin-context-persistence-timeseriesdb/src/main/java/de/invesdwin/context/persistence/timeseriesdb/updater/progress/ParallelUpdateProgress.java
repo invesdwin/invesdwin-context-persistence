@@ -169,7 +169,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
         }
 
         @Override
-        protected Integer getFixedLength() {
+        protected Integer newFixedLength() {
             return parent.getTable().getValueFixedLength();
         }
 

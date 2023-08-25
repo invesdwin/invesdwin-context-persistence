@@ -92,7 +92,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
 
             @Override
-            protected Integer getFixedLength() {
+            protected Integer newFixedLength() {
                 return historicalSegmentTable.newValueFixedLength();
             }
 
@@ -476,7 +476,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
 
             @Override
-            protected Integer getFixedLength() {
+            protected Integer newFixedLength() {
                 return historicalSegmentTable.newValueFixedLength();
             }
 

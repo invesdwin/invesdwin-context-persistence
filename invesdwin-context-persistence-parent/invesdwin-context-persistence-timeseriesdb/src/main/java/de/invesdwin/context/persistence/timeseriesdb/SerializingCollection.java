@@ -57,7 +57,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
     private int size;
     private final File file;
     private final SerializingCollectionFinalizer finalizer;
-    private final Integer fixedLength = getFixedLength();
+    private final Integer fixedLength = newFixedLength();
     @SuppressWarnings("unchecked")
     private final ISerde<E> serde = (ISerde<E>) newSerde();
 
@@ -89,6 +89,18 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
         } else {
             this.finalizer.register(this);
         }
+    }
+
+    public ISerde<E> getSerde() {
+        return serde;
+    }
+
+    public Integer getFixedLength() {
+        return fixedLength;
+    }
+
+    public final InputStream newInputStream() throws IOException {
+        return newDecompressor(newFileInputStream(file));
     }
 
     protected SerializingCollectionFinalizer newFinalizer() {
@@ -180,7 +192,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
      * Override this to define a fixed length format and thus skip base64 encoding for better performance (though this
      * might behave badly for lists and other dynamic stuff; assertions will tell you someting is wrong
      */
-    protected Integer getFixedLength() {
+    protected Integer newFixedLength() {
         return null;
     }
 
@@ -356,7 +368,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
                     DynamicLengthDeserializingIteratorFinalizer.class.getSimpleName(), file));
             finalizer = new DynamicLengthDeserializingIteratorFinalizer<>();
             try {
-                finalizer.inputStream = newDecompressor(newFileInputStream(file));
+                finalizer.inputStream = newInputStream();
                 finalizer.readBuffer = ByteBuffers.EXPANDABLE_POOL.borrowObject();
             } catch (final IOException e) {
                 throw new RuntimeException(e);
@@ -470,7 +482,7 @@ public class SerializingCollection<E> implements Collection<E>, IReverseCloseabl
             this.fixedLength = fixedLength;
             this.finalizer = new FixedLengthDeserializingIteratorFinalizer<>();
             try {
-                this.finalizer.inputStream = newDecompressor(newFileInputStream(file));
+                this.finalizer.inputStream = newInputStream();
                 this.finalizer.readBuffer = ByteBuffers.EXPANDABLE_POOL.borrowObject();
             } catch (final IOException e) {
                 throw new RuntimeException(e);

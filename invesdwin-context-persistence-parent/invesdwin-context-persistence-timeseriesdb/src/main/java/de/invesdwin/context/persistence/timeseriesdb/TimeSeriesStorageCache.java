@@ -490,7 +490,7 @@ public class TimeSeriesStorageCache<K, V> {
             }
 
             @Override
-            protected Integer getFixedLength() {
+            protected Integer newFixedLength() {
                 return fixedLength;
             }
 
