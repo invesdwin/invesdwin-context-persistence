@@ -3,7 +3,6 @@ package de.invesdwin.context.persistence.timeseriesdb.buffer;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -18,17 +17,20 @@ import de.invesdwin.context.system.array.OnHeapPrimitiveArrayAllocator;
 import de.invesdwin.norva.beanpath.IntCountingOutputStream;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
+import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.bytebuffer.AByteBufferCloseableIterable;
-import de.invesdwin.util.collections.iterable.skip.ASkippingIterator;
+import de.invesdwin.util.collections.iterable.bytebuffer.ByteBufferList;
+import de.invesdwin.util.collections.iterable.collection.ListCloseableIterable;
 import de.invesdwin.util.collections.list.Lists;
-import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.marshallers.serde.IFlyweightSerdeProvider;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.streams.buffer.bytes.ByteBuffers;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 import de.invesdwin.util.streams.buffer.bytes.ICloseableByteBuffer;
+import de.invesdwin.util.time.date.BisectDuplicateKeyHandling;
 import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.date.FDates;
 
 @ThreadSafe
 public class ArrayAllocatorFileBufferCacheResult<V> extends AByteBufferCloseableIterable<V>
@@ -41,6 +43,8 @@ public class ArrayAllocatorFileBufferCacheResult<V> extends AByteBufferCloseable
     private final IByteBuffer buffer;
     private final ISerde<V> serde;
     private final int fixedLength;
+    private final List<V> list;
+    private final ListCloseableIterable<V> delegate;
 
     public ArrayAllocatorFileBufferCacheResult(final IPrimitiveArrayAllocator arrayAllocator,
             final IDeserializingCloseableIterable<V> delegate) {
@@ -73,6 +77,8 @@ public class ArrayAllocatorFileBufferCacheResult<V> extends AByteBufferCloseable
         this.serde = extractSerde(delegate);
         this.fixedLength = delegate.getFixedLength();
         Assertions.checkTrue(fixedLength > 0);
+        this.list = new ByteBufferList<>(buffer, serde, fixedLength);
+        this.delegate = new ListCloseableIterable<>(list);
     }
 
     @SuppressWarnings("unchecked")
@@ -108,107 +114,117 @@ public class ArrayAllocatorFileBufferCacheResult<V> extends AByteBufferCloseable
     }
 
     @Override
-    public ICloseableIterator<V> iterator(final Function<V, FDate> extractEndTime, final FDate from, final FDate to) {
-        if (from == null && to == null) {
-            return iterator();
-        } else if (from == null) {
-            return new ASkippingIterator<V>(iterator()) {
-                @Override
-                protected boolean skip(final V element) {
-                    final FDate time = extractEndTime.apply(element);
-                    if (time.isAfterNotNullSafe(to)) {
-                        throw FastNoSuchElementException.getInstance("getRangeValues reached end");
-                    }
-                    return false;
-                }
-            };
-        } else if (to == null) {
-            return new ASkippingIterator<V>(iterator()) {
-                @Override
-                protected boolean skip(final V element) {
-                    final FDate time = extractEndTime.apply(element);
-                    if (time.isBeforeNotNullSafe(from)) {
-                        return true;
-                    }
-                    return false;
-                }
-            };
-        } else {
-            return new ASkippingIterator<V>(iterator()) {
-                @Override
-                protected boolean skip(final V element) {
-                    final FDate time = extractEndTime.apply(element);
-                    if (time.isBeforeNotNullSafe(from)) {
-                        return true;
-                    } else if (time.isAfterNotNullSafe(to)) {
-                        throw FastNoSuchElementException.getInstance("getRangeValues reached end");
-                    }
-                    return false;
-                }
-            };
+    public ICloseableIterator<V> iterator(final Function<V, FDate> extractEndTime, final FDate low, final FDate high) {
+        if (list.isEmpty()) {
+            return EmptyCloseableIterator.getInstance();
         }
+        final int lowIndex = determineLowIndex(extractEndTime, low);
+        final int lastIndex = list.size() - 1;
+        if (lowIndex > lastIndex) {
+            return EmptyCloseableIterator.getInstance();
+        }
+        final int highIndex = determineHighIndex(extractEndTime, high, lastIndex);
+        if (highIndex < 0) {
+            return EmptyCloseableIterator.getInstance();
+        }
+        if (lowIndex > highIndex) {
+            return EmptyCloseableIterator.getInstance();
+        }
+        if (lowIndex == highIndex) {
+            if (low != null) {
+                final FDate lowIndexTime = extractEndTime.apply(list.get(lowIndex));
+                if (lowIndexTime.isBeforeNotNullSafe(low)) {
+                    return EmptyCloseableIterator.getInstance();
+                }
+            }
+            if (high != null) {
+                final FDate highIndexTime = extractEndTime.apply(list.get(highIndex));
+                if (highIndexTime.isAfterNotNullSafe(high)) {
+                    return EmptyCloseableIterator.getInstance();
+                }
+            }
+        }
+        final ICloseableIterator<V> delegate = this.delegate.iterator(lowIndex, highIndex);
+        return delegate;
     }
 
     @Override
-    public ICloseableIterator<V> reverseIterator(final Function<V, FDate> extractEndTime, final FDate from,
-            final FDate to) {
-        if (from == null && to == null) {
-            return reverseIterator();
-        } else if (from == null) {
-            return new ASkippingIterator<V>(reverseIterator()) {
-                @Override
-                protected boolean skip(final V element) {
-                    final FDate time = extractEndTime.apply(element);
-                    if (time.isBeforeNotNullSafe(to)) {
-                        throw FastNoSuchElementException.getInstance("getRangeValues reached end");
-                    }
-                    return false;
-                }
-            };
-        } else if (to == null) {
-            return new ASkippingIterator<V>(reverseIterator()) {
-                @Override
-                protected boolean skip(final V element) {
-                    final FDate time = extractEndTime.apply(element);
-                    if (time.isAfterNotNullSafe(from)) {
-                        return true;
-                    }
-                    return false;
-                }
-            };
-        } else {
-            return new ASkippingIterator<V>(reverseIterator()) {
-                @Override
-                protected boolean skip(final V element) {
-                    final FDate time = extractEndTime.apply(element);
-                    if (time.isAfterNotNullSafe(from)) {
-                        return true;
-                    } else if (time.isBeforeNotNullSafe(to)) {
-                        throw FastNoSuchElementException.getInstance("getRangeValues reached end");
-                    }
-                    return false;
-                }
-            };
+    public ICloseableIterator<V> reverseIterator(final Function<V, FDate> extractEndTime, final FDate high,
+            final FDate low) {
+        if (list.isEmpty()) {
+            return EmptyCloseableIterator.getInstance();
         }
+        final int lowIndex = determineLowIndex(extractEndTime, low);
+        final int lastIndex = list.size() - 1;
+        if (lowIndex > lastIndex) {
+            return EmptyCloseableIterator.getInstance();
+        }
+        final int highIndex = determineHighIndex(extractEndTime, high, lastIndex);
+        if (highIndex < 0) {
+            return EmptyCloseableIterator.getInstance();
+        }
+        if (lowIndex > highIndex) {
+            return EmptyCloseableIterator.getInstance();
+        }
+        if (lowIndex == highIndex) {
+            if (low != null) {
+                final FDate lowIndexTime = extractEndTime.apply(list.get(lowIndex));
+                if (lowIndexTime.isBeforeNotNullSafe(low)) {
+                    return EmptyCloseableIterator.getInstance();
+                }
+            }
+            if (high != null) {
+                final FDate highIndexTime = extractEndTime.apply(list.get(highIndex));
+                if (highIndexTime.isAfterNotNullSafe(high)) {
+                    return EmptyCloseableIterator.getInstance();
+                }
+            }
+        }
+        final ICloseableIterator<V> delegate = this.delegate.reverseIterator(highIndex, lowIndex);
+        return delegate;
     }
 
     @Override
     public V getLatestValue(final Function<V, FDate> extractEndTime, final FDate key) {
-        V latestValue = null;
-        try (ICloseableIterator<V> it = iterator()) {
-            while (true) {
-                final V newValue = it.next();
-                final FDate newValueTime = extractEndTime.apply(newValue);
-                if (newValueTime.isAfter(key)) {
-                    break;
-                } else {
-                    latestValue = newValue;
-                }
-            }
-        } catch (final NoSuchElementException e) {
-            //end reached
+        final int lastIndex = list.size() - 1;
+        final int highIndex = determineHighIndex(extractEndTime, key, lastIndex);
+        if (highIndex < 0) {
+            return null;
         }
-        return latestValue;
+        return list.get(highIndex);
+    }
+
+    private int determineLowIndex(final Function<V, FDate> extractEndTime, final FDate low) {
+        final int lowIndex;
+        if (low == null || low.isBeforeNotNullSafe(extractEndTime.apply(list.get(0)))) {
+            lowIndex = 0;
+        } else {
+            final int potentialLowIndex = FDates.bisect(extractEndTime, list, low, BisectDuplicateKeyHandling.LOWEST);
+            final FDate potentialLowTime = extractEndTime.apply(list.get(potentialLowIndex));
+            if (potentialLowTime.isBeforeNotNullSafe(low)) {
+                lowIndex = potentialLowIndex + 1;
+            } else {
+                lowIndex = potentialLowIndex;
+            }
+        }
+        return lowIndex;
+    }
+
+    private int determineHighIndex(final Function<V, FDate> extractEndTime, final FDate high, final int lastIndex) {
+        final int highIndex;
+        if (high == null || high.isAfterNotNullSafe(extractEndTime.apply(list.get(lastIndex)))) {
+            highIndex = lastIndex;
+        } else {
+            final int potentialHighIndex = FDates.bisect(extractEndTime, list, high,
+                    BisectDuplicateKeyHandling.HIGHEST);
+            final FDate potentialHighTime = extractEndTime.apply(list.get(potentialHighIndex));
+            if (potentialHighTime.isAfterNotNullSafe(high)) {
+                highIndex = potentialHighIndex - 1;
+            } else {
+                highIndex = potentialHighIndex;
+            }
+        }
+        return highIndex;
     }
 
     @Override
