@@ -212,6 +212,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         @Override
         protected void onSegmentCompleted(final SegmentedKey<K> segmentedKey,
                 final ICloseableIterable<V> segmentValues) {
+            super.onSegmentCompleted(segmentedKey, segmentValues);
             ALiveSegmentedTimeSeriesDB.this.onSegmentCompleted(segmentedKey, segmentValues);
         }
 
@@ -310,16 +311,6 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
     }
 
     @Override
-    public FDate getLatestValueKey(final K key, final FDate date) {
-        final V value = getLatestValue(key, date);
-        if (value == null) {
-            return null;
-        } else {
-            return extractEndTime(value);
-        }
-    }
-
-    @Override
     public V getLatestValue(final K key, final FDate date) {
         final Lock readLock = getTableLock(key).readLock();
         readLock.lock();
@@ -331,6 +322,55 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
             } else {
                 return getLookupTableCache(key).getLatestValue(date);
             }
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    @Override
+    public FDate getLatestValueKey(final K key, final FDate date) {
+        final V value = getLatestValue(key, date);
+        if (value == null) {
+            return null;
+        } else {
+            return extractEndTime(value);
+        }
+    }
+
+    @Override
+    public V getLatestValue(final K key, final long index) {
+        final Lock readLock = getTableLock(key).readLock();
+        readLock.lock();
+        try {
+            final LiveSegmentedTimeSeriesStorageCache<K, V> lookupTableCache = getLookupTableCache(key);
+            if (index <= 0) {
+                return lookupTableCache.getFirstValue();
+            } else if (index >= lookupTableCache.size()) {
+                return lookupTableCache.getLastValue();
+            } else {
+                return lookupTableCache.getLatestValue(index);
+            }
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    @Override
+    public FDate getLatestValueKey(final K key, final long index) {
+        final V value = getLatestValue(key, index);
+        if (value == null) {
+            return null;
+        } else {
+            return extractEndTime(value);
+        }
+    }
+
+    @Override
+    public long size(final K key) {
+        final Lock readLock = getTableLock(key).readLock();
+        readLock.lock();
+        try {
+            return getLookupTableCache(key).size();
         } finally {
             readLock.unlock();
         }

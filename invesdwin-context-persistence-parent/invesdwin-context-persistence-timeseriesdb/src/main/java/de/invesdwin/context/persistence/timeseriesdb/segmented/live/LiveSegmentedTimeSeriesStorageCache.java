@@ -196,6 +196,14 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
         return latestValue;
     }
 
+    public long size() {
+        if (liveSegment == null) {
+            return historicalSegmentTable.size(key);
+        } else {
+            return historicalSegmentTable.size(key) + liveSegment.size();
+        }
+    }
+
     public V getPreviousValue(final FDate date, final int shiftBackUnits) {
         if (liveSegment == null) {
             //no live segment, go with historical

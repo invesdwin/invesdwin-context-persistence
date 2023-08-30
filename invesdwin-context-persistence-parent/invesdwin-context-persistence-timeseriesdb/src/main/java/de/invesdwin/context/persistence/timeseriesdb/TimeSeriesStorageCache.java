@@ -96,6 +96,7 @@ public class TimeSeriesStorageCache<K, V> {
 
     private volatile Optional<V> cachedFirstValue;
     private volatile Optional<V> cachedLastValue;
+    private volatile long cachedSize = -1L;
     /**
      * keeping the range keys outside of the concurrent linked hashmap of the ADelegateRangeTable with memory write
      * through to disk is still better for increased parallelity and for not having to iterate through each element of
@@ -146,10 +147,10 @@ public class TimeSeriesStorageCache<K, V> {
         return memoryFileMetadata;
     }
 
-    public void finishFile(final FDate time, final V firstValue, final V lastValue, final int valueCount,
-            final String memoryResourceUri, final long memoryOffset, final long memoryLength) {
-        final MemoryFileSummary summary = new MemoryFileSummary(valueSerde, firstValue, lastValue, valueCount,
-                memoryResourceUri, memoryOffset, memoryLength);
+    public void finishFile(final FDate time, final V firstValue, final V lastValue, final long precedingValueCount,
+            final int valueCount, final String memoryResourceUri, final long memoryOffset, final long memoryLength) {
+        final MemoryFileSummary summary = new MemoryFileSummary(valueSerde, firstValue, lastValue, precedingValueCount,
+                valueCount, memoryResourceUri, memoryOffset, memoryLength);
         storage.getFileLookupTable().put(hashKey, time, summary);
         final long memoryFileSize = getMemoryFile().length();
         final long expectedMemoryFileSize = memoryOffset + memoryLength;
@@ -530,9 +531,9 @@ public class TimeSeriesStorageCache<K, V> {
 
     public synchronized void deleteAll() {
         storage.getFileLookupTable().deleteRange(hashKey);
-        storage.deleteRange_latestValueLookupTable(hashKey);
-        storage.deleteRange_nextValueLookupTable(hashKey);
-        storage.deleteRange_previousValueLookupTable(hashKey);
+        storage.deleteRange_latestValueIndexLookupTable(hashKey);
+        storage.deleteRange_nextValueIndexLookupTable(hashKey);
+        storage.deleteRange_previousValueIndexLookupTable(hashKey);
         clearCaches();
         Files.deleteNative(newDataDirectory());
         memoryFileMetadata = null;
@@ -545,10 +546,16 @@ public class TimeSeriesStorageCache<K, V> {
         cachedAllRangeKeys = null;
         cachedFirstValue = null;
         cachedLastValue = null;
+        cachedSize = -1L;
     }
 
     public V getLatestValue(final FDate date) {
-        final SingleValue value = storage.getOrLoad_latestValueLookupTable(hashKey, date, () -> {
+        final long valueIndex = getLatestValueIndex(date);
+        return getLatestValue(valueIndex);
+    }
+
+    public long getLatestValueIndex(final FDate date) {
+        final long valueIndex = storage.getOrLoad_latestValueIndexLookupTable(hashKey, date, () -> {
             final RangeTableRow<String, FDate, MemoryFileSummary> row = fileLookupTable_latestRangeKeyCache.get(date);
             if (row == null) {
                 return null;
@@ -559,20 +566,45 @@ public class TimeSeriesStorageCache<K, V> {
             }
             try (IFileBufferCacheResult<V> result = getResultCached("latestValueLookupCache.loadValue", summary,
                     DisabledLock.INSTANCE)) {
-                V latestValue = result.getLatestValue(extractEndTime, date);
-                if (latestValue == null) {
-                    latestValue = getFirstValue();
+                final int latestValueIndex = result.getLatestValueIndex(extractEndTime, date);
+                if (latestValueIndex == -1 && getFirstValue() != null) {
+                    return 0L;
                 }
-                if (latestValue == null) {
+                if (latestValueIndex == -1) {
                     return null;
                 }
-                return new SingleValue(valueSerde, latestValue);
+                return row.getValue().getPrecedingValueCount() + latestValueIndex;
             }
         });
-        if (value == null) {
-            return null;
+        return valueIndex;
+    }
+
+    public V getLatestValue(final long index) {
+        if (index <= 0) {
+            return getFirstValue();
         }
-        return value.getValue(valueSerde);
+        if (index >= size() - 1) {
+            return getLastValue();
+        }
+        System.out.println("TODO");
+        return null;
+    }
+
+    public long size() {
+        if (cachedSize == -1L) {
+            final ArrayList<? extends RangeTableRow<String, FDate, MemoryFileSummary>> list = getAllRangeKeys(
+                    DisabledLock.INSTANCE).getList();
+            if (list.isEmpty()) {
+                cachedSize = 0;
+            } else {
+                long size = 0;
+                for (int i = 0; i < list.size(); i++) {
+                    size += list.get(i).getValue().getValueCount();
+                }
+                cachedSize = size;
+            }
+        }
+        return cachedSize;
     }
 
     public V getPreviousValue(final FDate date, final int shiftBackUnits) {
@@ -585,22 +617,23 @@ public class TimeSeriesStorageCache<K, V> {
         if (date.isBeforeOrEqualTo(firstTime)) {
             return firstValue;
         } else {
-            final SingleValue value = storage.getOrLoad_previousValueLookupTable(hashKey, date, shiftBackUnits, () -> {
-                final ShiftBackUnitsLoop<V> shiftBackLoop = new ShiftBackUnitsLoop<>(date, shiftBackUnits,
-                        extractEndTime);
-                final ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null,
-                        DisabledLock.INSTANCE, file -> {
-                            final boolean skip = shiftBackLoop.getPrevValue() != null
-                                    && file.getValueCount() < shiftBackLoop.getShiftBackRemaining();
-                            if (skip) {
-                                shiftBackLoop.skip(file.getValueCount());
-                            }
-                            return skip;
-                        });
-                shiftBackLoop.loop(rangeValuesReverse);
-                return new SingleValue(valueSerde, shiftBackLoop.getPrevValue());
-            });
-            return value.getValue(valueSerde);
+            final long valueIndex = storage.getOrLoad_previousValueIndexLookupTable(hashKey, date, shiftBackUnits,
+                    () -> {
+                        final ShiftBackUnitsLoop<V> shiftBackLoop = new ShiftBackUnitsLoop<>(date, shiftBackUnits,
+                                extractEndTime);
+                        final ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null,
+                                DisabledLock.INSTANCE, file -> {
+                                    final boolean skip = shiftBackLoop.getPrevValue() != null
+                                            && file.getValueCount() < shiftBackLoop.getShiftBackRemaining();
+                                    if (skip) {
+                                        shiftBackLoop.skip(file.getValueCount());
+                                    }
+                                    return skip;
+                                });
+                        shiftBackLoop.loop(rangeValuesReverse);
+                        return new SingleValue(valueSerde, shiftBackLoop.getPrevValue());
+                    });
+            return valueIndex.getValue(valueSerde);
         }
 
     }
@@ -615,25 +648,31 @@ public class TimeSeriesStorageCache<K, V> {
         if (date.isAfterOrEqualTo(lastTime)) {
             return lastValue;
         } else {
-            final SingleValue value = storage.getOrLoad_nextValueLookupTable(hashKey, date, shiftForwardUnits, () -> {
-                final ShiftForwardUnitsLoop<V> shiftForwardLoop = new ShiftForwardUnitsLoop<>(date, shiftForwardUnits,
-                        extractEndTime);
-                final ICloseableIterator<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,
-                        new ISkipFileFunction() {
-                            @Override
-                            public boolean skipFile(final MemoryFileSummary file) {
-                                final boolean skip = shiftForwardLoop.getNextValue() != null
-                                        && file.getValueCount() < shiftForwardLoop.getShiftForwardRemaining();
-                                if (skip) {
-                                    shiftForwardLoop.skip(file.getValueCount());
-                                }
-                                return skip;
-                            }
-                        });
-                shiftForwardLoop.loop(rangeValues);
-                return new SingleValue(valueSerde, shiftForwardLoop.getNextValue());
-            });
-            return value.getValue(valueSerde);
+            final long latestValueIndex = getLatestValueIndex(date);
+            final V latestValue = getLatestValue(latestValueIndex);
+            final FDate latestValueTime = extractEndTime.apply(latestValue);
+            if(latestValueTime)
+
+            final Long valueIndex = storage.getOrLoad_nextValueIndexLookupTable(hashKey, date, shiftForwardUnits,
+                    () -> {
+                        final ShiftForwardUnitsLoop<V> shiftForwardLoop = new ShiftForwardUnitsLoop<>(date,
+                                shiftForwardUnits, extractEndTime);
+                        final ICloseableIterator<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,
+                                new ISkipFileFunction() {
+                                    @Override
+                                    public boolean skipFile(final MemoryFileSummary file) {
+                                        final boolean skip = shiftForwardLoop.getNextValue() != null
+                                                && file.getValueCount() < shiftForwardLoop.getShiftForwardRemaining();
+                                        if (skip) {
+                                            shiftForwardLoop.skip(file.getValueCount());
+                                        }
+                                        return skip;
+                                    }
+                                });
+                        shiftForwardLoop.loop(rangeValues);
+                        return new SingleValue(valueSerde, shiftForwardLoop.getNextValue());
+                    });
+            return valueIndex.getValue(valueSerde);
         }
     }
 
@@ -737,9 +776,9 @@ public class TimeSeriesStorageCache<K, V> {
                 latestRangeKey = latestFile.getRangeKey().addMilliseconds(1);
             }
             storage.getFileLookupTable().deleteRange(hashKey, latestRangeKey);
-            storage.deleteRange_latestValueLookupTable(hashKey, latestRangeKey);
-            storage.deleteRange_nextValueLookupTable(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
-            storage.deleteRange_previousValueLookupTable(hashKey, latestRangeKey);
+            storage.deleteRange_latestValueIndexLookupTable(hashKey, latestRangeKey);
+            storage.deleteRange_nextValueIndexLookupTable(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
+            storage.deleteRange_previousValueIndexLookupTable(hashKey, latestRangeKey);
         } else {
             updateFrom = null;
             lastValues = Collections.emptyList();

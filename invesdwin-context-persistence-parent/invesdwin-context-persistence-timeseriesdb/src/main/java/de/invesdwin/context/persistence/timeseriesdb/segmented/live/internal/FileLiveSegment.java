@@ -314,6 +314,16 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
+    public long size() {
+        final SerializingCollection<V> valuesCopy = values;
+        if (valuesCopy == null) {
+            return 0L;
+        } else {
+            return valuesCopy.size();
+        }
+    }
+
+    @Override
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
         final LastValue<V> lastValue = lastValues.getReverse(0);
         if (!lastValue.values.isEmpty() && (date == null || date.isAfterOrEqualToNotNullSafe(lastValue.key))) {
@@ -401,7 +411,8 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public boolean isEmpty() {
-        return values == null || values.isEmpty();
+        final SerializingCollection<V> valuesCopy = values;
+        return valuesCopy == null || valuesCopy.isEmpty();
     }
 
     @Override

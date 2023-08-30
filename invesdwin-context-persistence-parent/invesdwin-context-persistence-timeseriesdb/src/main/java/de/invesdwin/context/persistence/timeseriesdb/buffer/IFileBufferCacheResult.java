@@ -13,6 +13,10 @@ public interface IFileBufferCacheResult<V> extends IReverseCloseableIterable<V>,
 
     V getLatestValue(Function<V, FDate> extractEndTime, FDate key);
 
+    V getLatestValue(int index);
+
+    int getLatestValueIndex(Function<V, FDate> extractEndTime, FDate key);
+
     ICloseableIterator<V> iterator(Function<V, FDate> extractEndTime, FDate from, FDate to);
 
     ICloseableIterator<V> reverseIterator(Function<V, FDate> extractEndTime, FDate from, FDate to);

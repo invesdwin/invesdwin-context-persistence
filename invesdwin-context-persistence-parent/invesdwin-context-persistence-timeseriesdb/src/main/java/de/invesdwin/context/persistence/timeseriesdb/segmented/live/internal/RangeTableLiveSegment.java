@@ -35,6 +35,7 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
     private final IBufferingIterator<V> firstValue = new BufferingIterator<>();
     private FDate lastValueKey;
     private final IBufferingIterator<V> lastValue = new BufferingIterator<>();
+    private long size;
 
     public RangeTableLiveSegment(final SegmentedKey<K> segmentedKey,
             final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable) {
@@ -166,6 +167,7 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
             return;
         }
         values.put(null, nextLiveKey, nextLiveValue);
+        size++;
         if (firstValue.isEmpty() || firstValueKey.equalsNotNullSafe(nextLiveKey)) {
             firstValue.add(nextLiveValue);
             firstValueKey = nextLiveKey;
@@ -175,6 +177,11 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
         lastValue.add(nextLiveValue);
         lastValueKey = nextLiveKey;
+    }
+
+    @Override
+    public long size() {
+        return size;
     }
 
     @Override
@@ -223,6 +230,7 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
         firstValueKey = null;
         lastValue.clear();
         lastValueKey = null;
+        size = 0;
     }
 
     @Override

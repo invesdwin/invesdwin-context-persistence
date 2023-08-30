@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.timeseriesdb.segmented;
 
 import java.io.Closeable;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -63,6 +64,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     private volatile boolean closed;
     private volatile Optional<V> cachedFirstValue;
     private volatile Optional<V> cachedLastValue;
+    private volatile long cachedSize = -1L;
     private volatile Optional<FDate> cachedPrevLastAvailableSegmentTo;
     private final Log log = new Log(this);
 
@@ -477,7 +479,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         return updater;
     }
 
-    public abstract void onSegmentCompleted(SegmentedKey<K> segmentedKey, ICloseableIterable<V> segmentValues);
+    public void onSegmentCompleted(final SegmentedKey<K> segmentedKey, final ICloseableIterable<V> segmentValues) {
+        cachedSize = -1L;
+    }
 
     protected abstract ITimeSeriesUpdater<SegmentedKey<K>, V> newSegmentUpdaterOverride(SegmentedKey<K> segmentedKey,
             ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable,
@@ -608,9 +612,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             segmentedTable.deleteRange(new SegmentedKey<K>(key, rangeKey));
         }
         segmentStatusTable.deleteRange(hashKey);
-        storage.deleteRange_latestValueLookupTable(hashKey);
-        storage.deleteRange_nextValueLookupTable(hashKey);
-        storage.deleteRange_previousValueLookupTable(hashKey);
+        storage.deleteRange_latestValueIndexLookupTable(hashKey);
+        storage.deleteRange_nextValueIndexLookupTable(hashKey);
+        storage.deleteRange_previousValueIndexLookupTable(hashKey);
         clearCaches();
     }
 
@@ -618,12 +622,13 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         FileBufferCache.remove(hashKey);
         cachedFirstValue = null;
         cachedLastValue = null;
+        cachedSize = -1L;
         cachedPrevLastAvailableSegmentTo = null;
     }
 
     public V getLatestValue(final FDate pDate) {
         final FDate date = FDates.min(pDate, getLastAvailableSegmentTo(key, pDate));
-        final SingleValue value = storage.getOrLoad_latestValueLookupTable(hashKey, date, () -> {
+        final SingleValue value = storage.getOrLoad_latestValueIndexLookupTable(hashKey, date, () -> {
             final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
             //already adjusted on the outside
             final FDate adjFrom = date;
@@ -674,24 +679,25 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         if (date.isBeforeOrEqualTo(firstTime)) {
             return firstValue;
         } else {
-            final SingleValue value = storage.getOrLoad_previousValueLookupTable(hashKey, date, shiftBackUnits, () -> {
-                final ShiftBackUnitsLoop<V> shiftBackLoop = new ShiftBackUnitsLoop<>(date, shiftBackUnits,
-                        segmentedTable::extractEndTime);
-                final ICloseableIterable<V> rangeValuesReverse = readRangeValuesReverse(date, null,
-                        DisabledLock.INSTANCE, new ISkipFileFunction() {
-                            @Override
-                            public boolean skipFile(final MemoryFileSummary file) {
-                                final boolean skip = shiftBackLoop.getPrevValue() != null
-                                        && file.getValueCount() < shiftBackLoop.getShiftBackRemaining();
-                                if (skip) {
-                                    shiftBackLoop.skip(file.getValueCount());
-                                }
-                                return skip;
-                            }
-                        });
-                shiftBackLoop.loop(rangeValuesReverse);
-                return new SingleValue(valueSerde, shiftBackLoop.getPrevValue());
-            });
+            final SingleValue value = storage.getOrLoad_previousValueIndexLookupTable(hashKey, date, shiftBackUnits,
+                    () -> {
+                        final ShiftBackUnitsLoop<V> shiftBackLoop = new ShiftBackUnitsLoop<>(date, shiftBackUnits,
+                                segmentedTable::extractEndTime);
+                        final ICloseableIterable<V> rangeValuesReverse = readRangeValuesReverse(date, null,
+                                DisabledLock.INSTANCE, new ISkipFileFunction() {
+                                    @Override
+                                    public boolean skipFile(final MemoryFileSummary file) {
+                                        final boolean skip = shiftBackLoop.getPrevValue() != null
+                                                && file.getValueCount() < shiftBackLoop.getShiftBackRemaining();
+                                        if (skip) {
+                                            shiftBackLoop.skip(file.getValueCount());
+                                        }
+                                        return skip;
+                                    }
+                                });
+                        shiftBackLoop.loop(rangeValuesReverse);
+                        return new SingleValue(valueSerde, shiftBackLoop.getPrevValue());
+                    });
             return value.getValue(valueSerde);
         }
     }
@@ -703,24 +709,25 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         if (date.isAfterOrEqualTo(lastTime)) {
             return lastValue;
         } else {
-            final SingleValue value = storage.getOrLoad_nextValueLookupTable(hashKey, date, shiftForwardUnits, () -> {
-                final ShiftForwardUnitsLoop<V> shiftForwardLoop = new ShiftForwardUnitsLoop<>(date, shiftForwardUnits,
-                        segmentedTable::extractEndTime);
-                final ICloseableIterable<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,
-                        new ISkipFileFunction() {
-                            @Override
-                            public boolean skipFile(final MemoryFileSummary file) {
-                                final boolean skip = shiftForwardLoop.getNextValue() != null
-                                        && file.getValueCount() < shiftForwardLoop.getShiftForwardRemaining();
-                                if (skip) {
-                                    shiftForwardLoop.skip(file.getValueCount());
-                                }
-                                return skip;
-                            }
-                        });
-                shiftForwardLoop.loop(rangeValues);
-                return new SingleValue(valueSerde, shiftForwardLoop.getNextValue());
-            });
+            final SingleValue value = storage.getOrLoad_nextValueIndexLookupTable(hashKey, date, shiftForwardUnits,
+                    () -> {
+                        final ShiftForwardUnitsLoop<V> shiftForwardLoop = new ShiftForwardUnitsLoop<>(date,
+                                shiftForwardUnits, segmentedTable::extractEndTime);
+                        final ICloseableIterable<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,
+                                new ISkipFileFunction() {
+                                    @Override
+                                    public boolean skipFile(final MemoryFileSummary file) {
+                                        final boolean skip = shiftForwardLoop.getNextValue() != null
+                                                && file.getValueCount() < shiftForwardLoop.getShiftForwardRemaining();
+                                        if (skip) {
+                                            shiftForwardLoop.skip(file.getValueCount());
+                                        }
+                                        return skip;
+                                    }
+                                });
+                        shiftForwardLoop.loop(rangeValues);
+                        return new SingleValue(valueSerde, shiftForwardLoop.getNextValue());
+                    });
             return value.getValue(valueSerde);
         }
     }
@@ -729,9 +736,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         final FDate prevLastAvailableSegmentTo = getPrevLastAvailableSegmentTo();
         if (isNewSegmentAtTheEnd(prevLastAvailableSegmentTo, segmentToBeInitialized)) {
             if (prevLastAvailableSegmentTo != null) {
-                storage.deleteRange_latestValueLookupTable(hashKey, prevLastAvailableSegmentTo);
-                storage.deleteRange_nextValueLookupTable(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
-                storage.deleteRange_previousValueLookupTable(hashKey, prevLastAvailableSegmentTo);
+                storage.deleteRange_latestValueIndexLookupTable(hashKey, prevLastAvailableSegmentTo);
+                storage.deleteRange_nextValueIndexLookupTable(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
+                storage.deleteRange_previousValueIndexLookupTable(hashKey, prevLastAvailableSegmentTo);
             }
             clearCaches();
         }
@@ -831,6 +838,25 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             }
         }
         return cachedLastValue.orElse(null);
+    }
+
+    public long size() {
+        if (cachedSize == -1L) {
+            long size = 0;
+            try (ICloseableIterator<RangeTableRow<String, TimeRange, SegmentStatus>> rangeValues = storage
+                    .getSegmentStatusTable()
+                    .range(hashKey)) {
+                while (true) {
+                    final RangeTableRow<String, TimeRange, SegmentStatus> row = rangeValues.next();
+                    final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, row.getRangeKey());
+                    size += segmentedTable.getLookupTableCache(segmentedKey).size();
+                }
+            } catch (final NoSuchElementException e) {
+                //end reached
+            }
+            cachedSize = size;
+        }
+        return cachedSize;
     }
 
     public boolean isEmptyOrInconsistent() {

@@ -136,6 +136,11 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public long size() {
+        return table.size(segmentedKey);
+    }
+
     public void putNextLiveValues(final ICloseableIterable<V> memoryValues) {
         final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable = historicalSegmentTable
                 .getStorage()
