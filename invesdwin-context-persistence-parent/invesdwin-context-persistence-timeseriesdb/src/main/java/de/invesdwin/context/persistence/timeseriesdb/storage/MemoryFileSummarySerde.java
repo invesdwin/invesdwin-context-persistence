@@ -10,7 +10,10 @@ import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 @NotThreadSafe
 public final class MemoryFileSummarySerde implements ISerde<MemoryFileSummary> {
 
-    private static final int VALUECOUNT_INDEX = 0;
+    private static final int PRECEDINGVALUECOUNT_INDEX = 0;
+    private static final int PRECEDINGVALUECOUNT_SIZE = Long.BYTES;
+
+    private static final int VALUECOUNT_INDEX = PRECEDINGVALUECOUNT_INDEX + PRECEDINGVALUECOUNT_SIZE;
     private static final int VALUECOUNT_SIZE = Integer.BYTES;
 
     private static final int MEMORYRESOURCEURISIZE_INDEX = VALUECOUNT_INDEX + VALUECOUNT_SIZE;
@@ -61,6 +64,7 @@ public final class MemoryFileSummarySerde implements ISerde<MemoryFileSummary> {
 
     @Override
     public MemoryFileSummary fromBuffer(final IByteBuffer buffer) {
+        final long precedingValueCount = buffer.getLong(PRECEDINGVALUECOUNT_INDEX);
         final int valueCount = buffer.getInt(VALUECOUNT_INDEX);
         final int memoryResourceUriSize = buffer.getInt(MEMORYRESOURCEURISIZE_INDEX);
         final long memoryOffset = buffer.getLong(MEMORYOFFSET_INDEX);
@@ -71,8 +75,8 @@ public final class MemoryFileSummarySerde implements ISerde<MemoryFileSummary> {
             final byte[] lastValue = ByteBuffers.allocateByteArray(valueFixedLength);
             buffer.getBytes(lastValueIndex, lastValue);
             final String memoryResourceUri = buffer.getStringUtf8(memoryResourceUriIndex, memoryResourceUriSize);
-            return new MemoryFileSummary(firstValue, lastValue, valueCount, memoryResourceUri, memoryOffset,
-                    memoryLength);
+            return new MemoryFileSummary(firstValue, lastValue, precedingValueCount, valueCount, memoryResourceUri,
+                    memoryOffset, memoryLength);
         } else {
             final int firstValueLength = buffer.getInt(firstValueLengthIndex);
             final int lastValueLength = buffer.getInt(lastValueLengthIndex);
@@ -84,13 +88,14 @@ public final class MemoryFileSummarySerde implements ISerde<MemoryFileSummary> {
             buffer.getBytes(position, lastValue);
             position += lastValueLength;
             final String memoryResourceUri = buffer.getStringUtf8(position, memoryResourceUriSize);
-            return new MemoryFileSummary(firstValue, lastValue, valueCount, memoryResourceUri, memoryOffset,
-                    memoryLength);
+            return new MemoryFileSummary(firstValue, lastValue, precedingValueCount, valueCount, memoryResourceUri,
+                    memoryOffset, memoryLength);
         }
     }
 
     @Override
     public int toBuffer(final IByteBuffer buffer, final MemoryFileSummary obj) {
+        final long precedingValueCount = obj.getPrecedingValueCount();
         final int valueCount = obj.getValueCount();
         final String memoryResourceUri = obj.getMemoryResourceUri();
         final byte[] memoryResourceUriBytes = ByteBuffers.newStringUtf8Bytes(memoryResourceUri);
@@ -100,6 +105,7 @@ public final class MemoryFileSummarySerde implements ISerde<MemoryFileSummary> {
         final byte[] firstValue = obj.getFirstValue();
         final byte[] lastValue = obj.getLastValue();
 
+        buffer.putLong(PRECEDINGVALUECOUNT_INDEX, precedingValueCount);
         buffer.putInt(VALUECOUNT_INDEX, valueCount);
         buffer.putInt(MEMORYRESOURCEURISIZE_INDEX, memoryResourceUriSize);
         buffer.putLong(MEMORYOFFSET_INDEX, memoryOffset);

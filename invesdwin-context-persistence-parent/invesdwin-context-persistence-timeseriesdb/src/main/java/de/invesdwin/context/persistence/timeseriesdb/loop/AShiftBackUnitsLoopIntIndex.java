@@ -28,14 +28,18 @@ public abstract class AShiftBackUnitsLoopIntIndex<V> {
     }
 
     public int getPrevValueIndex() {
-        return prevValueIndex;
+        if (prevValue == null) {
+            return -1;
+        } else {
+            return prevValueIndex;
+        }
     }
 
     public V getPrevValue() {
         return prevValue;
     }
 
-    protected abstract V getValue(int index);
+    protected abstract V getLatestValue(int index);
 
     protected abstract int getLatestValueIndex(FDate date);
 
@@ -46,7 +50,7 @@ public abstract class AShiftBackUnitsLoopIntIndex<V> {
 
         if (shiftBackUnits == 0) {
             while (shiftBackRemaining == 0 && prevValueIndex >= 0) {
-                final V prevPrevValue = getValue(prevValueIndex);
+                final V prevPrevValue = getLatestValue(prevValueIndex);
                 final FDate prevPrevValueKey = extractEndTime(prevPrevValue);
                 if (!prevPrevValueKey.isAfterNotNullSafe(date)) {
                     prevValue = prevPrevValue;
@@ -56,7 +60,7 @@ public abstract class AShiftBackUnitsLoopIntIndex<V> {
             }
         } else if (shiftBackUnits == 1) {
             while (shiftBackRemaining >= 0 && prevValueIndex >= 0) {
-                final V prevPrevValue = getValue(prevValueIndex);
+                final V prevPrevValue = getLatestValue(prevValueIndex);
                 final FDate prevPrevValueKey = extractEndTime(prevPrevValue);
                 if (!prevPrevValueKey.isAfterNotNullSafe(date)) {
                     if (shiftBackRemaining == 1 || date.isAfterNotNullSafe(prevPrevValueKey)) {
@@ -68,7 +72,7 @@ public abstract class AShiftBackUnitsLoopIntIndex<V> {
             }
         } else {
             while (shiftBackRemaining >= 0 && prevValueIndex >= 0) {
-                final V prevPrevValue = getValue(prevValueIndex);
+                final V prevPrevValue = getLatestValue(prevValueIndex);
                 final FDate prevPrevValueKey = extractEndTime(prevPrevValue);
                 if (!prevPrevValueKey.isAfterNotNullSafe(date)) {
                     prevValue = prevPrevValue;
@@ -78,7 +82,7 @@ public abstract class AShiftBackUnitsLoopIntIndex<V> {
                         prevValueIndex = 0;
                     }
                     shiftBackRemaining = -1;
-                    prevValue = getValue(prevValueIndex);
+                    prevValue = getLatestValue(prevValueIndex);
                     break;
                 }
                 prevValueIndex--;

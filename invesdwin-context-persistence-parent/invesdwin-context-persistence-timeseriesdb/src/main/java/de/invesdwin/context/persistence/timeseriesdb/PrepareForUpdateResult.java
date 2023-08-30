@@ -13,12 +13,15 @@ public class PrepareForUpdateResult<V> {
     private final FDate updateFrom;
     private final List<V> lastValues;
     private final long addressOffset;
+    private final long precedingValueCount;
 
-    public PrepareForUpdateResult(final FDate updateFrom, final List<V> lastValues, final long addressOffset) {
+    public PrepareForUpdateResult(final FDate updateFrom, final List<V> lastValues, final long addressOffset,
+            final long precedingValueCount) {
         this.updateFrom = updateFrom;
         Assertions.checkNotNull(lastValues);
         this.lastValues = lastValues;
         this.addressOffset = addressOffset;
+        this.precedingValueCount = precedingValueCount;
     }
 
     public FDate getUpdateFrom() {
@@ -31,6 +34,10 @@ public class PrepareForUpdateResult<V> {
 
     public long getAddressOffset() {
         return addressOffset;
+    }
+
+    public long getPrecedingValueCount() {
+        return precedingValueCount;
     }
 
 }

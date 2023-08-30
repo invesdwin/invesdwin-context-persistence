@@ -28,14 +28,18 @@ public abstract class AShiftForwardUnitsLoopLongIndex<V> {
     }
 
     public long getNextValueIndex() {
-        return nextValueIndex;
+        if (nextValue == null) {
+            return -1L;
+        } else {
+            return nextValueIndex;
+        }
     }
 
     public V getNextValue() {
         return nextValue;
     }
 
-    protected abstract V getValue(long index);
+    protected abstract V getLatestValue(long index);
 
     protected abstract long getLatestValueIndex(FDate date);
 
@@ -48,7 +52,7 @@ public abstract class AShiftForwardUnitsLoopLongIndex<V> {
         nextValueIndex = getLatestValueIndex(date);
         if (shiftForwardUnits == 0) {
             while (shiftForwardRemaining == 0 && nextValueIndex < size) {
-                final V nextNextValue = getValue(nextValueIndex);
+                final V nextNextValue = getLatestValue(nextValueIndex);
                 final FDate nextNextValueKey = extractEndTime(nextNextValue);
                 if (!nextNextValueKey.isBeforeNotNullSafe(date)) {
                     nextValue = nextNextValue;
@@ -58,7 +62,7 @@ public abstract class AShiftForwardUnitsLoopLongIndex<V> {
             }
         } else if (shiftForwardUnits == 1) {
             while (shiftForwardRemaining >= 0 && nextValueIndex < size) {
-                final V nextNextValue = getValue(nextValueIndex);
+                final V nextNextValue = getLatestValue(nextValueIndex);
                 final FDate nextNextValueKey = extractEndTime(nextNextValue);
                 if (!nextNextValueKey.isBeforeNotNullSafe(date)) {
                     if (shiftForwardRemaining == 1 || date.isBeforeNotNullSafe(nextNextValueKey)) {
@@ -70,14 +74,14 @@ public abstract class AShiftForwardUnitsLoopLongIndex<V> {
             }
         } else {
             while (shiftForwardRemaining >= 0 && nextValueIndex < size) {
-                final V nextNextValue = getValue(nextValueIndex);
+                final V nextNextValue = getLatestValue(nextValueIndex);
                 final FDate nextNextValueKey = extractEndTime(nextNextValue);
                 if (!nextNextValueKey.isBeforeNotNullSafe(date)) {
                     nextValue = nextNextValue;
                     //just skip ahead without another loop iteration since we already found our starting point
                     nextValueIndex += shiftForwardRemaining;
                     shiftForwardRemaining = -1;
-                    nextValue = getValue(nextValueIndex);
+                    nextValue = getLatestValue(nextValueIndex);
                     break;
                 } else {
                     nextValueIndex++;

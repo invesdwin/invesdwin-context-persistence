@@ -91,7 +91,7 @@ public class AShiftForwardUnitsLoopIntIndexTest extends ATest {
         return new AShiftForwardUnitsLoopIntIndex<FDate>(request, shiftForwardUnits) {
 
             @Override
-            protected FDate getValue(final int index) {
+            protected FDate getLatestValue(final int index) {
                 if (index >= DATES.size()) {
                     return DATES.get(DATES.size() - 1);
                 }

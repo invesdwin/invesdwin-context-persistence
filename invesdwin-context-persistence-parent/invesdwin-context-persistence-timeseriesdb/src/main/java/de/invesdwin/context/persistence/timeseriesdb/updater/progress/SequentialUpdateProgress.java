@@ -26,6 +26,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
     private final TextDescription name;
 
     private long memoryOffset;
+    private long precedingValueCount;
     private final File memoryFile;
     private final String memoryFilePath;
     private int valueCount;
@@ -37,10 +38,11 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
     private BufferedFileDataOutputStream out;
 
     public SequentialUpdateProgress(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
-            final long initialAddressOffset) {
+            final long initialAddressOffset, final long initialPrecedingValueCount) {
         this.parent = parent;
         this.name = new TextDescription("%s[%s]: write", ATimeSeriesUpdater.class.getSimpleName(), parent.getKey());
         this.memoryOffset = initialAddressOffset;
+        this.precedingValueCount = initialPrecedingValueCount;
         this.memoryFile = parent.getLookupTable().getMemoryFile();
         this.memoryFilePath = memoryFile.getAbsolutePath();
         try {
@@ -101,9 +103,10 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
             collection.close();
             final long memoryLength = out.position() - memoryOffset;
             parent.getLookupTable()
-                    .finishFile(minTime, firstElement, lastElement, valueCount, memoryFilePath, memoryOffset,
-                            memoryLength);
+                    .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount, memoryFilePath,
+                            memoryOffset, memoryLength);
             memoryOffset += memoryLength;
+            precedingValueCount += valueCount;
             parent.onFlush(flushIndex, this);
         } catch (final IOException e) {
             throw new RuntimeException(e);
@@ -177,11 +180,12 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
     }
 
     public static <K, V> void doUpdate(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
-            final long initialAddressOffset, final ICloseableIterable<? extends V> source) {
+            final long initialAddressOffset, final long initialPrecedingValueCount,
+            final ICloseableIterable<? extends V> source) {
         try (ICloseableIterator<SequentialUpdateProgress<K, V>> batchWriterProducer = new ICloseableIterator<SequentialUpdateProgress<K, V>>() {
 
             private final SequentialUpdateProgress<K, V> progress = new SequentialUpdateProgress<K, V>(parent,
-                    initialAddressOffset);
+                    initialAddressOffset, initialPrecedingValueCount);
             private final ICloseableIterator<? extends V> elements = source.iterator();
 
             @Override
