@@ -45,7 +45,20 @@ public abstract class AShiftBackUnitsLoopLongIndex<V> {
 
     protected abstract FDate extractEndTime(V value);
 
+    protected abstract long size();
+
     public void loop() {
+        System.out.println(
+                "TODO: how to handle segment writes before this one, should eagerly initialize previous segments before attempting this query?");
+        while (loopTry()) {
+            shiftBackRemaining = shiftBackUnits;
+            prevValue = null;
+            prevValueIndex = -1L;
+        }
+    }
+
+    private boolean loopTry() {
+        final long size = size();
         prevValueIndex = getLatestValueIndex(date);
 
         if (shiftBackUnits == 0) {
@@ -88,6 +101,7 @@ public abstract class AShiftBackUnitsLoopLongIndex<V> {
                 prevValueIndex--;
             }
         }
+        return size != size();
     }
 
 }

@@ -48,6 +48,14 @@ public abstract class AShiftForwardUnitsLoopIntIndex<V> {
     protected abstract int size();
 
     public void loop() {
+        while (loopTry()) {
+            shiftForwardRemaining = shiftForwardUnits;
+            nextValue = null;
+            nextValueIndex = -1;
+        }
+    }
+
+    private boolean loopTry() {
         final int size = size();
         nextValueIndex = getLatestValueIndex(date);
         if (shiftForwardUnits == 0) {
@@ -88,6 +96,7 @@ public abstract class AShiftForwardUnitsLoopIntIndex<V> {
                 }
             }
         }
+        return size != size();
     }
 
 }

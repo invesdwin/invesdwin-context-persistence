@@ -45,7 +45,18 @@ public abstract class AShiftBackUnitsLoopIntIndex<V> {
 
     protected abstract FDate extractEndTime(V value);
 
+    protected abstract int size();
+
     public void loop() {
+        while (loopTry()) {
+            shiftBackRemaining = shiftBackUnits;
+            prevValue = null;
+            prevValueIndex = -1;
+        }
+    }
+
+    private boolean loopTry() {
+        final int size = size();
         prevValueIndex = getLatestValueIndex(date);
 
         if (shiftBackUnits == 0) {
@@ -88,6 +99,7 @@ public abstract class AShiftBackUnitsLoopIntIndex<V> {
                 prevValueIndex--;
             }
         }
+        return size != size();
     }
 
 }
