@@ -260,10 +260,18 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public long getLatestValueIndex(final FDate date) {
+        if (!lastValue.isEmpty() && (date == null || date.isAfterOrEqualToNotNullSafe(lastValueKey))) {
+            //we always return the last last value
+            return size();
+        }
+        if (!firstValue.isEmpty() && date != null && date.isBeforeOrEqualToNotNullSafe(firstValueKey)) {
+            //we always return the first first value
+            return 0L;
+        }
         if (inProgress.isEmpty()) {
             return persistent.getLatestValueIndex(date);
         } else if (persistent.isEmpty()) {
-            return inProgress.getLatestValueIndex(date);
+            return inProgress.getLatestValueIndex(date) + persistent.size();
         }
         long latestValueIndex = -1L;
         long precedingValueCount = 0L;
