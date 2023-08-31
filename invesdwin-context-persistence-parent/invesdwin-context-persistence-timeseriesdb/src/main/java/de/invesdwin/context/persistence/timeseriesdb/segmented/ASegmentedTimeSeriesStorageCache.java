@@ -949,20 +949,30 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     }
 
     private long newPrecedingValueCount(final SegmentedKey<K> beforeSegmentedKey) {
-        long precedingValueCount = 0;
-        try (ICloseableIterator<RangeTableRow<String, TimeRange, SegmentStatus>> rangeValues = storage
-                .getSegmentStatusTable()
-                .range(hashKey)) {
+        final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
+        if (firstAvailableSegmentFrom == null) {
+            return -1L;
+        }
+        final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key, null);
+        if (lastAvailableSegmentTo == null) {
+            return -1L;
+        }
+        //adjust dates directly to prevent unnecessary segment calculations
+        long precedingValueCount = 0L;
+        final FDate adjFrom = firstAvailableSegmentFrom;
+        final FDate adjTo = FDates.min(lastAvailableSegmentTo, beforeSegmentedKey.getSegment().getTo());
+        final ISegmentFinder segmentFinder = getSegmentFinder(key);
+        try (ICloseableIterator<TimeRange> segments = getSegments(segmentFinder, segmentFinder.getDay(adjFrom),
+                segmentFinder.getDay(adjTo), lastAvailableSegmentTo).iterator()) {
             while (true) {
-                final RangeTableRow<String, TimeRange, SegmentStatus> row = rangeValues.next();
-                final SegmentStatus status = row.getValue();
-                if (status == SegmentStatus.COMPLETE) {
-                    if (row.getRangeKey().equals(beforeSegmentedKey.getSegment())) {
-                        break;
-                    }
-                    final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, row.getRangeKey());
-                    precedingValueCount += segmentedTable.getLookupTableCache(segmentedKey).size();
+                final TimeRange value = segments.next();
+                if (value.equals(beforeSegmentedKey.getSegment())) {
+                    break;
                 }
+                //initialize all earlier segments eagerly so that indexes don't change during parallel queries by loading earlier segments
+                final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, value);
+                maybeInitSegment(segmentedKey);
+                precedingValueCount += segmentedTable.getLookupTableCache(segmentedKey).size();
             }
         } catch (final NoSuchElementException e) {
             //end reached

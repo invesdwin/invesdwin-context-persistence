@@ -48,8 +48,6 @@ public abstract class AShiftBackUnitsLoopLongIndex<V> {
     protected abstract long size();
 
     public void loop() {
-        System.out.println(
-                "TODO: how to handle segment writes before this one, should eagerly initialize previous segments before attempting this query?");
         while (loopTry()) {
             shiftBackRemaining = shiftBackUnits;
             prevValue = null;
@@ -59,46 +57,48 @@ public abstract class AShiftBackUnitsLoopLongIndex<V> {
 
     private boolean loopTry() {
         final long size = size();
-        prevValueIndex = getLatestValueIndex(date);
+        long prevPrevValueIndex = getLatestValueIndex(date);
 
         if (shiftBackUnits == 0) {
-            while (shiftBackRemaining == 0 && prevValueIndex >= 0) {
-                final V prevPrevValue = getLatestValue(prevValueIndex);
+            while (shiftBackRemaining == 0 && prevPrevValueIndex >= 0) {
+                final V prevPrevValue = getLatestValue(prevPrevValueIndex);
                 final FDate prevPrevValueKey = extractEndTime(prevPrevValue);
                 if (!prevPrevValueKey.isAfterNotNullSafe(date)) {
                     prevValue = prevPrevValue;
+                    prevValueIndex = prevPrevValueIndex;
                     shiftBackRemaining--;
                 }
-                prevValueIndex--;
+                prevPrevValueIndex--;
             }
         } else if (shiftBackUnits == 1) {
-            while (shiftBackRemaining >= 0 && prevValueIndex >= 0) {
-                final V prevPrevValue = getLatestValue(prevValueIndex);
+            while (shiftBackRemaining >= 0 && prevPrevValueIndex >= 0) {
+                final V prevPrevValue = getLatestValue(prevPrevValueIndex);
                 final FDate prevPrevValueKey = extractEndTime(prevPrevValue);
                 if (!prevPrevValueKey.isAfterNotNullSafe(date)) {
                     if (shiftBackRemaining == 1 || date.isAfterNotNullSafe(prevPrevValueKey)) {
                         prevValue = prevPrevValue;
+                        prevValueIndex = prevPrevValueIndex;
                         shiftBackRemaining--;
                     }
                 }
-                prevValueIndex--;
+                prevPrevValueIndex--;
             }
         } else {
-            while (shiftBackRemaining >= 0 && prevValueIndex >= 0) {
-                final V prevPrevValue = getLatestValue(prevValueIndex);
+            while (shiftBackRemaining >= 0 && prevPrevValueIndex >= 0) {
+                final V prevPrevValue = getLatestValue(prevPrevValueIndex);
                 final FDate prevPrevValueKey = extractEndTime(prevPrevValue);
                 if (!prevPrevValueKey.isAfterNotNullSafe(date)) {
-                    prevValue = prevPrevValue;
                     //just skip ahead without another loop iteration since we already found our starting point
-                    prevValueIndex -= shiftBackRemaining;
-                    if (prevValueIndex < 0) {
-                        prevValueIndex = 0;
+                    prevPrevValueIndex -= shiftBackRemaining;
+                    if (prevPrevValueIndex < 0L) {
+                        prevPrevValueIndex = 0L;
                     }
                     shiftBackRemaining = -1;
-                    prevValue = getLatestValue(prevValueIndex);
+                    prevValue = getLatestValue(prevPrevValueIndex);
+                    prevValueIndex = prevPrevValueIndex;
                     break;
                 }
-                prevValueIndex--;
+                prevPrevValueIndex--;
             }
         }
         return size != size();
