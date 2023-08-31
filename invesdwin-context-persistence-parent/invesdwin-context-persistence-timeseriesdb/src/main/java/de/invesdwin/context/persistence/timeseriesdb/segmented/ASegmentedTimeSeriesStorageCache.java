@@ -714,13 +714,17 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         if (index >= size() - 1) {
             return getLastValue();
         }
-        final IndexedSegmentedKey<K> indexedSegmentedKey = latestSegmentedKeyFromIndexCache.get(index);
+        final IndexedSegmentedKey<K> indexedSegmentedKey = getLatestSegmentedKeyFromIndex(index);
         if (indexedSegmentedKey == null) {
             return getLastValue();
         }
-        final V latestValue = segmentedTable.getLatestValue(indexedSegmentedKey.getSegmentedKey(),
-                index - indexedSegmentedKey.getPrecedingValueCount());
+        final long segmentedIndex = index - indexedSegmentedKey.getPrecedingValueCount();
+        final V latestValue = segmentedTable.getLatestValue(indexedSegmentedKey.getSegmentedKey(), segmentedIndex);
         return latestValue;
+    }
+
+    private IndexedSegmentedKey<K> getLatestSegmentedKeyFromIndex(final long index) {
+        return latestSegmentedKeyFromIndexCache.get(index);
     }
 
     private IndexedSegmentedKey<K> newLatestSegmentedKeyFromIndex(final long index) {
