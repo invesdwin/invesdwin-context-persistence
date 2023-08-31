@@ -111,7 +111,7 @@ public class TimeSeriesStorageCache<K, V> {
             for (int i = 0; i < rows.size(); i++) {
                 final RangeTableRow<String, FDate, MemoryFileSummary> row = rows.get(i);
                 final MemoryFileSummary summary = row.getValue();
-                if (summary.getPrecedingValueCount() <= key && summary.getCombinedValueCount() >= key) {
+                if (summary.getPrecedingValueCount() <= key && key < summary.getCombinedValueCount()) {
                     return row;
                 }
             }
@@ -612,11 +612,11 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     public V getLatestValue(final long index) {
-        if (index <= 0) {
-            return getFirstValue();
-        }
         if (index >= size() - 1) {
             return getLastValue();
+        }
+        if (index <= 0) {
+            return getFirstValue();
         }
         final RangeTableRow<String, FDate, MemoryFileSummary> row = fileLookupTable_latestRangeKeyIndexCache.get(index);
         if (row == null) {
@@ -628,8 +628,8 @@ public class TimeSeriesStorageCache<K, V> {
         }
         try (IFileBufferCacheResult<V> result = getResultCached("latestValueLookupCache.loadValue", summary,
                 DisabledLock.INSTANCE)) {
-            final V latestValue = result
-                    .getLatestValue(Integers.checkedCast(index - row.getValue().getPrecedingValueCount()));
+            final long rowIndex = index - row.getValue().getPrecedingValueCount();
+            final V latestValue = result.getLatestValue(Integers.checkedCast(rowIndex));
             if (latestValue == null) {
                 return getFirstValue();
             }

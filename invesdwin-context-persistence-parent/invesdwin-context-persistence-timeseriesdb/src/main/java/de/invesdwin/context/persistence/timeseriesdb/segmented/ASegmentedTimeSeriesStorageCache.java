@@ -47,7 +47,6 @@ import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
 import de.invesdwin.util.concurrent.taskinfo.provider.TaskInfoCallable;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.error.Throwables;
-import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
@@ -71,7 +70,6 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     private final SegmentedTimeSeriesStorage storage;
     private final K key;
     private final String hashKey;
-    private final ISerde<V> valueSerde;
     private final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source;
     private final ALoadingCache<SegmentedKey<K>, Long> precedingValueCountCache = new ALoadingCache<SegmentedKey<K>, Long>() {
         @Override
@@ -104,7 +102,6 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         this.segmentedTable = segmentedTable;
         this.key = key;
         this.hashKey = hashKey;
-        this.valueSerde = segmentedTable.getValueSerde();
         this.source = new Function<SegmentedKey<K>, ICloseableIterable<? extends V>>() {
             @Override
             public ICloseableIterable<? extends V> apply(final SegmentedKey<K> t) {
@@ -706,11 +703,11 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     }
 
     public V getLatestValue(final long index) {
-        if (index <= 0) {
-            return getFirstValue();
-        }
         if (index >= size() - 1) {
             return getLastValue();
+        }
+        if (index <= 0) {
+            return getFirstValue();
         }
         final IndexedSegmentedKey<K> indexedSegmentedKey = getLatestSegmentedKeyFromIndex(index);
         if (indexedSegmentedKey == null) {
@@ -737,7 +734,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                     final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, row.getRangeKey());
                     final long combinedValueCount = precedingValueCount
                             + segmentedTable.getLookupTableCache(segmentedKey).size();
-                    if (combinedValueCount >= index) {
+                    if (combinedValueCount > index) {
                         return new IndexedSegmentedKey<>(segmentedKey, precedingValueCount);
                     } else {
                         precedingValueCount = combinedValueCount;
