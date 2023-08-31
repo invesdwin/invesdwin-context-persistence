@@ -682,6 +682,11 @@ public class TimeSeriesStorageCache<K, V> {
                             protected FDate extractEndTime(final V value) {
                                 return extractEndTime.apply(value);
                             }
+
+                            @Override
+                            protected long size() {
+                                return TimeSeriesStorageCache.this.size();
+                            }
                         };
                         shiftBackLoop.loop();
                         return shiftBackLoop.getPrevValueIndex();

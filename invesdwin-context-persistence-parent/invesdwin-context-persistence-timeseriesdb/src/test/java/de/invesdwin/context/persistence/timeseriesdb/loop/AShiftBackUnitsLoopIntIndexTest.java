@@ -113,6 +113,11 @@ public class AShiftBackUnitsLoopIntIndexTest extends ATest {
                 return value;
             }
 
+            @Override
+            protected int size() {
+                return DATES_REVERSE.size();
+            }
+
         };
     }
 
