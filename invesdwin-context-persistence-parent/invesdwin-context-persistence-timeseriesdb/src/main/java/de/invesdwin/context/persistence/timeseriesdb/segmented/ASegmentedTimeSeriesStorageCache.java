@@ -714,7 +714,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     }
 
     private long adjustIndex(final long index) {
-        long maxIndex = size() - 1L;
+        final long maxIndex = size() - 1L;
         if (index >= maxIndex) {
             return maxIndex;
         } else if (index <= 0) {
