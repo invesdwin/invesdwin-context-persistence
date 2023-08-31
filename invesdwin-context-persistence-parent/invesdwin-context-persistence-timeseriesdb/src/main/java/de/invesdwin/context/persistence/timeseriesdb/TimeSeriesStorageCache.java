@@ -49,6 +49,7 @@ import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.FromBufferDelegateSerde;
 import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.math.Integers;
 import de.invesdwin.util.streams.PreLockedDelegateInputStream;
 import de.invesdwin.util.streams.buffer.file.IMemoryMappedFile;
 import de.invesdwin.util.streams.pool.PooledFastByteArrayOutputStream;
@@ -83,6 +84,38 @@ public class TimeSeriesStorageCache<K, V> {
         @Override
         protected RangeTableRow<String, FDate, MemoryFileSummary> loadValue(final FDate key) {
             return storage.getFileLookupTable().getLatest(hashKey, key);
+        }
+    };
+    private final ALoadingCache<Long, RangeTableRow<String, FDate, MemoryFileSummary>> fileLookupTable_latestRangeKeyIndexCache = new ALoadingCache<Long, RangeTableRow<String, FDate, MemoryFileSummary>>() {
+
+        @Override
+        protected Integer getInitialMaximumSize() {
+            return MAXIMUM_SIZE;
+        }
+
+        @Override
+        protected EvictionMode getEvictionMode() {
+            return EVICTION_MODE;
+        }
+
+        @Override
+        protected RangeTableRow<String, FDate, MemoryFileSummary> loadValue(final Long key) {
+            final ArrayList<RangeTableRow<String, FDate, MemoryFileSummary>> rows = getAllRangeKeys(
+                    DisabledLock.INSTANCE).getList();
+            if (rows.isEmpty()) {
+                return null;
+            }
+            if (key <= 0) {
+                return rows.get(0);
+            }
+            for (int i = 0; i < rows.size(); i++) {
+                final RangeTableRow<String, FDate, MemoryFileSummary> row = rows.get(i);
+                final MemoryFileSummary summary = row.getValue();
+                if (summary.getPrecedingValueCount() <= key && summary.getCombinedValueCount() >= key) {
+                    return row;
+                }
+            }
+            return rows.get(rows.size() - 1);
         }
     };
 
@@ -204,7 +237,7 @@ public class TimeSeriesStorageCache<K, V> {
                         if (latestFirstTime == null) {
                             delegate = EmptyCloseableIterator.getInstance();
                         } else {
-                            delegate = getRangeKeys(hashKey, latestFirstTime.getRangeKey().addMilliseconds(1), to);
+                            delegate = getRangeKeys(latestFirstTime.getRangeKey().addMilliseconds(1), to);
                         }
                     }
 
@@ -214,7 +247,7 @@ public class TimeSeriesStorageCache<K, V> {
                     }
 
                     private ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> getRangeKeys(
-                            final String hashKey, final FDate from, final FDate to) {
+                            final FDate from, final FDate to) {
                         final ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>> rangeSource = getAllRangeKeys(
                                 readLock);
                         final ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> rangeFiltered = rangeSource
@@ -293,8 +326,7 @@ public class TimeSeriesStorageCache<K, V> {
                         if (latestLastTime == null) {
                             delegate = EmptyCloseableIterator.getInstance();
                         } else {
-                            delegate = getRangeKeysReverse(hashKey, latestLastTime.getRangeKey().addMilliseconds(-1),
-                                    to);
+                            delegate = getRangeKeysReverse(latestLastTime.getRangeKey().addMilliseconds(-1), to);
                         }
                     }
 
@@ -304,7 +336,7 @@ public class TimeSeriesStorageCache<K, V> {
                     }
 
                     private ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> getRangeKeysReverse(
-                            final String hashKey, final FDate from, final FDate to) {
+                            final FDate from, final FDate to) {
                         final ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>> rangeSource = getAllRangeKeys(
                                 readLock);
                         final ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> rangeFiltered = rangeSource
@@ -541,6 +573,7 @@ public class TimeSeriesStorageCache<K, V> {
 
     private void clearCaches() {
         fileLookupTable_latestRangeKeyCache.clear();
+        fileLookupTable_latestRangeKeyIndexCache.clear();
         FileBufferCache.remove(hashKey);
         cachedAllRangeKeys = null;
         cachedFirstValue = null;
@@ -570,7 +603,7 @@ public class TimeSeriesStorageCache<K, V> {
                     return 0L;
                 }
                 if (latestValueIndex == -1) {
-                    return null;
+                    return -1L;
                 }
                 return row.getValue().getPrecedingValueCount() + latestValueIndex;
             }
@@ -585,8 +618,23 @@ public class TimeSeriesStorageCache<K, V> {
         if (index >= size() - 1) {
             return getLastValue();
         }
-        System.out.println("TODO");
-        return null;
+        final RangeTableRow<String, FDate, MemoryFileSummary> row = fileLookupTable_latestRangeKeyIndexCache.get(index);
+        if (row == null) {
+            return null;
+        }
+        final MemoryFileSummary summary = row.getValue();
+        if (summary == null) {
+            return null;
+        }
+        try (IFileBufferCacheResult<V> result = getResultCached("latestValueLookupCache.loadValue", summary,
+                DisabledLock.INSTANCE)) {
+            final V latestValue = result
+                    .getLatestValue(Integers.checkedCast(index - row.getValue().getPrecedingValueCount()));
+            if (latestValue == null) {
+                return getFirstValue();
+            }
+            return latestValue;
+        }
     }
 
     public long size() {

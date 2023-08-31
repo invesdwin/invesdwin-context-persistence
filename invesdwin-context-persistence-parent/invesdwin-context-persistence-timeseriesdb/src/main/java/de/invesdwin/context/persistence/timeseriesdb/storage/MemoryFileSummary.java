@@ -74,6 +74,10 @@ public class MemoryFileSummary implements ISerializableValueObject {
         return valueCount;
     }
 
+    public long getCombinedValueCount() {
+        return precedingValueCount + valueCount;
+    }
+
     public String getMemoryResourceUri() {
         return memoryResourceUri;
     }
@@ -114,4 +118,5 @@ public class MemoryFileSummary implements ISerializableValueObject {
                 .add("length", memoryLength)
                 .toString();
     }
+
 }

@@ -41,6 +41,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
 import de.invesdwin.util.collections.list.Lists;
+import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
@@ -74,6 +75,30 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     private final String hashKey;
     private final ISerde<V> valueSerde;
     private final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source;
+    private final ALoadingCache<SegmentedKey<K>, Long> precedingValueCountCache = new ALoadingCache<SegmentedKey<K>, Long>() {
+        @Override
+        protected Long loadValue(final SegmentedKey<K> key) {
+            return newPrecedingValueCount(key);
+        }
+
+        @Override
+        protected Integer getInitialMaximumSize() {
+            return MAXIMUM_SIZE;
+        }
+    };
+    private final ALoadingCache<Long, IndexedSegmentedKey<K>> latestSegmentedKeyFromIndexCache = new ALoadingCache<Long, IndexedSegmentedKey<K>>() {
+
+        @Override
+        protected IndexedSegmentedKey<K> loadValue(final Long key) {
+            return newLatestSegmentedKeyFromIndex(key);
+        }
+
+        @Override
+        protected Integer getInitialMaximumSize() {
+            return MAXIMUM_SIZE;
+        }
+
+    };
 
     public ASegmentedTimeSeriesStorageCache(final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable,
             final SegmentedTimeSeriesStorage storage, final K key, final String hashKey) {
@@ -481,6 +506,11 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
     public void onSegmentCompleted(final SegmentedKey<K> segmentedKey, final ICloseableIterable<V> segmentValues) {
         cachedSize = -1L;
+        precedingValueCountCache.clear();
+        latestSegmentedKeyFromIndexCache.clear();
+        storage.deleteRange_latestValueIndexLookupTable(hashKey);
+        storage.deleteRange_nextValueIndexLookupTable(hashKey);
+        storage.deleteRange_previousValueIndexLookupTable(hashKey);
     }
 
     protected abstract ITimeSeriesUpdater<SegmentedKey<K>, V> newSegmentUpdaterOverride(SegmentedKey<K> segmentedKey,
@@ -624,11 +654,13 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         cachedLastValue = null;
         cachedSize = -1L;
         cachedPrevLastAvailableSegmentTo = null;
+        precedingValueCountCache.clear();
+        latestSegmentedKeyFromIndexCache.clear();
     }
 
-    public V getLatestValue(final FDate pDate) {
+    public long getLatestValueIndex(final FDate pDate) {
         final FDate date = FDates.min(pDate, getLastAvailableSegmentTo(key, pDate));
-        final SingleValue value = storage.getOrLoad_latestValueIndexLookupTable(hashKey, date, () -> {
+        final long valueIndex = storage.getOrLoad_latestValueIndexLookupTable(hashKey, date, () -> {
             final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
             //already adjusted on the outside
             final FDate adjFrom = date;
@@ -638,13 +670,14 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             final ICloseableIterable<TimeRange> segmentsReverse = getSegmentsReverse(segmentFinder,
                     segmentFinder.getDay(adjFrom), segmentFinder.getDay(adjTo), lastAvailableSegmentTo);
             try (ICloseableIterator<TimeRange> it = segmentsReverse.iterator()) {
-                V latestValue = null;
+                long latestValueIndex = -1L;
                 while (it.hasNext()) {
                     final TimeRange segment = it.next();
                     final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
                     maybeInitSegment(segmentedKey);
-                    final V newValue = segmentedTable.getLatestValue(segmentedKey, date);
-                    if (newValue != null) {
+                    final long newValueIndex = segmentedTable.getLatestValueIndex(segmentedKey, date);
+                    if (newValueIndex != -1L) {
+                        final V newValue = segmentedTable.getLatestValue(segmentedKey, newValueIndex);
                         final FDate newValueTime = segmentedTable.extractEndTime(newValue);
                         if (newValueTime.isBeforeOrEqualTo(date)) {
                             /*
@@ -652,24 +685,67 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                              * continue to the beginning to search for an earlier value until we reach the overall
                              * firstValue
                              */
-                            latestValue = newValue;
+                            latestValueIndex = getPrecedingValueCount(segmentedKey) + newValueIndex;
                             break;
                         }
                     }
                 }
-                if (latestValue == null) {
-                    latestValue = getFirstValue();
+                if (latestValueIndex == -1L && getFirstValue() != null) {
+                    return 0L;
                 }
-                if (latestValue == null) {
-                    return null;
+                if (latestValueIndex == -1L) {
+                    return -1L;
                 }
-                return new SingleValue(valueSerde, latestValue);
+                return latestValueIndex;
             }
         });
-        if (value == null) {
-            return null;
+        return valueIndex;
+    }
+
+    public V getLatestValue(final FDate date) {
+        final long valueIndex = getLatestValueIndex(date);
+        return getLatestValue(valueIndex);
+    }
+
+    public V getLatestValue(final long index) {
+        if (index <= 0) {
+            return getFirstValue();
         }
-        return value.getValue(valueSerde);
+        if (index >= size() - 1) {
+            return getLastValue();
+        }
+        final IndexedSegmentedKey<K> indexedSegmentedKey = latestSegmentedKeyFromIndexCache.get(index);
+        if (indexedSegmentedKey == null) {
+            return getLastValue();
+        }
+        final V latestValue = segmentedTable.getLatestValue(indexedSegmentedKey.getSegmentedKey(),
+                index - indexedSegmentedKey.getPrecedingValueCount());
+        return latestValue;
+    }
+
+    private IndexedSegmentedKey<K> newLatestSegmentedKeyFromIndex(final long index) {
+        long precedingValueCount = 0;
+        try (ICloseableIterator<RangeTableRow<String, TimeRange, SegmentStatus>> rangeValues = storage
+                .getSegmentStatusTable()
+                .range(hashKey)) {
+            while (true) {
+                final RangeTableRow<String, TimeRange, SegmentStatus> row = rangeValues.next();
+                final SegmentStatus status = row.getValue();
+                if (status == SegmentStatus.COMPLETE) {
+                    final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, row.getRangeKey());
+                    final long combinedValueCount = precedingValueCount
+                            + segmentedTable.getLookupTableCache(segmentedKey).size();
+                    if (combinedValueCount >= index) {
+                        return new IndexedSegmentedKey<>(segmentedKey, precedingValueCount);
+                    } else {
+                        precedingValueCount = combinedValueCount;
+                    }
+                }
+            }
+        } catch (final NoSuchElementException e) {
+            //end reached
+        }
+        return null;
     }
 
     public V getPreviousValue(final FDate date, final int shiftBackUnits) {
@@ -840,6 +916,32 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         return cachedLastValue.orElse(null);
     }
 
+    public long getPrecedingValueCount(final SegmentedKey<K> beforeSegmentedKey) {
+        return precedingValueCountCache.get(beforeSegmentedKey);
+    }
+
+    private long newPrecedingValueCount(final SegmentedKey<K> beforeSegmentedKey) {
+        long precedingValueCount = 0;
+        try (ICloseableIterator<RangeTableRow<String, TimeRange, SegmentStatus>> rangeValues = storage
+                .getSegmentStatusTable()
+                .range(hashKey)) {
+            while (true) {
+                final RangeTableRow<String, TimeRange, SegmentStatus> row = rangeValues.next();
+                final SegmentStatus status = row.getValue();
+                if (status == SegmentStatus.COMPLETE) {
+                    if (row.getRangeKey().equals(beforeSegmentedKey.getSegment())) {
+                        break;
+                    }
+                    final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, row.getRangeKey());
+                    precedingValueCount += segmentedTable.getLookupTableCache(segmentedKey).size();
+                }
+            }
+        } catch (final NoSuchElementException e) {
+            //end reached
+        }
+        return precedingValueCount;
+    }
+
     public long size() {
         if (cachedSize == -1L) {
             long size = 0;
@@ -848,8 +950,11 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                     .range(hashKey)) {
                 while (true) {
                     final RangeTableRow<String, TimeRange, SegmentStatus> row = rangeValues.next();
-                    final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, row.getRangeKey());
-                    size += segmentedTable.getLookupTableCache(segmentedKey).size();
+                    final SegmentStatus status = row.getValue();
+                    if (status == SegmentStatus.COMPLETE) {
+                        final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, row.getRangeKey());
+                        size += segmentedTable.getLookupTableCache(segmentedKey).size();
+                    }
                 }
             } catch (final NoSuchElementException e) {
                 //end reached
