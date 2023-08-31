@@ -24,12 +24,10 @@ import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.FileBufferCache;
-import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftBackUnitsLoop;
-import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftForwardUnitsLoop;
+import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftBackUnitsLoopLongIndex;
+import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftForwardUnitsLoopLongIndex;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
-import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
-import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ALoggingTimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ITimeSeriesUpdater;
 import de.invesdwin.util.collections.eviction.EvictionMode;
@@ -755,60 +753,78 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     public V getPreviousValue(final FDate date, final int shiftBackUnits) {
         assertShiftUnitsPositiveNonZero(shiftBackUnits);
         final V firstValue = getFirstValue();
+        if (firstValue == null) {
+            return null;
+        }
         final FDate firstTime = segmentedTable.extractEndTime(firstValue);
         if (date.isBeforeOrEqualTo(firstTime)) {
             return firstValue;
         } else {
-            final SingleValue value = storage.getOrLoad_previousValueIndexLookupTable(hashKey, date, shiftBackUnits,
+            final long valueIndex = storage.getOrLoad_previousValueIndexLookupTable(hashKey, date, shiftBackUnits,
                     () -> {
-                        final ShiftBackUnitsLoop<V> shiftBackLoop = new ShiftBackUnitsLoop<>(date, shiftBackUnits,
-                                segmentedTable::extractEndTime);
-                        final ICloseableIterable<V> rangeValuesReverse = readRangeValuesReverse(date, null,
-                                DisabledLock.INSTANCE, new ISkipFileFunction() {
-                                    @Override
-                                    public boolean skipFile(final MemoryFileSummary file) {
-                                        final boolean skip = shiftBackLoop.getPrevValue() != null
-                                                && file.getValueCount() < shiftBackLoop.getShiftBackRemaining();
-                                        if (skip) {
-                                            shiftBackLoop.skip(file.getValueCount());
-                                        }
-                                        return skip;
-                                    }
-                                });
-                        shiftBackLoop.loop(rangeValuesReverse);
-                        return new SingleValue(valueSerde, shiftBackLoop.getPrevValue());
+                        final AShiftBackUnitsLoopLongIndex<V> shiftBackLoop = new AShiftBackUnitsLoopLongIndex<V>(date,
+                                shiftBackUnits) {
+                            @Override
+                            protected V getLatestValue(final long index) {
+                                return ASegmentedTimeSeriesStorageCache.this.getLatestValue(index);
+                            }
+
+                            @Override
+                            protected long getLatestValueIndex(final FDate date) {
+                                return ASegmentedTimeSeriesStorageCache.this.getLatestValueIndex(date);
+                            }
+
+                            @Override
+                            protected FDate extractEndTime(final V value) {
+                                return segmentedTable.extractEndTime(value);
+                            }
+                        };
+                        shiftBackLoop.loop();
+                        return shiftBackLoop.getPrevValueIndex();
                     });
-            return value.getValue(valueSerde);
+            return getLatestValue(valueIndex);
         }
+
     }
 
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
         assertShiftUnitsPositiveNonZero(shiftForwardUnits);
         final V lastValue = getLastValue();
+        if (lastValue == null) {
+            return null;
+        }
         final FDate lastTime = segmentedTable.extractEndTime(lastValue);
         if (date.isAfterOrEqualTo(lastTime)) {
             return lastValue;
         } else {
-            final SingleValue value = storage.getOrLoad_nextValueIndexLookupTable(hashKey, date, shiftForwardUnits,
+            final long valueIndex = storage.getOrLoad_nextValueIndexLookupTable(hashKey, date, shiftForwardUnits,
                     () -> {
-                        final ShiftForwardUnitsLoop<V> shiftForwardLoop = new ShiftForwardUnitsLoop<>(date,
-                                shiftForwardUnits, segmentedTable::extractEndTime);
-                        final ICloseableIterable<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,
-                                new ISkipFileFunction() {
-                                    @Override
-                                    public boolean skipFile(final MemoryFileSummary file) {
-                                        final boolean skip = shiftForwardLoop.getNextValue() != null
-                                                && file.getValueCount() < shiftForwardLoop.getShiftForwardRemaining();
-                                        if (skip) {
-                                            shiftForwardLoop.skip(file.getValueCount());
-                                        }
-                                        return skip;
-                                    }
-                                });
-                        shiftForwardLoop.loop(rangeValues);
-                        return new SingleValue(valueSerde, shiftForwardLoop.getNextValue());
+                        final AShiftForwardUnitsLoopLongIndex<V> shiftForwardLoop = new AShiftForwardUnitsLoopLongIndex<V>(
+                                date, shiftForwardUnits) {
+                            @Override
+                            protected V getLatestValue(final long index) {
+                                return ASegmentedTimeSeriesStorageCache.this.getLatestValue(index);
+                            }
+
+                            @Override
+                            protected long getLatestValueIndex(final FDate date) {
+                                return ASegmentedTimeSeriesStorageCache.this.getLatestValueIndex(date);
+                            }
+
+                            @Override
+                            protected FDate extractEndTime(final V value) {
+                                return segmentedTable.extractEndTime(value);
+                            }
+
+                            @Override
+                            protected long size() {
+                                return ASegmentedTimeSeriesStorageCache.this.size();
+                            }
+                        };
+                        shiftForwardLoop.loop();
+                        return shiftForwardLoop.getNextValueIndex();
                     });
-            return value.getValue(valueSerde);
+            return getLatestValue(valueIndex);
         }
     }
 
