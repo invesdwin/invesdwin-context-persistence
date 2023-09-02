@@ -6,6 +6,7 @@ import java.util.function.Supplier;
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
+import de.invesdwin.context.integration.compression.lz4.FastLZ4CompressionFactory;
 import de.invesdwin.context.integration.persistentmap.APersistentMap;
 import de.invesdwin.context.integration.persistentmap.CorruptedStorageException;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
@@ -32,6 +33,9 @@ public class TimeSeriesStorage {
     private final File directory;
     private final ICompressionFactory compressionFactory;
     private final ADelegateRangeTable<String, FDate, MemoryFileSummary> fileLookupTable;
+    private final APersistentMap<HashRangeKey, SingleValue> latestValueLookupTable;
+    private final APersistentMap<HashRangeShiftUnitsKey, SingleValue> previousValueLookupTable;
+    private final APersistentMap<HashRangeShiftUnitsKey, SingleValue> nextValueLookupTable;
     private final APersistentMap<HashRangeKey, Long> latestValueIndexLookupTable;
     private final APersistentMap<HashRangeShiftUnitsKey, Long> previousValueIndexLookupTable;
     private final APersistentMap<HashRangeShiftUnitsKey, Long> nextValueIndexLookupTable;
@@ -68,7 +72,90 @@ public class TimeSeriesStorage {
             }
 
         };
-        this.latestValueIndexLookupTable = new APersistentMap<HashRangeKey, Long>("latestValueLookupTable") {
+        this.latestValueLookupTable = new APersistentMap<HashRangeKey, SingleValue>("latestValueLookupTable") {
+
+            @Override
+            public File getDirectory() {
+                return directory;
+            }
+
+            @Override
+            public ISerde<SingleValue> newValueSerde() {
+                return FastLZ4CompressionFactory.INSTANCE.maybeWrap(SingleValueSerde.GET);
+            }
+
+            @Override
+            public ISerde<HashRangeKey> newKeySerde() {
+                return HashRangeKeySerde.GET;
+            }
+
+            //            @Override
+            //            protected void onDeleteTableFinished() {
+            //                throw new CorruptedTimeSeriesStorageException(getName());
+            //            }
+
+            @Override
+            protected IPersistentMapFactory<HashRangeKey, SingleValue> newFactory() {
+                return getMapType().newFactory();
+            }
+
+        };
+        this.nextValueLookupTable = new APersistentMap<HashRangeShiftUnitsKey, SingleValue>("nextValueLookupTable") {
+
+            @Override
+            public File getDirectory() {
+                return directory;
+            }
+
+            @Override
+            public ISerde<HashRangeShiftUnitsKey> newKeySerde() {
+                return HashRangeShiftUnitsKeySerde.GET;
+            }
+
+            @Override
+            public ISerde<SingleValue> newValueSerde() {
+                return FastLZ4CompressionFactory.INSTANCE.maybeWrap(SingleValueSerde.GET);
+            }
+
+            //            @Override
+            //            protected void onDeleteTableFinished() {
+            //                throw new CorruptedTimeSeriesStorageException(getName());
+            //            }
+
+            @Override
+            protected IPersistentMapFactory<HashRangeShiftUnitsKey, SingleValue> newFactory() {
+                return getMapType().newFactory();
+            }
+        };
+        this.previousValueLookupTable = new APersistentMap<HashRangeShiftUnitsKey, SingleValue>(
+                "previousValueLookupTable") {
+
+            @Override
+            public File getDirectory() {
+                return directory;
+            }
+
+            @Override
+            public ISerde<HashRangeShiftUnitsKey> newKeySerde() {
+                return HashRangeShiftUnitsKeySerde.GET;
+            }
+
+            @Override
+            public ISerde<SingleValue> newValueSerde() {
+                return FastLZ4CompressionFactory.INSTANCE.maybeWrap(SingleValueSerde.GET);
+            }
+
+            //            @Override
+            //            protected void onDeleteTableFinished() {
+            //                throw new CorruptedTimeSeriesStorageException(getName());
+            //            }
+
+            @Override
+            protected IPersistentMapFactory<HashRangeShiftUnitsKey, SingleValue> newFactory() {
+                return getMapType().newFactory();
+            }
+        };
+        this.latestValueIndexLookupTable = new APersistentMap<HashRangeKey, Long>("latestValueIndexLookupTable") {
 
             @Override
             public File getDirectory() {
@@ -96,7 +183,7 @@ public class TimeSeriesStorage {
             }
 
         };
-        this.nextValueIndexLookupTable = new APersistentMap<HashRangeShiftUnitsKey, Long>("nextValueLookupTable") {
+        this.nextValueIndexLookupTable = new APersistentMap<HashRangeShiftUnitsKey, Long>("nextValueIndexLookupTable") {
 
             @Override
             public File getDirectory() {
@@ -124,7 +211,7 @@ public class TimeSeriesStorage {
             }
         };
         this.previousValueIndexLookupTable = new APersistentMap<HashRangeShiftUnitsKey, Long>(
-                "previousValueLookupTable") {
+                "previousValueIndexLookupTable") {
 
             @Override
             public File getDirectory() {
@@ -174,6 +261,9 @@ public class TimeSeriesStorage {
 
     public void close() {
         fileLookupTable.close();
+        latestValueLookupTable.close();
+        previousValueLookupTable.close();
+        nextValueLookupTable.close();
         latestValueIndexLookupTable.close();
         previousValueIndexLookupTable.close();
         nextValueIndexLookupTable.close();
@@ -181,6 +271,79 @@ public class TimeSeriesStorage {
 
     public File newDataDirectory(final String hashKey) {
         return new File(getDirectory(), "storage/" + hashKey);
+    }
+    
+    public void deleteRange_latestValueLookupTable(final String hashKey) {
+        if (getMapType().isRemoveFullySupported()) {
+            latestValueLookupTable.removeAll((key) -> {
+                return hashKey.equals(key.getHashKey());
+            });
+        } else {
+            //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
+            if (!latestValueLookupTable.isEmpty()) {
+                latestValueLookupTable.deleteTable();
+            }
+        }
+    }
+
+    public void deleteRange_latestValueLookupTable(final String hashKey, final FDate above) {
+        if (above == null) {
+            deleteRange_latestValueLookupTable(hashKey);
+        } else {
+            if (getMapType().isRemoveFullySupported()) {
+                latestValueLookupTable.removeAll((key) -> {
+                    return hashKey.equals(key.getHashKey()) && key.getRangeKey().isAfterOrEqualToNotNullSafe(above);
+                });
+            } else {
+                //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
+                if (!latestValueLookupTable.isEmpty()) {
+                    latestValueLookupTable.deleteTable();
+                }
+            }
+        }
+    }
+
+    public void deleteRange_nextValueLookupTable(final String hashKey) {
+        if (getMapType().isRemoveFullySupported()) {
+            nextValueLookupTable.removeAll((key) -> {
+                return hashKey.equals(key.getHashKey());
+            });
+        } else {
+            //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
+            if (!latestValueLookupTable.isEmpty()) {
+                nextValueLookupTable.deleteTable();
+            }
+        }
+    }
+
+    public void deleteRange_previousValueLookupTable(final String hashKey) {
+        if (getMapType().isRemoveFullySupported()) {
+            previousValueLookupTable.removeAll((key) -> {
+                return hashKey.equals(key.getHashKey());
+            });
+        } else {
+            //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
+            if (!previousValueLookupTable.isEmpty()) {
+                previousValueLookupTable.deleteTable();
+            }
+        }
+    }
+
+    public void deleteRange_previousValueLookupTable(final String hashKey, final FDate above) {
+        if (above == null) {
+            deleteRange_previousValueLookupTable(hashKey);
+        } else {
+            if (getMapType().isRemoveFullySupported()) {
+                previousValueLookupTable.removeAll((key) -> {
+                    return hashKey.equals(key.getHashKey()) && key.getRangeKey().isAfterOrEqualToNotNullSafe(above);
+                });
+            } else {
+                //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
+                if (!previousValueLookupTable.isEmpty()) {
+                    previousValueLookupTable.deleteTable();
+                }
+            }
+        }
     }
 
     public void deleteRange_latestValueIndexLookupTable(final String hashKey) {
@@ -254,6 +417,21 @@ public class TimeSeriesStorage {
                 }
             }
         }
+    }
+    
+    public SingleValue getOrLoad_latestValueLookupTable(final String hashKey, final FDate key,
+            final Supplier<SingleValue> loadable) {
+        return latestValueLookupTable.getOrLoad(new HashRangeKey(hashKey, key), loadable);
+    }
+
+    public SingleValue getOrLoad_nextValueLookupTable(final String hashKey, final FDate date,
+            final int shiftForwardUnits, final Supplier<SingleValue> loadable) {
+        return nextValueLookupTable.getOrLoad(new HashRangeShiftUnitsKey(hashKey, date, shiftForwardUnits), loadable);
+    }
+
+    public SingleValue getOrLoad_previousValueLookupTable(final String hashKey, final FDate date,
+            final int shiftBackUnits, final Supplier<SingleValue> loadable) {
+        return previousValueLookupTable.getOrLoad(new HashRangeShiftUnitsKey(hashKey, date, shiftBackUnits), loadable);
     }
 
     public long getOrLoad_latestValueIndexLookupTable(final String hashKey, final FDate key,

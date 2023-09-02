@@ -15,6 +15,7 @@ public final class TimeseriesProperties {
     public static final int FILE_BUFFER_CACHE_MAX_SEGMENTS_COUNT;
     public static final int FILE_BUFFER_CACHE_MAX_MMAP_COUNT;
     public static final Duration FILE_BUFFER_CACHE_EVICTION_TIMEOUT;
+    public static final boolean FILE_BUFFER_CACHE_INDEX_LOOKUP_ENABLED = false;
     public static final IPrimitiveArrayAllocator FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR;
 
     static {
