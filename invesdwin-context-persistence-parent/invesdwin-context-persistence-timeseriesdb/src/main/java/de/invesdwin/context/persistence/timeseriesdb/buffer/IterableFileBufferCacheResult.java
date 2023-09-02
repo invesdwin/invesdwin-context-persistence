@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
 
-import javax.annotation.concurrent.ThreadSafe;
+import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
@@ -13,10 +13,12 @@ import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.time.date.FDate;
 
-@ThreadSafe
+@NotThreadSafe
 public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<V> {
 
     private final IReverseCloseableIterable<V> delegate;
+    private V latestValueByIndex;
+    private long latestValueIndexByIndex;
 
     public IterableFileBufferCacheResult(final IReverseCloseableIterable<V> delegate) {
         this.delegate = delegate;
@@ -146,6 +148,8 @@ public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<
                 final FDate newValueTime = extractEndTime.apply(newValue);
                 if (newValueTime.isAfter(key)) {
                     curIndex--;
+                    latestValueByIndex = newValue;
+                    latestValueIndexByIndex = curIndex;
                     break;
                 }
             }
@@ -157,6 +161,10 @@ public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<
 
     @Override
     public V getLatestValue(final int index) {
+        //System.out.println("TODO: use cache");
+        //        if (latestValueIndexByIndex == index) {
+        //            return latestValueByIndex;
+        //        }
         int curIndex = -1;
         V latestValue = null;
         try (ICloseableIterator<V> it = iterator()) {
