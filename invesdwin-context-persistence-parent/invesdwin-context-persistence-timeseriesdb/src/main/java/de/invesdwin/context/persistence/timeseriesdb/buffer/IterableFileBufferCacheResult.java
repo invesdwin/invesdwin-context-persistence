@@ -142,11 +142,11 @@ public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<
         try (ICloseableIterator<V> it = iterator()) {
             while (true) {
                 final V newValue = it.next();
+                curIndex++;
                 final FDate newValueTime = extractEndTime.apply(newValue);
                 if (newValueTime.isAfter(key)) {
+                    curIndex--;
                     break;
-                } else {
-                    curIndex++;
                 }
             }
         } catch (final NoSuchElementException e) {
@@ -157,7 +157,7 @@ public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<
 
     @Override
     public V getLatestValue(final int index) {
-        int curIndex = 0;
+        int curIndex = -1;
         V latestValue = null;
         try (ICloseableIterator<V> it = iterator()) {
             while (true) {
