@@ -18,7 +18,7 @@ public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<
 
     private final IReverseCloseableIterable<V> delegate;
     private V latestValueByIndex;
-    private long latestValueIndexByIndex = -1;
+    private int latestValueIndexByIndex = -1;
 
     public IterableFileBufferCacheResult(final IReverseCloseableIterable<V> delegate) {
         this.delegate = delegate;
@@ -161,10 +161,12 @@ public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<
 
     @Override
     public V getLatestValue(final int index) {
-        //System.out.println("TODO: use cache");
-        //        if (latestValueIndexByIndex == index) {
-        //            return latestValueByIndex;
-        //        }
+        if (index < 0) {
+            return null;
+        }
+        if (latestValueIndexByIndex == index) {
+            return latestValueByIndex;
+        }
         int curIndex = -1;
         V latestValue = null;
         try (ICloseableIterator<V> it = iterator()) {
@@ -172,6 +174,8 @@ public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<
                 final V newValue = it.next();
                 curIndex++;
                 if (curIndex > index) {
+                    latestValueByIndex = latestValue;
+                    latestValueIndexByIndex = index;
                     break;
                 } else {
                     latestValue = newValue;
