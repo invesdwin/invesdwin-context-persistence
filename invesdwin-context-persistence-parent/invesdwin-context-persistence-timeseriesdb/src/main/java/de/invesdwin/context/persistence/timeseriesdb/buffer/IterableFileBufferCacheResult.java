@@ -18,7 +18,7 @@ public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<
 
     private final IReverseCloseableIterable<V> delegate;
     private V latestValueByIndex;
-    private long latestValueIndexByIndex;
+    private long latestValueIndexByIndex = -1;
 
     public IterableFileBufferCacheResult(final IReverseCloseableIterable<V> delegate) {
         this.delegate = delegate;
