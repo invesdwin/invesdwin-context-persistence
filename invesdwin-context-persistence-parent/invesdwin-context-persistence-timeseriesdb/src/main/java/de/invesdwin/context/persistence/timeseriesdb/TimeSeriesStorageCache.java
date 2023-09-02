@@ -589,8 +589,8 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     public V getLatestValue(final FDate date) {
-        final V latestValueNew = getLatestValueNew(date);
         final V latestValueOld = getLatestValueOld(date);
+        final V latestValueNew = getLatestValueNew(date);
         if (!Objects.equals(latestValueOld, latestValueNew)) {
             throw new IllegalStateException(
                     "getLatestValue(" + date + "): Expected [" + latestValueOld + "] but got [" + latestValueNew + "]");
@@ -700,8 +700,8 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     public V getPreviousValue(final FDate date, final int shiftBackUnits) {
-        final V previousValueNew = getPreviousValueNew(date, shiftBackUnits);
         final V previousValueOld = getPreviousValueOld(date, shiftBackUnits);
+        final V previousValueNew = getPreviousValueNew(date, shiftBackUnits);
         if (!Objects.equals(previousValueOld, previousValueNew)) {
             throw new IllegalStateException("getPreviousValue(" + date + "," + shiftBackUnits + "): Expected ["
                     + previousValueOld + "] but got [" + previousValueNew + "]");
@@ -780,8 +780,8 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
-        final V nextValueNew = getNextValueNew(date, shiftForwardUnits);
         final V nextValueOld = getNextValueOld(date, shiftForwardUnits);
+        final V nextValueNew = getNextValueNew(date, shiftForwardUnits);
         if (!Objects.equals(nextValueOld, nextValueNew)) {
             throw new IllegalStateException("getNextValue(" + date + "," + shiftForwardUnits + "): Expected ["
                     + nextValueOld + "] but got [" + nextValueNew + "]");
