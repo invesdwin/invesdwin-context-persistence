@@ -11,7 +11,6 @@ import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.compression.lz4.LZ4Streams;
 import de.invesdwin.context.integration.persistentmap.CorruptedStorageException;
-import de.invesdwin.context.integration.retry.Retry;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
@@ -262,7 +261,6 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
     }
 
     @Override
-    @Retry(fixedBackOffMillis = 1000)
     public void deleteRange(final K key) {
         final ILock writeLock = getTableLock(key).writeLock();
         try {
