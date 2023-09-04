@@ -81,6 +81,11 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         protected Integer getInitialMaximumSize() {
             return MAXIMUM_SIZE;
         }
+
+        @Override
+        protected boolean isHighConcurrency() {
+            return true;
+        }
     };
     private final ALoadingCache<Long, IndexedSegmentedKey<K>> latestSegmentedKeyFromIndexCache = new ALoadingCache<Long, IndexedSegmentedKey<K>>() {
 
@@ -92,6 +97,11 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         @Override
         protected Integer getInitialMaximumSize() {
             return MAXIMUM_SIZE;
+        }
+
+        @Override
+        protected boolean isHighConcurrency() {
+            return true;
         }
 
     };

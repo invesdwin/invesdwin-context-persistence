@@ -62,6 +62,7 @@ import ezdb.table.RangeTableRow;
 @NotThreadSafe
 public class TimeSeriesStorageCache<K, V> {
     public static final Integer MAXIMUM_SIZE = 1_000;
+    public static final Integer MAXIMUM_SIZE_TRIGGER = MAXIMUM_SIZE * 2;
     public static final EvictionMode EVICTION_MODE = AHistoricalCache.EVICTION_MODE;
 
     private static final String READ_RANGE_VALUES = "readRangeValues";
@@ -82,8 +83,13 @@ public class TimeSeriesStorageCache<K, V> {
         }
 
         @Override
+        protected boolean isHighConcurrency() {
+            return true;
+        }
+
+        @Override
         protected RangeTableRow<String, FDate, MemoryFileSummary> loadValue(final FDate key) {
-            return storage.getFileLookupTable().getLatest(hashKey, key);
+            return newLatestRangeKey(key);
         }
     };
     private final ALoadingCache<Long, RangeTableRow<String, FDate, MemoryFileSummary>> fileLookupTable_latestRangeKeyIndexCache = new ALoadingCache<Long, RangeTableRow<String, FDate, MemoryFileSummary>>() {
@@ -99,23 +105,13 @@ public class TimeSeriesStorageCache<K, V> {
         }
 
         @Override
+        protected boolean isHighConcurrency() {
+            return true;
+        }
+
+        @Override
         protected RangeTableRow<String, FDate, MemoryFileSummary> loadValue(final Long key) {
-            final ArrayList<RangeTableRow<String, FDate, MemoryFileSummary>> rows = getAllRangeKeys(
-                    DisabledLock.INSTANCE).getList();
-            if (rows.isEmpty()) {
-                return null;
-            }
-            if (key <= 0) {
-                return rows.get(0);
-            }
-            for (int i = 0; i < rows.size(); i++) {
-                final RangeTableRow<String, FDate, MemoryFileSummary> row = rows.get(i);
-                final MemoryFileSummary summary = row.getValue();
-                if (summary.getPrecedingValueCount() <= key && key < summary.getCombinedValueCount()) {
-                    return row;
-                }
-            }
-            return rows.get(rows.size() - 1);
+            return newLatestRangeKeyIndex(key);
         }
     };
 
@@ -229,8 +225,8 @@ public class TimeSeriesStorageCache<K, V> {
                         TimeSeriesStorageCache.class.getSimpleName(), hashKey, from, to)) {
 
                     //use latest time available even if delegate iterator has no values
-                    private RangeTableRow<String, FDate, MemoryFileSummary> latestFirstTime = fileLookupTable_latestRangeKeyCache
-                            .get(usedFrom);
+                    private RangeTableRow<String, FDate, MemoryFileSummary> latestFirstTime = getLatestRangeKey(
+                            usedFrom);
                     private final ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> delegate;
 
                     {
@@ -296,6 +292,37 @@ public class TimeSeriesStorageCache<K, V> {
         };
     }
 
+    private RangeTableRow<String, FDate, MemoryFileSummary> getLatestRangeKey(final FDate key) {
+        return fileLookupTable_latestRangeKeyCache.get(key);
+    }
+
+    private RangeTableRow<String, FDate, MemoryFileSummary> newLatestRangeKey(final FDate key) {
+        return storage.getFileLookupTable().getLatest(hashKey, key);
+    }
+
+    private RangeTableRow<String, FDate, MemoryFileSummary> getLatestRangeKeyIndex(final long key) {
+        return fileLookupTable_latestRangeKeyIndexCache.get(key);
+    }
+
+    private RangeTableRow<String, FDate, MemoryFileSummary> newLatestRangeKeyIndex(final long key) {
+        final ArrayList<RangeTableRow<String, FDate, MemoryFileSummary>> rows = getAllRangeKeys(DisabledLock.INSTANCE)
+                .getList();
+        if (rows.isEmpty()) {
+            return null;
+        }
+        if (key <= 0) {
+            return rows.get(0);
+        }
+        for (int i = 0; i < rows.size(); i++) {
+            final RangeTableRow<String, FDate, MemoryFileSummary> row = rows.get(i);
+            final MemoryFileSummary summary = row.getValue();
+            if (summary.getPrecedingValueCount() <= key && key < summary.getCombinedValueCount()) {
+                return row;
+            }
+        }
+        return rows.get(rows.size() - 1);
+    }
+
     protected ICloseableIterable<MemoryFileSummary> readRangeFilesReverse(final FDate from, final FDate to,
             final Lock readLock, final ISkipFileFunction skipFileFunction) {
         return new ICloseableIterable<MemoryFileSummary>() {
@@ -317,8 +344,8 @@ public class TimeSeriesStorageCache<K, V> {
                                 TimeSeriesStorageCache.class.getSimpleName(), hashKey, from, to)) {
 
                     //use latest time available even if delegate iterator has no values
-                    private RangeTableRow<String, FDate, MemoryFileSummary> latestLastTime = fileLookupTable_latestRangeKeyCache
-                            .get(usedFrom);
+                    private RangeTableRow<String, FDate, MemoryFileSummary> latestLastTime = getLatestRangeKey(
+                            usedFrom);
                     // add 1 ms to not collide with firstTime
                     private final ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> delegate;
 
@@ -588,7 +615,7 @@ public class TimeSeriesStorageCache<K, V> {
 
     public long getLatestValueIndex(final FDate date) {
         final long valueIndex = storage.getOrLoad_latestValueIndexLookupTable(hashKey, date, () -> {
-            final RangeTableRow<String, FDate, MemoryFileSummary> row = fileLookupTable_latestRangeKeyCache.get(date);
+            final RangeTableRow<String, FDate, MemoryFileSummary> row = getLatestRangeKey(date);
             if (row == null) {
                 return null;
             }
@@ -618,7 +645,7 @@ public class TimeSeriesStorageCache<K, V> {
         if (index <= 0) {
             return getFirstValue();
         }
-        final RangeTableRow<String, FDate, MemoryFileSummary> row = fileLookupTable_latestRangeKeyIndexCache.get(index);
+        final RangeTableRow<String, FDate, MemoryFileSummary> row = getLatestRangeKeyIndex(index);
         if (row == null) {
             return null;
         }
