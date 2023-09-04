@@ -241,6 +241,16 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
+    public V getLatestValue(final long index) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long getLatestValueIndex(final FDate date) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public boolean isEmpty() {
         return values.isEmpty();
     }

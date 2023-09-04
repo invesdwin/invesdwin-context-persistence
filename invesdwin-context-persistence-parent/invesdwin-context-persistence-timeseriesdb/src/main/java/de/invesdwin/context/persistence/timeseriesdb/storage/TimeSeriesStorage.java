@@ -68,7 +68,7 @@ public class TimeSeriesStorage {
             }
 
         };
-        this.latestValueIndexLookupTable = new APersistentMap<HashRangeKey, Long>("latestValueLookupTable") {
+        this.latestValueIndexLookupTable = new APersistentMap<HashRangeKey, Long>("latestValueIndexLookupTable") {
 
             @Override
             public File getDirectory() {
@@ -96,7 +96,7 @@ public class TimeSeriesStorage {
             }
 
         };
-        this.nextValueIndexLookupTable = new APersistentMap<HashRangeShiftUnitsKey, Long>("nextValueLookupTable") {
+        this.nextValueIndexLookupTable = new APersistentMap<HashRangeShiftUnitsKey, Long>("nextValueIndexLookupTable") {
 
             @Override
             public File getDirectory() {
@@ -124,7 +124,7 @@ public class TimeSeriesStorage {
             }
         };
         this.previousValueIndexLookupTable = new APersistentMap<HashRangeShiftUnitsKey, Long>(
-                "previousValueLookupTable") {
+                "previousValueIndexLookupTable") {
 
             @Override
             public File getDirectory() {

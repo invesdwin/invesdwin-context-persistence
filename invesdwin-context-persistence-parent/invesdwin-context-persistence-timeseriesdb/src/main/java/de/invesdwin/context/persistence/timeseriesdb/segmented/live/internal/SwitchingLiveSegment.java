@@ -180,7 +180,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public long size() {
-        return inProgress.size();
+        return inProgress.size() + persistent.size();
     }
 
     @Override
@@ -250,6 +250,82 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
             latestValue = getFirstValue();
         }
         return latestValue;
+    }
+
+    @Override
+    public V getLatestValue(final long index) {
+        if (!lastValue.isEmpty() && index >= size() - 1) {
+            //we always return the last last value
+            return lastValue.getTail();
+        }
+        if (!firstValue.isEmpty() && index <= 0) {
+            //we always return the first first value
+            return firstValue.getHead();
+        }
+        if (inProgress.isEmpty()) {
+            return persistent.getLatestValue(index);
+        } else if (persistent.isEmpty()) {
+            final long inProgressIndex = index - persistent.size();
+            return inProgress.getLatestValue(inProgressIndex);
+        }
+        V latestValue = null;
+        long precedingValueCount = 0L;
+        for (int i = 0; i < latestValueProviders.size(); i++) {
+            final ILiveSegment<K, V> latestValueProvider = latestValueProviders.get(i);
+            final long combinedValueCount = precedingValueCount + latestValueProvider.size();
+            if (precedingValueCount <= index && index < combinedValueCount) {
+                final V newValue = latestValueProvider.getLatestValue(index - precedingValueCount);
+                /*
+                 * even if we got the first value in this segment and it is after the desired key we just continue to
+                 * the beginning to search for an earlier value until we reach the overall firstValue
+                 */
+                latestValue = newValue;
+                break;
+            }
+            precedingValueCount = combinedValueCount;
+        }
+        if (latestValue == null) {
+            latestValue = getFirstValue();
+        }
+        return latestValue;
+    }
+
+    @Override
+    public long getLatestValueIndex(final FDate date) {
+        if (!lastValue.isEmpty() && (date == null || date.isAfterOrEqualToNotNullSafe(lastValueKey))) {
+            //we always return the last last value
+            return size();
+        }
+        if (!firstValue.isEmpty() && date != null && date.isBeforeOrEqualToNotNullSafe(firstValueKey)) {
+            //we always return the first first value
+            return 0L;
+        }
+        if (inProgress.isEmpty()) {
+            return persistent.getLatestValueIndex(date);
+        } else if (persistent.isEmpty()) {
+            return inProgress.getLatestValueIndex(date) + persistent.size();
+        }
+        long latestValueIndex = -1L;
+        long precedingValueCount = 0L;
+        for (int i = 0; i < latestValueProviders.size(); i++) {
+            final ILiveSegment<K, V> latestValueProvider = latestValueProviders.get(i);
+            final long newValueIndex = latestValueProvider.getLatestValueIndex(date);
+            final V newValue = latestValueProvider.getLatestValue(latestValueIndex);
+            final FDate newValueTime = historicalSegmentTable.extractEndTime(newValue);
+            if (newValueTime.isBeforeOrEqualTo(date)) {
+                /*
+                 * even if we got the first value in this segment and it is after the desired key we just continue to
+                 * the beginning to search for an earlier value until we reach the overall firstValue
+                 */
+                latestValueIndex = newValueIndex + precedingValueCount;
+                break;
+            }
+            precedingValueCount += latestValueProvider.size();
+        }
+        if (latestValueIndex == -1L && getFirstValue() != null) {
+            return 0L;
+        }
+        return latestValueIndex;
     }
 
     @Override

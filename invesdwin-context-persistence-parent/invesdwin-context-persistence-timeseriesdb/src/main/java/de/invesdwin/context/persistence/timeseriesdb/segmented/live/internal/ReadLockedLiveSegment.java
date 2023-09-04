@@ -112,6 +112,26 @@ public class ReadLockedLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
+    public V getLatestValue(final long index) {
+        liveReadLock.lock();
+        try {
+            return delegate.getLatestValue(index);
+        } finally {
+            liveReadLock.unlock();
+        }
+    }
+
+    @Override
+    public long getLatestValueIndex(final FDate date) {
+        liveReadLock.lock();
+        try {
+            return delegate.getLatestValueIndex(date);
+        } finally {
+            liveReadLock.unlock();
+        }
+    }
+
+    @Override
     public boolean isEmpty() {
         liveReadLock.lock();
         try {

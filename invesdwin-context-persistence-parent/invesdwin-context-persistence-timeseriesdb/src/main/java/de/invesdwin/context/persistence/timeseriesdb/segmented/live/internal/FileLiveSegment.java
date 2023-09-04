@@ -41,6 +41,7 @@ import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.string.Strings;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.math.Integers;
 import de.invesdwin.util.streams.pool.PooledFastByteArrayOutputStream;
 import de.invesdwin.util.time.date.FDate;
 
@@ -407,6 +408,22 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         } else {
             return firstValue.getHead();
         }
+    }
+
+    @Override
+    public V getLatestValue(final long index) {
+        if (isEmpty()) {
+            return null;
+        }
+        return getFlushedValues().getLatestValue(Integers.checkedCast(index));
+    }
+
+    @Override
+    public long getLatestValueIndex(final FDate date) {
+        if (isEmpty()) {
+            return -1L;
+        }
+        return getFlushedValues().getLatestValueIndex(historicalSegmentTable::extractEndTime, date);
     }
 
     @Override
