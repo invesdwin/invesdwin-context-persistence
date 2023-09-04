@@ -4,6 +4,7 @@ import java.io.Closeable;
 import java.util.List;
 import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
+import java.util.function.ToLongFunction;
 
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -47,6 +48,25 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
     @SuppressWarnings("unchecked")
     private final List<Function<FDate, V>> latestValueProviders = Arrays.asList(liveSegmentLatestValueProvider,
             historicalSegmentLatestValueProvider);
+    private final ToLongFunction<FDate> liveSegmentLatestValueIndexProvider = new ToLongFunction<FDate>() {
+        @Override
+        public long applyAsLong(final FDate value) {
+            final long latestValueIndex = liveSegment.getLatestValueIndex(value);
+            if (latestValueIndex == -1L) {
+                return -1L;
+            }
+            return latestValueIndex + historicalSegmentTable.size(key);
+        }
+    };
+    private final ToLongFunction<FDate> historicalSegmentLatestValueIndexProvider = new ToLongFunction<FDate>() {
+        @Override
+        public long applyAsLong(final FDate value) {
+            return historicalSegmentTable.getLatestValueIndex(key, value);
+        }
+    };
+    @SuppressWarnings("unchecked")
+    private final List<ToLongFunction<FDate>> latestValueIndexProviders = Arrays
+            .asList(liveSegmentLatestValueIndexProvider, historicalSegmentLatestValueIndexProvider);
     private final int batchFlushInterval;
 
     public LiveSegmentedTimeSeriesStorageCache(
@@ -194,6 +214,52 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
             latestValue = getFirstValue();
         }
         return latestValue;
+    }
+
+    public V getLatestValue(final long index) {
+        if (index < historicalSegmentTable.size(key)) {
+            return historicalSegmentTable.getLatestValue(key, index);
+        } else if (liveSegment == null) {
+            return historicalSegmentTable.getLatestValue(key, FDates.MAX_DATE);
+        } else {
+            final long liveSegmentIndex = index - historicalSegmentTable.size(key);
+            return liveSegment.getLatestValue(liveSegmentIndex);
+        }
+    }
+
+    public long getLatestValueIndex(final FDate date) {
+        if (liveSegment == null) {
+            return historicalSegmentLatestValueIndexProvider.applyAsLong(date);
+        }
+        long latestValueIndex = -1L;
+        for (int i = 0; i < latestValueIndexProviders.size(); i++) {
+            final ToLongFunction<FDate> latestValueIndexProvider = latestValueIndexProviders.get(i);
+            final long newValueIndex = latestValueIndexProvider.applyAsLong(date);
+            if (newValueIndex != -1L) {
+                final V newValue = getLatestValue(newValueIndex);
+                final FDate newValueTime = historicalSegmentTable.extractEndTime(newValue);
+                if (newValueTime.isBeforeOrEqualTo(date)) {
+                    /*
+                     * even if we got the first value in this segment and it is after the desired key we just continue
+                     * to the beginning to search for an earlier value until we reach the overall firstValue
+                     */
+                    latestValueIndex = newValueIndex;
+                    break;
+                }
+            }
+        }
+        if (latestValueIndex == -1L && getFirstValue() != null) {
+            return 0L;
+        }
+        return latestValueIndex;
+    }
+
+    public long size() {
+        if (liveSegment == null) {
+            return historicalSegmentTable.size(key);
+        } else {
+            return historicalSegmentTable.size(key) + liveSegment.size();
+        }
     }
 
     public V getPreviousValue(final FDate date, final int shiftBackUnits) {

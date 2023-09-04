@@ -26,6 +26,10 @@ public interface ILiveSegment<K, V> extends Closeable {
 
     V getLatestValue(FDate date);
 
+    V getLatestValue(long index);
+
+    long getLatestValueIndex(FDate date);
+
     boolean isEmpty();
 
     void convertLiveSegmentToHistorical();
@@ -33,6 +37,8 @@ public interface ILiveSegment<K, V> extends Closeable {
     FDate getFirstValueKey();
 
     FDate getLastValueKey();
+
+    long size();
 
     @Override
     void close();

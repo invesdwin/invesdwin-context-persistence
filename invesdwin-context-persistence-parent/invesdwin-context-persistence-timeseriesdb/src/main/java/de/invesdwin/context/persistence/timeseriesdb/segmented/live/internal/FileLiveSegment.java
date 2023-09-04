@@ -41,6 +41,7 @@ import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.string.Strings;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.math.Integers;
 import de.invesdwin.util.streams.pool.PooledFastByteArrayOutputStream;
 import de.invesdwin.util.time.date.FDate;
 
@@ -314,6 +315,16 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
+    public long size() {
+        final SerializingCollection<V> valuesCopy = values;
+        if (valuesCopy == null) {
+            return 0L;
+        } else {
+            return valuesCopy.size();
+        }
+    }
+
+    @Override
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
         final LastValue<V> lastValue = lastValues.getReverse(0);
         if (!lastValue.values.isEmpty() && (date == null || date.isAfterOrEqualToNotNullSafe(lastValue.key))) {
@@ -400,8 +411,25 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
+    public V getLatestValue(final long index) {
+        if (isEmpty()) {
+            return null;
+        }
+        return getFlushedValues().getLatestValue(Integers.checkedCast(index));
+    }
+
+    @Override
+    public long getLatestValueIndex(final FDate date) {
+        if (isEmpty()) {
+            return -1L;
+        }
+        return getFlushedValues().getLatestValueIndex(historicalSegmentTable::extractEndTime, date);
+    }
+
+    @Override
     public boolean isEmpty() {
-        return values == null || values.isEmpty();
+        final SerializingCollection<V> valuesCopy = values;
+        return valuesCopy == null || valuesCopy.isEmpty();
     }
 
     @Override

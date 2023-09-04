@@ -249,7 +249,7 @@ public final class FileBufferCache {
             this.hashKey = hashKey;
             this.summary = summary;
             this.source = source;
-            this.hashCode = Objects.hashCode(hashKey, summary);
+            this.hashCode = Objects.hashCode(ResultCacheKey.class, hashKey, summary);
         }
 
         public String getHashKey() {
@@ -277,8 +277,7 @@ public final class FileBufferCache {
         public boolean equals(final Object obj) {
             if (obj instanceof ResultCacheKey) {
                 final ResultCacheKey cObj = (ResultCacheKey) obj;
-                return Objects.equals(getHashKey(), cObj.getHashKey())
-                        && Objects.equals(getSummary(), cObj.getSummary());
+                return hashCode == cObj.hashCode;
             }
             return false;
         }

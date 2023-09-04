@@ -14,16 +14,18 @@ public class MemoryFileSummary implements ISerializableValueObject {
 
     private final byte[] firstValue;
     private final byte[] lastValue;
+    private final long precedingValueCount;
     private final int valueCount;
     private final String memoryResourceUri;
     private final long memoryOffset;
     private final long memoryLength;
     private final int hashCode;
 
-    public <V> MemoryFileSummary(final byte[] firstValue, final byte[] lastValue, final int valueCount,
-            final String memoryResourceUri, final long memoryOffset, final long memoryLength) {
+    public <V> MemoryFileSummary(final byte[] firstValue, final byte[] lastValue, final long precedingValueCount,
+            final int valueCount, final String memoryResourceUri, final long memoryOffset, final long memoryLength) {
         this.firstValue = firstValue;
         this.lastValue = lastValue;
+        this.precedingValueCount = precedingValueCount;
         this.valueCount = valueCount;
         this.memoryResourceUri = memoryResourceUri;
         this.memoryOffset = memoryOffset;
@@ -31,10 +33,12 @@ public class MemoryFileSummary implements ISerializableValueObject {
         this.hashCode = newHashCode();
     }
 
-    public <V> MemoryFileSummary(final ISerde<V> serde, final V firstValue, final V lastValue, final int valueCount,
-            final String memoryResourceUri, final long memoryOffset, final long memoryLength) {
+    public <V> MemoryFileSummary(final ISerde<V> serde, final V firstValue, final V lastValue,
+            final long precedingValueCount, final int valueCount, final String memoryResourceUri,
+            final long memoryOffset, final long memoryLength) {
         this.firstValue = serde.toBytes(firstValue);
         this.lastValue = serde.toBytes(lastValue);
+        this.precedingValueCount = precedingValueCount;
         this.valueCount = valueCount;
         this.memoryResourceUri = memoryResourceUri;
         this.memoryOffset = memoryOffset;
@@ -62,8 +66,16 @@ public class MemoryFileSummary implements ISerializableValueObject {
         return lastValue;
     }
 
+    public long getPrecedingValueCount() {
+        return precedingValueCount;
+    }
+
     public int getValueCount() {
         return valueCount;
+    }
+
+    public long getCombinedValueCount() {
+        return precedingValueCount + valueCount;
     }
 
     public String getMemoryResourceUri() {
@@ -106,4 +118,5 @@ public class MemoryFileSummary implements ISerializableValueObject {
                 .add("length", memoryLength)
                 .toString();
     }
+
 }

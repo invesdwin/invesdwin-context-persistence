@@ -198,6 +198,66 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
     }
 
     @Override
+    public long getLatestValueIndex(final K key, final FDate date) {
+        final Lock readLock = getTableLock(key).readLock();
+        readLock.lock();
+        try {
+            if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
+                if (getLookupTableCache(key).size() == 0) {
+                    return -1L;
+                } else {
+                    return 0L;
+                }
+            } else if (date.isAfterOrEqualTo(FDates.MAX_DATE)) {
+                return getLookupTableCache(key).size() - 1;
+            } else {
+                return getLookupTableCache(key).getLatestValueIndex(date);
+            }
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    @Override
+    public V getLatestValue(final K key, final long index) {
+        final Lock readLock = getTableLock(key).readLock();
+        readLock.lock();
+        try {
+            final TimeSeriesStorageCache<K, V> lookupTableCache = getLookupTableCache(key);
+            if (index <= 0) {
+                return lookupTableCache.getFirstValue();
+            } else if (index >= lookupTableCache.size()) {
+                return lookupTableCache.getLastValue();
+            } else {
+                return lookupTableCache.getLatestValue(index);
+            }
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    @Override
+    public FDate getLatestValueKey(final K key, final long index) {
+        final V value = getLatestValue(key, index);
+        if (value == null) {
+            return null;
+        } else {
+            return extractEndTime(value);
+        }
+    }
+
+    @Override
+    public long size(final K key) {
+        final Lock readLock = getTableLock(key).readLock();
+        readLock.lock();
+        try {
+            return getLookupTableCache(key).size();
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    @Override
     public V getPreviousValue(final K key, final FDate date, final int shiftBackUnits) {
         final Lock readLock = getTableLock(key).readLock();
         readLock.lock();

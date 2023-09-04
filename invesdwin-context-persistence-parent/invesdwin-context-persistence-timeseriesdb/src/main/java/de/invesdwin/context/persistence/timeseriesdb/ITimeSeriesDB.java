@@ -24,6 +24,14 @@ public interface ITimeSeriesDB<K, V> extends Closeable {
 
     FDate getLatestValueKey(K key, FDate date);
 
+    V getLatestValue(K key, long index);
+
+    FDate getLatestValueKey(K key, long index);
+
+    long getLatestValueIndex(K key, FDate date);
+
+    long size(K key);
+
     /**
      * Jumps the specified shiftBackUnits to the past instead of only one unit. 0 results in current value.
      * 

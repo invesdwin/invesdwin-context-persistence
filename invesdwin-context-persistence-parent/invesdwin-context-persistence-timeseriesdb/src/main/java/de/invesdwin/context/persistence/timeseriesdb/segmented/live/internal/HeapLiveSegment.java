@@ -197,6 +197,11 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
+    public long size() {
+        return values.size();
+    }
+
+    @Override
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
         if (!lastValue.isEmpty() && (date == null || date.isAfterOrEqualToNotNullSafe(lastValueKey))) {
             //we always return the last last value
@@ -233,6 +238,16 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
         } else {
             return getFirstValue();
         }
+    }
+
+    @Override
+    public V getLatestValue(final long index) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long getLatestValueIndex(final FDate date) {
+        throw new UnsupportedOperationException();
     }
 
     @Override

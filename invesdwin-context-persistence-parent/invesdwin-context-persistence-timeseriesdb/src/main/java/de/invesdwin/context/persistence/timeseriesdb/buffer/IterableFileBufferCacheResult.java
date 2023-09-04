@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
 
-import javax.annotation.concurrent.ThreadSafe;
+import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.IReverseCloseableIterable;
@@ -13,10 +13,12 @@ import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.time.date.FDate;
 
-@ThreadSafe
+@NotThreadSafe
 public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<V> {
 
     private final IReverseCloseableIterable<V> delegate;
+    private V latestValueByIndex;
+    private int latestValueIndexByIndex = -1;
 
     public IterableFileBufferCacheResult(final IReverseCloseableIterable<V> delegate) {
         this.delegate = delegate;
@@ -132,6 +134,62 @@ public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<
             }
         } catch (final NoSuchElementException e) {
             //end reached
+        }
+        return latestValue;
+    }
+
+    @Override
+    public int getLatestValueIndex(final Function<V, FDate> extractEndTime, final FDate key) {
+        int curIndex = -1;
+        V latestValue = null;
+        try (ICloseableIterator<V> it = iterator()) {
+            while (true) {
+                final V newValue = it.next();
+                curIndex++;
+                final FDate newValueTime = extractEndTime.apply(newValue);
+                if (newValueTime.isAfter(key)) {
+                    curIndex--;
+                    break;
+                } else {
+                    latestValue = newValue;
+                }
+            }
+        } catch (final NoSuchElementException e) {
+            //end reached
+        }
+        if (latestValue != null) {
+            latestValueByIndex = latestValue;
+            latestValueIndexByIndex = curIndex;
+        }
+        return curIndex;
+    }
+
+    @Override
+    public V getLatestValue(final int index) {
+        if (index < 0) {
+            return null;
+        }
+        if (latestValueIndexByIndex == index) {
+            return latestValueByIndex;
+        }
+        int curIndex = -1;
+        V latestValue = null;
+        try (ICloseableIterator<V> it = iterator()) {
+            while (true) {
+                final V newValue = it.next();
+                curIndex++;
+                if (curIndex > index) {
+                    break;
+                } else {
+                    latestValue = newValue;
+                }
+            }
+        } catch (final NoSuchElementException e) {
+            //end reached
+        }
+        if (latestValue != null) {
+            latestValueByIndex = latestValue;
+            latestValueIndexByIndex = index;
         }
         return latestValue;
     }

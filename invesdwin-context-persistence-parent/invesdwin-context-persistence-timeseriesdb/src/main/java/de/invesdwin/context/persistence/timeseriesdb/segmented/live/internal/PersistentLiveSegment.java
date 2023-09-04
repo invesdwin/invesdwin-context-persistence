@@ -117,6 +117,16 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
+    public V getLatestValue(final long index) {
+        return table.getLatestValue(segmentedKey, index);
+    }
+
+    @Override
+    public long getLatestValueIndex(final FDate date) {
+        return table.getLatestValueIndex(segmentedKey, date);
+    }
+
+    @Override
     public boolean isEmpty() {
         return empty;
     }
@@ -134,6 +144,11 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
     @Override
     public void putNextLiveValue(final FDate nextLiveKey, final V nextLiveValue) {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long size() {
+        return table.size(segmentedKey);
     }
 
     public void putNextLiveValues(final ICloseableIterable<V> memoryValues) {

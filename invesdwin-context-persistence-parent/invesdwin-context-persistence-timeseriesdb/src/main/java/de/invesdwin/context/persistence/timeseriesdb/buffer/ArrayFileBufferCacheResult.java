@@ -129,6 +129,27 @@ public class ArrayFileBufferCacheResult<V> extends RefCountReverseCloseableItera
         return list.get(highIndex);
     }
 
+    @Override
+    public int getLatestValueIndex(final Function<V, FDate> extractEndTime, final FDate key) {
+        final int lastIndex = list.size() - 1;
+        final int highIndex = determineHighIndex(extractEndTime, key, lastIndex);
+        if (highIndex < 0) {
+            return -1;
+        }
+        return highIndex;
+    }
+
+    @Override
+    public V getLatestValue(final int index) {
+        if (index < 0) {
+            return null;
+        }
+        if (index >= list.size()) {
+            return null;
+        }
+        return list.get(index);
+    }
+
     private int determineLowIndex(final Function<V, FDate> extractEndTime, final FDate low) {
         final int lowIndex;
         if (low == null || low.isBeforeNotNullSafe(extractEndTime.apply(list.get(0)))) {

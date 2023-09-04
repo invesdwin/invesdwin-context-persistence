@@ -82,6 +82,16 @@ public class ReadLockedLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
+    public long size() {
+        liveReadLock.lock();
+        try {
+            return delegate.size();
+        } finally {
+            liveReadLock.unlock();
+        }
+    }
+
+    @Override
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
         liveReadLock.lock();
         try {
@@ -96,6 +106,26 @@ public class ReadLockedLiveSegment<K, V> implements ILiveSegment<K, V> {
         liveReadLock.lock();
         try {
             return delegate.getLatestValue(date);
+        } finally {
+            liveReadLock.unlock();
+        }
+    }
+
+    @Override
+    public V getLatestValue(final long index) {
+        liveReadLock.lock();
+        try {
+            return delegate.getLatestValue(index);
+        } finally {
+            liveReadLock.unlock();
+        }
+    }
+
+    @Override
+    public long getLatestValueIndex(final FDate date) {
+        liveReadLock.lock();
+        try {
+            return delegate.getLatestValueIndex(date);
         } finally {
             liveReadLock.unlock();
         }
