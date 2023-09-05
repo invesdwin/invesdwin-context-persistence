@@ -155,7 +155,7 @@ public final class FileBufferCache {
         final File memoryFile = key.getMemoryFile();
         try {
             return IMemoryMappedFile.map(memoryFile.getAbsolutePath(), 0L, memoryFile.length(), true,
-                    key.isCompressed());
+                    key.isCloseALlowed());
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
@@ -235,9 +235,9 @@ public final class FileBufferCache {
     }
 
     public static IMemoryMappedFile getFile(final String hashKey, final String memoryFilePath,
-            final boolean compressed) {
+            final boolean closeAllowed) {
         if (TimeseriesProperties.FILE_BUFFER_CACHE_MMAP_ENABLED) {
-            final FileCacheKey key = new FileCacheKey(hashKey, new File(memoryFilePath), compressed);
+            final FileCacheKey key = new FileCacheKey(hashKey, new File(memoryFilePath), closeAllowed);
             final IMemoryMappedFile value = FILE_CACHE.get(key);
             return value;
         } else {
@@ -304,14 +304,14 @@ public final class FileBufferCache {
 
         private final String hashKey;
         private final File memoryFile;
-        private final boolean compressed;
+        private final boolean closeALlowed;
         private final int hashCode;
 
-        private FileCacheKey(final String hashKey, final File memoryFile, final boolean compressed) {
+        private FileCacheKey(final String hashKey, final File memoryFile, final boolean closeAllowed) {
             this.hashKey = hashKey;
             this.memoryFile = memoryFile;
-            this.compressed = compressed;
-            this.hashCode = Objects.hashCode(FileCacheKey.class, hashKey, memoryFile, compressed);
+            this.closeALlowed = closeAllowed;
+            this.hashCode = Objects.hashCode(FileCacheKey.class, hashKey, memoryFile, closeAllowed);
         }
 
         public String getHashKey() {
@@ -322,8 +322,8 @@ public final class FileBufferCache {
             return memoryFile;
         }
 
-        public boolean isCompressed() {
-            return compressed;
+        public boolean isCloseALlowed() {
+            return closeALlowed;
         }
 
         @Override
@@ -336,7 +336,7 @@ public final class FileBufferCache {
             if (obj instanceof FileCacheKey) {
                 final FileCacheKey cObj = (FileCacheKey) obj;
                 return Objects.equals(hashKey, cObj.hashKey) && Objects.equals(memoryFile, cObj.memoryFile)
-                        && Objects.equals(compressed, cObj.compressed);
+                        && Objects.equals(closeALlowed, cObj.closeALlowed);
             }
             return false;
         }

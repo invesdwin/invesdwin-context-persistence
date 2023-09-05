@@ -124,7 +124,6 @@ public class TimeSeriesStorageCache<K, V> {
     private final ISerde<V> valueSerde;
     private final Integer fixedLength;
     private final Function<V, FDate> extractEndTime;
-    private final boolean compressed;
     private final boolean flyweight;
     @GuardedBy("this")
     private File dataDirectory;
@@ -149,9 +148,9 @@ public class TimeSeriesStorageCache<K, V> {
         this.valueSerde = valueSerde;
         this.fixedLength = fixedLength;
         this.extractEndTime = extractTime;
-        this.compressed = storage.getCompressionFactory() != DisabledCompressionFactory.INSTANCE;
-        this.flyweight = !compressed && TimeseriesProperties.FILE_BUFFER_CACHE_MMAP_ENABLED && fixedLength != null
-                && fixedLength > 0;
+        final boolean compressed = storage.getCompressionFactory() != DisabledCompressionFactory.INSTANCE;
+        final boolean mmap = TimeseriesProperties.FILE_BUFFER_CACHE_MMAP_ENABLED;
+        this.flyweight = !compressed && mmap && fixedLength != null && fixedLength > 0;
     }
 
     public synchronized File getDataDirectory() {
@@ -488,8 +487,7 @@ public class TimeSeriesStorageCache<K, V> {
 
     private IFileBufferSource<V> newResult(final String method, final MemoryFileSummary summary, final Lock readLock) {
         if (flyweight) {
-            final IMemoryMappedFile mmapFile = FileBufferCache.getFile(hashKey, summary.getMemoryResourceUri(),
-                    compressed);
+            final IMemoryMappedFile mmapFile = FileBufferCache.getFile(hashKey, summary.getMemoryResourceUri(), false);
             final MemoryFileSummaryByteBuffer buffer = new MemoryFileSummaryByteBuffer(summary);
             buffer.init(mmapFile);
             return new ByteBufferFileBufferSource<>(buffer, valueSerde, fixedLength);
@@ -515,7 +513,7 @@ public class TimeSeriesStorageCache<K, V> {
                 if (TimeseriesProperties.FILE_BUFFER_CACHE_MMAP_ENABLED) {
                     readLock.lock();
                     final IMemoryMappedFile mmapFile = FileBufferCache.getFile(hashKey, summary.getMemoryResourceUri(),
-                            compressed);
+                            true);
                     if (mmapFile.incrementRefCount()) {
                         return new MmapInputStream(readLock, summary.newBuffer(mmapFile).asInputStream(), mmapFile);
                     } else {
