@@ -27,9 +27,12 @@ public class PersistentNavigableMapRangeTableDb implements IRangeTableDb {
         return new PersistentNavigableMapDb(internalMethods, factory);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public <_H, _R, _V> RangeTable<_H, _R, _V> getRangeTable(final String tableName) {
-        return db.getRangeTable(tableName, null, null, null, internalMethods.getHashKeyComparatorDisk(),
+        return db.getRangeTable(tableName, EzdbSerde.valueOf(internalMethods.getHashKeySerde()),
+                EzdbSerde.valueOf(internalMethods.getRangeKeySerde()),
+                EzdbSerde.valueOf(internalMethods.getValueSerde()), internalMethods.getHashKeyComparatorDisk(),
                 internalMethods.getRangeKeyComparatorDisk());
     }
 
