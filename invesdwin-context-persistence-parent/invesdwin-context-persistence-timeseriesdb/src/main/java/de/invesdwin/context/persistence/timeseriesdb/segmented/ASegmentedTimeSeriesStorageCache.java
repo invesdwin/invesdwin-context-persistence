@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.timeseriesdb.segmented;
 
 import java.io.Closeable;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -31,6 +32,7 @@ import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ALoggingTimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ITimeSeriesUpdater;
 import de.invesdwin.util.collections.eviction.EvictionMode;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ATransformingIterable;
 import de.invesdwin.util.collections.iterable.ATransformingIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
@@ -71,22 +73,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     private final K key;
     private final String hashKey;
     private final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source;
-    private final ALoadingCache<SegmentedKey<K>, Long> precedingValueCountCache = new ALoadingCache<SegmentedKey<K>, Long>() {
-        @Override
-        protected Long loadValue(final SegmentedKey<K> key) {
-            return newPrecedingValueCount(key);
-        }
-
-        @Override
-        protected Integer getInitialMaximumSize() {
-            return MAXIMUM_SIZE;
-        }
-
-        @Override
-        protected boolean isHighConcurrency() {
-            return true;
-        }
-    };
+    private final Map<SegmentedKey<K>, Long> precedingValueCountCache = ILockCollectionFactory.getInstance(true)
+            .newConcurrentMap();
     private final ALoadingCache<Long, IndexedSegmentedKey<K>> latestSegmentedKeyFromIndexCache = new ALoadingCache<Long, IndexedSegmentedKey<K>>() {
 
         @Override
@@ -955,7 +943,17 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     }
 
     public long getPrecedingValueCount(final SegmentedKey<K> beforeSegmentedKey) {
-        return precedingValueCountCache.get(beforeSegmentedKey);
+        /*
+         * prevent deadlock with nested initSegment calls that clear the cache again, thus don't use computeIfAbsent or
+         * a loadingCache
+         */
+        final Long existing = precedingValueCountCache.get(beforeSegmentedKey);
+        if (existing != null) {
+            return existing;
+        }
+        final long computed = newPrecedingValueCount(beforeSegmentedKey);
+        precedingValueCountCache.put(beforeSegmentedKey, computed);
+        return computed;
     }
 
     private long newPrecedingValueCount(final SegmentedKey<K> beforeSegmentedKey) {
