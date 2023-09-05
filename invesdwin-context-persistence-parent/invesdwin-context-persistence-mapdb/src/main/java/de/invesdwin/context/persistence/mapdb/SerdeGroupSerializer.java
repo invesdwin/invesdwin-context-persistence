@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.mapdb;
 
 import java.io.IOException;
+import java.util.Comparator;
 
 import javax.annotation.concurrent.Immutable;
 
@@ -8,6 +9,7 @@ import org.mapdb.DataInput2;
 import org.mapdb.DataOutput2;
 import org.mapdb.serializer.GroupSerializerObjectArray;
 
+import de.invesdwin.util.lang.comparator.Comparables;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.streams.buffer.bytes.ByteBuffers;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
@@ -23,9 +25,16 @@ public final class SerdeGroupSerializer<T> extends GroupSerializerObjectArray<T>
     private static final int VALUE_INDEX = SIZE_INDEX + SIZE_SIZE;
 
     private final ISerde<T> serde;
+    private final Comparator<T> comparator;
 
     public SerdeGroupSerializer(final ISerde<T> serde) {
         this.serde = serde;
+        this.comparator = Comparables.getComparatorNotNullSafe();
+    }
+
+    public SerdeGroupSerializer(final ISerde<T> serde, final Comparator<T> comparator) {
+        this.serde = serde;
+        this.comparator = comparator;
     }
 
     @Override
@@ -66,6 +75,11 @@ public final class SerdeGroupSerializer<T> extends GroupSerializerObjectArray<T>
     @Override
     public int hashCode(final T o, final int seed) {
         return super.hashCode(o, seed);
+    }
+
+    @Override
+    public int compare(final T first, final T second) {
+        return comparator.compare(first, second);
     }
 
     @Override

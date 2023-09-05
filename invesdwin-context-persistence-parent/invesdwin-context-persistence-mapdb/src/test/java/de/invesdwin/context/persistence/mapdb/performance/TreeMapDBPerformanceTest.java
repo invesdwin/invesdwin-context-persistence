@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.mapdb.performance;
 
 import java.io.File;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
@@ -18,6 +19,7 @@ import de.invesdwin.context.persistence.mapdb.PersistentTreeMapDBFactory;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
+import de.invesdwin.util.lang.comparator.Comparables;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.time.Instant;
@@ -36,6 +38,11 @@ public class TreeMapDBPerformanceTest extends ADatabasePerformanceTest {
             @Override
             public File getBaseDirectory() {
                 return ContextProperties.TEMP_DIRECTORY;
+            }
+
+            @Override
+            public Comparator<FDate> newComparator() {
+                return Comparables.getComparatorNotNullSafe();
             }
 
             @Override

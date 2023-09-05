@@ -15,6 +15,7 @@ import org.mapdb.DBMaker.Maker;
 
 import de.invesdwin.context.integration.persistentmap.IKeyMatcher;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapConfig;
+import de.invesdwin.context.integration.persistentmap.navigable.IPersistentNavigableMapConfig;
 import de.invesdwin.context.integration.persistentmap.navigable.IPersistentNavigableMapFactory;
 import de.invesdwin.util.lang.Files;
 
@@ -27,10 +28,11 @@ import de.invesdwin.util.lang.Files;
 public class PersistentTreeMapDBFactory<K, V> implements IPersistentNavigableMapFactory<K, V> {
 
     @Override
-    public ConcurrentNavigableMap<K, V> newPersistentMap(final IPersistentMapConfig<K, V> config) {
+    public ConcurrentNavigableMap<K, V> newPersistentNavigableMap(final IPersistentNavigableMapConfig<K, V> config) {
         final Maker fileDB = createDB(config);
         final DB db = configureDB(config, fileDB).make();
-        final TreeMapMaker<K, V> maker = db.treeMap(config.getName(), new SerdeGroupSerializer<K>(config.newKeySerde()),
+        final TreeMapMaker<K, V> maker = db.treeMap(config.getName(),
+                new SerdeGroupSerializer<K>(config.newKeySerde(), config.newComparator()),
                 new SerdeGroupSerializer<V>(config.newValueSerde()));
         return configureHashMap(config, maker).createOrOpen();
     }

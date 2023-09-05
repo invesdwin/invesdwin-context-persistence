@@ -57,7 +57,7 @@ public class LsmTreeRangeTableDb implements IRangeTableDb {
     public <H, V> Table<H, V> getTable(final String tableName) {
         internalMethods.initDirectory();
         return db.getTable(tableName, EzdbSerde.valueOf(internalMethods.getHashKeySerde()),
-                EzdbSerde.valueOf(internalMethods.getValueSerde()), internalMethods.getHashKeyComparatorDisk());
+                EzdbSerde.valueOf(internalMethods.getValueSerde()), internalMethods.getHashKeyComparatorMemory());
     }
 
     @Override
