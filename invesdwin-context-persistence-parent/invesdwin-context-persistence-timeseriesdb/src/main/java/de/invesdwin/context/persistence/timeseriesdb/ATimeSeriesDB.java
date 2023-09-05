@@ -155,6 +155,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
     protected abstract ISerde<V> newValueSerde();
 
     protected ICompressionFactory newCompressionFactory() {
+        //        return DisabledCompressionFactory.INSTANCE; //use this to enable flyweight mmap access
         return LZ4Streams.getDefaultCompressionFactory();
     }
 

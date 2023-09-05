@@ -22,6 +22,7 @@ import de.invesdwin.context.beans.hook.ReinitializationHookManager;
 import de.invesdwin.context.beans.hook.ReinitializationHookSupport;
 import de.invesdwin.context.persistence.timeseriesdb.IDeserializingCloseableIterable;
 import de.invesdwin.context.persistence.timeseriesdb.TimeseriesProperties;
+import de.invesdwin.context.persistence.timeseriesdb.buffer.source.IFileBufferSource;
 import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
@@ -34,6 +35,7 @@ import de.invesdwin.util.concurrent.pool.AgronaObjectPool;
 import de.invesdwin.util.concurrent.pool.IObjectPool;
 import de.invesdwin.util.concurrent.pool.MemoryLimit;
 import de.invesdwin.util.lang.Objects;
+import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 import de.invesdwin.util.streams.buffer.file.IMemoryMappedFile;
 import de.invesdwin.util.time.date.FTimeUnit;
 
@@ -111,22 +113,29 @@ public final class FileBufferCache {
     }
 
     private static SoftReference resultCache_load(final ResultCacheKey key) throws Exception {
-        final IDeserializingCloseableIterable values = key.getSource().getSource();
-        if (TimeseriesProperties.FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR != null && values.getFixedLength() != null
-                && values.getFixedLength() > 0) {
-            return new SoftReference<IFileBufferCacheResult>(new ArrayAllocatorFileBufferCacheResult<>(
-                    TimeseriesProperties.FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR, values));
+        final IFileBufferSource source = key.getSource();
+        final IByteBuffer buffer = source.getBuffer();
+        if (buffer != null) {
+            return new SoftReference<IFileBufferCacheResult>(
+                    new ByteBufferFileBufferCacheResult<>(buffer, source.getSerde(), source.getFixedLength()));
         } else {
-            key.setSource(null);
-            final ArrayList list = LIST_POOL.borrowObject();
-            try (ICloseableIterator it = values.iterator()) {
-                while (true) {
-                    list.add(it.next());
+            final IDeserializingCloseableIterable iterable = source.getIterable();
+            if (TimeseriesProperties.FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR != null
+                    && iterable.getFixedLength() != null && iterable.getFixedLength() > 0) {
+                return new SoftReference<IFileBufferCacheResult>(new ByteBufferFileBufferCacheResult<>(
+                        TimeseriesProperties.FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR, iterable));
+            } else {
+                key.setSource(null);
+                final ArrayList list = LIST_POOL.borrowObject();
+                try (ICloseableIterator it = iterable.iterator()) {
+                    while (true) {
+                        list.add(it.next());
+                    }
+                } catch (final NoSuchElementException e) {
+                    //end reached
                 }
-            } catch (final NoSuchElementException e) {
-                //end reached
+                return new SoftReference<IFileBufferCacheResult>(new ArrayFileBufferCacheResult(list));
             }
-            return new SoftReference<IFileBufferCacheResult>(new ArrayFileBufferCacheResult(list));
         }
     }
 
@@ -145,7 +154,8 @@ public final class FileBufferCache {
     private static IMemoryMappedFile fileCache_load(final FileCacheKey key) {
         final File memoryFile = key.getMemoryFile();
         try {
-            return IMemoryMappedFile.map(memoryFile.getAbsolutePath(), 0L, memoryFile.length(), true);
+            return IMemoryMappedFile.map(memoryFile.getAbsolutePath(), 0L, memoryFile.length(), true,
+                    key.isCompressed());
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
@@ -216,12 +226,18 @@ public final class FileBufferCache {
     }
 
     private static <T> IFileBufferCacheResult<T> getResultNoCache(final IFileBufferSource source) {
-        return new IterableFileBufferCacheResult(source.getSource());
+        final IByteBuffer buffer = source.getBuffer();
+        if (buffer != null) {
+            return new ByteBufferFileBufferCacheResult<>(buffer, source.getSerde(), source.getFixedLength());
+        } else {
+            return new IterableFileBufferCacheResult(source.getIterable());
+        }
     }
 
-    public static IMemoryMappedFile getFile(final String hashKey, final String memoryFilePath) {
+    public static IMemoryMappedFile getFile(final String hashKey, final String memoryFilePath,
+            final boolean compressed) {
         if (TimeseriesProperties.FILE_BUFFER_CACHE_MMAP_ENABLED) {
-            final FileCacheKey key = new FileCacheKey(hashKey, new File(memoryFilePath));
+            final FileCacheKey key = new FileCacheKey(hashKey, new File(memoryFilePath), compressed);
             final IMemoryMappedFile value = FILE_CACHE.get(key);
             return value;
         } else {
@@ -288,12 +304,14 @@ public final class FileBufferCache {
 
         private final String hashKey;
         private final File memoryFile;
+        private final boolean compressed;
         private final int hashCode;
 
-        private FileCacheKey(final String hashKey, final File memoryFile) {
+        private FileCacheKey(final String hashKey, final File memoryFile, final boolean compressed) {
             this.hashKey = hashKey;
             this.memoryFile = memoryFile;
-            this.hashCode = Objects.hashCode(hashKey, memoryFile);
+            this.compressed = compressed;
+            this.hashCode = Objects.hashCode(FileCacheKey.class, hashKey, memoryFile, compressed);
         }
 
         public String getHashKey() {
@@ -302,6 +320,10 @@ public final class FileBufferCache {
 
         public File getMemoryFile() {
             return memoryFile;
+        }
+
+        public boolean isCompressed() {
+            return compressed;
         }
 
         @Override
@@ -313,7 +335,8 @@ public final class FileBufferCache {
         public boolean equals(final Object obj) {
             if (obj instanceof FileCacheKey) {
                 final FileCacheKey cObj = (FileCacheKey) obj;
-                return Objects.equals(hashKey, cObj.hashKey) && Objects.equals(memoryFile, cObj.memoryFile);
+                return Objects.equals(hashKey, cObj.hashKey) && Objects.equals(memoryFile, cObj.memoryFile)
+                        && Objects.equals(compressed, cObj.compressed);
             }
             return false;
         }

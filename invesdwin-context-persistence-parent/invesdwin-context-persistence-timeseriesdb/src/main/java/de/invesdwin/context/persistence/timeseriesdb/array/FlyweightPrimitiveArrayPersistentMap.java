@@ -33,7 +33,7 @@ public class FlyweightPrimitiveArrayPersistentMap<K> extends APersistentMap<K, I
 
     @Override
     protected IPersistentMapFactory<K, IPrimitiveArray> newFactory() {
-        return new LargePersistentMapFactory<>(PersistentMapType.DISK_SAFE.newFactory(), false);
+        return new LargePersistentMapFactory<>(PersistentMapType.DISK_SAFE.newFactory(), false, false);
     }
 
 }

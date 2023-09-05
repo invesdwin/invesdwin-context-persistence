@@ -1,0 +1,38 @@
+package de.invesdwin.context.persistence.timeseriesdb.buffer.source;
+
+import javax.annotation.concurrent.Immutable;
+
+import de.invesdwin.context.persistence.timeseriesdb.IDeserializingCloseableIterable;
+import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
+
+@Immutable
+public class IterableFileBufferSource<V> implements IFileBufferSource<V> {
+
+    private final IDeserializingCloseableIterable<V> iterable;
+
+    public IterableFileBufferSource(final IDeserializingCloseableIterable<V> iterable) {
+        this.iterable = iterable;
+    }
+
+    @Override
+    public IDeserializingCloseableIterable<V> getIterable() {
+        return iterable;
+    }
+
+    @Override
+    public IByteBuffer getBuffer() {
+        return null;
+    }
+
+    @Override
+    public ISerde<V> getSerde() {
+        return getIterable().getSerde();
+    }
+
+    @Override
+    public Integer getFixedLength() {
+        return getIterable().getFixedLength();
+    }
+
+}

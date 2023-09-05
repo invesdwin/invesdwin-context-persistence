@@ -18,16 +18,21 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.SerializationException;
 
+import de.invesdwin.context.integration.compression.DisabledCompressionFactory;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.ArrayFileBufferCacheResult;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.FileBufferCache;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.IFileBufferCacheResult;
+import de.invesdwin.context.persistence.timeseriesdb.buffer.source.ByteBufferFileBufferSource;
+import de.invesdwin.context.persistence.timeseriesdb.buffer.source.IFileBufferSource;
+import de.invesdwin.context.persistence.timeseriesdb.buffer.source.IterableFileBufferSource;
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftBackUnitsLoopLongIndex;
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftForwardUnitsLoopLongIndex;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileMetadata;
 import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
+import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummaryByteBuffer;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.Collections;
@@ -119,6 +124,8 @@ public class TimeSeriesStorageCache<K, V> {
     private final ISerde<V> valueSerde;
     private final Integer fixedLength;
     private final Function<V, FDate> extractEndTime;
+    private final boolean compressed;
+    private final boolean flyweight;
     @GuardedBy("this")
     private File dataDirectory;
 
@@ -142,6 +149,9 @@ public class TimeSeriesStorageCache<K, V> {
         this.valueSerde = valueSerde;
         this.fixedLength = fixedLength;
         this.extractEndTime = extractTime;
+        this.compressed = storage.getCompressionFactory() != DisabledCompressionFactory.INSTANCE;
+        this.flyweight = !compressed && TimeseriesProperties.FILE_BUFFER_CACHE_MMAP_ENABLED && fixedLength != null
+                && fixedLength > 0;
     }
 
     public synchronized File getDataDirectory() {
@@ -469,14 +479,26 @@ public class TimeSeriesStorageCache<K, V> {
 
     private IFileBufferCacheResult<V> getResultCached(final String method, final MemoryFileSummary summary,
             final Lock readLock) {
-        return FileBufferCache.getResult(hashKey, summary, () -> newResult(method, summary, readLock));
+        return FileBufferCache.getResult(hashKey, summary, newResult(method, summary, readLock));
     }
 
     private void preloadResultCached(final String method, final MemoryFileSummary summary, final Lock readLock) {
-        FileBufferCache.preloadResult(hashKey, summary, () -> newResult(method, summary, readLock));
+        FileBufferCache.preloadResult(hashKey, summary, newResult(method, summary, readLock));
     }
 
-    private SerializingCollection<V> newResult(final String method, final MemoryFileSummary summary,
+    private IFileBufferSource<V> newResult(final String method, final MemoryFileSummary summary, final Lock readLock) {
+        if (flyweight) {
+            final IMemoryMappedFile mmapFile = FileBufferCache.getFile(hashKey, summary.getMemoryResourceUri(),
+                    compressed);
+            final MemoryFileSummaryByteBuffer buffer = new MemoryFileSummaryByteBuffer(summary);
+            buffer.init(mmapFile);
+            return new ByteBufferFileBufferSource<>(buffer, valueSerde, fixedLength);
+        } else {
+            return new IterableFileBufferSource<>(newIterableResult(method, summary, readLock));
+        }
+    }
+
+    private SerializingCollection<V> newIterableResult(final String method, final MemoryFileSummary summary,
             final Lock readLock) {
         final TextDescription name = new TextDescription("%s[%s]: %s(%s)", TimeSeriesStorageCache.class.getSimpleName(),
                 hashKey, method, summary);
@@ -492,7 +514,8 @@ public class TimeSeriesStorageCache<K, V> {
             protected InputStream newFileInputStream(final File file) throws IOException {
                 if (TimeseriesProperties.FILE_BUFFER_CACHE_MMAP_ENABLED) {
                     readLock.lock();
-                    final IMemoryMappedFile mmapFile = FileBufferCache.getFile(hashKey, summary.getMemoryResourceUri());
+                    final IMemoryMappedFile mmapFile = FileBufferCache.getFile(hashKey, summary.getMemoryResourceUri(),
+                            compressed);
                     if (mmapFile.incrementRefCount()) {
                         return new MmapInputStream(readLock, summary.newBuffer(mmapFile).asInputStream(), mmapFile);
                     } else {
@@ -508,7 +531,7 @@ public class TimeSeriesStorageCache<K, V> {
                     in.limit(summary.getMemoryOffset() + summary.getMemoryLength());
                     return in;
                 } else {
-                    //keep file input stream open as shorty as possible to prevent too many open files error
+                    //keep file input stream open as shortly as possible to prevent too many open files error
                     readLock.lock();
                     try (BufferedFileDataInputStream in = new BufferedFileDataInputStream(memoryFile)) {
                         in.position(summary.getMemoryOffset());
@@ -843,7 +866,7 @@ public class TimeSeriesStorageCache<K, V> {
             final MemoryFileSummary latestSummary = latestFile.getValue();
             if (shouldRedoLastFile && latestSummary.getValueCount() < ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
                 lastValues = new ArrayList<V>();
-                try (ICloseableIterator<V> lastColl = newResult("prepareForUpdate", latestSummary,
+                try (ICloseableIterator<V> lastColl = newIterableResult("prepareForUpdate", latestSummary,
                         DisabledLock.INSTANCE).iterator()) {
                     Lists.toListWithoutHasNext(lastColl, lastValues);
                 }

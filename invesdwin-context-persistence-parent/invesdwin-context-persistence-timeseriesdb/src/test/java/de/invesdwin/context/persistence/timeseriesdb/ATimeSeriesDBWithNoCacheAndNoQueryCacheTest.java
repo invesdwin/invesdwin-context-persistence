@@ -33,7 +33,7 @@ import de.invesdwin.util.collections.loadingcache.historical.query.internal.core
 import de.invesdwin.util.collections.loadingcache.historical.query.internal.core.IHistoricalCacheQueryCore;
 import de.invesdwin.util.collections.loadingcache.historical.refresh.HistoricalCacheRefreshManager;
 import de.invesdwin.util.marshallers.serde.ISerde;
-import de.invesdwin.util.marshallers.serde.TypeDelegateSerde;
+import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
@@ -77,12 +77,12 @@ public class ATimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest {
 
             @Override
             protected ISerde<FDate> newValueSerde() {
-                return new TypeDelegateSerde<FDate>(FDate.class);
+                return FDateSerde.GET;
             }
 
             @Override
             protected Integer newValueFixedLength() {
-                return null;
+                return FDateSerde.FIXED_LENGTH;
             }
 
             @Override

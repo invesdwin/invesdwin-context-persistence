@@ -3,27 +3,24 @@ package de.invesdwin.context.persistence.timeseriesdb.buffer;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Function;
 
 import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.commons.compress.utils.IOUtils;
 
-import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.IDeserializingCloseableIterable;
 import de.invesdwin.context.system.array.IPrimitiveArrayAllocator;
 import de.invesdwin.context.system.array.OnHeapPrimitiveArrayAllocator;
 import de.invesdwin.norva.beanpath.IntCountingOutputStream;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.bytebuffer.AByteBufferCloseableIterable;
 import de.invesdwin.util.collections.iterable.bytebuffer.ByteBufferList;
 import de.invesdwin.util.collections.iterable.collection.ListCloseableIterable;
 import de.invesdwin.util.collections.list.Lists;
-import de.invesdwin.util.marshallers.serde.IFlyweightSerdeProvider;
+import de.invesdwin.util.marshallers.serde.FlyweightSerdeProviders;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.streams.buffer.bytes.ByteBuffers;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
@@ -33,12 +30,8 @@ import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
 
 @ThreadSafe
-public class ArrayAllocatorFileBufferCacheResult<V> extends AByteBufferCloseableIterable<V>
+public class ByteBufferFileBufferCacheResult<V> extends AByteBufferCloseableIterable<V>
         implements IFileBufferCacheResult<V> {
-
-    private static final Set<String> FLYWEIGHT_SERDE_WARNINGS = ILockCollectionFactory.getInstance(true)
-            .newConcurrentSet();
-    private static final Log LOG = new Log(ArrayAllocatorFileBufferCacheResult.class);
 
     private final IByteBuffer buffer;
     private final ISerde<V> serde;
@@ -46,7 +39,7 @@ public class ArrayAllocatorFileBufferCacheResult<V> extends AByteBufferCloseable
     private final List<V> list;
     private final ListCloseableIterable<V> delegate;
 
-    public ArrayAllocatorFileBufferCacheResult(final IPrimitiveArrayAllocator arrayAllocator,
+    public ByteBufferFileBufferCacheResult(final IPrimitiveArrayAllocator arrayAllocator,
             final IDeserializingCloseableIterable<V> delegate) {
         final String name = delegate.getName();
         final IByteBuffer bufferCached = arrayAllocator.getByteBuffer(name);
@@ -74,28 +67,20 @@ public class ArrayAllocatorFileBufferCacheResult<V> extends AByteBufferCloseable
                 pooledBuffer.close();
             }
         }
-        this.serde = extractSerde(delegate);
+        this.serde = FlyweightSerdeProviders.extractSerde(delegate.getSerde());
         this.fixedLength = delegate.getFixedLength();
         Assertions.checkTrue(fixedLength > 0);
         this.list = new ByteBufferList<>(buffer, serde, fixedLength);
         this.delegate = new ListCloseableIterable<>(list);
     }
 
-    @SuppressWarnings("unchecked")
-    private ISerde<V> extractSerde(final IDeserializingCloseableIterable<V> delegate) {
-        final ISerde<V> serdeProvider = delegate.getSerde();
-        if (serdeProvider instanceof IFlyweightSerdeProvider) {
-            final IFlyweightSerdeProvider<V> flyweightSerdeProvider = (IFlyweightSerdeProvider<V>) serdeProvider;
-            final ISerde<V> flyweightSerde = flyweightSerdeProvider.asFlyweightSerde();
-            if (flyweightSerde != null) {
-                return flyweightSerde;
-            }
-        }
-        final String str = serdeProvider.toString();
-        if (FLYWEIGHT_SERDE_WARNINGS.add(str)) {
-            LOG.warn("Not a %s: %s", IFlyweightSerdeProvider.class.getSimpleName(), str);
-        }
-        return serdeProvider;
+    public ByteBufferFileBufferCacheResult(final IByteBuffer buffer, final ISerde<V> serde, final Integer fixedLength) {
+        this.buffer = buffer;
+        this.serde = FlyweightSerdeProviders.extractSerde(serde);
+        this.fixedLength = fixedLength;
+        Assertions.checkTrue(fixedLength > 0);
+        this.list = new ByteBufferList<>(buffer, serde, fixedLength);
+        this.delegate = new ListCloseableIterable<>(list);
     }
 
     @Override
