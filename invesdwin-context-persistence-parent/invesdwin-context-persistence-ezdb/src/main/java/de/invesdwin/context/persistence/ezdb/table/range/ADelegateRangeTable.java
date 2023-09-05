@@ -20,7 +20,7 @@ import de.invesdwin.context.persistence.ezdb.db.IRangeTableDb;
 import de.invesdwin.context.persistence.ezdb.db.WriteThroughRangeTableDb;
 import de.invesdwin.context.persistence.ezdb.db.storage.LevelDBJavaRangeTableDb;
 import de.invesdwin.context.persistence.ezdb.db.storage.RangeTableInternalMethods;
-import de.invesdwin.context.persistence.ezdb.db.storage.TreeMapRangeTableDb;
+import de.invesdwin.context.persistence.ezdb.db.storage.map.TreeMapRangeTableDb;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -70,7 +70,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
         this.name = name;
         this.internalMethods = new RangeTableInternalMethods(newHashKeySerde(), newRangeKeySerde(), newValueSerde(),
                 newHashKeyComparatorDisk(), newRangeKeyComparatorDisk(), newHashKeyComparatorMemory(),
-                newRangeKeyComparatorMemory(), getDirectory());
+                newRangeKeyComparatorMemory(), getBaseDirectory(), getDirectory());
         this.timestampFile = new File(new File(internalMethods.getDirectory(), getName()), "createdTimestamp");
 
         this.tableLock = Locks
@@ -313,8 +313,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
         onDeleteTableFinished();
     }
 
-    protected void onDeleteTableFinished() {
-    }
+    protected void onDeleteTableFinished() {}
 
     protected boolean shouldPurgeTable() {
         return false;

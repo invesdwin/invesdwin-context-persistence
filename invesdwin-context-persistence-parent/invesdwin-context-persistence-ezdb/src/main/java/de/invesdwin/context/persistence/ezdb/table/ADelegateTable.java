@@ -20,7 +20,7 @@ import de.invesdwin.context.persistence.ezdb.db.IRangeTableDb;
 import de.invesdwin.context.persistence.ezdb.db.WriteThroughRangeTableDb;
 import de.invesdwin.context.persistence.ezdb.db.storage.LevelDBJavaRangeTableDb;
 import de.invesdwin.context.persistence.ezdb.db.storage.RangeTableInternalMethods;
-import de.invesdwin.context.persistence.ezdb.db.storage.TreeMapRangeTableDb;
+import de.invesdwin.context.persistence.ezdb.db.storage.map.TreeMapRangeTableDb;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.concurrent.lock.ILock;
@@ -66,7 +66,8 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
     public ADelegateTable(final String name) {
         this.name = name;
         this.internalMethods = new RangeTableInternalMethods(newHashKeySerde(), null, newValueSerde(),
-                newHashKeyComparatorDisk(), null, newHashKeyComparatorMemory(), null, getDirectory());
+                newHashKeyComparatorDisk(), null, newHashKeyComparatorMemory(), null, getBaseDirectory(),
+                getDirectory());
         this.timestampFile = new File(new File(internalMethods.getDirectory(), getName()), "createdTimestamp");
 
         this.tableLock = Locks

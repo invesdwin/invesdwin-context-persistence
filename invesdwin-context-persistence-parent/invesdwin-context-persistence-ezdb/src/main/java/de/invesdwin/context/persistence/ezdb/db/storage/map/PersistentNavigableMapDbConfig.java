@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.ezdb.db.storage;
+package de.invesdwin.context.persistence.ezdb.db.storage.map;
 
 import java.io.File;
 import java.util.Comparator;

@@ -1,9 +1,10 @@
-package de.invesdwin.context.persistence.ezdb.db.storage;
+package de.invesdwin.context.persistence.ezdb.db.storage.map;
 
 import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.context.persistence.ezdb.EzdbSerde;
 import de.invesdwin.context.persistence.ezdb.db.IRangeTableDb;
+import de.invesdwin.context.persistence.ezdb.db.storage.RangeTableInternalMethods;
 import ezdb.table.Table;
 import ezdb.table.range.RangeTable;
 import ezdb.treemap.object.EzObjectTreeMapDb;

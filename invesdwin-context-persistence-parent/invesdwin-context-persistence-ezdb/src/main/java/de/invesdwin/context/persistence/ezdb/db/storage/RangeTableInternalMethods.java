@@ -25,13 +25,14 @@ public class RangeTableInternalMethods {
     private final Comparator<java.nio.ByteBuffer> rangeKeyComparatorDisk;
     private final Comparator<Object> hashKeyComparatorMemory;
     private final Comparator<Object> rangeKeyComparatorMemory;
+    private final File baseDirectory;
     private final File directory;
 
     public RangeTableInternalMethods(final ISerde hashKeySerde, final ISerde rangeKeySerde, final ISerde valueSerde,
             final Comparator<java.nio.ByteBuffer> hashKeyComparatorDisk,
             final Comparator<java.nio.ByteBuffer> rangeKeyComparatorDisk,
             final Comparator<Object> hashKeyComparatorMemory, final Comparator<Object> rangeKeyComparatorMemory,
-            final File directory) {
+            final File baseDirectory, final File directory) {
         this.hashKeySerde = hashKeySerde;
         this.rangeKeySerde = rangeKeySerde;
         this.valueSerde = valueSerde;
@@ -39,6 +40,7 @@ public class RangeTableInternalMethods {
         this.rangeKeyComparatorDisk = rangeKeyComparatorDisk;
         this.hashKeyComparatorMemory = hashKeyComparatorMemory;
         this.rangeKeyComparatorMemory = rangeKeyComparatorMemory;
+        this.baseDirectory = baseDirectory;
         this.directory = directory;
     }
 
@@ -68,6 +70,10 @@ public class RangeTableInternalMethods {
 
     public Comparator<Object> getRangeKeyComparatorMemory() {
         return rangeKeyComparatorMemory;
+    }
+
+    public File getBaseDirectory() {
+        return baseDirectory;
     }
 
     public File getDirectory() {

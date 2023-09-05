@@ -1,6 +1,5 @@
-package de.invesdwin.context.persistence.ezdb.db.storage;
+package de.invesdwin.context.persistence.ezdb.db.storage.map;
 
-import java.io.File;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
@@ -10,6 +9,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.persistentmap.navigable.IPersistentNavigableMapConfig;
 import de.invesdwin.context.integration.persistentmap.navigable.IPersistentNavigableMapFactory;
+import de.invesdwin.context.persistence.ezdb.db.storage.RangeTableInternalMethods;
 import ezdb.Db;
 import ezdb.comparator.LexicographicalComparator;
 import ezdb.table.Table;
@@ -20,13 +20,14 @@ import ezdb.treemap.bytes.table.range.BytesTreeMapRangeTable;
 @ThreadSafe
 public class PersistentNavigableMapDb implements Db<java.nio.ByteBuffer> {
     private final Map<String, Table<?, ?>> cache;
-    private final File baseDirectory;
+    private final RangeTableInternalMethods internalMethods;
     @SuppressWarnings("rawtypes")
     private final IPersistentNavigableMapFactory factory;
 
-    public PersistentNavigableMapDb(final File baseDirectory, final IPersistentNavigableMapFactory<?, ?> factory) {
+    public PersistentNavigableMapDb(final RangeTableInternalMethods internalMethods,
+            final IPersistentNavigableMapFactory<?, ?> factory) {
         this.cache = new HashMap<String, Table<?, ?>>();
-        this.baseDirectory = baseDirectory;
+        this.internalMethods = internalMethods;
         this.factory = factory;
     }
 
@@ -96,7 +97,7 @@ public class PersistentNavigableMapDb implements Db<java.nio.ByteBuffer> {
             protected NavigableMap<java.nio.ByteBuffer, java.nio.ByteBuffer> newMap(
                     final Comparator<java.nio.ByteBuffer> comparator) {
                 final IPersistentNavigableMapConfig<java.nio.ByteBuffer, java.nio.ByteBuffer> config = new PersistentNavigableMapDbConfig(
-                        tableName, factory, baseDirectory, comparator);
+                        tableName, factory, internalMethods.getBaseDirectory(), comparator);
                 return factory.newPersistentNavigableMap(config);
             }
         };
@@ -110,7 +111,7 @@ public class PersistentNavigableMapDb implements Db<java.nio.ByteBuffer> {
             protected Map<java.nio.ByteBuffer, java.nio.ByteBuffer> newMap(
                     final Comparator<java.nio.ByteBuffer> comparator) {
                 final IPersistentNavigableMapConfig<java.nio.ByteBuffer, java.nio.ByteBuffer> config = new PersistentNavigableMapDbConfig(
-                        tableName, factory, baseDirectory, comparator);
+                        tableName, factory, internalMethods.getBaseDirectory(), comparator);
                 return factory.newPersistentNavigableMap(config);
             }
         };
