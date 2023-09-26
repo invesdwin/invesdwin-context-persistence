@@ -8,8 +8,8 @@ import java.util.function.ToLongFunction;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftForwardUnitsLoopLongIndex;
 import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftBackUnitsLoop;
-import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftForwardUnitsLoop;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal.ReadLockedLiveSegment;
@@ -296,17 +296,29 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
             return nextValue;
         } else {
             //use both segments
-            final ShiftForwardUnitsLoop<V> shiftForwardLoop = new ShiftForwardUnitsLoop<>(date, shiftForwardUnits,
-                    historicalSegmentTable::extractEndTime);
-            final ICloseableIterable<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE, file -> {
-                final boolean skip = shiftForwardLoop.getNextValue() != null
-                        && file.getValueCount() < shiftForwardLoop.getShiftForwardRemaining();
-                if (skip) {
-                    shiftForwardLoop.skip(file.getValueCount());
+            final AShiftForwardUnitsLoopLongIndex<V> shiftForwardLoop = new AShiftForwardUnitsLoopLongIndex<V>(date,
+                    shiftForwardUnits) {
+                @Override
+                protected V getLatestValue(final long index) {
+                    return LiveSegmentedTimeSeriesStorageCache.this.getLatestValue(index);
                 }
-                return skip;
-            });
-            shiftForwardLoop.loop(rangeValues);
+
+                @Override
+                protected long getLatestValueIndex(final FDate date) {
+                    return LiveSegmentedTimeSeriesStorageCache.this.getLatestValueIndex(date);
+                }
+
+                @Override
+                protected FDate extractEndTime(final V value) {
+                    return historicalSegmentTable.extractEndTime(value);
+                }
+
+                @Override
+                protected long size() {
+                    return LiveSegmentedTimeSeriesStorageCache.this.size();
+                }
+            };
+            shiftForwardLoop.loop();
             return shiftForwardLoop.getNextValue();
         }
     }
