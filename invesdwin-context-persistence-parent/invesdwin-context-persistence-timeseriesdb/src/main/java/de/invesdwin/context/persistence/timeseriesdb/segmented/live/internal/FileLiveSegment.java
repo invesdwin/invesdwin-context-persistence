@@ -21,6 +21,7 @@ import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.ArrayFileBufferCacheResult;
+import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftForwardUnitsLoopIntIndex;
 import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftForwardUnitsLoop;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
@@ -373,10 +374,30 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     private V getNextValueFromRangeValues(final FDate date, final int shiftForwardUnits) {
-        final ShiftForwardUnitsLoop<V> shiftForwardLoop = new ShiftForwardUnitsLoop<>(date, shiftForwardUnits,
-                historicalSegmentTable::extractEndTime);
-        final ICloseableIterable<V> rangeValues = rangeValues(date, null, DisabledLock.INSTANCE, null);
-        shiftForwardLoop.loop(rangeValues);
+        final ArrayFileBufferCacheResult<V> flushedValues = getFlushedValues();
+        final AShiftForwardUnitsLoopIntIndex<V> shiftForwardLoop = new AShiftForwardUnitsLoopIntIndex<V>(date,
+                shiftForwardUnits) {
+            @Override
+            protected V getLatestValue(final int index) {
+                return flushedValues.getLatestValue(index);
+            }
+
+            @Override
+            protected int getLatestValueIndex(final FDate date) {
+                return flushedValues.getLatestValueIndex(historicalSegmentTable::extractEndTime, date);
+            }
+
+            @Override
+            protected FDate extractEndTime(final V value) {
+                return historicalSegmentTable.extractEndTime(value);
+            }
+
+            @Override
+            protected int size() {
+                return flushedValues.getList().size();
+            }
+        };
+        shiftForwardLoop.loop();
         if (shiftForwardLoop.getNextValue() != null) {
             return shiftForwardLoop.getNextValue();
         } else {
