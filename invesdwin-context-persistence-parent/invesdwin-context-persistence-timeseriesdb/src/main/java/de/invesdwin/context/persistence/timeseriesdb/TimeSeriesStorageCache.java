@@ -188,24 +188,9 @@ public class TimeSeriesStorageCache<K, V> {
 
     public void finishFile(final FDate time, final V firstValue, final V lastValue, final long precedingValueCount,
             final int valueCount, final String memoryResourceUri, final long memoryOffset, final long memoryLength) {
-        final MemoryFileSummary latestFile = storage.getFileLookupTable().getLatestValue(hashKey, FDates.MAX_DATE);
-        if (latestFile != null) {
-            final V precedingLastValue = latestFile.getLastValue(valueSerde);
-            final FDate precedingLastValueTime = extractEndTime.apply(precedingLastValue);
-            final FDate firstValueTime = extractEndTime.apply(firstValue);
-            if (precedingLastValueTime.isAfterNotNullSafe(firstValueTime)) {
-                throw new IllegalStateException("precedingLastValueTime [" + precedingLastValueTime
-                        + "] should not be after firstValueTime [" + firstValueTime + "]");
-            }
-            final FDate lastValueTime = extractEndTime.apply(lastValue);
-            if (firstValueTime.isAfterNotNullSafe(lastValueTime)) {
-                throw new IllegalStateException("firstValueTime [" + firstValueTime
-                        + "] should not be after lastValueTime [" + lastValueTime + "]");
-            }
-        }
-
         final MemoryFileSummary summary = new MemoryFileSummary(valueSerde, firstValue, lastValue, precedingValueCount,
                 valueCount, memoryResourceUri, memoryOffset, memoryLength);
+        assertSummary(summary);
         storage.getFileLookupTable().put(hashKey, time, summary);
         final long memoryFileSize = getMemoryFile().length();
         final long expectedMemoryFileSize = memoryOffset + memoryLength;
@@ -228,6 +213,12 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     public void finishFile(final FDate time, final MemoryFileSummary summary) {
+        assertSummary(summary);
+        storage.getFileLookupTable().put(hashKey, time, summary);
+        clearCaches();
+    }
+
+    private void assertSummary(final MemoryFileSummary summary) {
         final MemoryFileSummary latestFile = storage.getFileLookupTable().getLatestValue(hashKey, FDates.MAX_DATE);
         if (latestFile != null) {
             final V precedingLastValue = latestFile.getLastValue(valueSerde);
@@ -245,9 +236,6 @@ public class TimeSeriesStorageCache<K, V> {
                         + "] should not be after lastValueTime [" + lastValueTime + "]");
             }
         }
-
-        storage.getFileLookupTable().put(hashKey, time, summary);
-        clearCaches();
     }
 
     protected ICloseableIterable<MemoryFileSummary> readRangeFiles(final FDate from, final FDate to,
