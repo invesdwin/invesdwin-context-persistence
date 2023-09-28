@@ -190,12 +190,17 @@ public class TimeSeriesStorageCache<K, V> {
             final int valueCount, final String memoryResourceUri, final long memoryOffset, final long memoryLength) {
         final MemoryFileSummary latestFile = storage.getFileLookupTable().getLatestValue(hashKey, FDates.MAX_DATE);
         if (latestFile != null) {
-            final V precedingLastValue = valueSerde.fromBytes(latestFile.getLastValue());
+            final V precedingLastValue = latestFile.getLastValue(valueSerde);
             final FDate precedingLastValueTime = extractEndTime.apply(precedingLastValue);
             final FDate firstValueTime = extractEndTime.apply(firstValue);
-            if (precedingLastValueTime.isAfter(firstValueTime)) {
+            if (precedingLastValueTime.isAfterNotNullSafe(firstValueTime)) {
                 throw new IllegalStateException("precedingLastValueTime [" + precedingLastValueTime
                         + "] should not be after firstValueTime [" + firstValueTime + "]");
+            }
+            final FDate lastValueTime = extractEndTime.apply(lastValue);
+            if (firstValueTime.isAfterNotNullSafe(lastValueTime)) {
+                throw new IllegalStateException("firstValueTime [" + firstValueTime
+                        + "] should not be after lastValueTime [" + lastValueTime + "]");
             }
         }
 
@@ -223,6 +228,24 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     public void finishFile(final FDate time, final MemoryFileSummary summary) {
+        final MemoryFileSummary latestFile = storage.getFileLookupTable().getLatestValue(hashKey, FDates.MAX_DATE);
+        if (latestFile != null) {
+            final V precedingLastValue = latestFile.getLastValue(valueSerde);
+            final FDate precedingLastValueTime = extractEndTime.apply(precedingLastValue);
+            final V firstValue = summary.getFirstValue(valueSerde);
+            final FDate firstValueTime = extractEndTime.apply(firstValue);
+            if (precedingLastValueTime.isAfter(firstValueTime)) {
+                throw new IllegalStateException("precedingLastValueTime [" + precedingLastValueTime
+                        + "] should not be after firstValueTime [" + firstValueTime + "]");
+            }
+            final V lastValue = summary.getLastValue(valueSerde);
+            final FDate lastValueTime = extractEndTime.apply(lastValue);
+            if (firstValueTime.isAfterNotNullSafe(lastValueTime)) {
+                throw new IllegalStateException("firstValueTime [" + firstValueTime
+                        + "] should not be after lastValueTime [" + lastValueTime + "]");
+            }
+        }
+
         storage.getFileLookupTable().put(hashKey, time, summary);
         clearCaches();
     }
