@@ -219,22 +219,26 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     private void assertSummary(final MemoryFileSummary summary) {
-        final MemoryFileSummary latestFile = storage.getFileLookupTable().getLatestValue(hashKey, FDates.MAX_DATE);
-        if (latestFile != null) {
-            final V precedingLastValue = latestFile.getLastValue(valueSerde);
+        final MemoryFileSummary prevSummary = storage.getFileLookupTable().getLatestValue(hashKey, FDates.MAX_DATE);
+        assertSummary(prevSummary, summary);
+    }
+
+    private void assertSummary(final MemoryFileSummary prevSummary, final MemoryFileSummary summary) {
+        final V firstValue = summary.getFirstValue(valueSerde);
+        final FDate firstValueTime = extractEndTime.apply(firstValue);
+        if (prevSummary != null) {
+            final V precedingLastValue = prevSummary.getLastValue(valueSerde);
             final FDate precedingLastValueTime = extractEndTime.apply(precedingLastValue);
-            final V firstValue = summary.getFirstValue(valueSerde);
-            final FDate firstValueTime = extractEndTime.apply(firstValue);
             if (precedingLastValueTime.isAfter(firstValueTime)) {
                 throw new IllegalStateException("precedingLastValueTime [" + precedingLastValueTime
                         + "] should not be after firstValueTime [" + firstValueTime + "]");
             }
-            final V lastValue = summary.getLastValue(valueSerde);
-            final FDate lastValueTime = extractEndTime.apply(lastValue);
-            if (firstValueTime.isAfterNotNullSafe(lastValueTime)) {
-                throw new IllegalStateException("firstValueTime [" + firstValueTime
-                        + "] should not be after lastValueTime [" + lastValueTime + "]");
-            }
+        }
+        final V lastValue = summary.getLastValue(valueSerde);
+        final FDate lastValueTime = extractEndTime.apply(lastValue);
+        if (firstValueTime.isAfterNotNullSafe(lastValueTime)) {
+            throw new IllegalStateException("firstValueTime [" + firstValueTime
+                    + "] should not be after lastValueTime [" + lastValueTime + "]");
         }
     }
 
@@ -836,6 +840,7 @@ public class TimeSeriesStorageCache<K, V> {
             }
         }
         long calculatedMemoryFileSize = 0;
+        MemoryFileSummary prevSummary = null;
         try (ICloseableIterator<MemoryFileSummary> summaries = readRangeFiles(null, null, DisabledLock.INSTANCE, null)
                 .iterator()) {
             boolean noFileFound = true;
@@ -849,6 +854,15 @@ public class TimeSeriesStorageCache<K, V> {
                             summary);
                     return true;
                 }
+                try {
+                    assertSummary(prevSummary, summary);
+                } catch (final Throwable t) {
+                    log.warn(
+                            "Table data for [%s] is inconsistent and needs to be reset. Inconsistent summary file: [%s:%s]",
+                            hashKey, summary, t.toString());
+                    return true;
+                }
+                prevSummary = summary;
                 noFileFound = false;
             }
             if (noFileFound) {
