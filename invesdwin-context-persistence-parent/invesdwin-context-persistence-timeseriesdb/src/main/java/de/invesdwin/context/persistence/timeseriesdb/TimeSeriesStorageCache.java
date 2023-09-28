@@ -188,10 +188,15 @@ public class TimeSeriesStorageCache<K, V> {
 
     public void finishFile(final FDate time, final V firstValue, final V lastValue, final long precedingValueCount,
             final int valueCount, final String memoryResourceUri, final long memoryOffset, final long memoryLength) {
-        final ArrayList<? extends RangeTableRow<String, FDate, MemoryFileSummary>> list = getAllRangeKeys(
-                DisabledLock.INSTANCE).getList();
-        if (!list.isEmpty()) {
-            final RangeTableRow<String, FDate, MemoryFileSummary> latestFile = list.get(list.size() - 1);
+        final MemoryFileSummary latestFile = storage.getFileLookupTable().getLatestValue(hashKey, FDates.MAX_DATE);
+        if (latestFile != null) {
+            final V precedingLastValue = valueSerde.fromBytes(latestFile.getLastValue());
+            final FDate precedingLastValueTime = extractEndTime.apply(precedingLastValue);
+            final FDate firstValueTime = extractEndTime.apply(firstValue);
+            if (precedingLastValueTime.isAfter(firstValueTime)) {
+                throw new IllegalStateException("precedingLastValueTime [" + precedingLastValueTime
+                        + "] should not be after firstValueTime [" + firstValueTime + "]");
+            }
         }
 
         final MemoryFileSummary summary = new MemoryFileSummary(valueSerde, firstValue, lastValue, precedingValueCount,
@@ -855,14 +860,8 @@ public class TimeSeriesStorageCache<K, V> {
      * get fragmented too much between updates
      */
     public synchronized PrepareForUpdateResult<V> prepareForUpdate(final boolean shouldRedoLastFile) {
-        final ArrayList<? extends RangeTableRow<String, FDate, MemoryFileSummary>> list = getAllRangeKeys(
-                DisabledLock.INSTANCE).getList();
-        final RangeTableRow<String, FDate, MemoryFileSummary> latestFile;
-        if (list.isEmpty()) {
-            latestFile = null;
-        } else {
-            latestFile = list.get(list.size() - 1);
-        }
+        final RangeTableRow<String, FDate, MemoryFileSummary> latestFile = storage.getFileLookupTable()
+                .getLatest(hashKey, FDates.MAX_DATE);
         final FDate updateFrom;
         final List<V> lastValues;
         final long addressOffset;
