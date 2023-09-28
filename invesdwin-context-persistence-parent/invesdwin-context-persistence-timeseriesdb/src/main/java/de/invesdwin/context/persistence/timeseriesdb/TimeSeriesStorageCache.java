@@ -858,8 +858,8 @@ public class TimeSeriesStorageCache<K, V> {
                     assertSummary(prevSummary, summary);
                 } catch (final Throwable t) {
                     log.warn(
-                            "Table data for [%s] is inconsistent and needs to be reset. Inconsistent summary file: [%s:%s]",
-                            hashKey, summary, t.toString());
+                            "Table data for [%s] is inconsistent and needs to be reset. Inconsistent summary file [%s]: [%s]",
+                            hashKey, t.toString(), summary);
                     return true;
                 }
                 prevSummary = summary;
