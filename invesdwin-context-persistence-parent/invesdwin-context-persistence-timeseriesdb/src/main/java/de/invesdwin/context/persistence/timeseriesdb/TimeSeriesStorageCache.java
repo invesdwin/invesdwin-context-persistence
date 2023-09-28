@@ -49,6 +49,7 @@ import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
+import de.invesdwin.util.concurrent.reference.MutableSoftReference;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.string.description.TextDescription;
@@ -136,7 +137,8 @@ public class TimeSeriesStorageCache<K, V> {
      * through to disk is still better for increased parallelity and for not having to iterate through each element of
      * the other hashkeys.
      */
-    private volatile ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>> cachedAllRangeKeys;
+    private volatile MutableSoftReference<ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>>> cachedAllRangeKeys = new MutableSoftReference<ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>>>(
+            null);
     private final Log log = new Log(this);
     @GuardedBy("this")
     private MemoryFileMetadata memoryFileMetadata;
@@ -186,6 +188,12 @@ public class TimeSeriesStorageCache<K, V> {
 
     public void finishFile(final FDate time, final V firstValue, final V lastValue, final long precedingValueCount,
             final int valueCount, final String memoryResourceUri, final long memoryOffset, final long memoryLength) {
+        final ArrayList<? extends RangeTableRow<String, FDate, MemoryFileSummary>> list = getAllRangeKeys(
+                DisabledLock.INSTANCE).getList();
+        if (!list.isEmpty()) {
+            final RangeTableRow<String, FDate, MemoryFileSummary> latestFile = list.get(list.size() - 1);
+        }
+
         final MemoryFileSummary summary = new MemoryFileSummary(valueSerde, firstValue, lastValue, precedingValueCount,
                 valueCount, memoryResourceUri, memoryOffset, memoryLength);
         storage.getFileLookupTable().put(hashKey, time, summary);
@@ -623,7 +631,7 @@ public class TimeSeriesStorageCache<K, V> {
         fileLookupTable_latestRangeKeyCache.clear();
         fileLookupTable_latestRangeKeyIndexCache.clear();
         FileBufferCache.remove(hashKey);
-        cachedAllRangeKeys = null;
+        cachedAllRangeKeys.set(null);
         cachedFirstValue = null;
         cachedLastValue = null;
         cachedSize = -1L;
@@ -910,11 +918,12 @@ public class TimeSeriesStorageCache<K, V> {
 
     private ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>> getAllRangeKeys(
             final Lock readLock) {
-        ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>> cachedAllRangeKeysCopy = cachedAllRangeKeys;
+        ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>> cachedAllRangeKeysCopy = cachedAllRangeKeys
+                .get();
         if (cachedAllRangeKeysCopy == null) {
             readLock.lock();
             try {
-                cachedAllRangeKeysCopy = cachedAllRangeKeys;
+                cachedAllRangeKeysCopy = cachedAllRangeKeys.get();
                 if (cachedAllRangeKeysCopy == null) {
                     try (ICloseableIterator<RangeTableRow<String, FDate, MemoryFileSummary>> range = storage
                             .getFileLookupTable()
@@ -923,7 +932,7 @@ public class TimeSeriesStorageCache<K, V> {
                         Lists.toListWithoutHasNext(range, allRangeKeys);
                         cachedAllRangeKeysCopy = new ArrayFileBufferCacheResult<RangeTableRow<String, FDate, MemoryFileSummary>>(
                                 allRangeKeys);
-                        cachedAllRangeKeys = cachedAllRangeKeysCopy;
+                        cachedAllRangeKeys.set(cachedAllRangeKeysCopy);
                     }
                 }
             } finally {
