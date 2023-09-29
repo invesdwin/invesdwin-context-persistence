@@ -3,11 +3,15 @@ package de.invesdwin.context.persistence.timeseriesdb;
 import java.io.Closeable;
 import java.io.File;
 
+import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
+import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.time.date.FDate;
 
 public interface ITimeSeriesDB<K, V> extends Closeable {
+
+    File getBaseDirectory();
 
     File getDirectory();
 
@@ -73,5 +77,15 @@ public interface ITimeSeriesDB<K, V> extends Closeable {
     void deleteRange(K key);
 
     String getName();
+
+    ISerde<V> getValueSerde();
+
+    Integer getValueFixedLength();
+
+    ICompressionFactory getCompressionFactory();
+
+    String hashKeyToString(K key);
+
+    FDate extractEndTime(V value);
 
 }

@@ -43,7 +43,7 @@ public class FileLiveSegmentTest extends ATest {
                 "testInverseOrder") {
 
             @Override
-            protected File getBaseDirectory() {
+            public File getBaseDirectory() {
                 return ContextProperties.getCacheDirectory();
             }
 
@@ -69,7 +69,7 @@ public class FileLiveSegmentTest extends ATest {
             }
 
             @Override
-            protected FDate extractEndTime(final Integer value) {
+            public FDate extractEndTime(final Integer value) {
                 return extractTime.get(value);
             }
 

@@ -12,6 +12,7 @@ import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftForwardUnitsLoop
 import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftBackUnitsLoop;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal.ILiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal.ReadLockedLiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal.SwitchingLiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
@@ -27,7 +28,7 @@ import de.invesdwin.util.time.date.FDates;
 import de.invesdwin.util.time.range.TimeRange;
 
 @ThreadSafe
-public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
+public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
 
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
     private final K key;
@@ -69,7 +70,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
             .asList(liveSegmentLatestValueIndexProvider, historicalSegmentLatestValueIndexProvider);
     private final int batchFlushInterval;
 
-    public LiveSegmentedTimeSeriesStorageCache(
+    public ALiveSegmentedTimeSeriesStorageCache(
             final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable, final K key,
             final int batchFlushInterval) {
         this.historicalSegmentTable = historicalSegmentTable;
@@ -300,12 +301,12 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
                     shiftForwardUnits) {
                 @Override
                 protected V getLatestValue(final long index) {
-                    return LiveSegmentedTimeSeriesStorageCache.this.getLatestValue(index);
+                    return ALiveSegmentedTimeSeriesStorageCache.this.getLatestValue(index);
                 }
 
                 @Override
                 protected long getLatestValueIndex(final FDate date) {
-                    return LiveSegmentedTimeSeriesStorageCache.this.getLatestValueIndex(date);
+                    return ALiveSegmentedTimeSeriesStorageCache.this.getLatestValueIndex(date);
                 }
 
                 @Override
@@ -315,7 +316,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
 
                 @Override
                 protected long size() {
-                    return LiveSegmentedTimeSeriesStorageCache.this.size();
+                    return ALiveSegmentedTimeSeriesStorageCache.this.size();
                 }
             };
             shiftForwardLoop.loop();
@@ -349,6 +350,7 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
                                     + "] should be before or equal to liveSegmentTo [" + segment.getTo() + "]");
                 }
                 liveSegment.convertLiveSegmentToHistorical();
+                onConvertLiveSegmentToHistoricalCompleted(liveSegment);
                 liveSegment.close();
                 liveSegment = null;
             }
@@ -357,12 +359,20 @@ public class LiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
                 liveSegment = new ReadLockedLiveSegment<K, V>(
                         new SwitchingLiveSegment<K, V>(segmentedKey, historicalSegmentTable, batchFlushInterval),
                         liveSegmentLock.readLock());
+                onNextLiveSegmentedCreated(liveSegment);
             }
             liveSegment.putNextLiveValue(nextLiveKey, nextLiveValue);
+            onPutNextLiveValue(liveSegment, nextLiveKey, nextLiveValue);
         } finally {
             liveWriteLock.unlock();
         }
     }
+
+    protected abstract void onNextLiveSegmentedCreated(ILiveSegment<K, V> liveSegment);
+
+    protected abstract void onPutNextLiveValue(ILiveSegment<K, V> liveSegment, FDate nextLiveKey, V nextLiveValue);
+
+    protected abstract void onConvertLiveSegmentToHistoricalCompleted(ILiveSegment<K, V> liveSegment);
 
     @Override
     public void close() {
