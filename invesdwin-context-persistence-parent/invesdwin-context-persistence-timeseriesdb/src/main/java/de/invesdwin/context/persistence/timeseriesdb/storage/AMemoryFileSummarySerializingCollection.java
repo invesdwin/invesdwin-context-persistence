@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb.storage;
 
 import java.io.File;
-import java.io.InputStream;
 import java.io.OutputStream;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -22,6 +21,7 @@ public abstract class AMemoryFileSummarySerializingCollection extends Serializin
     @Override
     protected abstract MemoryFileSummarySerde newSerde();
 
+    @Override
     protected abstract ICompressionFactory getCompressionFactory();
 
     @Override
@@ -29,8 +29,4 @@ public abstract class AMemoryFileSummarySerializingCollection extends Serializin
         return getCompressionFactory().newCompressor(out, ATimeSeriesUpdater.LARGE_COMPRESSOR);
     }
 
-    @Override
-    protected InputStream newDecompressor(final InputStream inputStream) {
-        return getCompressionFactory().newDecompressor(inputStream);
-    }
 }

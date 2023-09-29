@@ -99,13 +99,13 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
 
             @Override
-            protected OutputStream newCompressor(final OutputStream out) {
-                return compressionFactory.newCompressor(out, LARGE_COMPRESSOR);
+            protected ICompressionFactory getCompressionFactory() {
+                return compressionFactory;
             }
 
             @Override
-            protected InputStream newDecompressor(final InputStream inputStream) {
-                return compressionFactory.newDecompressor(inputStream);
+            protected OutputStream newCompressor(final OutputStream out) {
+                return getCompressionFactory().newCompressor(out, LARGE_COMPRESSOR);
             }
 
             @Override
@@ -530,13 +530,13 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
 
             @Override
-            protected OutputStream newCompressor(final OutputStream out) {
-                return compressionFactory.newCompressor(out, LARGE_COMPRESSOR);
+            protected ICompressionFactory getCompressionFactory() {
+                return compressionFactory;
             }
 
             @Override
-            protected InputStream newDecompressor(final InputStream inputStream) {
-                return compressionFactory.newDecompressor(inputStream);
+            protected OutputStream newCompressor(final OutputStream out) {
+                return getCompressionFactory().newCompressor(out, LARGE_COMPRESSOR);
             }
 
             @Override

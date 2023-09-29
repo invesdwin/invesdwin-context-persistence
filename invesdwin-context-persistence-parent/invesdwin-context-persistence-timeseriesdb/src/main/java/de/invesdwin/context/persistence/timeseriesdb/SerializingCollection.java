@@ -19,6 +19,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.lang3.SerializationException;
 
 import de.invesdwin.context.ContextProperties;
+import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.compression.lz4.LZ4Streams;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
@@ -182,13 +183,17 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
         return true;
     }
 
+    protected ICompressionFactory getCompressionFactory() {
+        return LZ4Streams.getDefaultCompressionFactory();
+    }
+
     protected OutputStream newCompressor(final OutputStream out) {
         //LZ4HC is read optimized, you can write optimize by using fastCompressor()
-        return LZ4Streams.newDefaultLZ4OutputStream(out);
+        return getCompressionFactory().newCompressor(out, false);
     }
 
     protected InputStream newDecompressor(final InputStream inputStream) {
-        return LZ4Streams.newDefaultLZ4InputStream(inputStream);
+        return getCompressionFactory().newDecompressor(inputStream);
     }
 
     protected ISerde<? extends E> newSerde() {

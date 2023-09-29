@@ -19,6 +19,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.SerializationException;
 
 import de.invesdwin.context.integration.compression.DisabledCompressionFactory;
+import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.ArrayFileBufferCacheResult;
@@ -583,14 +584,15 @@ public class TimeSeriesStorageCache<K, V> {
             }
 
             @Override
+            protected ICompressionFactory getCompressionFactory() {
+                return storage.getCompressionFactory();
+            }
+
+            @Override
             protected OutputStream newCompressor(final OutputStream out) {
                 return storage.getCompressionFactory().newCompressor(out, ATimeSeriesUpdater.LARGE_COMPRESSOR);
             }
 
-            @Override
-            protected InputStream newDecompressor(final InputStream inputStream) {
-                return storage.getCompressionFactory().newDecompressor(inputStream);
-            }
         };
     }
 

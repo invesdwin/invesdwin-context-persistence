@@ -3,12 +3,12 @@ package de.invesdwin.context.persistence.timeseriesdb.updater.progress;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -158,13 +158,13 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         }
 
         @Override
-        protected OutputStream newCompressor(final OutputStream out) {
-            return parent.getTable().getCompressionFactory().newCompressor(out, ATimeSeriesUpdater.LARGE_COMPRESSOR);
+        protected ICompressionFactory getCompressionFactory() {
+            return parent.getTable().getCompressionFactory();
         }
 
         @Override
-        protected InputStream newDecompressor(final InputStream inputStream) {
-            return parent.getTable().getCompressionFactory().newDecompressor(inputStream);
+        protected OutputStream newCompressor(final OutputStream out) {
+            return getCompressionFactory().newCompressor(out, ATimeSeriesUpdater.LARGE_COMPRESSOR);
         }
 
         @Override
