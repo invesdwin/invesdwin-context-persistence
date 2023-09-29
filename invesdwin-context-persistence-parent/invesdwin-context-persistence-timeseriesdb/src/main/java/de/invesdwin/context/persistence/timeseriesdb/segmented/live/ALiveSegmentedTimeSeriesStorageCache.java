@@ -12,7 +12,6 @@ import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftForwardUnitsLoop
 import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftBackUnitsLoop;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal.ILiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal.ReadLockedLiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal.SwitchingLiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
@@ -357,8 +356,15 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
             if (liveSegment == null) {
                 final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
                 liveSegment = new ReadLockedLiveSegment<K, V>(
-                        new SwitchingLiveSegment<K, V>(segmentedKey, historicalSegmentTable, batchFlushInterval),
-                        liveSegmentLock.readLock());
+                        new SwitchingLiveSegment<K, V>(segmentedKey, historicalSegmentTable, batchFlushInterval) {
+
+                            @Override
+                            protected void onFlushLiveSegment(final ICloseableIterable<V> flushedValues) {
+                                super.onFlushLiveSegment(flushedValues);
+                                onFlushLiveSegmentCompleted(this, flushedValues);
+                            }
+
+                        }, liveSegmentLock.readLock());
                 onNextLiveSegmentedCreated(liveSegment);
             }
             liveSegment.putNextLiveValue(nextLiveKey, nextLiveValue);
@@ -371,6 +377,9 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
     protected abstract void onNextLiveSegmentedCreated(ILiveSegment<K, V> liveSegment);
 
     protected abstract void onPutNextLiveValue(ILiveSegment<K, V> liveSegment, FDate nextLiveKey, V nextLiveValue);
+
+    protected abstract void onFlushLiveSegmentCompleted(ILiveSegment<K, V> liveSegment,
+            ICloseableIterable<V> flushedValues);
 
     protected abstract void onConvertLiveSegmentToHistoricalCompleted(ILiveSegment<K, V> liveSegment);
 

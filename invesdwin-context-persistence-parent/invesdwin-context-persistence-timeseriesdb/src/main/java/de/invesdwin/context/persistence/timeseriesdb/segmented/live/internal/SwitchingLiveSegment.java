@@ -9,6 +9,7 @@ import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftForwardUnitsLoop;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ILiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.util.collections.Arrays;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
@@ -352,11 +353,15 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     private void flushLiveSegment() {
-        persistent.putNextLiveValues(inProgress.rangeValues(inProgress.getFirstValueKey(), inProgress.getLastValueKey(),
-                DisabledLock.INSTANCE, null));
+        final ICloseableIterable<V> flushedValues = inProgress.rangeValues(inProgress.getFirstValueKey(),
+                inProgress.getLastValueKey(), DisabledLock.INSTANCE, null);
+        persistent.putNextLiveValues(flushedValues);
+        onFlushLiveSegment(flushedValues);
         inProgressSize = 0;
         inProgress.close();
     }
+
+    protected void onFlushLiveSegment(final ICloseableIterable<V> flushedValues) {}
 
     @Override
     public FDate getFirstValueKey() {

@@ -17,7 +17,6 @@ import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSer
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedTimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal.ILiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ITimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
@@ -77,6 +76,12 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
                     protected void onPutNextLiveValue(final ILiveSegment<K, V> liveSegment, final FDate nextLiveKey,
                             final V nextLiveValue) {
                         ALiveSegmentedTimeSeriesDB.this.onPutNextLiveValue(liveSegment, nextLiveKey, nextLiveValue);
+                    }
+
+                    @Override
+                    protected void onFlushLiveSegmentCompleted(final ILiveSegment<K, V> liveSegment,
+                            final ICloseableIterable<V> flushedValues) {
+                        ALiveSegmentedTimeSeriesDB.this.onFlushLiveSegmentCompleted(liveSegment, flushedValues);
                     }
 
                     @Override
@@ -279,6 +284,9 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
 
     protected void onPutNextLiveValue(final ILiveSegment<K, V> liveSegment, final FDate nextLiveKey,
             final V nextLiveValue) {}
+
+    protected void onFlushLiveSegmentCompleted(final ILiveSegment<K, V> liveSegment,
+            final ICloseableIterable<V> flushedValues) {}
 
     protected void onNextLiveSegmentedCreated(final ILiveSegment<K, V> liveSegment) {}
 

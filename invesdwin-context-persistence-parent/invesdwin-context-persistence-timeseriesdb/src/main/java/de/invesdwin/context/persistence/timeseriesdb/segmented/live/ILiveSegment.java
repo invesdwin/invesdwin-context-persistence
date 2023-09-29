@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal;
+package de.invesdwin.context.persistence.timeseriesdb.segmented.live;
 
 import java.io.Closeable;
 import java.util.concurrent.locks.Lock;
