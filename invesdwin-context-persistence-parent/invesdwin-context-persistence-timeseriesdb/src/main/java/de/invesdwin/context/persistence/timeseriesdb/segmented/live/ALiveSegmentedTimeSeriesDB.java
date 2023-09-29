@@ -17,6 +17,7 @@ import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSer
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedTimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal.ILiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ITimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
@@ -51,15 +52,33 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
             return true;
         }
     };
-    private final ALoadingCache<K, LiveSegmentedTimeSeriesStorageCache<K, V>> key_lookupTableCache;
+    private final ALoadingCache<K, ALiveSegmentedTimeSeriesStorageCache<K, V>> key_lookupTableCache;
 
     public ALiveSegmentedTimeSeriesDB(final String name) {
         this.historicalSegmentTable = new HistoricalSegmentTable(name);
-        this.key_lookupTableCache = new ALoadingCache<K, LiveSegmentedTimeSeriesStorageCache<K, V>>() {
+        this.key_lookupTableCache = new ALoadingCache<K, ALiveSegmentedTimeSeriesStorageCache<K, V>>() {
             @Override
-            protected LiveSegmentedTimeSeriesStorageCache<K, V> loadValue(final K key) {
-                return new LiveSegmentedTimeSeriesStorageCache<K, V>(historicalSegmentTable, key,
-                        getBatchFlushInterval());
+            protected ALiveSegmentedTimeSeriesStorageCache<K, V> loadValue(final K key) {
+                return new ALiveSegmentedTimeSeriesStorageCache<K, V>(historicalSegmentTable, key,
+                        getBatchFlushInterval()) {
+
+                    @Override
+                    protected void onNextLiveSegmentedCreated(final ILiveSegment<K, V> liveSegment) {
+                        ALiveSegmentedTimeSeriesDB.this.onNextLiveSegmentedCreated(liveSegment);
+                    }
+
+                    @Override
+                    protected void onPutNextLiveValue(final ILiveSegment<K, V> liveSegment, final FDate nextLiveKey,
+                            final V nextLiveValue) {
+                        ALiveSegmentedTimeSeriesDB.this.onPutNextLiveValue(liveSegment, nextLiveKey, nextLiveValue);
+                    }
+
+                    @Override
+                    protected void onConvertLiveSegmentToHistoricalCompleted(final ILiveSegment<K, V> liveSegment) {
+                        ALiveSegmentedTimeSeriesDB.this.onConvertLiveSegmentToHistoricalCompleted(liveSegment);
+                    }
+
+                };
             }
 
             @Override
@@ -233,12 +252,19 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
 
     protected void onSegmentCompleted(final SegmentedKey<K> segmentedKey, final ICloseableIterable<V> segmentValues) {}
 
+    protected void onConvertLiveSegmentToHistoricalCompleted(final ILiveSegment<K, V> liveSegment) {}
+
+    protected void onPutNextLiveValue(final ILiveSegment<K, V> liveSegment, final FDate nextLiveKey,
+            final V nextLiveValue) {}
+
+    protected void onNextLiveSegmentedCreated(final ILiveSegment<K, V> liveSegment) {}
+
     protected abstract String getElementsName();
 
     @Override
     public synchronized void close() {
         historicalSegmentTable.close();
-        for (final LiveSegmentedTimeSeriesStorageCache<K, V> cache : key_lookupTableCache.values()) {
+        for (final ALiveSegmentedTimeSeriesStorageCache<K, V> cache : key_lookupTableCache.values()) {
             cache.close();
         }
         key_lookupTableCache.clear();
@@ -296,7 +322,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         historicalSegmentTable.getLookupTableCache(segmentedKey.getKey()).maybeInitSegment(segmentedKey);
     }
 
-    private LiveSegmentedTimeSeriesStorageCache<K, V> getLookupTableCache(final K key) {
+    private ALiveSegmentedTimeSeriesStorageCache<K, V> getLookupTableCache(final K key) {
         return key_lookupTableCache.get(key);
     }
 
@@ -342,7 +368,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         final Lock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            final LiveSegmentedTimeSeriesStorageCache<K, V> lookupTableCache = getLookupTableCache(key);
+            final ALiveSegmentedTimeSeriesStorageCache<K, V> lookupTableCache = getLookupTableCache(key);
             if (index <= 0) {
                 return lookupTableCache.getFirstValue();
             } else if (index >= lookupTableCache.size()) {

@@ -150,6 +150,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
     protected abstract FDate extractEndTime(V value);
 
+    @Override
     public final String hashKeyToString(final K key) {
         return Files.normalizeFilename(innerHashKeyToString(key));
     }

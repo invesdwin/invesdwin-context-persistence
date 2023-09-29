@@ -350,14 +350,17 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         return key_lookupTableCache.get(key);
     }
 
+    @Override
     public ISerde<V> getValueSerde() {
         return valueSerde;
     }
 
+    @Override
     public ICompressionFactory getCompressionFactory() {
         return compressionFactory;
     }
 
+    @Override
     public final String hashKeyToString(final K key) {
         return Files.normalizeFilename(innerHashKeyToString(key));
     }
