@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal;
+package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 
 import java.io.File;
 import java.util.HashMap;
@@ -14,7 +14,6 @@ import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ILiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB.HistoricalSegmentTable;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
@@ -30,7 +29,7 @@ import de.invesdwin.util.time.date.FDates;
 import de.invesdwin.util.time.range.TimeRange;
 
 @NotThreadSafe
-public class HeapLiveSegmentTest extends ATest {
+public class RangeTableLiveSegmentTest extends ATest {
 
     @Test
     public void testInverseOrder() {
@@ -73,7 +72,7 @@ public class HeapLiveSegmentTest extends ATest {
 
             @Override
             protected String innerHashKeyToString(final FDate key) {
-                throw new UnsupportedOperationException();
+                return key.toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_MS);
             }
 
             @Override
@@ -98,7 +97,7 @@ public class HeapLiveSegmentTest extends ATest {
                 .ofType(HistoricalSegmentTable.class)
                 .in(timeSeriesDB)
                 .get();
-        final HeapLiveSegment<FDate, Integer> rangeTable = new HeapLiveSegment<FDate, Integer>(segmentedKey,
+        final RangeTableLiveSegment<FDate, Integer> rangeTable = new RangeTableLiveSegment<FDate, Integer>(segmentedKey,
                 historicalSegmentTable);
         final FDate now = FDateBuilder.newDate(2000);
         final FDate oneDate = now.addDays(1);

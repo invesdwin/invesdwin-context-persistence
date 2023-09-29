@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal;
+package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 
 import java.util.Map.Entry;
 import java.util.NavigableMap;
@@ -11,9 +11,8 @@ import javax.annotation.concurrent.NotThreadSafe;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftForwardUnitsLoop;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ILiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ATransformingIterable;
@@ -33,14 +32,14 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
     private static final Log LOG = new Log(HeapLiveSegment.class);
     private final NavigableMap<Long, V> values = ILockCollectionFactory.getInstance(false).newTreeMap();
     private final SegmentedKey<K> segmentedKey;
-    private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
+    private final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable;
     private FDate firstValueKey;
     private final IBufferingIterator<V> firstValue = new BufferingIterator<>();
     private FDate lastValueKey;
     private final IBufferingIterator<V> lastValue = new BufferingIterator<>();
 
     public HeapLiveSegment(final SegmentedKey<K> segmentedKey,
-            final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable) {
+            final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable) {
         this.segmentedKey = segmentedKey;
         this.historicalSegmentTable = historicalSegmentTable;
     }
@@ -268,7 +267,7 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
     @Override
     public void convertLiveSegmentToHistorical() {
         final ASegmentedTimeSeriesStorageCache<K, V> lookupTableCache = historicalSegmentTable
-                .getLookupTableCache(getSegmentedKey().getKey());
+                .getSegmentedLookupTableCache(getSegmentedKey().getKey());
         final boolean initialized = lookupTableCache.maybeInitSegment(getSegmentedKey(),
                 new Function<SegmentedKey<K>, ICloseableIterable<? extends V>>() {
                     @Override
@@ -290,6 +289,16 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
     @Override
     public FDate getLastValueKey() {
         return lastValueKey;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public <T> T unwrap(final Class<T> type) {
+        if (type.isAssignableFrom(getClass())) {
+            return (T) this;
+        } else {
+            return null;
+        }
     }
 
 }

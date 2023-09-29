@@ -32,7 +32,7 @@ import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
 
 @ThreadSafe
-public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
+public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V> {
 
     private final String name;
     private final ISerde<V> valueSerde;
@@ -349,6 +349,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         return name;
     }
 
+    @Override
     public TimeSeriesStorageCache<K, V> getLookupTableCache(final K key) {
         return key_lookupTableCache.get(key);
     }

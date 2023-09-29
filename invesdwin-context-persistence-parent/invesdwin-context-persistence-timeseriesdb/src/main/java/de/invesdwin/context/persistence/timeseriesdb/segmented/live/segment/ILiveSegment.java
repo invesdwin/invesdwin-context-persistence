@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb.segmented.live;
+package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 
 import java.io.Closeable;
 import java.util.concurrent.locks.Lock;
@@ -42,5 +42,7 @@ public interface ILiveSegment<K, V> extends Closeable {
 
     @Override
     void close();
+
+    <T> T unwrap(Class<T> type);
 
 }

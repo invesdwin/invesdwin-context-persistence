@@ -1,11 +1,10 @@
-package de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal;
+package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 
 import java.util.concurrent.locks.Lock;
 
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ILiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.concurrent.lock.ILock;
@@ -174,6 +173,16 @@ public class ReadLockedLiveSegment<K, V> implements ILiveSegment<K, V> {
     public void close() {
         //don't lock
         delegate.close();
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public <T> T unwrap(final Class<T> type) {
+        if (type.isAssignableFrom(getClass())) {
+            return (T) this;
+        } else {
+            return delegate.unwrap(type);
+        }
     }
 
 }

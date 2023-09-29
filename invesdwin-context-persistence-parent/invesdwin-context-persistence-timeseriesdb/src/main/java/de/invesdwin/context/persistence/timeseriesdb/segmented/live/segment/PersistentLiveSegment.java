@@ -1,16 +1,15 @@
-package de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal;
+package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 
 import java.util.concurrent.locks.Lock;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
+import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesDB;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentStatus;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ILiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
@@ -30,13 +29,13 @@ import de.invesdwin.util.time.range.TimeRange;
 public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     private final SegmentedKey<K> segmentedKey;
-    private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
-    private final ASegmentedTimeSeriesDB<K, V>.SegmentedTable table;
+    private final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable;
+    private final ITimeSeriesDBInternals<SegmentedKey<K>, V> table;
     private final String hashKey;
     private boolean empty = true;
 
     public PersistentLiveSegment(final SegmentedKey<K> segmentedKey,
-            final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable) {
+            final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable) {
         this.segmentedKey = segmentedKey;
         this.historicalSegmentTable = historicalSegmentTable;
         this.table = historicalSegmentTable.getSegmentedTable();
@@ -211,9 +210,19 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
                 segmentStatusTable.put(hashKey, segmentedKey.getSegment(), SegmentStatus.COMPLETE);
                 final ICloseableIterable<V> rangeValues = rangeValues(segmentedKey.getSegment().getFrom(),
                         segmentedKey.getSegment().getTo(), DisabledLock.INSTANCE, null);
-                historicalSegmentTable.getLookupTableCache(segmentedKey.getKey())
+                historicalSegmentTable.getSegmentedLookupTableCache(segmentedKey.getKey())
                         .onSegmentCompleted(segmentedKey, rangeValues);
             }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public <T> T unwrap(final Class<T> type) {
+        if (type.isAssignableFrom(getClass())) {
+            return (T) this;
+        } else {
+            return null;
         }
     }
 

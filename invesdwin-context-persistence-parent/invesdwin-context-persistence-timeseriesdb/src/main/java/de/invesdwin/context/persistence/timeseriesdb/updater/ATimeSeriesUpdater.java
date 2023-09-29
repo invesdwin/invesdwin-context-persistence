@@ -9,7 +9,8 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
-import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
+import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
+import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseriesdb.PrepareForUpdateResult;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
@@ -38,7 +39,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     public static final boolean LARGE_COMPRESSOR = true;
 
     private final ISerde<V> valueSerde;
-    private final ATimeSeriesDB<K, V> table;
+    private final ITimeSeriesDBInternals<K, V> table;
     private final TimeSeriesStorageCache<K, V> lookupTable;
     private final File updateLockFile;
 
@@ -47,7 +48,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     private volatile FDate maxTime = null;
     private volatile int count = 0;
 
-    public ATimeSeriesUpdater(final K key, final ATimeSeriesDB<K, V> table) {
+    public ATimeSeriesUpdater(final K key, final ITimeSeriesDBInternals<K, V> table) {
         if (key == null) {
             throw new NullPointerException("key should not be null");
         }
@@ -167,7 +168,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             }
 
             @Override
-            public ATimeSeriesDB<K, V> getTable() {
+            public ITimeSeriesDB<K, V> getTable() {
                 return table;
             }
 

@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal;
+package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -24,9 +24,8 @@ import de.invesdwin.context.persistence.timeseriesdb.buffer.ArrayFileBufferCache
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftForwardUnitsLoopIntIndex;
 import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftForwardUnitsLoop;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ILiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.util.collections.circular.CircularGenericArray;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
@@ -55,7 +54,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     private static final Log LOG = new Log(FileLiveSegment.class);
     private final String hashKey;
     private final SegmentedKey<K> segmentedKey;
-    private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
+    private final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable;
     private final ICompressionFactory compressionFactory;
     private SerializingCollection<V> values;
     @GuardedBy("this")
@@ -68,11 +67,11 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     private WeakReference<ArrayFileBufferCacheResult<V>> inMemoryCacheHolder;
 
     public FileLiveSegment(final SegmentedKey<K> segmentedKey,
-            final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable) {
+            final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable) {
         this.hashKey = historicalSegmentTable.hashKeyToString(segmentedKey);
         this.segmentedKey = segmentedKey;
         this.historicalSegmentTable = historicalSegmentTable;
-        this.compressionFactory = historicalSegmentTable.getStorage().getCompressionFactory();
+        this.compressionFactory = historicalSegmentTable.getCompressionFactory();
         for (int i = 0; i < LAST_VALUE_HISTORY; i++) {
             lastValues.add(new LastValue<>());
         }
@@ -91,12 +90,12 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         return new SerializingCollection<V>(name, file, false) {
             @Override
             protected ISerde<V> newSerde() {
-                return historicalSegmentTable.newValueSerde();
+                return historicalSegmentTable.getValueSerde();
             }
 
             @Override
             protected Integer newFixedLength() {
-                return historicalSegmentTable.newValueFixedLength();
+                return historicalSegmentTable.getValueFixedLength();
             }
 
             @Override
@@ -481,7 +480,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             needsFlush = false;
         }
         final ASegmentedTimeSeriesStorageCache<K, V> lookupTableCache = historicalSegmentTable
-                .getLookupTableCache(getSegmentedKey().getKey());
+                .getSegmentedLookupTableCache(getSegmentedKey().getKey());
         final boolean initialized = lookupTableCache.maybeInitSegment(getSegmentedKey(),
                 new Function<SegmentedKey<K>, ICloseableIterable<? extends V>>() {
                     @Override
@@ -522,12 +521,12 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         return new SerializingCollection<V>(name, values.getFile(), true) {
             @Override
             protected ISerde<V> newSerde() {
-                return historicalSegmentTable.newValueSerde();
+                return historicalSegmentTable.getValueSerde();
             }
 
             @Override
             protected Integer newFixedLength() {
-                return historicalSegmentTable.newValueFixedLength();
+                return historicalSegmentTable.getValueFixedLength();
             }
 
             @Override
@@ -618,6 +617,16 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         @Override
         public String toString() {
             return Strings.asString(key);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public <T> T unwrap(final Class<T> type) {
+        if (type.isAssignableFrom(getClass())) {
+            return (T) this;
+        } else {
+            return null;
         }
     }
 

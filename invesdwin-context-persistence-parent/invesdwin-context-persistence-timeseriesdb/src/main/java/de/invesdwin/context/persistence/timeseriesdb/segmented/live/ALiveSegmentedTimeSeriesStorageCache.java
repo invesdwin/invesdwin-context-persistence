@@ -10,10 +10,12 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftForwardUnitsLoopLongIndex;
 import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftBackUnitsLoop;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal.ReadLockedLiveSegment;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal.SwitchingLiveSegment;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment.ILiveSegment;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment.ReadLockedLiveSegment;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment.SwitchingLiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.util.collections.Arrays;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
@@ -122,7 +124,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
                 //no live segment, go with historical
                 final Lock compositeReadLock = Locks.newCompositeLock(readLock,
                         historicalSegmentTable.getTableLock(key).readLock());
-                return historicalSegmentTable.getLookupTableCache(key)
+                return historicalSegmentTable.getSegmentedLookupTableCache(key)
                         .readRangeValues(from, to, compositeReadLock, skipFileFunction);
             } else {
                 final FDate liveSegmentFrom = liveSegment.getSegmentedKey().getSegment().getFrom();
@@ -130,7 +132,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
                     //live segment is after requested range, go with historical
                     final Lock compositeReadLock = Locks.newCompositeLock(readLock,
                             historicalSegmentTable.getTableLock(key).readLock());
-                    return historicalSegmentTable.getLookupTableCache(key)
+                    return historicalSegmentTable.getSegmentedLookupTableCache(key)
                             .readRangeValues(from, to, compositeReadLock, skipFileFunction);
                 } else if (liveSegmentFrom.isBeforeOrEqualTo(from)) {
                     //historical segment is before requested range, go with live
@@ -139,7 +141,8 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
                     //use both segments
                     final Lock compositeReadLock = Locks.newCompositeLock(readLock,
                             historicalSegmentTable.getTableLock(key).readLock());
-                    final ICloseableIterable<V> historicalRangeValues = historicalSegmentTable.getLookupTableCache(key)
+                    final ICloseableIterable<V> historicalRangeValues = historicalSegmentTable
+                            .getSegmentedLookupTableCache(key)
                             .readRangeValues(from, liveSegmentFrom.addMilliseconds(-1), compositeReadLock,
                                     skipFileFunction);
                     final ICloseableIterable<V> liveRangeValues = liveSegment.rangeValues(liveSegmentFrom, to, readLock,
@@ -160,7 +163,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
                 //no live segment, go with historical
                 final Lock compositeReadLock = Locks.newCompositeLock(readLock,
                         historicalSegmentTable.getTableLock(key).readLock());
-                return historicalSegmentTable.getLookupTableCache(key)
+                return historicalSegmentTable.getSegmentedLookupTableCache(key)
                         .readRangeValuesReverse(from, to, compositeReadLock, skipFileFunction);
             } else {
                 final FDate liveSegmentFrom = liveSegment.getSegmentedKey().getSegment().getFrom();
@@ -168,7 +171,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
                     //live segment is after requested range, go with historical
                     final Lock compositeReadLock = Locks.newCompositeLock(readLock,
                             historicalSegmentTable.getTableLock(key).readLock());
-                    return historicalSegmentTable.getLookupTableCache(key)
+                    return historicalSegmentTable.getSegmentedLookupTableCache(key)
                             .readRangeValuesReverse(from, to, compositeReadLock, skipFileFunction);
                 } else if (liveSegmentFrom.isBeforeOrEqualTo(to)) {
                     //historical segment is before requested range, go with live
@@ -179,7 +182,8 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
                             readLock, skipFileFunction);
                     final Lock compositeReadLock = Locks.newCompositeLock(readLock,
                             historicalSegmentTable.getTableLock(key).readLock());
-                    final ICloseableIterable<V> historicalRangeValues = historicalSegmentTable.getLookupTableCache(key)
+                    final ICloseableIterable<V> historicalRangeValues = historicalSegmentTable
+                            .getSegmentedLookupTableCache(key)
                             .readRangeValuesReverse(liveSegmentFrom.addMilliseconds(-1), to, compositeReadLock,
                                     skipFileFunction);
                     return new FlatteningIterable<V>(liveRangeValues, historicalRangeValues);
@@ -349,39 +353,30 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
                                     + "] should be before or equal to liveSegmentTo [" + segment.getTo() + "]");
                 }
                 liveSegment.convertLiveSegmentToHistorical();
-                onConvertLiveSegmentToHistoricalCompleted(liveSegment);
                 liveSegment.close();
                 liveSegment = null;
             }
             if (liveSegment == null) {
                 final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
                 liveSegment = new ReadLockedLiveSegment<K, V>(
-                        new SwitchingLiveSegment<K, V>(segmentedKey, historicalSegmentTable, batchFlushInterval) {
-
-                            @Override
-                            protected void onFlushLiveSegment(final ICloseableIterable<V> flushedValues) {
-                                super.onFlushLiveSegment(flushedValues);
-                                onFlushLiveSegmentCompleted(this, flushedValues);
-                            }
-
-                        }, liveSegmentLock.readLock());
-                onNextLiveSegmentedCreated(liveSegment);
+                        newLiveSegment(segmentedKey, historicalSegmentTable, batchFlushInterval),
+                        liveSegmentLock.readLock());
             }
             liveSegment.putNextLiveValue(nextLiveKey, nextLiveValue);
-            onPutNextLiveValue(liveSegment, nextLiveKey, nextLiveValue);
         } finally {
             liveWriteLock.unlock();
         }
     }
 
-    protected abstract void onNextLiveSegmentedCreated(ILiveSegment<K, V> liveSegment);
+    protected ILiveSegment<K, V> newLiveSegment(final SegmentedKey<K> segmentedKey,
+            final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable, final int batchFlushInterval) {
+        return newDefaultLiveSegment(segmentedKey, historicalSegmentTable, batchFlushInterval);
+    }
 
-    protected abstract void onPutNextLiveValue(ILiveSegment<K, V> liveSegment, FDate nextLiveKey, V nextLiveValue);
-
-    protected abstract void onFlushLiveSegmentCompleted(ILiveSegment<K, V> liveSegment,
-            ICloseableIterable<V> flushedValues);
-
-    protected abstract void onConvertLiveSegmentToHistoricalCompleted(ILiveSegment<K, V> liveSegment);
+    public static <K, V> ILiveSegment<K, V> newDefaultLiveSegment(final SegmentedKey<K> segmentedKey,
+            final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable, final int batchFlushInterval) {
+        return new SwitchingLiveSegment<>(segmentedKey, historicalSegmentTable, batchFlushInterval);
+    }
 
     @Override
     public void close() {

@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb.segmented.live.internal;
+package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 
 import java.util.List;
 import java.util.concurrent.locks.Lock;
@@ -7,9 +7,8 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftForwardUnitsLoop;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ILiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.util.collections.Arrays;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
@@ -25,7 +24,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     private static final Log LOG = new Log(SwitchingLiveSegment.class);
     private final SegmentedKey<K> segmentedKey;
-    private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
+    private final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable;
     private final ILiveSegment<K, V> inProgress;
     private final PersistentLiveSegment<K, V> persistent;
     private final List<ILiveSegment<K, V>> latestValueProviders;
@@ -39,8 +38,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @SuppressWarnings("unchecked")
     public SwitchingLiveSegment(final SegmentedKey<K> segmentedKey,
-            final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable,
-            final int batchFlushInterval) {
+            final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable, final int batchFlushInterval) {
         this.segmentedKey = segmentedKey;
         this.historicalSegmentTable = historicalSegmentTable;
         this.inProgress = new FileLiveSegment<>(segmentedKey, historicalSegmentTable);
@@ -371,6 +369,20 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
     @Override
     public FDate getLastValueKey() {
         return lastValueKey;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public <T> T unwrap(final Class<T> type) {
+        if (type.isAssignableFrom(getClass())) {
+            return (T) this;
+        } else {
+            final T unwrapped = inProgress.unwrap(type);
+            if (unwrapped != null) {
+                return unwrapped;
+            }
+            return persistent.unwrap(type);
+        }
     }
 
 }

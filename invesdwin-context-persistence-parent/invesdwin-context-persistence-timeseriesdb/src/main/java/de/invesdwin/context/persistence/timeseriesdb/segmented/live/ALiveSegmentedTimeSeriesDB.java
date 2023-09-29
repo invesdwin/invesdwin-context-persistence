@@ -11,12 +11,12 @@ import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.compression.lz4.LZ4Streams;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
-import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesDB;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedTimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment.ILiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ITimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
@@ -35,7 +35,7 @@ import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
 
 @ThreadSafe
-public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
+public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmentedTimeSeriesDBInternals<K, V> {
 
     private final ISerde<V> valueSerde;
     private final Integer valueFixedLength;
@@ -54,39 +54,25 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
             return true;
         }
     };
-    private final ALoadingCache<K, ALiveSegmentedTimeSeriesStorageCache<K, V>> key_lookupTableCache;
+    private final ALoadingCache<K, ALiveSegmentedTimeSeriesStorageCache<K, V>> key_liveSegmentedLookupTableCache;
 
     public ALiveSegmentedTimeSeriesDB(final String name) {
         this.valueSerde = newValueSerde();
         this.valueFixedLength = newValueFixedLength();
         this.compressionFactory = newCompressionFactory();
         this.historicalSegmentTable = new HistoricalSegmentTable(name);
-        this.key_lookupTableCache = new ALoadingCache<K, ALiveSegmentedTimeSeriesStorageCache<K, V>>() {
+        this.key_liveSegmentedLookupTableCache = new ALoadingCache<K, ALiveSegmentedTimeSeriesStorageCache<K, V>>() {
             @Override
             protected ALiveSegmentedTimeSeriesStorageCache<K, V> loadValue(final K key) {
                 return new ALiveSegmentedTimeSeriesStorageCache<K, V>(historicalSegmentTable, key,
                         getBatchFlushInterval()) {
 
                     @Override
-                    protected void onNextLiveSegmentedCreated(final ILiveSegment<K, V> liveSegment) {
-                        ALiveSegmentedTimeSeriesDB.this.onNextLiveSegmentedCreated(liveSegment);
-                    }
-
-                    @Override
-                    protected void onPutNextLiveValue(final ILiveSegment<K, V> liveSegment, final FDate nextLiveKey,
-                            final V nextLiveValue) {
-                        ALiveSegmentedTimeSeriesDB.this.onPutNextLiveValue(liveSegment, nextLiveKey, nextLiveValue);
-                    }
-
-                    @Override
-                    protected void onFlushLiveSegmentCompleted(final ILiveSegment<K, V> liveSegment,
-                            final ICloseableIterable<V> flushedValues) {
-                        ALiveSegmentedTimeSeriesDB.this.onFlushLiveSegmentCompleted(liveSegment, flushedValues);
-                    }
-
-                    @Override
-                    protected void onConvertLiveSegmentToHistoricalCompleted(final ILiveSegment<K, V> liveSegment) {
-                        ALiveSegmentedTimeSeriesDB.this.onConvertLiveSegmentToHistoricalCompleted(liveSegment);
+                    protected ILiveSegment<K, V> newLiveSegment(final SegmentedKey<K> segmentedKey,
+                            final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable,
+                            final int batchFlushInterval) {
+                        return ALiveSegmentedTimeSeriesDB.this.newLiveSegment(segmentedKey, historicalSegmentTable,
+                                batchFlushInterval);
                     }
 
                 };
@@ -157,6 +143,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
 
     protected abstract String innerHashKeyToString(K key);
 
+    @Override
     public final String hashKeyToString(final SegmentedKey<K> segmentedKey) {
         return historicalSegmentTable.hashKeyToString(segmentedKey);
     }
@@ -207,16 +194,6 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         }
 
         @Override
-        public SegmentedTimeSeriesStorage getStorage() {
-            return super.getStorage();
-        }
-
-        @Override
-        public ASegmentedTimeSeriesDB<K, V>.SegmentedTable getSegmentedTable() {
-            return super.getSegmentedTable();
-        }
-
-        @Override
         public File getBaseDirectory() {
             return ALiveSegmentedTimeSeriesDB.this.getBaseDirectory();
         }
@@ -239,11 +216,6 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         @Override
         public FDate getLastAvailableHistoricalSegmentTo(final K key, final FDate updateTo) {
             return ALiveSegmentedTimeSeriesDB.this.getLastAvailableHistoricalSegmentTo(key, updateTo);
-        }
-
-        @Override
-        public ASegmentedTimeSeriesStorageCache<K, V> getLookupTableCache(final K key) {
-            return super.getLookupTableCache(key);
         }
 
         @Override
@@ -280,25 +252,24 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
 
     protected void onSegmentCompleted(final SegmentedKey<K> segmentedKey, final ICloseableIterable<V> segmentValues) {}
 
-    protected void onConvertLiveSegmentToHistoricalCompleted(final ILiveSegment<K, V> liveSegment) {}
-
-    protected void onPutNextLiveValue(final ILiveSegment<K, V> liveSegment, final FDate nextLiveKey,
-            final V nextLiveValue) {}
-
     protected void onFlushLiveSegmentCompleted(final ILiveSegment<K, V> liveSegment,
             final ICloseableIterable<V> flushedValues) {}
 
-    protected void onNextLiveSegmentedCreated(final ILiveSegment<K, V> liveSegment) {}
+    protected ILiveSegment<K, V> newLiveSegment(final SegmentedKey<K> segmentedKey,
+            final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable, final int batchFlushInterval) {
+        return ALiveSegmentedTimeSeriesStorageCache.newDefaultLiveSegment(segmentedKey, historicalSegmentTable,
+                batchFlushInterval);
+    }
 
     protected abstract String getElementsName();
 
     @Override
     public synchronized void close() {
         historicalSegmentTable.close();
-        for (final ALiveSegmentedTimeSeriesStorageCache<K, V> cache : key_lookupTableCache.values()) {
+        for (final ALiveSegmentedTimeSeriesStorageCache<K, V> cache : key_liveSegmentedLookupTableCache.values()) {
             cache.close();
         }
-        key_lookupTableCache.clear();
+        key_liveSegmentedLookupTableCache.clear();
         key_tableLock.clear();
     }
 
@@ -317,7 +288,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         final Lock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            return getLookupTableCache(key).isEmptyOrInconsistent();
+            return getLiveSegmentedLookupTableCache(key).isEmptyOrInconsistent();
         } finally {
             readLock.unlock();
         }
@@ -338,7 +309,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
             throw new RuntimeException(e);
         }
         try {
-            getLookupTableCache(key).deleteAll();
+            getLiveSegmentedLookupTableCache(key).deleteAll();
         } finally {
             writeLock.unlock();
         }
@@ -350,11 +321,12 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
     }
 
     public void maybeInitSegment(final SegmentedKey<K> segmentedKey) {
-        historicalSegmentTable.getLookupTableCache(segmentedKey.getKey()).maybeInitSegment(segmentedKey);
+        historicalSegmentTable.getSegmentedLookupTableCache(segmentedKey.getKey()).maybeInitSegment(segmentedKey);
     }
 
-    private ALiveSegmentedTimeSeriesStorageCache<K, V> getLookupTableCache(final K key) {
-        return key_lookupTableCache.get(key);
+    @Override
+    public ALiveSegmentedTimeSeriesStorageCache<K, V> getLiveSegmentedLookupTableCache(final K key) {
+        return key_liveSegmentedLookupTableCache.get(key);
     }
 
     @Override
@@ -373,11 +345,11 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         readLock.lock();
         try {
             if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
-                return getLookupTableCache(key).getFirstValue();
+                return getLiveSegmentedLookupTableCache(key).getFirstValue();
             } else if (date.isAfterOrEqualTo(FDates.MAX_DATE)) {
-                return getLookupTableCache(key).getLastValue();
+                return getLiveSegmentedLookupTableCache(key).getLastValue();
             } else {
-                return getLookupTableCache(key).getLatestValue(date);
+                return getLiveSegmentedLookupTableCache(key).getLatestValue(date);
             }
         } finally {
             readLock.unlock();
@@ -399,7 +371,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         final Lock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            final ALiveSegmentedTimeSeriesStorageCache<K, V> lookupTableCache = getLookupTableCache(key);
+            final ALiveSegmentedTimeSeriesStorageCache<K, V> lookupTableCache = getLiveSegmentedLookupTableCache(key);
             if (index <= 0) {
                 return lookupTableCache.getFirstValue();
             } else if (index >= lookupTableCache.size()) {
@@ -428,15 +400,15 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         readLock.lock();
         try {
             if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
-                if (getLookupTableCache(key).size() == 0) {
+                if (getLiveSegmentedLookupTableCache(key).size() == 0) {
                     return -1L;
                 } else {
                     return 0L;
                 }
             } else if (date.isAfterOrEqualTo(FDates.MAX_DATE)) {
-                return getLookupTableCache(key).size() - 1;
+                return getLiveSegmentedLookupTableCache(key).size() - 1;
             } else {
-                return getLookupTableCache(key).getLatestValueIndex(date);
+                return getLiveSegmentedLookupTableCache(key).getLatestValueIndex(date);
             }
         } finally {
             readLock.unlock();
@@ -448,7 +420,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         final Lock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            return getLookupTableCache(key).size();
+            return getLiveSegmentedLookupTableCache(key).size();
         } finally {
             readLock.unlock();
         }
@@ -472,9 +444,9 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
             if (date == null) {
                 return null;
             } else if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
-                return getLookupTableCache(key).getFirstValue();
+                return getLiveSegmentedLookupTableCache(key).getFirstValue();
             } else {
-                return getLookupTableCache(key).getPreviousValue(date, shiftBackUnits);
+                return getLiveSegmentedLookupTableCache(key).getPreviousValue(date, shiftBackUnits);
             }
         } finally {
             readLock.unlock();
@@ -497,9 +469,9 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         readLock.lock();
         try {
             if (date.isAfterOrEqualTo(FDates.MAX_DATE)) {
-                return getLookupTableCache(key).getLastValue();
+                return getLiveSegmentedLookupTableCache(key).getLastValue();
             } else {
-                return getLookupTableCache(key).getNextValue(date, shiftForwardUnits);
+                return getLiveSegmentedLookupTableCache(key).getNextValue(date, shiftForwardUnits);
             }
         } finally {
             readLock.unlock();
@@ -519,7 +491,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         final Lock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            getLookupTableCache(key).putNextLiveValue(nextLiveValue);
+            getLiveSegmentedLookupTableCache(key).putNextLiveValue(nextLiveValue);
         } finally {
             readLock.unlock();
         }
@@ -550,7 +522,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
 
                 private ICloseableIterator<V> getReadRangeValues() {
                     if (finalizer.readRangeValues == null) {
-                        finalizer.readRangeValues = getLookupTableCache(key)
+                        finalizer.readRangeValues = getLiveSegmentedLookupTableCache(key)
                                 .readRangeValuesReverse(from, to, getTableLock(key).readLock(), null)
                                 .iterator();
                     }
@@ -601,7 +573,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
 
                 private ICloseableIterator<V> getReadRangeValues() {
                     if (finalizer.readRangeValues == null) {
-                        finalizer.readRangeValues = getLookupTableCache(key)
+                        finalizer.readRangeValues = getLiveSegmentedLookupTableCache(key)
                                 .readRangeValues(from, to, getTableLock(key).readLock(), null)
                                 .iterator();
                     }

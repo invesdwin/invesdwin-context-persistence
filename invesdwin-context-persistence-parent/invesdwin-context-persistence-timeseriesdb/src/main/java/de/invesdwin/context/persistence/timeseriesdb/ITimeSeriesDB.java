@@ -78,13 +78,13 @@ public interface ITimeSeriesDB<K, V> extends Closeable {
 
     String getName();
 
+    String hashKeyToString(K key);
+
     ISerde<V> getValueSerde();
 
     Integer getValueFixedLength();
 
     ICompressionFactory getCompressionFactory();
-
-    String hashKeyToString(K key);
 
     FDate extractEndTime(V value);
 
