@@ -162,9 +162,6 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
 
                 @Override
                 public Percent getProgress() {
-                    if (estimatedTo == null) {
-                        return null;
-                    }
                     final FDate from = getMinTime();
                     if (from == null) {
                         return null;
