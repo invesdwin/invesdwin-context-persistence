@@ -368,6 +368,39 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
         }
     }
 
+    public void maybeInitLiveSegment(final FDate nextLiveKey) {
+        final ILock liveWriteLock = liveSegmentLock.writeLock();
+        liveWriteLock.lock();
+        try {
+            if (liveSegment != null) {
+                return;
+            }
+            final FDate lastAvailableHistoricalSegmentTo = historicalSegmentTable
+                    .getLastAvailableHistoricalSegmentTo(key, nextLiveKey);
+            final ISegmentFinder segmentFinder = historicalSegmentTable.getSegmentFinder(key);
+            final TimeRange segment = segmentFinder.getCacheQuery().getValue(segmentFinder.getDay(nextLiveKey));
+            if (lastAvailableHistoricalSegmentTo.isAfterNotNullSafe(segment.getFrom())
+                    /*
+                     * allow equals since on first value of the next bar we might get an overlap for once when the last
+                     * available time was updated beforehand
+                     */
+                    && !lastAvailableHistoricalSegmentTo.equalsNotNullSafe(segment.getTo())) {
+                throw new IllegalStateException("lastAvailableHistoricalSegmentTo [" + lastAvailableHistoricalSegmentTo
+                        + "] should be before or equal to liveSegmentFrom [" + segment.getFrom() + "]");
+            }
+            final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
+            liveSegment = new ReadLockedLiveSegment<K, V>(
+                    newLiveSegment(segmentedKey, historicalSegmentTable, batchFlushInterval),
+                    liveSegmentLock.readLock());
+        } finally {
+            liveWriteLock.unlock();
+        }
+    }
+
+    public ReadLockedLiveSegment<K, V> getLiveSegment() {
+        return liveSegment;
+    }
+
     protected ILiveSegment<K, V> newLiveSegment(final SegmentedKey<K> segmentedKey,
             final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable, final int batchFlushInterval) {
         return newDefaultLiveSegment(segmentedKey, historicalSegmentTable, batchFlushInterval);
