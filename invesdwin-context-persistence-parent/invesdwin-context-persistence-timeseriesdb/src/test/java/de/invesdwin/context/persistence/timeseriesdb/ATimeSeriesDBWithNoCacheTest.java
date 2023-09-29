@@ -89,12 +89,12 @@ public class ATimeSeriesDBWithNoCacheTest extends ATest {
             }
 
             @Override
-            protected FDate extractEndTime(final FDate value) {
+            public FDate extractEndTime(final FDate value) {
                 return value;
             }
 
             @Override
-            protected File getBaseDirectory() {
+            public File getBaseDirectory() {
                 return ContextProperties.TEMP_DIRECTORY;
             }
         };

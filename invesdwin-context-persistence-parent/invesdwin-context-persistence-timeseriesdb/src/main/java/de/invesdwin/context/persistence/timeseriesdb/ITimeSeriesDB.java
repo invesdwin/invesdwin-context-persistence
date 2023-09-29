@@ -11,6 +11,8 @@ import de.invesdwin.util.time.date.FDate;
 
 public interface ITimeSeriesDB<K, V> extends Closeable {
 
+    File getBaseDirectory();
+
     File getDirectory();
 
     IReadWriteLock getTableLock(K key);
@@ -78,8 +80,12 @@ public interface ITimeSeriesDB<K, V> extends Closeable {
 
     ISerde<V> getValueSerde();
 
+    Integer getValueFixedLength();
+
     ICompressionFactory getCompressionFactory();
 
     String hashKeyToString(K key);
+
+    FDate extractEndTime(V value);
 
 }

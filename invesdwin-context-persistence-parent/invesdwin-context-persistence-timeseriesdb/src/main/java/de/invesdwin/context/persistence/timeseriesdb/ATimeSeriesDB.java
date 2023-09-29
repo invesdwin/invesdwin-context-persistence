@@ -125,7 +125,8 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         return new TimeSeriesStorage(directory, valueFixedLength, compressionFactory);
     }
 
-    protected File getBaseDirectory() {
+    @Override
+    public File getBaseDirectory() {
         return getDefaultBaseDirectory();
     }
 
@@ -143,6 +144,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
     protected abstract Integer newValueFixedLength();
 
+    @Override
     public Integer getValueFixedLength() {
         return valueFixedLength;
     }
@@ -159,7 +161,8 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
         return LZ4Streams.getDefaultCompressionFactory();
     }
 
-    protected abstract FDate extractEndTime(V value);
+    @Override
+    public abstract FDate extractEndTime(V value);
 
     @Override
     public ICloseableIterable<V> rangeValues(final K key, final FDate from, final FDate to) {

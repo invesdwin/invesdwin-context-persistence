@@ -99,7 +99,7 @@ public class ASegmentedTimeSeriesDBWithLimitedCacheTest extends ATest {
             }
 
             @Override
-            protected File getBaseDirectory() {
+            public File getBaseDirectory() {
                 return ContextProperties.TEMP_DIRECTORY;
             }
 
@@ -118,7 +118,7 @@ public class ASegmentedTimeSeriesDBWithLimitedCacheTest extends ATest {
             }
 
             @Override
-            protected FDate extractEndTime(final FDate value) {
+            public FDate extractEndTime(final FDate value) {
                 return value;
             }
 

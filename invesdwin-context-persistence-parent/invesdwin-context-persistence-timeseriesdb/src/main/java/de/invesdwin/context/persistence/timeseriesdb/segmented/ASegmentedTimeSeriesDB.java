@@ -33,6 +33,9 @@ import de.invesdwin.util.time.date.FDates;
 @ThreadSafe
 public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
+    private final ISerde<V> valueSerde;
+    private final Integer valueFixedLength;
+    private final ICompressionFactory compressionFactory;
     private final SegmentedTable segmentedTable;
     private final ALoadingCache<K, IReadWriteLock> key_tableLock = new ALoadingCache<K, IReadWriteLock>() {
         @Override
@@ -49,6 +52,9 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
     private final ALoadingCache<K, ASegmentedTimeSeriesStorageCache<K, V>> key_lookupTableCache;
 
     public ASegmentedTimeSeriesDB(final String name) {
+        this.valueSerde = newValueSerde();
+        this.valueFixedLength = newValueFixedLength();
+        this.compressionFactory = newCompressionFactory();
         this.segmentedTable = new SegmentedTable(name);
         this.key_lookupTableCache = new ALoadingCache<K, ASegmentedTimeSeriesStorageCache<K, V>>() {
             @Override
@@ -109,6 +115,21 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         };
     }
 
+    @Override
+    public ISerde<V> getValueSerde() {
+        return valueSerde;
+    }
+
+    @Override
+    public Integer getValueFixedLength() {
+        return valueFixedLength;
+    }
+
+    @Override
+    public ICompressionFactory getCompressionFactory() {
+        return compressionFactory;
+    }
+
     protected ITimeSeriesUpdater<SegmentedKey<K>, V> newSegmentUpdaterOverride(final SegmentedKey<K> segmentedKey,
             final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable,
             final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
@@ -148,7 +169,8 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         return LZ4Streams.getDefaultCompressionFactory();
     }
 
-    protected abstract FDate extractEndTime(V value);
+    @Override
+    public abstract FDate extractEndTime(V value);
 
     @Override
     public final String hashKeyToString(final K key) {
@@ -377,7 +399,8 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         }
     }
 
-    protected File getBaseDirectory() {
+    @Override
+    public File getBaseDirectory() {
         return ATimeSeriesDB.getDefaultBaseDirectory();
     }
 
@@ -517,17 +540,17 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
 
         @Override
         protected Integer newValueFixedLength() {
-            return ASegmentedTimeSeriesDB.this.newValueFixedLength();
+            return ASegmentedTimeSeriesDB.this.getValueFixedLength();
         }
 
         @Override
         protected ICompressionFactory newCompressionFactory() {
-            return ASegmentedTimeSeriesDB.this.newCompressionFactory();
+            return ASegmentedTimeSeriesDB.this.getCompressionFactory();
         }
 
         @Override
         protected ISerde<V> newValueSerde() {
-            return ASegmentedTimeSeriesDB.this.newValueSerde();
+            return ASegmentedTimeSeriesDB.this.getValueSerde();
         }
 
         @Override
@@ -557,7 +580,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V
         }
 
         @Override
-        protected File getBaseDirectory() {
+        public File getBaseDirectory() {
             return ASegmentedTimeSeriesDB.this.getBaseDirectory();
         }
 

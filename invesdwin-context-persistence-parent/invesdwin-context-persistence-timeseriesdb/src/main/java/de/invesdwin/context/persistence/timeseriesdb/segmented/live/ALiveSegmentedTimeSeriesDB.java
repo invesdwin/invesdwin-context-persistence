@@ -38,6 +38,9 @@ import de.invesdwin.util.time.date.FDates;
 @ThreadSafe
 public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V> {
 
+    private final ISerde<V> valueSerde;
+    private final Integer valueFixedLength;
+    private final ICompressionFactory compressionFactory;
     private final HistoricalSegmentTable historicalSegmentTable;
     private final ALoadingCache<K, IReadWriteLock> key_tableLock = new ALoadingCache<K, IReadWriteLock>() {
         @Override
@@ -55,6 +58,9 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
     private final ALoadingCache<K, ALiveSegmentedTimeSeriesStorageCache<K, V>> key_lookupTableCache;
 
     public ALiveSegmentedTimeSeriesDB(final String name) {
+        this.valueSerde = newValueSerde();
+        this.valueFixedLength = newValueFixedLength();
+        this.compressionFactory = newCompressionFactory();
         this.historicalSegmentTable = new HistoricalSegmentTable(name);
         this.key_lookupTableCache = new ALoadingCache<K, ALiveSegmentedTimeSeriesStorageCache<K, V>>() {
             @Override
@@ -86,6 +92,21 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
                 return true;
             }
         };
+    }
+
+    @Override
+    public ISerde<V> getValueSerde() {
+        return valueSerde;
+    }
+
+    @Override
+    public Integer getValueFixedLength() {
+        return valueFixedLength;
+    }
+
+    @Override
+    public ICompressionFactory getCompressionFactory() {
+        return compressionFactory;
     }
 
     protected IReadWriteLock newTableLock(final String name) {
@@ -121,8 +142,10 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         return LZ4Streams.getDefaultCompressionFactory();
     }
 
-    protected abstract FDate extractEndTime(V value);
+    @Override
+    public abstract FDate extractEndTime(V value);
 
+    @Override
     public final String hashKeyToString(final K key) {
         return Files.normalizeFilename(innerHashKeyToString(key));
     }
@@ -144,17 +167,17 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
 
         @Override
         public Integer newValueFixedLength() {
-            return ALiveSegmentedTimeSeriesDB.this.newValueFixedLength();
+            return ALiveSegmentedTimeSeriesDB.this.getValueFixedLength();
         }
 
         @Override
         public ISerde<V> newValueSerde() {
-            return ALiveSegmentedTimeSeriesDB.this.newValueSerde();
+            return ALiveSegmentedTimeSeriesDB.this.getValueSerde();
         }
 
         @Override
         protected ICompressionFactory newCompressionFactory() {
-            return ALiveSegmentedTimeSeriesDB.this.newCompressionFactory();
+            return ALiveSegmentedTimeSeriesDB.this.getCompressionFactory();
         }
 
         @Override
@@ -189,7 +212,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         }
 
         @Override
-        protected File getBaseDirectory() {
+        public File getBaseDirectory() {
             return ALiveSegmentedTimeSeriesDB.this.getBaseDirectory();
         }
 
@@ -475,7 +498,8 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ITimeSeriesDB<
         }
     }
 
-    protected File getBaseDirectory() {
+    @Override
+    public File getBaseDirectory() {
         return ATimeSeriesDB.getDefaultBaseDirectory();
     }
 
