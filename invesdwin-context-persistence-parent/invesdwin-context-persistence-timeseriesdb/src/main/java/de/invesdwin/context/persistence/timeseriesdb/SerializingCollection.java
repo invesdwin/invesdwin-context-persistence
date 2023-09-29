@@ -155,7 +155,7 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
 
     @Override
     public boolean add(final E element) {
-        if (this.size == READ_ONLY_FILE_SIZE) {
+        if (size() == READ_ONLY_FILE_SIZE) {
             throw new IllegalStateException(
                     "File [" + file + "] is in read only mode since it contained data when it was opened!");
         }
@@ -292,7 +292,7 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
 
     @Override
     public boolean isEmpty() {
-        return size == 0;
+        return size() == 0;
     }
 
     @Override
