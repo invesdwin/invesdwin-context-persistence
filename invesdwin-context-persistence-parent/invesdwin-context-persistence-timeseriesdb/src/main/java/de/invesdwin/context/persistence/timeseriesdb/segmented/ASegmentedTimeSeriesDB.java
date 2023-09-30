@@ -182,7 +182,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
 
     @Override
     public final String hashKeyToString(final SegmentedKey<K> key) {
-        return ASegmentedTimeSeriesDB.this.hashKeyToString(key.getKey()) + "-"
+        return ASegmentedTimeSeriesDB.this.hashKeyToString(key.getKey()) + "/"
                 + key.getSegment().getFrom().toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_MS) + "-"
                 + key.getSegment().getTo().toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_MS);
     }
