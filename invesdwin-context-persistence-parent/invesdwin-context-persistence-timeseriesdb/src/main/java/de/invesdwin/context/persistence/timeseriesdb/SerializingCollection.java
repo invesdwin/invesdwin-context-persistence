@@ -254,11 +254,11 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
             if (finalizer.closed) {
                 return newIterator();
             } else {
-                final OutputStream fos = finalizer.fos;
-                if (fos != null) {
+                final OutputStream fosCopy = finalizer.fos;
+                if (fosCopy != null) {
                     try {
                         //need to flush contents so we can actually read them
-                        fos.flush();
+                        fosCopy.flush();
                     } catch (final IOException e) {
                         throw new RuntimeException(e);
                     }
