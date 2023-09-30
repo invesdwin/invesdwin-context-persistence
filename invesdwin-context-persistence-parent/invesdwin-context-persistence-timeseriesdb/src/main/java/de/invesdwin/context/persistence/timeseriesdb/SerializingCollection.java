@@ -55,6 +55,7 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
 
     private final TextDescription name;
     private int size;
+    private boolean empty;
     private final File file;
     private final SerializingCollectionFinalizer finalizer;
     private final Integer fixedLength = newFixedLength();
@@ -75,6 +76,7 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
         if (file.exists()) {
             throw new IllegalStateException("File [" + file.getAbsolutePath() + "] already exists!");
         }
+        this.empty = true;
         this.finalizer.register(this);
     }
 
@@ -89,6 +91,7 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
         } else {
             this.finalizer.register(this);
         }
+        this.empty = !file.exists() || file.length() == 0L;
     }
 
     @Override
@@ -156,8 +159,7 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
     @Override
     public boolean add(final E element) {
         if (size() == READ_ONLY_FILE_SIZE) {
-            throw new IllegalStateException(
-                    "File [" + file + "] is in read only mode since it contained data when it was opened!");
+            throw new IllegalStateException("File [" + file + "] is in read only mode!");
         }
         try {
             final IByteBuffer writeBuffer = getWriteBuffer();
@@ -180,6 +182,7 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
             throw new RuntimeException(e);
         }
         size++;
+        empty = false;
         return true;
     }
 
@@ -244,7 +247,9 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
 
     @Override
     public ICloseableIterator<E> iterator() {
-        if (size() > 0) {
+        if (isEmpty()) {
+            return EmptyCloseableIterator.getInstance();
+        } else {
             if (finalizer.closed) {
                 return newIterator();
             } else {
@@ -255,10 +260,12 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
                     throw new RuntimeException(e);
                 }
                 //we allow iteration up to the current size
-                return new LimitingIterator<E>(newIterator(), size());
+                if (size != READ_ONLY_FILE_SIZE) {
+                    return new LimitingIterator<E>(newIterator(), size());
+                } else {
+                    return newIterator();
+                }
             }
-        } else {
-            return EmptyCloseableIterator.getInstance();
         }
     }
 
@@ -292,7 +299,7 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
 
     @Override
     public boolean isEmpty() {
-        return size() == 0;
+        return empty;
     }
 
     @Override

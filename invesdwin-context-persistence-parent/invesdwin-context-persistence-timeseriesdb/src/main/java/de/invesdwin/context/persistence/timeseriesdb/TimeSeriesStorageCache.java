@@ -590,7 +590,7 @@ public class TimeSeriesStorageCache<K, V> {
 
             @Override
             protected OutputStream newCompressor(final OutputStream out) {
-                return storage.getCompressionFactory().newCompressor(out, ATimeSeriesUpdater.LARGE_COMPRESSOR);
+                return getCompressionFactory().newCompressor(out, ATimeSeriesUpdater.LARGE_COMPRESSOR);
             }
 
         };
