@@ -77,6 +77,7 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
             throw new IllegalStateException("File [" + file.getAbsolutePath() + "] already exists!");
         }
         this.empty = true;
+        this.size = 0;
         this.finalizer.register(this);
     }
 
@@ -92,6 +93,11 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
         } else {
             this.finalizer.register(this);
             this.empty = file != null && (!file.exists() || file.length() == 0L);
+            if (!empty) {
+                this.size = READ_ONLY_FILE_SIZE;
+            } else {
+                this.size = 0;
+            }
         }
     }
 
