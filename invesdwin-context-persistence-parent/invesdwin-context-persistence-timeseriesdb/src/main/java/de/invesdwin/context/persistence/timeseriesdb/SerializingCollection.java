@@ -254,11 +254,14 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
             if (finalizer.closed) {
                 return newIterator();
             } else {
-                try {
-                    //need to flush contents so we can actually read them
-                    finalizer.fos.flush();
-                } catch (final IOException e) {
-                    throw new RuntimeException(e);
+                final OutputStream fos = finalizer.fos;
+                if (fos != null) {
+                    try {
+                        //need to flush contents so we can actually read them
+                        fos.flush();
+                    } catch (final IOException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
                 //we allow iteration up to the current size
                 if (size != READ_ONLY_FILE_SIZE) {
