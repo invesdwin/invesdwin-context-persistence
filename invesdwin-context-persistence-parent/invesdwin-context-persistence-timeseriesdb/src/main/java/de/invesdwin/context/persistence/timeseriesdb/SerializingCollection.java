@@ -56,6 +56,7 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
     private final TextDescription name;
     private int size;
     private boolean empty;
+    private final boolean readOnly;
     private final File file;
     private final SerializingCollectionFinalizer finalizer;
     private final Integer fixedLength = newFixedLength();
@@ -79,6 +80,7 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
         this.empty = true;
         this.size = 0;
         this.finalizer.register(this);
+        this.readOnly = false;
     }
 
     public SerializingCollection(final TextDescription name, final File file, final boolean readOnly) {
@@ -90,6 +92,7 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
             this.size = READ_ONLY_FILE_SIZE;
             this.finalizer.closed = true;
             this.empty = false;
+            this.readOnly = true;
         } else {
             this.finalizer.register(this);
             this.empty = file != null && (!file.exists() || file.length() == 0L);
@@ -98,6 +101,7 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
             } else {
                 this.size = 0;
             }
+            this.readOnly = false;
         }
     }
 
@@ -165,7 +169,7 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
 
     @Override
     public boolean add(final E element) {
-        if (size() == READ_ONLY_FILE_SIZE) {
+        if (readOnly) {
             throw new IllegalStateException("File [" + file + "] is in read only mode!");
         }
         try {
