@@ -10,6 +10,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftForwardUnitsLoopLongIndex;
 import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftBackUnitsLoop;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
@@ -327,6 +328,10 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
         }
     }
 
+    public IReadWriteLock getLiveSegmentLock() {
+        return liveSegmentLock;
+    }
+
     public void putNextLiveValue(final V nextLiveValue) {
         final ILock liveWriteLock = liveSegmentLock.writeLock();
         liveWriteLock.lock();
@@ -395,6 +400,10 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
         } finally {
             liveWriteLock.unlock();
         }
+    }
+
+    public ISegmentedTimeSeriesDB<K, V> getHistoricalSegmentTable() {
+        return historicalSegmentTable;
     }
 
     public ReadLockedLiveSegment<K, V> getLiveSegment() {
