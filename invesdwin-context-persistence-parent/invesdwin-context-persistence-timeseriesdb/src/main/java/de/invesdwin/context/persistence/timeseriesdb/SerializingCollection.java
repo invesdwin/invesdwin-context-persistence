@@ -88,10 +88,11 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
             //allow deserializing only if file contains data already
             this.size = READ_ONLY_FILE_SIZE;
             this.finalizer.closed = true;
+            this.empty = false;
         } else {
             this.finalizer.register(this);
+            this.empty = file != null && (!file.exists() || file.length() == 0L);
         }
-        this.empty = !file.exists() || file.length() == 0L;
     }
 
     @Override
