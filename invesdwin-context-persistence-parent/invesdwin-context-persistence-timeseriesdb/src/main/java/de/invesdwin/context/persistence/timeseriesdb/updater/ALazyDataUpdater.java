@@ -12,7 +12,7 @@ import org.apache.commons.lang3.BooleanUtils;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
-import de.invesdwin.context.persistence.timeseriesdb.TimeseriesProperties;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.concurrent.future.Futures;
 import de.invesdwin.util.concurrent.lock.IReentrantLock;
@@ -91,7 +91,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                     //some sort of double checked locking to skip if someone else came before us
                     return;
                 }
-                if (!TimeseriesProperties.isUpdateEnabled()) {
+                if (!TimeSeriesProperties.isUpdateEnabled()) {
                     lastUpdateCheck = newUpdateCheck;
                     return;
                 }

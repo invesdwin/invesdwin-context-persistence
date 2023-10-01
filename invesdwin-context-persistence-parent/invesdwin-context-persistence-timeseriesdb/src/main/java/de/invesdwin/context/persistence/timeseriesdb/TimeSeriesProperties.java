@@ -7,7 +7,7 @@ import de.invesdwin.context.system.properties.SystemProperties;
 import de.invesdwin.util.time.duration.Duration;
 
 @Immutable
-public final class TimeseriesProperties {
+public final class TimeSeriesProperties {
 
     public static final boolean FILE_BUFFER_CACHE_SEGMENTS_ENABLED;
     public static final boolean FILE_BUFFER_CACHE_PRELOAD_ENABLED;
@@ -19,7 +19,7 @@ public final class TimeseriesProperties {
     private static final SystemProperties SYSTEM_PROPERTIES;
 
     static {
-        SYSTEM_PROPERTIES = new SystemProperties(TimeseriesProperties.class);
+        SYSTEM_PROPERTIES = new SystemProperties(TimeSeriesProperties.class);
         FILE_BUFFER_CACHE_SEGMENTS_ENABLED = SYSTEM_PROPERTIES.getBoolean("FILE_BUFFER_CACHE_SEGMENTS_ENABLED");
         FILE_BUFFER_CACHE_PRELOAD_ENABLED = SYSTEM_PROPERTIES.getBoolean("FILE_BUFFER_CACHE_PRELOAD_ENABLED");
         FILE_BUFFER_CACHE_MMAP_ENABLED = SYSTEM_PROPERTIES.getBoolean("FILE_BUFFER_CACHE_MMAP_ENABLED");
@@ -29,7 +29,7 @@ public final class TimeseriesProperties {
         FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR = null;
     }
 
-    private TimeseriesProperties() {}
+    private TimeSeriesProperties() {}
 
     public static boolean isUpdateEnabled() {
         return SYSTEM_PROPERTIES.getBooleanOptional("UPDATE_ENABLED", true);

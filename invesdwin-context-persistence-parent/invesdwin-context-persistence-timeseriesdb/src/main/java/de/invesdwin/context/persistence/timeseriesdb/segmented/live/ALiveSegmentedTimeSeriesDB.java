@@ -11,6 +11,7 @@ import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.compression.lz4.LZ4Streams;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
@@ -40,6 +41,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
     private final ISerde<V> valueSerde;
     private final Integer valueFixedLength;
     private final ICompressionFactory compressionFactory;
+    private final TimeSeriesLookupMode lookupMode;
     private final HistoricalSegmentTable historicalSegmentTable;
     private final ALoadingCache<K, IReadWriteLock> key_tableLock = new ALoadingCache<K, IReadWriteLock>() {
         @Override
@@ -60,6 +62,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
         this.valueSerde = newValueSerde();
         this.valueFixedLength = newValueFixedLength();
         this.compressionFactory = newCompressionFactory();
+        this.lookupMode = newLookupMode();
         this.historicalSegmentTable = new HistoricalSegmentTable(name);
         this.key_liveSegmentedLookupTableCache = new ALoadingCache<K, ALiveSegmentedTimeSeriesStorageCache<K, V>>() {
             @Override
@@ -100,6 +103,11 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
         return compressionFactory;
     }
 
+    @Override
+    public TimeSeriesLookupMode getLookupMode() {
+        return lookupMode;
+    }
+
     protected IReadWriteLock newTableLock(final String name) {
         return Locks.newReentrantReadWriteLock(name);
     }
@@ -131,6 +139,10 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
 
     protected ICompressionFactory newCompressionFactory() {
         return LZ4Streams.getDefaultCompressionFactory();
+    }
+
+    protected TimeSeriesLookupMode newLookupMode() {
+        return TimeSeriesLookupMode.DEFAULT;
     }
 
     @Override
@@ -170,6 +182,11 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
         @Override
         protected ICompressionFactory newCompressionFactory() {
             return ALiveSegmentedTimeSeriesDB.this.getCompressionFactory();
+        }
+
+        @Override
+        public TimeSeriesLookupMode getLookupMode() {
+            return ALiveSegmentedTimeSeriesDB.this.getLookupMode();
         }
 
         @Override

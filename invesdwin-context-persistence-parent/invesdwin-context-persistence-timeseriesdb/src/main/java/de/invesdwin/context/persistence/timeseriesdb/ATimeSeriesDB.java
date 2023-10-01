@@ -38,6 +38,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     private final ISerde<V> valueSerde;
     private final Integer valueFixedLength;
     private final ICompressionFactory compressionFactory;
+    private final TimeSeriesLookupMode lookupMode;
     private final File directory;
     private final ALoadingCache<K, TimeSeriesStorageCache<K, V>> key_lookupTableCache;
     private final ALoadingCache<K, IReadWriteLock> key_tableLock = new ALoadingCache<K, IReadWriteLock>() {
@@ -61,6 +62,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         this.valueSerde = newValueSerde();
         this.valueFixedLength = newValueFixedLength();
         this.compressionFactory = newCompressionFactory();
+        this.lookupMode = newLookupMode();
         final File baseDirectory = getBaseDirectory();
         if (Objects.equals(baseDirectory.getAbsolutePath(), new File(".").getAbsolutePath())) {
             throw new IllegalStateException(
@@ -72,7 +74,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
             protected TimeSeriesStorageCache<K, V> loadValue(final K key) {
                 final String hashKey = hashKeyToString(key);
                 return new TimeSeriesStorageCache<K, V>(getStorage(), hashKey, valueSerde, valueFixedLength,
-                        input -> extractEndTime(input));
+                        input -> extractEndTime(input), getLookupMode());
             }
 
             @Override
@@ -159,6 +161,10 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     protected ICompressionFactory newCompressionFactory() {
         //        return DisabledCompressionFactory.INSTANCE; //use this to enable flyweight mmap access
         return LZ4Streams.getDefaultCompressionFactory();
+    }
+
+    protected TimeSeriesLookupMode newLookupMode() {
+        return TimeSeriesLookupMode.DEFAULT;
     }
 
     @Override
@@ -357,6 +363,11 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     @Override
     public ISerde<V> getValueSerde() {
         return valueSerde;
+    }
+
+    @Override
+    public TimeSeriesLookupMode getLookupMode() {
+        return lookupMode;
     }
 
     @Override

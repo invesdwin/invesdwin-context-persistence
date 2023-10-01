@@ -2,14 +2,19 @@ package de.invesdwin.context.persistence.timeseriesdb.segmented.live;
 
 import java.io.Closeable;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 
 import javax.annotation.concurrent.ThreadSafe;
 
-import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftForwardUnitsLoopLongIndex;
+import org.apache.commons.lang3.mutable.MutableInt;
+
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
 import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftBackUnitsLoop;
+import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftForwardUnitsLoop;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
@@ -21,10 +26,13 @@ import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.util.collections.Arrays;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
+import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
+import de.invesdwin.util.concurrent.reference.MutableReference;
+import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
 import de.invesdwin.util.time.range.TimeRange;
@@ -33,6 +41,8 @@ import de.invesdwin.util.time.range.TimeRange;
 public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
 
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
+    private final ASegmentedTimeSeriesStorageCache<K, V> historicalSegmentLookupTableCache;
+    private final TimeSeriesLookupMode lookupMode;
     private final K key;
     private final IReadWriteLock liveSegmentLock;
     private volatile ReadLockedLiveSegment<K, V> liveSegment;
@@ -76,6 +86,8 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
             final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable, final K key,
             final int batchFlushInterval) {
         this.historicalSegmentTable = historicalSegmentTable;
+        this.historicalSegmentLookupTableCache = historicalSegmentTable.getSegmentedLookupTableCache(key);
+        this.lookupMode = historicalSegmentTable.getLookupMode();
         this.key = key;
         this.batchFlushInterval = batchFlushInterval;
         this.liveSegmentLock = Locks
@@ -125,16 +137,15 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
                 //no live segment, go with historical
                 final Lock compositeReadLock = Locks.newCompositeLock(readLock,
                         historicalSegmentTable.getTableLock(key).readLock());
-                return historicalSegmentTable.getSegmentedLookupTableCache(key)
-                        .readRangeValues(from, to, compositeReadLock, skipFileFunction);
+                return historicalSegmentLookupTableCache.readRangeValues(from, to, compositeReadLock, skipFileFunction);
             } else {
                 final FDate liveSegmentFrom = liveSegment.getSegmentedKey().getSegment().getFrom();
                 if (liveSegmentFrom.isAfter(to)) {
                     //live segment is after requested range, go with historical
                     final Lock compositeReadLock = Locks.newCompositeLock(readLock,
                             historicalSegmentTable.getTableLock(key).readLock());
-                    return historicalSegmentTable.getSegmentedLookupTableCache(key)
-                            .readRangeValues(from, to, compositeReadLock, skipFileFunction);
+                    return historicalSegmentLookupTableCache.readRangeValues(from, to, compositeReadLock,
+                            skipFileFunction);
                 } else if (liveSegmentFrom.isBeforeOrEqualTo(from)) {
                     //historical segment is before requested range, go with live
                     return liveSegment.rangeValues(from, to, readLock, skipFileFunction);
@@ -164,16 +175,16 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
                 //no live segment, go with historical
                 final Lock compositeReadLock = Locks.newCompositeLock(readLock,
                         historicalSegmentTable.getTableLock(key).readLock());
-                return historicalSegmentTable.getSegmentedLookupTableCache(key)
-                        .readRangeValuesReverse(from, to, compositeReadLock, skipFileFunction);
+                return historicalSegmentLookupTableCache.readRangeValuesReverse(from, to, compositeReadLock,
+                        skipFileFunction);
             } else {
                 final FDate liveSegmentFrom = liveSegment.getSegmentedKey().getSegment().getFrom();
                 if (liveSegmentFrom.isAfter(from)) {
                     //live segment is after requested range, go with historical
                     final Lock compositeReadLock = Locks.newCompositeLock(readLock,
                             historicalSegmentTable.getTableLock(key).readLock());
-                    return historicalSegmentTable.getSegmentedLookupTableCache(key)
-                            .readRangeValuesReverse(from, to, compositeReadLock, skipFileFunction);
+                    return historicalSegmentLookupTableCache.readRangeValuesReverse(from, to, compositeReadLock,
+                            skipFileFunction);
                 } else if (liveSegmentFrom.isBeforeOrEqualTo(to)) {
                     //historical segment is before requested range, go with live
                     return liveSegment.rangeReverseValues(from, to, readLock, skipFileFunction);
@@ -268,6 +279,23 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
     }
 
     public V getPreviousValue(final FDate date, final int shiftBackUnits) {
+        switch (lookupMode) {
+        case Value:
+            return getPreviousValueByValue(date, shiftBackUnits);
+        case ValueUntilIndexAvailable:
+            if (historicalSegmentLookupTableCache.isLookupByIndexAvailable()) {
+                return getPreviousValueByIndex(date, shiftBackUnits);
+            } else {
+                return getPreviousValueByValue(date, shiftBackUnits);
+            }
+        case Index:
+            return getPreviousValueByIndex(date, shiftBackUnits);
+        default:
+            throw UnknownArgumentException.newInstance(TimeSeriesLookupMode.class, lookupMode);
+        }
+    }
+
+    private V getPreviousValueByIndex(final FDate date, final int shiftBackUnits) {
         if (liveSegment == null) {
             //no live segment, go with historical
             return historicalSegmentTable.getPreviousValue(key, date, shiftBackUnits);
@@ -291,7 +319,55 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
         }
     }
 
+    private V getPreviousValueByValue(final FDate date, final int shiftBackUnits) {
+        if (liveSegment == null) {
+            //no live segment, go with historical
+            return historicalSegmentTable.getPreviousValue(key, date, shiftBackUnits);
+        } else if (liveSegment.getSegmentedKey().getSegment().getFrom().isAfter(date)) {
+            //live segment is after requested range, go with historical
+            return historicalSegmentTable.getPreviousValue(key, date, shiftBackUnits);
+        } else {
+            //use both segments
+            final MutableReference<V> previousValue = new MutableReference<>();
+            final MutableInt shiftBackRemaining = new MutableInt(shiftBackUnits);
+            try (ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null, DisabledLock.INSTANCE,
+                    file -> {
+                        final boolean skip = previousValue.get() != null
+                                && file.getValueCount() < shiftBackRemaining.intValue();
+                        if (skip) {
+                            shiftBackRemaining.subtract(file.getValueCount());
+                        }
+                        return skip;
+                    }).iterator()) {
+                while (shiftBackRemaining.intValue() >= 0) {
+                    previousValue.set(rangeValuesReverse.next());
+                    shiftBackRemaining.decrement();
+                }
+            } catch (final NoSuchElementException e) {
+                //ignore
+            }
+            return previousValue.get();
+        }
+    }
+
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
+        switch (lookupMode) {
+        case Value:
+            return getNextValueByValue(date, shiftForwardUnits);
+        case ValueUntilIndexAvailable:
+            if (historicalSegmentLookupTableCache.isLookupByIndexAvailable()) {
+                return getNextValueByIndex(date, shiftForwardUnits);
+            } else {
+                return getNextValueByValue(date, shiftForwardUnits);
+            }
+        case Index:
+            return getNextValueByIndex(date, shiftForwardUnits);
+        default:
+            throw UnknownArgumentException.newInstance(TimeSeriesLookupMode.class, lookupMode);
+        }
+    }
+
+    private V getNextValueByIndex(final FDate date, final int shiftForwardUnits) {
         if (liveSegment == null) {
             //no live segment, go with historical
             return historicalSegmentTable.getNextValue(key, date, shiftForwardUnits);
@@ -301,30 +377,64 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
             return nextValue;
         } else {
             //use both segments
-            final AShiftForwardUnitsLoopLongIndex<V> shiftForwardLoop = new AShiftForwardUnitsLoopLongIndex<V>(date,
-                    shiftForwardUnits) {
-                @Override
-                protected V getLatestValue(final long index) {
-                    return ALiveSegmentedTimeSeriesStorageCache.this.getLatestValue(index);
+            final ShiftForwardUnitsLoop<V> shiftForwardLoop = new ShiftForwardUnitsLoop<>(date, shiftForwardUnits,
+                    historicalSegmentTable::extractEndTime);
+            final ICloseableIterable<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE, file -> {
+                final boolean skip = shiftForwardLoop.getNextValue() != null
+                        && file.getValueCount() < shiftForwardLoop.getShiftForwardRemaining();
+                if (skip) {
+                    shiftForwardLoop.skip(file.getValueCount());
                 }
-
-                @Override
-                protected long getLatestValueIndex(final FDate date) {
-                    return ALiveSegmentedTimeSeriesStorageCache.this.getLatestValueIndex(date);
-                }
-
-                @Override
-                protected FDate extractEndTime(final V value) {
-                    return historicalSegmentTable.extractEndTime(value);
-                }
-
-                @Override
-                protected long size() {
-                    return ALiveSegmentedTimeSeriesStorageCache.this.size();
-                }
-            };
-            shiftForwardLoop.loop();
+                return skip;
+            });
+            shiftForwardLoop.loop(rangeValues);
             return shiftForwardLoop.getNextValue();
+        }
+    }
+
+    private V getNextValueByValue(final FDate date, final int shiftForwardUnits) {
+        if (liveSegment == null) {
+            //no live segment, go with historical
+            return historicalSegmentTable.getNextValue(key, date, shiftForwardUnits);
+        } else if (liveSegment.getSegmentedKey().getSegment().getFrom().isBefore(date)) {
+            //live segment is after requested range, go with live
+            final V nextValue = liveSegment.getNextValue(date, shiftForwardUnits);
+            return nextValue;
+        } else {
+            //use both segments
+            final MutableReference<V> nextValue = new MutableReference<>();
+            final MutableInt shiftForwardRemaining = new MutableInt(shiftForwardUnits);
+            try (ICloseableIterator<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE, file -> {
+                final boolean skip = nextValue.get() != null && file.getValueCount() < shiftForwardRemaining.intValue();
+                if (skip) {
+                    shiftForwardRemaining.subtract(file.getValueCount());
+                }
+                return skip;
+            }).iterator()) {
+                if (shiftForwardUnits == 1) {
+                    /*
+                     * workaround for deteremining next key with multiple values at the same millisecond (without this
+                     * workaround we would return a duplicate that might produce an endless loop)
+                     */
+                    while (shiftForwardRemaining.intValue() >= 0) {
+                        final V nextNextValue = rangeValues.next();
+                        final FDate nextNextValueKey = historicalSegmentTable.extractEndTime(nextNextValue);
+                        if (shiftForwardRemaining.intValue() == 1 || date.isBeforeNotNullSafe(nextNextValueKey)) {
+                            nextValue.set(nextNextValue);
+                            shiftForwardRemaining.decrement();
+                        }
+                    }
+                } else {
+                    while (shiftForwardRemaining.intValue() >= 0) {
+                        final V nextNextValue = rangeValues.next();
+                        nextValue.set(nextNextValue);
+                        shiftForwardRemaining.decrement();
+                    }
+                }
+            } catch (final NoSuchElementException e) {
+                //ignore
+            }
+            return nextValue.get();
         }
     }
 

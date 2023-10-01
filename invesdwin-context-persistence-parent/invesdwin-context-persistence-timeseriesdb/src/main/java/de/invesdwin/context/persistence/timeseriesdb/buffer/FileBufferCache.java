@@ -21,7 +21,7 @@ import com.github.benmanes.caffeine.cache.RemovalCause;
 import de.invesdwin.context.beans.hook.ReinitializationHookManager;
 import de.invesdwin.context.beans.hook.ReinitializationHookSupport;
 import de.invesdwin.context.persistence.timeseriesdb.IDeserializingCloseableIterable;
-import de.invesdwin.context.persistence.timeseriesdb.TimeseriesProperties;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.source.IFileBufferSource;
 import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
@@ -47,8 +47,8 @@ public final class FileBufferCache {
     private static final WrappedExecutorService LOAD_EXECUTOR;
 
     static {
-        if (TimeseriesProperties.FILE_BUFFER_CACHE_SEGMENTS_ENABLED
-                && TimeseriesProperties.FILE_BUFFER_CACHE_PRELOAD_ENABLED) {
+        if (TimeSeriesProperties.FILE_BUFFER_CACHE_SEGMENTS_ENABLED
+                && TimeSeriesProperties.FILE_BUFFER_CACHE_PRELOAD_ENABLED) {
             PRELOAD_EXECUTOR = Executors.newFixedThreadPool(FileBufferCache.class.getSimpleName() + "_PRELOAD", 1);
         } else {
             PRELOAD_EXECUTOR = null;
@@ -61,7 +61,7 @@ public final class FileBufferCache {
 
     private static final IObjectPool<ArrayList> LIST_POOL = new AgronaObjectPool<ArrayList>(
             () -> new ArrayList<>(ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL),
-            TimeseriesProperties.FILE_BUFFER_CACHE_MAX_SEGMENTS_COUNT);
+            TimeSeriesProperties.FILE_BUFFER_CACHE_MAX_SEGMENTS_COUNT);
 
     /**
      * Only allow one thread at a time to clear the cache.
@@ -71,17 +71,17 @@ public final class FileBufferCache {
 
     static {
         RESULT_CACHE = Caffeine.newBuilder()
-                .maximumSize(TimeseriesProperties.FILE_BUFFER_CACHE_MAX_SEGMENTS_COUNT)
+                .maximumSize(TimeSeriesProperties.FILE_BUFFER_CACHE_MAX_SEGMENTS_COUNT)
                 .expireAfterAccess(
-                        TimeseriesProperties.FILE_BUFFER_CACHE_EVICTION_TIMEOUT.longValue(FTimeUnit.MILLISECONDS),
+                        TimeSeriesProperties.FILE_BUFFER_CACHE_EVICTION_TIMEOUT.longValue(FTimeUnit.MILLISECONDS),
                         TimeUnit.MILLISECONDS)
                 .removalListener(FileBufferCache::resultCache_onRemoval)
                 .executor(LOAD_EXECUTOR)
                 .<ResultCacheKey, SoftReference<IFileBufferCacheResult>> buildAsync(FileBufferCache::resultCache_load);
         FILE_CACHE = Caffeine.newBuilder()
-                .maximumSize(TimeseriesProperties.FILE_BUFFER_CACHE_MAX_MMAP_COUNT)
+                .maximumSize(TimeSeriesProperties.FILE_BUFFER_CACHE_MAX_MMAP_COUNT)
                 .expireAfterAccess(
-                        TimeseriesProperties.FILE_BUFFER_CACHE_EVICTION_TIMEOUT.longValue(FTimeUnit.MILLISECONDS),
+                        TimeSeriesProperties.FILE_BUFFER_CACHE_EVICTION_TIMEOUT.longValue(FTimeUnit.MILLISECONDS),
                         TimeUnit.MILLISECONDS)
                 .removalListener(FileBufferCache::fileCache_onRemoval)
                 .<FileCacheKey, IMemoryMappedFile> build(FileBufferCache::fileCache_load);
@@ -120,10 +120,10 @@ public final class FileBufferCache {
                     new ByteBufferFileBufferCacheResult<>(buffer, source.getSerde(), source.getFixedLength()));
         } else {
             final IDeserializingCloseableIterable iterable = source.getIterable();
-            if (TimeseriesProperties.FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR != null
+            if (TimeSeriesProperties.FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR != null
                     && iterable.getFixedLength() != null && iterable.getFixedLength() > 0) {
                 return new SoftReference<IFileBufferCacheResult>(new ByteBufferFileBufferCacheResult<>(
-                        TimeseriesProperties.FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR, iterable));
+                        TimeSeriesProperties.FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR, iterable));
             } else {
                 key.setSource(null);
                 final ArrayList list = LIST_POOL.borrowObject();
@@ -202,7 +202,7 @@ public final class FileBufferCache {
 
     public static <T> IFileBufferCacheResult<T> getResult(final String hashKey, final MemoryFileSummary summary,
             final IFileBufferSource source) {
-        if (TimeseriesProperties.FILE_BUFFER_CACHE_SEGMENTS_ENABLED) {
+        if (TimeSeriesProperties.FILE_BUFFER_CACHE_SEGMENTS_ENABLED) {
             final ResultCacheKey key = new ResultCacheKey(hashKey, summary, source);
             if (MemoryLimit.isMemoryLimitReached()) {
                 MemoryLimit.maybeClearCacheUnchecked(FileBufferCache.class, "RESULT_CACHE", RESULT_CACHE,
@@ -236,7 +236,7 @@ public final class FileBufferCache {
 
     public static IMemoryMappedFile getFile(final String hashKey, final String memoryFilePath,
             final boolean closeAllowed) {
-        if (TimeseriesProperties.FILE_BUFFER_CACHE_MMAP_ENABLED) {
+        if (TimeSeriesProperties.FILE_BUFFER_CACHE_MMAP_ENABLED) {
             final FileCacheKey key = new FileCacheKey(hashKey, new File(memoryFilePath), closeAllowed);
             final IMemoryMappedFile value = FILE_CACHE.get(key);
             return value;

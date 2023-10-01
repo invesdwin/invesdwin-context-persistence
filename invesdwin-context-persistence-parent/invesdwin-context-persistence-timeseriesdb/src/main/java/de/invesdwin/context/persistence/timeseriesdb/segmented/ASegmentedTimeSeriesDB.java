@@ -11,6 +11,7 @@ import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.compression.lz4.LZ4Streams;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ITimeSeriesUpdater;
@@ -35,6 +36,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
     private final ISerde<V> valueSerde;
     private final Integer valueFixedLength;
     private final ICompressionFactory compressionFactory;
+    private final TimeSeriesLookupMode lookupMode;
     private final SegmentedTable segmentedTable;
     private final ALoadingCache<K, IReadWriteLock> key_tableLock = new ALoadingCache<K, IReadWriteLock>() {
         @Override
@@ -54,6 +56,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         this.valueSerde = newValueSerde();
         this.valueFixedLength = newValueFixedLength();
         this.compressionFactory = newCompressionFactory();
+        this.lookupMode = newLookupMode();
         this.segmentedTable = new SegmentedTable(name);
         this.key_segmentedLookupTableCache = new ALoadingCache<K, ASegmentedTimeSeriesStorageCache<K, V>>() {
             @Override
@@ -129,6 +132,11 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         return compressionFactory;
     }
 
+    @Override
+    public TimeSeriesLookupMode getLookupMode() {
+        return lookupMode;
+    }
+
     protected ITimeSeriesUpdater<SegmentedKey<K>, V> newSegmentUpdaterOverride(final SegmentedKey<K> segmentedKey,
             final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable,
             final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
@@ -168,6 +176,10 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
 
     protected ICompressionFactory newCompressionFactory() {
         return LZ4Streams.getDefaultCompressionFactory();
+    }
+
+    protected TimeSeriesLookupMode newLookupMode() {
+        return TimeSeriesLookupMode.DEFAULT;
     }
 
     @Override
@@ -549,6 +561,11 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         @Override
         protected ICompressionFactory newCompressionFactory() {
             return ASegmentedTimeSeriesDB.this.getCompressionFactory();
+        }
+
+        @Override
+        protected TimeSeriesLookupMode newLookupMode() {
+            return ASegmentedTimeSeriesDB.this.getLookupMode();
         }
 
         @Override

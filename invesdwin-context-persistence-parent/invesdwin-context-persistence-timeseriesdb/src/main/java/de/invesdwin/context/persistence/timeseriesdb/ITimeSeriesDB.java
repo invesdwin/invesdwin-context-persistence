@@ -86,6 +86,8 @@ public interface ITimeSeriesDB<K, V> extends Closeable {
 
     ICompressionFactory getCompressionFactory();
 
+    TimeSeriesLookupMode getLookupMode();
+
     FDate extractEndTime(V value);
 
 }
