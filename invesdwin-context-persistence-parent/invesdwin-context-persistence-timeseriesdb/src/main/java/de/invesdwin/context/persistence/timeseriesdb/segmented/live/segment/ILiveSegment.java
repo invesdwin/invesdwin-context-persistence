@@ -20,7 +20,7 @@ public interface ILiveSegment<K, V> extends Closeable {
 
     ICloseableIterable<V> rangeReverseValues(FDate from, FDate to, Lock readLock, ISkipFileFunction skipFileFunction);
 
-    void putNextLiveValue(FDate nextLiveKey, V nextLiveValue);
+    boolean putNextLiveValue(FDate nextLiveStartTime, FDate nextLiveEndTimeKey, V nextLiveValue);
 
     V getNextValue(FDate date, int shiftForwardUnits);
 

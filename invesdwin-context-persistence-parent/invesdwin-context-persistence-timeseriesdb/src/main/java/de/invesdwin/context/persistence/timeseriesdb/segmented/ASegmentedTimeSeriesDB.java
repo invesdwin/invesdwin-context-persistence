@@ -183,6 +183,9 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
     }
 
     @Override
+    public abstract FDate extractStartTime(V value);
+
+    @Override
     public abstract FDate extractEndTime(V value);
 
     @Override
@@ -571,6 +574,11 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         @Override
         protected ISerde<V> newValueSerde() {
             return ASegmentedTimeSeriesDB.this.getValueSerde();
+        }
+
+        @Override
+        public FDate extractStartTime(final V value) {
+            return ASegmentedTimeSeriesDB.this.extractStartTime(value);
         }
 
         @Override

@@ -146,6 +146,9 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
     }
 
     @Override
+    public abstract FDate extractStartTime(V value);
+
+    @Override
     public abstract FDate extractEndTime(V value);
 
     @Override
@@ -187,6 +190,11 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
         @Override
         public TimeSeriesLookupMode getLookupMode() {
             return ALiveSegmentedTimeSeriesDB.this.getLookupMode();
+        }
+
+        @Override
+        public FDate extractStartTime(final V value) {
+            return ALiveSegmentedTimeSeriesDB.this.extractStartTime(value);
         }
 
         @Override

@@ -19,6 +19,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.iterable.buffer.IBufferingIterator;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
+import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.marshallers.serde.basic.VoidSerde;
@@ -158,25 +159,32 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
-    public void putNextLiveValue(final FDate nextLiveKey, final V nextLiveValue) {
-        if (!lastValue.isEmpty() && lastValueKey.isAfter(nextLiveKey)) {
-            LOG.warn("%s: nextLiveKey [%s] should be after or equal to lastLiveKey [%s]", segmentedKey, nextLiveKey,
-                    lastValueKey);
-            //            throw new IllegalStateException(segmentedKey + ": nextLiveKey [" + nextLiveKey
-            //                    + "] should be after or equal to lastLiveKey [" + lastValueKey + "]");
-            return;
+    public boolean putNextLiveValue(final FDate nextLiveStartTime, final FDate nextLiveEndTimeKey,
+            final V nextLiveValue) {
+        if (!lastValue.isEmpty()) {
+            if (lastValueKey.isAfterNotNullSafe(nextLiveStartTime)) {
+                LOG.warn("%s: nextLiveStartTime [%s] should be after or equal to lastLiveKey [%s]", segmentedKey,
+                        nextLiveStartTime, lastValueKey);
+                return false;
+            }
         }
-        values.put(null, nextLiveKey, nextLiveValue);
+        if (nextLiveStartTime.isAfterNotNullSafe(nextLiveEndTimeKey)) {
+            throw new IllegalArgumentException(TextDescription.format(
+                    "%s: nextLiveEndTimeKey [%s] should be after or equal to nextLiveStartTime [%s]", segmentedKey,
+                    nextLiveEndTimeKey, nextLiveStartTime));
+        }
+        values.put(null, nextLiveEndTimeKey, nextLiveValue);
         size++;
-        if (firstValue.isEmpty() || firstValueKey.equalsNotNullSafe(nextLiveKey)) {
+        if (firstValue.isEmpty() || firstValueKey.equalsNotNullSafe(nextLiveEndTimeKey)) {
             firstValue.add(nextLiveValue);
-            firstValueKey = nextLiveKey;
+            firstValueKey = nextLiveEndTimeKey;
         }
-        if (!lastValue.isEmpty() && !lastValueKey.equalsNotNullSafe(nextLiveKey)) {
+        if (!lastValue.isEmpty() && !lastValueKey.equalsNotNullSafe(nextLiveEndTimeKey)) {
             lastValue.clear();
         }
         lastValue.add(nextLiveValue);
-        lastValueKey = nextLiveKey;
+        lastValueKey = nextLiveEndTimeKey;
+        return true;
     }
 
     @Override

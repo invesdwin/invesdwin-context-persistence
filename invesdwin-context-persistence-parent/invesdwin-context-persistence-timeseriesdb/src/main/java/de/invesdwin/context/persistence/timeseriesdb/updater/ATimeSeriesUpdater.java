@@ -173,6 +173,11 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             }
 
             @Override
+            public FDate extractStartTime(final V element) {
+                return ATimeSeriesUpdater.this.extractStartTime(element);
+            }
+
+            @Override
             public FDate extractEndTime(final V element) {
                 return ATimeSeriesUpdater.this.extractEndTime(element);
             }
@@ -215,6 +220,8 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     protected abstract void onUpdateFinished(Instant updateStart);
 
     protected abstract void onUpdateStart();
+
+    protected abstract FDate extractStartTime(V element);
 
     protected abstract FDate extractEndTime(V element);
 

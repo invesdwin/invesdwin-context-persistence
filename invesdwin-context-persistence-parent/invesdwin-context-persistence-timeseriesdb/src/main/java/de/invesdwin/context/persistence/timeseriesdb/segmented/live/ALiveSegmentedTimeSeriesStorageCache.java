@@ -446,11 +446,12 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
         final ILock liveWriteLock = liveSegmentLock.writeLock();
         liveWriteLock.lock();
         try {
-            final FDate nextLiveKey = historicalSegmentTable.extractEndTime(nextLiveValue);
+            final FDate nextLiveStartTime = historicalSegmentTable.extractStartTime(nextLiveValue);
+            final FDate nextLiveEndTimeKey = historicalSegmentTable.extractEndTime(nextLiveValue);
             final FDate lastAvailableHistoricalSegmentTo = historicalSegmentTable
-                    .getLastAvailableHistoricalSegmentTo(key, nextLiveKey);
+                    .getLastAvailableHistoricalSegmentTo(key, nextLiveEndTimeKey);
             final ISegmentFinder segmentFinder = historicalSegmentTable.getSegmentFinder(key);
-            final TimeRange segment = segmentFinder.getCacheQuery().getValue(segmentFinder.getDay(nextLiveKey));
+            final TimeRange segment = segmentFinder.getCacheQuery().getValue(segmentFinder.getDay(nextLiveEndTimeKey));
             if (lastAvailableHistoricalSegmentTo.isAfterNotNullSafe(segment.getFrom())
                     /*
                      * allow equals since on first value of the next bar we might get an overlap for once when the last
@@ -460,9 +461,9 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
                 throw new IllegalStateException("lastAvailableHistoricalSegmentTo [" + lastAvailableHistoricalSegmentTo
                         + "] should be before or equal to liveSegmentFrom [" + segment.getFrom() + "]");
             }
-            if (liveSegment != null && nextLiveKey.isAfter(liveSegment.getSegmentedKey().getSegment().getTo())) {
+            if (liveSegment != null && nextLiveEndTimeKey.isAfterNotNullSafe(liveSegment.getSegmentedKey().getSegment().getTo())) {
                 if (!lastAvailableHistoricalSegmentTo
-                        .isBeforeOrEqualTo(liveSegment.getSegmentedKey().getSegment().getTo())) {
+                        .isBeforeOrEqualToNotNullSafe(liveSegment.getSegmentedKey().getSegment().getTo())) {
                     throw new IllegalStateException(
                             "lastAvailableHistoricalSegmentTo [" + lastAvailableHistoricalSegmentTo
                                     + "] should be before or equal to liveSegmentTo [" + segment.getTo() + "]");
@@ -477,7 +478,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
                         newLiveSegment(segmentedKey, historicalSegmentTable, batchFlushInterval),
                         liveSegmentLock.readLock());
             }
-            liveSegment.putNextLiveValue(nextLiveKey, nextLiveValue);
+            liveSegment.putNextLiveValue(nextLiveStartTime, nextLiveEndTimeKey, nextLiveValue);
         } finally {
             liveWriteLock.unlock();
         }

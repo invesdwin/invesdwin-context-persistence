@@ -69,6 +69,11 @@ public class FileLiveSegmentTest extends ATest {
             }
 
             @Override
+            public FDate extractStartTime(final Integer value) {
+                return extractEndTime(value);
+            }
+
+            @Override
             public FDate extractEndTime(final Integer value) {
                 return extractTime.get(value);
             }
@@ -106,11 +111,11 @@ public class FileLiveSegmentTest extends ATest {
         final FDate oneDate = now.addDays(1);
         final FDate twoDate = now.addDays(2);
         final FDate threeDate = now.addDays(3);
-        rangeTable.putNextLiveValue(oneDate, 1);
+        rangeTable.putNextLiveValue(oneDate, oneDate, 1);
         extractTime.put(1, oneDate);
-        rangeTable.putNextLiveValue(twoDate, 2);
+        rangeTable.putNextLiveValue(twoDate, twoDate, 2);
         extractTime.put(2, twoDate);
-        rangeTable.putNextLiveValue(threeDate, 3);
+        rangeTable.putNextLiveValue(threeDate, threeDate, 3);
         extractTime.put(3, threeDate);
         final ICloseableIterator<Integer> range3 = rangeTable.rangeValues(now, null, DisabledLock.INSTANCE, null)
                 .iterator();

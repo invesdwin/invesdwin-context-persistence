@@ -489,6 +489,11 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 }
 
                 @Override
+                protected FDate extractStartTime(final V element) {
+                    return segmentedTable.extractStartTime(element);
+                }
+
+                @Override
                 protected FDate extractEndTime(final V element) {
                     return segmentedTable.extractEndTime(element);
                 }

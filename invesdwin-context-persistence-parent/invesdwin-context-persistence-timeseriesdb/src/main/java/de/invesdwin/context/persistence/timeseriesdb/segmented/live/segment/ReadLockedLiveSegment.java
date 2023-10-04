@@ -77,8 +77,9 @@ public class ReadLockedLiveSegment<K, V> implements ILiveSegment<K, V> {
      * WARNING: Needs to be write locked from the outside
      */
     @Override
-    public void putNextLiveValue(final FDate nextLiveKey, final V nextLiveValue) {
-        delegate.putNextLiveValue(nextLiveKey, nextLiveValue);
+    public boolean putNextLiveValue(final FDate nextLiveStartTime, final FDate nextLiveEndTimeKey,
+            final V nextLiveValue) {
+        return delegate.putNextLiveValue(nextLiveStartTime, nextLiveEndTimeKey, nextLiveValue);
     }
 
     @Override

@@ -70,6 +70,11 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
             }
 
             @Override
+            public FDate extractStartTime(final FDate value) {
+                return value;
+            }
+
+            @Override
             public FDate extractEndTime(final FDate value) {
                 return value;
             }
@@ -97,6 +102,11 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
 
             @Override
             protected void onUpdateStart() {}
+
+            @Override
+            protected FDate extractStartTime(final FDate element) {
+                return element;
+            }
 
             @Override
             protected FDate extractEndTime(final FDate element) {

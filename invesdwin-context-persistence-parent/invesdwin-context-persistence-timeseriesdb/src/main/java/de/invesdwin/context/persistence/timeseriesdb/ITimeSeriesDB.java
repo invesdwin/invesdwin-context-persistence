@@ -88,6 +88,8 @@ public interface ITimeSeriesDB<K, V> extends Closeable {
 
     TimeSeriesLookupMode getLookupMode();
 
+    FDate extractStartTime(V value);
+
     FDate extractEndTime(V value);
 
 }

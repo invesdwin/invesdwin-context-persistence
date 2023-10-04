@@ -17,6 +17,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.iterable.buffer.IBufferingIterator;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
+import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
@@ -153,28 +154,35 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
-    public void putNextLiveValue(final FDate nextLiveKey, final V nextLiveValue) {
-        if (!lastValue.isEmpty() && lastValueKey.isAfter(nextLiveKey)) {
-            LOG.warn("%s: nextLiveKey [%s] should be after or equal to lastLiveKey [%s]", segmentedKey, nextLiveKey,
-                    lastValueKey);
-            //            throw new IllegalStateException(segmentedKey + ": nextLiveKey [" + nextLiveKey
-            //                    + "] should be after or equal to lastLiveKey [" + lastValueKey + "]");
-            return;
+    public boolean putNextLiveValue(final FDate nextLiveStartTime, final FDate nextLiveEndTimeKey,
+            final V nextLiveValue) {
+        if (!lastValue.isEmpty()) {
+            if (lastValueKey.isAfterNotNullSafe(nextLiveStartTime)) {
+                LOG.warn("%s: nextLiveStartTime [%s] should be after or equal to lastLiveKey [%s]", segmentedKey,
+                        nextLiveStartTime, lastValueKey);
+                return false;
+            }
         }
-        inProgress.putNextLiveValue(nextLiveKey, nextLiveValue);
-        if (firstValue.isEmpty() || firstValueKey.equalsNotNullSafe(nextLiveKey)) {
+        if (nextLiveStartTime.isAfterNotNullSafe(nextLiveEndTimeKey)) {
+            throw new IllegalArgumentException(TextDescription.format(
+                    "%s: nextLiveEndTimeKey [%s] should be after or equal to nextLiveStartTime [%s]", segmentedKey,
+                    nextLiveEndTimeKey, nextLiveStartTime));
+        }
+        inProgress.putNextLiveValue(nextLiveStartTime, nextLiveEndTimeKey, nextLiveValue);
+        if (firstValue.isEmpty() || firstValueKey.equalsNotNullSafe(nextLiveEndTimeKey)) {
             firstValue.add(nextLiveValue);
-            firstValueKey = nextLiveKey;
+            firstValueKey = nextLiveEndTimeKey;
         }
-        if (!lastValue.isEmpty() && !lastValueKey.equalsNotNullSafe(nextLiveKey)) {
+        if (!lastValue.isEmpty() && !lastValueKey.equalsNotNullSafe(nextLiveEndTimeKey)) {
             lastValue.clear();
         }
         lastValue.add(nextLiveValue);
-        lastValueKey = nextLiveKey;
+        lastValueKey = nextLiveEndTimeKey;
         inProgressSize++;
         if (inProgressSize >= batchFlushInterval) {
             flushLiveSegment();
         }
+        return true;
     }
 
     @Override

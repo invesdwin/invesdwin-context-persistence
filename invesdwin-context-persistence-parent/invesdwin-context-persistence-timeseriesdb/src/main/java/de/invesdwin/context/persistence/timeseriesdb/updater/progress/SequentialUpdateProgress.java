@@ -79,16 +79,23 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         return valueCount;
     }
 
-    private boolean onElement(final V element, final FDate endTime) {
+    private boolean onElement(final V element, final FDate startTime, final FDate endTime) {
         if (firstElement == null) {
             firstElement = element;
             minTime = endTime;
             collection = new ConfiguredSerializingCollection();
         }
-        if (maxTime != null && maxTime.isAfterNotNullSafe(endTime)) {
-            throw new IllegalArgumentException("New element end time [" + endTime
-                    + "] is not after or equal to previous element end time [" + maxTime + "] for table ["
-                    + parent.getTable().getName() + "] and key [" + parent.getKey() + "]");
+        if (maxTime != null) {
+            if (maxTime.isAfterNotNullSafe(startTime)) {
+                throw new IllegalArgumentException("New element startTime [" + startTime
+                        + "] is not after or equal to previous element endTime [" + maxTime + "] for table ["
+                        + parent.getTable().getName() + "] and key [" + parent.getKey() + "]");
+            }
+        }
+        if (startTime.isAfterNotNullSafe(endTime)) {
+            throw new IllegalArgumentException(
+                    "New element endTime [" + endTime + "] is not after or equal to element startTime [" + startTime
+                            + "] for table [" + parent.getTable().getName() + "] and key [" + parent.getKey() + "]");
         }
         maxTime = endTime;
         lastElement = element;
@@ -199,8 +206,9 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
                 try {
                     while (true) {
                         final V element = elements.next();
+                        final FDate startTime = parent.extractStartTime(element);
                         final FDate endTime = parent.extractEndTime(element);
-                        if (progress.onElement(element, endTime)) {
+                        if (progress.onElement(element, startTime, endTime)) {
                             return progress;
                         }
                     }

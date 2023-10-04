@@ -142,7 +142,8 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Deprecated
     @Override
-    public void putNextLiveValue(final FDate nextLiveKey, final V nextLiveValue) {
+    public boolean putNextLiveValue(final FDate nextLiveStartTime, final FDate nextLiveEndTimeKey,
+            final V nextLiveValue) {
         throw new UnsupportedOperationException();
     }
 
@@ -173,6 +174,11 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
 
             @Override
             protected void onUpdateStart() {}
+
+            @Override
+            protected FDate extractStartTime(final V element) {
+                return historicalSegmentTable.extractStartTime(element);
+            }
 
             @Override
             protected FDate extractEndTime(final V element) {

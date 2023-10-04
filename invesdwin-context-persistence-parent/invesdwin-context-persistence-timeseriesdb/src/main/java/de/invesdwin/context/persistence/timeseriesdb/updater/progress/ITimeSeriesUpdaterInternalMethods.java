@@ -13,6 +13,8 @@ public interface ITimeSeriesUpdaterInternalMethods<K, V> {
 
     ITimeSeriesDB<K, V> getTable();
 
+    FDate extractStartTime(V element);
+
     FDate extractEndTime(V element);
 
     void onFlush(int flushIndex, IUpdateProgress<K, V> updateProgress);

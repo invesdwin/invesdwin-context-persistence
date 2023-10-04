@@ -279,14 +279,20 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
-    public void putNextLiveValue(final FDate nextLiveKey, final V nextLiveValue) {
+    public boolean putNextLiveValue(final FDate nextLiveStartTime, final FDate nextLiveEndTimeKey,
+            final V nextLiveValue) {
         LastValue<V> lastValue = lastValues.getReverse(0);
-        if (!lastValue.values.isEmpty() && lastValue.key.isAfter(nextLiveKey)) {
-            LOG.warn("%s: nextLiveKey [%s] should be after or equal to lastLiveKey [%s]", segmentedKey, nextLiveKey,
-                    lastValue.key);
-            //            throw new IllegalStateException(segmentedKey + ": nextLiveKey [" + nextLiveKey
-            //                    + "] should be after or equal to lastLiveKey [" + lastValue.key + "]");
-            return;
+        if (!lastValue.values.isEmpty()) {
+            if (lastValue.key.isAfterNotNullSafe(nextLiveStartTime)) {
+                LOG.warn("%s: nextLiveStartTime [%s] should be after or equal to lastLiveKey [%s]", segmentedKey,
+                        nextLiveStartTime, lastValue.key);
+                return false;
+            }
+        }
+        if (nextLiveStartTime.isAfterNotNullSafe(nextLiveEndTimeKey)) {
+            throw new IllegalArgumentException(TextDescription.format(
+                    "%s: nextLiveEndTimeKey [%s] should be after or equal to nextLiveStartTime [%s]", segmentedKey,
+                    nextLiveEndTimeKey, nextLiveStartTime));
         }
         synchronized (this) {
             if (values == null) {
@@ -295,24 +301,25 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             values.add(nextLiveValue);
             needsFlush = true;
         }
-        if (firstValue.isEmpty() || firstValueKey.equalsNotNullSafe(nextLiveKey)) {
+        if (firstValue.isEmpty() || firstValueKey.equalsNotNullSafe(nextLiveEndTimeKey)) {
             firstValue.add(nextLiveValue);
-            firstValueKey = nextLiveKey;
+            firstValueKey = nextLiveEndTimeKey;
         }
-        if (!lastValue.values.isEmpty() && !lastValue.key.equalsNotNullSafe(nextLiveKey)) {
+        if (!lastValue.values.isEmpty() && !lastValue.key.equalsNotNullSafe(nextLiveEndTimeKey)) {
             //roll over to next
             lastValues.pretendAdd();
             lastValue = lastValues.getReverse(0);
             lastValue.values.clear();
         }
         lastValue.values.add(nextLiveValue);
-        lastValue.key = nextLiveKey;
+        lastValue.key = nextLiveEndTimeKey;
         if (inMemoryCacheHolder != null) {
             final ArrayFileBufferCacheResult<V> inMemoryCache = inMemoryCacheHolder.get();
             if (inMemoryCache != null) {
                 inMemoryCache.getList().add(nextLiveValue);
             }
         }
+        return true;
     }
 
     @Override

@@ -89,6 +89,11 @@ public class ATimeSeriesDBWithCacheTest extends ATest {
             }
 
             @Override
+            public FDate extractStartTime(final FDate value) {
+                return value;
+            }
+
+            @Override
             public FDate extractEndTime(final FDate value) {
                 return value;
             }
@@ -115,6 +120,11 @@ public class ATimeSeriesDBWithCacheTest extends ATest {
 
             @Override
             protected void onUpdateStart() {}
+
+            @Override
+            protected FDate extractStartTime(final FDate element) {
+                return element;
+            }
 
             @Override
             protected FDate extractEndTime(final FDate element) {

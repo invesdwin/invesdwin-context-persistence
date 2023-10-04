@@ -118,6 +118,11 @@ public class ASegmentedTimeSeriesDBWithNoCacheTest extends ATest {
             }
 
             @Override
+            public FDate extractStartTime(final FDate value) {
+                return value;
+            }
+
+            @Override
             public FDate extractEndTime(final FDate value) {
                 return value;
             }

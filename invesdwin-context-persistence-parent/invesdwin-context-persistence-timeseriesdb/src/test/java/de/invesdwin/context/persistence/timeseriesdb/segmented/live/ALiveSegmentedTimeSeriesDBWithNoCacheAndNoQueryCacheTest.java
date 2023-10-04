@@ -172,6 +172,11 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends AT
             }
 
             @Override
+            public FDate extractStartTime(final FDate value) {
+                return value;
+            }
+
+            @Override
             public FDate extractEndTime(final FDate value) {
                 return value;
             }
