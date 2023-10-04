@@ -1144,7 +1144,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                     @Override
                     public void run() {
                         final ISegmentFinder segmentFinder = getSegmentFinder(key);
-                        final TimeRange lastAvailableSegment = segmentFinder.getCacheQuery()
+                        final TimeRange lastAvailableSegment = segmentFinder.getCacheQueryWithFuture()
                                 .getValue(lastAvailableSegmentTo.addMilliseconds(-1));
                         getPrecedingValueCount(new SegmentedKey<K>(key, lastAvailableSegment));
                         synchronized (precedingValueCountCache) {
