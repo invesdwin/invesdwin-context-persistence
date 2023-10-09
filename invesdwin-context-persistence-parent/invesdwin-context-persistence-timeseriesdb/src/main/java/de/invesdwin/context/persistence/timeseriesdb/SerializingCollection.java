@@ -95,7 +95,7 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
             this.readOnly = true;
         } else {
             this.finalizer.register(this);
-            this.empty = file != null && (!file.exists() || file.length() == 0L);
+            this.empty = file == null || (!file.exists() || file.length() == 0L);
             if (!empty) {
                 this.size = READ_ONLY_FILE_SIZE;
             } else {
