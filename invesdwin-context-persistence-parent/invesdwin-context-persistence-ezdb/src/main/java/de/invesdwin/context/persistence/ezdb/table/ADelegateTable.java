@@ -26,6 +26,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
+import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
@@ -262,6 +263,12 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
                     //at ezdb.leveldb.EzLevelDbTable.<init>(EzLevelDbTable.java:50)
                     //at ezdb.leveldb.EzLevelDb.getTable(EzLevelDb.java:69)
                     //at de.invesdwin.context.persistence.leveldb.ADelegateRangeTable.getTableWithReadLock(ADelegateRangeTable.java:144)
+                    throw new RetryLaterRuntimeException(e);
+                } else if (Throwables.isCausedByInterrupt(e)) {
+                    //Caused by - ezdb.DbException: java.nio.channels.ClosedByInterruptException
+                    //at ezdb.leveldb.table.range.EzLevelDbRangeTable.<init>(EzLevelDbRangeTable.java:60)
+                    //at ezdb.leveldb.EzLevelDbJava.getRangeTable(EzLevelDbJava.java:98)
+                    //at de.invesdwin.context.persistence.ezdb.db.storage.LevelDBJavaRangeTableDb.getRangeTable(LevelDBJavaRangeTableDb.java:79) *
                     throw new RetryLaterRuntimeException(e);
                 } else {
                     Err.process(new RuntimeException("Table data for [" + getDirectory() + "/" + getName()
