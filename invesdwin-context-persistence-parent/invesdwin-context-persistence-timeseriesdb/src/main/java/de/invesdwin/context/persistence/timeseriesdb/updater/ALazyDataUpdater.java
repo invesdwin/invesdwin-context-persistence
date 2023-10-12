@@ -15,6 +15,7 @@ import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundExcept
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.concurrent.future.Futures;
+import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.IReentrantLock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.nested.ANestedExecutor;
@@ -98,7 +99,8 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 final Future<?> future = getNestedExecutor().getNestedExecutor().submit(new Runnable() {
                     @Override
                     public void run() {
-                        if (!getTable().getTableLock(key).writeLock().tryLock()) {
+                        final ILock writeLock = getTable().getTableLock(key).writeLock();
+                        if (!writeLock.tryLock()) {
                             //don't try to update if currently a backtest is running which is keeping iterators open
                             return;
                         }
@@ -107,7 +109,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                         } finally {
                             //update timestamp only at the end
                             lastUpdateCheck = newUpdateCheck;
-                            getTable().getTableLock(key).writeLock().unlock();
+                            writeLock.unlock();
                         }
                     }
 
