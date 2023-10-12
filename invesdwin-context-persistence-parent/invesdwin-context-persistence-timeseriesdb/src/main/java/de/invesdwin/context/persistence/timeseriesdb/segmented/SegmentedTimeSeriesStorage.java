@@ -31,7 +31,7 @@ public class SegmentedTimeSeriesStorage extends TimeSeriesStorage {
             }
 
             @Override
-            protected void onDeleteTableFinished() {
+            protected void onDeleteTablePreparing() {
                 throw new CorruptedStorageException(getName());
             }
 

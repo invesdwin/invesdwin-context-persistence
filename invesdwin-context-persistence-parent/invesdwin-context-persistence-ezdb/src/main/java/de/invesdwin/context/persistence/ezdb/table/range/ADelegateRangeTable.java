@@ -295,6 +295,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
     }
 
     private void innerDeleteTable() {
+        onDeleteTablePreparing();
         if (tableFinalizer.table != null) {
             RangeTableCloseManager.unregister(this);
             tableFinalizer.table.close();
@@ -312,6 +313,8 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
         tableCreationTime = null;
         onDeleteTableFinished();
     }
+
+    protected void onDeleteTablePreparing() {}
 
     protected void onDeleteTableFinished() {}
 
