@@ -91,6 +91,7 @@
 				<artifactId>invesdwin-context-parent</artifactId>
 				<version>${project.version.invesdwin-context}</version>
 				<type>pom</type>
+				<scope>import</scope>
 			</dependency>
 			<dependency>
 				<groupId>de.invesdwin</groupId>
