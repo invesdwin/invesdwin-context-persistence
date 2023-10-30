@@ -249,11 +249,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
         if (tableFinalizer.table == null) {
             if (getTableCreationTime() == null) {
                 if (getPersistenceMode().isDisk()) {
-                    try {
-                        Files.touch(timestampFile);
-                    } catch (final IOException e) {
-                        throw Err.process(e);
-                    }
+                    Files.touchQuietly(timestampFile);
                 }
                 tableCreationTime = new FDate();
             }

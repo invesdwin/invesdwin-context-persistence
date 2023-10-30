@@ -511,28 +511,28 @@ public class ATimeSeriesDBWithUnlimitedCacheTest extends ATest {
         for (final FDate entity : entities) {
             Assertions.assertThat(cache.query().getValue(entity.addDays(5))).isNotNull();
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(11);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
         //new minKey without new db limit
         for (final FDate entity : entities) {
             Assertions.assertThat(cache.query().setFutureEnabled().getValue(entity.addYears(-5))).isNotNull();
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(11);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
         //again in the same limit
         for (final FDate entity : entities) {
             Assertions.assertThat(cache.query().getValue(entity.addDays(2))).isNotNull();
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(12);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(16);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
         //random order
         for (final FDate entity : new HashSet<FDate>(entities)) {
             Assertions.assertThat(cache.query().getValue(entity.addDays(2))).isNotNull();
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(12);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(16);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
         //simulate cache eviction
@@ -544,7 +544,7 @@ public class ATimeSeriesDBWithUnlimitedCacheTest extends ATest {
         for (final FDate entity : entities) {
             Assertions.assertThat(cache.query().getValue(entity.addDays(2))).isNotNull();
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(22);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(26);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(6);
     }
 

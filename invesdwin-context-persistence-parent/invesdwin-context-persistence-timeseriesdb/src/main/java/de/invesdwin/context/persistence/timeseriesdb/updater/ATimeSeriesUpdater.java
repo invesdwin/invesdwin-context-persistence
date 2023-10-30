@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb.updater;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -100,11 +99,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                         + "] and key [" + key + "], need to clean everything up to restore all from scratch.");
             }
             try {
-                try {
-                    Files.touch(updateLockFile);
-                } catch (final IOException e) {
-                    throw new RuntimeException(e);
-                }
+                Files.touchQuietly(updateLockFile);
                 final Instant updateStart = new Instant();
                 onUpdateStart();
                 doUpdate();
