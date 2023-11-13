@@ -2,7 +2,6 @@ package de.invesdwin.context.persistence.timeseriesdb.updater;
 
 import java.io.File;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -12,6 +11,7 @@ import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseriesdb.PrepareForUpdateResult;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdaterInternalMethods;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
@@ -81,7 +81,8 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     public final boolean update() throws IncompleteUpdateFoundException {
         final ILock writeLock = table.getTableLock(key).writeLock();
         try {
-            if (!writeLock.tryLock(1, TimeUnit.MINUTES)) {
+            if (!writeLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT.longValue(),
+                    TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT.getTimeUnit().timeUnitValue())) {
                 throw Locks.getLockTrace()
                         .handleLockException(writeLock.getName(),
                                 new RetryLaterRuntimeException(

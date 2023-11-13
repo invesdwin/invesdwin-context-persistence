@@ -10,6 +10,7 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -209,16 +210,26 @@ public final class FileBufferCache {
                         RESULT_CACHE_CLEAR_LOCK);
                 return getResultNoCache(source);
             } else {
-                final SoftReference<IFileBufferCacheResult> valueHolder = Futures.getNoInterrupt(RESULT_CACHE.get(key));
-                if (valueHolder == null) {
+                if (source.getReadLock().isLocked()) {
+                    //prevent async deadlock when write lock is active
                     return getResultNoCache(source);
                 }
-                final IFileBufferCacheResult value = valueHolder.get();
-                if (value == null) {
-                    RESULT_CACHE.asMap().remove(key);
+                try {
+                    final SoftReference<IFileBufferCacheResult> valueHolder = Futures.getNoInterrupt(
+                            RESULT_CACHE.get(key), TimeSeriesProperties.FILE_BUFFER_CACHE_ASYNC_TIMEOUT);
+                    if (valueHolder == null) {
+                        return getResultNoCache(source);
+                    }
+                    final IFileBufferCacheResult value = valueHolder.get();
+                    if (value == null) {
+                        RESULT_CACHE.asMap().remove(key);
+                        return getResultNoCache(source);
+                    }
+                    return value;
+                } catch (final TimeoutException e) {
+                    //prevent async deadlock when write lock just became active
                     return getResultNoCache(source);
                 }
-                return value;
             }
         } else {
             return getResultNoCache(source);
@@ -247,11 +258,17 @@ public final class FileBufferCache {
 
     public static <T> void preloadResult(final String hashKey, final MemoryFileSummary summary,
             final IFileBufferSource source) {
-        if (PRELOAD_EXECUTOR != null) {
-            if (PRELOAD_EXECUTOR.getPendingCount() <= 3) {
-                PRELOAD_EXECUTOR.execute(() -> getResult(hashKey, summary, source));
-            }
+        if (PRELOAD_EXECUTOR == null) {
+            return;
         }
+        if (PRELOAD_EXECUTOR.getPendingCount() > 3) {
+            return;
+        }
+        if (source.getReadLock().isLocked()) {
+            //prevent async deadlock when write lock is active
+            return;
+        }
+        PRELOAD_EXECUTOR.execute(() -> getResult(hashKey, summary, source));
     }
 
     private static final class ResultCacheKey {

@@ -1,7 +1,5 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 
-import java.util.concurrent.locks.Lock;
-
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
@@ -16,6 +14,7 @@ import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdatePro
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.error.UnknownArgumentException;
@@ -79,12 +78,12 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
-    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final Lock readLock,
+    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final ILock readLock,
             final ISkipFileFunction skipFileFunction) {
         return new ICloseableIterable<V>() {
             @Override
             public ICloseableIterator<V> iterator() {
-                final Lock compositeReadLock = Locks.newCompositeLock(readLock,
+                final ILock compositeReadLock = Locks.newCompositeLock(readLock,
                         table.getTableLock(segmentedKey).readLock());
                 return table.getLookupTableCache(segmentedKey)
                         .readRangeValues(from, to, compositeReadLock, skipFileFunction);
@@ -93,12 +92,12 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
-    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final Lock readLock,
+    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final ILock readLock,
             final ISkipFileFunction skipFileFunction) {
         return new ICloseableIterable<V>() {
             @Override
             public ICloseableIterator<V> iterator() {
-                final Lock compositeReadLock = Locks.newCompositeLock(readLock,
+                final ILock compositeReadLock = Locks.newCompositeLock(readLock,
                         table.getTableLock(segmentedKey).readLock());
                 return table.getLookupTableCache(segmentedKey)
                         .readRangeValuesReverse(from, to, compositeReadLock, skipFileFunction);

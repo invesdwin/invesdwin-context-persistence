@@ -1,8 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb;
 
 import java.io.File;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -182,7 +180,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     @Override
     public V getLatestValue(final K key, final FDate date) {
-        final Lock readLock = getTableLock(key).readLock();
+        final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
             if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
@@ -209,7 +207,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     @Override
     public long getLatestValueIndex(final K key, final FDate date) {
-        final Lock readLock = getTableLock(key).readLock();
+        final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
             if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
@@ -230,7 +228,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     @Override
     public V getLatestValue(final K key, final long index) {
-        final Lock readLock = getTableLock(key).readLock();
+        final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
             final TimeSeriesStorageCache<K, V> lookupTableCache = getLookupTableCache(key);
@@ -258,7 +256,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     @Override
     public long size(final K key) {
-        final Lock readLock = getTableLock(key).readLock();
+        final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
             return getLookupTableCache(key).size();
@@ -269,7 +267,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     @Override
     public V getPreviousValue(final K key, final FDate date, final int shiftBackUnits) {
-        final Lock readLock = getTableLock(key).readLock();
+        final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
             if (date == null) {
@@ -296,7 +294,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     @Override
     public boolean isEmptyOrInconsistent(final K key) {
-        final Lock readLock = getTableLock(key).readLock();
+        final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
             return getLookupTableCache(key).isEmptyOrInconsistent();
@@ -307,7 +305,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     @Override
     public V getNextValue(final K key, final FDate date, final int shiftForwardUnits) {
-        final Lock readLock = getTableLock(key).readLock();
+        final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
             if (date.isAfterOrEqualTo(FDates.MAX_DATE)) {
@@ -334,7 +332,8 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     public void deleteRange(final K key) {
         final ILock writeLock = getTableLock(key).writeLock();
         try {
-            if (!writeLock.tryLock(1, TimeUnit.MINUTES)) {
+            if (!writeLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT.longValue(),
+                    TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT.getTimeUnit().timeUnitValue())) {
                 throw Locks.getLockTrace()
                         .handleLockException(writeLock.getName(),
                                 new RetryLaterRuntimeException("Write lock could not be acquired for table [" + name

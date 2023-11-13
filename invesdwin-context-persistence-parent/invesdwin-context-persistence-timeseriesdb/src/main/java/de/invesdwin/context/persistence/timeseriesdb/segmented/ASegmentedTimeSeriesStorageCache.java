@@ -7,9 +7,6 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReadWriteLock;
 import java.util.function.Function;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -26,6 +23,7 @@ import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.FileBufferCache;
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftBackUnitsLoopLongIndex;
@@ -133,7 +131,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         };
     }
 
-    public ICloseableIterable<V> readRangeValues(final FDate from, final FDate to, final Lock readLock,
+    public ICloseableIterable<V> readRangeValues(final FDate from, final FDate to, final ILock readLock,
             final ISkipFileFunction skipFileFunction) {
         final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
         if (firstAvailableSegmentFrom == null) {
@@ -160,7 +158,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                         maybeInitSegment(segmentedKey);
                         final FDate segmentAdjFrom = FDates.max(adjFrom, value.getFrom());
                         final FDate segmentAdjTo = FDates.min(adjTo, value.getTo());
-                        final Lock compositeReadLock = Locks.newCompositeLock(readLock,
+                        final ILock compositeReadLock = Locks.newCompositeLock(readLock,
                                 segmentedTable.getTableLock(segmentedKey).readLock());
                         return segmentedTable.getLookupTableCache(segmentedKey)
                                 .readRangeValues(segmentAdjFrom, segmentAdjTo, compositeReadLock, skipFileFunction);
@@ -275,7 +273,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             if (status == null || status == SegmentStatus.INITIALIZING) {
                 final ILock segmentWriteLock = segmentTableLock.writeLock();
                 try {
-                    if (!segmentWriteLock.tryLock(1, TimeUnit.MINUTES)) {
+                    if (!segmentWriteLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT.longValue(),
+                            TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT.getTimeUnit().timeUnitValue())) {
                         /*
                          * should not happen here because segment should not yet exist. Though if it happens we would
                          * rather like an exception instead of a deadlock!
@@ -377,8 +376,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     }
 
     private SegmentStatus getSegmentStatusWithReadLock(final SegmentedKey<K> segmentedKey,
-            final ReadWriteLock segmentTableLock) {
-        final Lock segmentReadLock = segmentTableLock.readLock();
+            final IReadWriteLock segmentTableLock) {
+        final ILock segmentReadLock = segmentTableLock.readLock();
         segmentReadLock.lock();
         try {
             return storage.getSegmentStatusTable().get(hashKey, segmentedKey.getSegment());
@@ -548,7 +547,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
     protected abstract FDate getFirstAvailableSegmentFrom(K key);
 
-    public ICloseableIterable<V> readRangeValuesReverse(final FDate from, final FDate to, final Lock readLock,
+    public ICloseableIterable<V> readRangeValuesReverse(final FDate from, final FDate to, final ILock readLock,
             final ISkipFileFunction skipFileFunction) {
         final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
         final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key, to);
@@ -569,7 +568,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                         maybeInitSegment(segmentedKey);
                         final FDate segmentAdjFrom = FDates.min(adjFrom, value.getTo());
                         final FDate segmentAdjTo = FDates.max(adjTo, value.getFrom());
-                        final Lock compositeReadLock = Locks.newCompositeLock(readLock,
+                        final ILock compositeReadLock = Locks.newCompositeLock(readLock,
                                 segmentedTable.getTableLock(segmentedKey).readLock());
                         return segmentedTable.getLookupTableCache(segmentedKey)
                                 .readRangeValuesReverse(segmentAdjFrom, segmentAdjTo, compositeReadLock,

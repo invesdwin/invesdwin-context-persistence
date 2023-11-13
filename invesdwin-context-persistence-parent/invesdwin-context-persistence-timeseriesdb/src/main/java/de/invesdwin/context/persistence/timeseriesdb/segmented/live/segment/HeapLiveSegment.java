@@ -3,7 +3,6 @@ package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 import java.util.Map.Entry;
 import java.util.NavigableMap;
 import java.util.SortedMap;
-import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -22,6 +21,7 @@ import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.iterable.buffer.IBufferingIterator;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
+import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.lang.string.description.TextDescription;
@@ -61,7 +61,7 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
-    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final Lock readLock,
+    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final ILock readLock,
             final ISkipFileFunction skipFileFunction) {
         //we expect the read lock to be already locked from the outside
         if (values == null || from != null && to != null && from.isAfterNotNullSafe(to)) {
@@ -119,7 +119,7 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
-    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final Lock readLock,
+    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final ILock readLock,
             final ISkipFileFunction skipFileFunction) {
         //we expect the read lock to be already locked from the outside
         if (values == null || from != null && to != null && from.isBeforeNotNullSafe(to)) {
