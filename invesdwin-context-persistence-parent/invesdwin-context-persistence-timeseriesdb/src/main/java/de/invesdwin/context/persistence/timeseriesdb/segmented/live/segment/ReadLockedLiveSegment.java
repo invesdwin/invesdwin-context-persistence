@@ -1,7 +1,5 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 
-import java.util.concurrent.locks.Lock;
-
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
@@ -52,7 +50,7 @@ public class ReadLockedLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
-    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final Lock readLock,
+    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final ILock readLock,
             final ISkipFileFunction skipFileFunction) {
         liveReadLock.lock();
         try {
@@ -63,7 +61,7 @@ public class ReadLockedLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
-    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final Lock readLock,
+    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final ILock readLock,
             final ISkipFileFunction skipFileFunction) {
         liveReadLock.lock();
         try {

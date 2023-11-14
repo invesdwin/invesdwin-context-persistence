@@ -2,7 +2,6 @@ package de.invesdwin.context.persistence.timeseriesdb.updater;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -78,7 +77,8 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
             final IReentrantLock updateLock = getUpdateLock();
             if (shouldSkipUpdateOnCurrentThreadIfAlreadyRunning()) {
                 try {
-                    if (!updateLock.tryLock(5, TimeUnit.SECONDS)) {
+                    if (!updateLock.tryLock(TimeSeriesProperties.ACQUIRE_UPDATE_LOCK_TIMEOUT.longValue(),
+                            TimeSeriesProperties.ACQUIRE_UPDATE_LOCK_TIMEOUT.getTimeUnit().timeUnitValue())) {
                         return;
                     }
                 } catch (final InterruptedException e) {
