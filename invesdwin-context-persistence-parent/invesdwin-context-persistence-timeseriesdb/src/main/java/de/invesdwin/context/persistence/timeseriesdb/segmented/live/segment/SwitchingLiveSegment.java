@@ -277,7 +277,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
         V latestValue = null;
         long precedingValueCount = 0L;
-        for (int i = 0; i < latestValueProviders.size(); i++) {
+        for (int i = latestValueProviders.size() - 1; i >= 0; i--) {
             final ILiveSegment<K, V> latestValueProvider = latestValueProviders.get(i);
             final long combinedValueCount = precedingValueCount + latestValueProvider.size();
             if (precedingValueCount <= index && index < combinedValueCount) {
@@ -314,7 +314,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
         long latestValueIndex = -1L;
         long precedingValueCount = 0L;
-        for (int i = 0; i < latestValueProviders.size(); i++) {
+        for (int i = latestValueProviders.size() - 1; i >= 0; i--) {
             final ILiveSegment<K, V> latestValueProvider = latestValueProviders.get(i);
             final long newValueIndex = latestValueProvider.getLatestValueIndex(date);
             final V newValue = latestValueProvider.getLatestValue(latestValueIndex);
