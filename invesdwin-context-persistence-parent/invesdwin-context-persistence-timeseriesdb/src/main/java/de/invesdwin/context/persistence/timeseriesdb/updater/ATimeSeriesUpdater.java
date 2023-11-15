@@ -81,8 +81,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     public final boolean update() throws IncompleteUpdateFoundException {
         final ILock writeLock = table.getTableLock(key).writeLock();
         try {
-            if (!writeLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT.longValue(),
-                    TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT.getTimeUnit().timeUnitValue())) {
+            if (!writeLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
                 throw Locks.getLockTrace()
                         .handleLockException(writeLock.getName(),
                                 new RetryLaterRuntimeException(

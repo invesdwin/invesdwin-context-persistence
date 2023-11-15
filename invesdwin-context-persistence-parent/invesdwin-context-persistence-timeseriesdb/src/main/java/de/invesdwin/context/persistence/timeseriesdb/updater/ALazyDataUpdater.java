@@ -77,8 +77,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
             final IReentrantLock updateLock = getUpdateLock();
             if (shouldSkipUpdateOnCurrentThreadIfAlreadyRunning()) {
                 try {
-                    if (!updateLock.tryLock(TimeSeriesProperties.ACQUIRE_UPDATE_LOCK_TIMEOUT.longValue(),
-                            TimeSeriesProperties.ACQUIRE_UPDATE_LOCK_TIMEOUT.getTimeUnit().timeUnitValue())) {
+                    if (!updateLock.tryLock(TimeSeriesProperties.ACQUIRE_UPDATE_LOCK_TIMEOUT)) {
                         return;
                     }
                 } catch (final InterruptedException e) {

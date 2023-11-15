@@ -322,8 +322,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
     public void deleteRange(final K key) {
         final ILock writeLock = getTableLock(key).writeLock();
         try {
-            if (!writeLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT.longValue(),
-                    TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT.getTimeUnit().timeUnitValue())) {
+            if (!writeLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
                 throw Locks.getLockTrace()
                         .handleLockException(writeLock.getName(),
                                 new RetryLaterRuntimeException(

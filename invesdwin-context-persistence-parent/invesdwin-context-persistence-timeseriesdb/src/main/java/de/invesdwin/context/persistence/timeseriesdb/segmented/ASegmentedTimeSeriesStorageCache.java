@@ -273,8 +273,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             if (status == null || status == SegmentStatus.INITIALIZING) {
                 final ILock segmentWriteLock = segmentTableLock.writeLock();
                 try {
-                    if (!segmentWriteLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT.longValue(),
-                            TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT.getTimeUnit().timeUnitValue())) {
+                    if (!segmentWriteLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
                         /*
                          * should not happen here because segment should not yet exist. Though if it happens we would
                          * rather like an exception instead of a deadlock!

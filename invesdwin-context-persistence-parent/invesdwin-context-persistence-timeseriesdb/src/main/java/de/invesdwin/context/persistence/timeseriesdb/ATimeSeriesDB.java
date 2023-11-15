@@ -332,8 +332,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     public void deleteRange(final K key) {
         final ILock writeLock = getTableLock(key).writeLock();
         try {
-            if (!writeLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT.longValue(),
-                    TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT.getTimeUnit().timeUnitValue())) {
+            if (!writeLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
                 throw Locks.getLockTrace()
                         .handleLockException(writeLock.getName(),
                                 new RetryLaterRuntimeException("Write lock could not be acquired for table [" + name

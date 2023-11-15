@@ -115,28 +115,38 @@ public final class FileBufferCache {
 
     private static SoftReference resultCache_load(final ResultCacheKey key) throws Exception {
         final IFileBufferSource source = key.getSource();
-        final IByteBuffer buffer = source.getBuffer();
-        if (buffer != null) {
-            return new SoftReference<IFileBufferCacheResult>(
-                    new ByteBufferFileBufferCacheResult<>(buffer, source.getSerde(), source.getFixedLength()));
-        } else {
-            final IDeserializingCloseableIterable iterable = source.getIterable();
-            if (TimeSeriesProperties.FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR != null
-                    && iterable.getFixedLength() != null && iterable.getFixedLength() > 0) {
-                return new SoftReference<IFileBufferCacheResult>(new ByteBufferFileBufferCacheResult<>(
-                        TimeSeriesProperties.FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR, iterable));
+        final ILock readLock = source.getReadLock();
+        if (!readLock.tryLock(TimeSeriesProperties.FILE_BUFFER_CACHE_ASYNC_TIMEOUT)) {
+            //prevent async deadlock when write lock is active
+            key.setSource(null);
+            return null;
+        }
+        try {
+            final IByteBuffer buffer = source.getBuffer();
+            if (buffer != null) {
+                return new SoftReference<IFileBufferCacheResult>(
+                        new ByteBufferFileBufferCacheResult<>(buffer, source.getSerde(), source.getFixedLength()));
             } else {
-                key.setSource(null);
-                final ArrayList list = LIST_POOL.borrowObject();
-                try (ICloseableIterator it = iterable.iterator()) {
-                    while (true) {
-                        list.add(it.next());
+                final IDeserializingCloseableIterable iterable = source.getIterable();
+                if (TimeSeriesProperties.FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR != null
+                        && iterable.getFixedLength() != null && iterable.getFixedLength() > 0) {
+                    return new SoftReference<IFileBufferCacheResult>(new ByteBufferFileBufferCacheResult<>(
+                            TimeSeriesProperties.FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR, iterable));
+                } else {
+                    key.setSource(null);
+                    final ArrayList list = LIST_POOL.borrowObject();
+                    try (ICloseableIterator it = iterable.iterator()) {
+                        while (true) {
+                            list.add(it.next());
+                        }
+                    } catch (final NoSuchElementException e) {
+                        //end reached
                     }
-                } catch (final NoSuchElementException e) {
-                    //end reached
+                    return new SoftReference<IFileBufferCacheResult>(new ArrayFileBufferCacheResult(list));
                 }
-                return new SoftReference<IFileBufferCacheResult>(new ArrayFileBufferCacheResult(list));
             }
+        } finally {
+            readLock.unlock();
         }
     }
 
@@ -218,6 +228,7 @@ public final class FileBufferCache {
                     final SoftReference<IFileBufferCacheResult> valueHolder = Futures.getNoInterrupt(
                             RESULT_CACHE.get(key), TimeSeriesProperties.FILE_BUFFER_CACHE_ASYNC_TIMEOUT);
                     if (valueHolder == null) {
+                        RESULT_CACHE.asMap().remove(key);
                         return getResultNoCache(source);
                     }
                     final IFileBufferCacheResult value = valueHolder.get();
