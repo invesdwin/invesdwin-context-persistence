@@ -116,7 +116,7 @@ public final class FileBufferCache {
     private static SoftReference resultCache_load(final ResultCacheKey key) throws Exception {
         final IFileBufferSource source = key.getSource();
         final ILock readLock = source.getReadLock();
-        if (!readLock.tryLock(TimeSeriesProperties.FILE_BUFFER_CACHE_ASYNC_TIMEOUT)) {
+        if (!readLock.tryLock()) {
             //prevent async deadlock when write lock is active
             key.setSource(null);
             return null;
