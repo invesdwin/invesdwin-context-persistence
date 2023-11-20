@@ -4,7 +4,6 @@ import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.context.system.array.IPrimitiveArrayAllocator;
 import de.invesdwin.context.system.properties.SystemProperties;
-import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.duration.Duration;
 
 @Immutable
@@ -37,17 +36,5 @@ public final class TimeSeriesProperties {
     }
 
     private TimeSeriesProperties() {}
-
-    public static FDate getUpdateLimitTo() {
-        return SYSTEM_PROPERTIES.getDateOptional("UPDATE_LIMIT_TO");
-    }
-
-    public static void setUpdateLimitTo(final FDate updateLimitTo) {
-        SYSTEM_PROPERTIES.setDate("UPDATE_LIMIT_TO", updateLimitTo);
-    }
-
-    public static void setUpdateLimitTo() {
-        setUpdateLimitTo(new FDate());
-    }
 
 }
