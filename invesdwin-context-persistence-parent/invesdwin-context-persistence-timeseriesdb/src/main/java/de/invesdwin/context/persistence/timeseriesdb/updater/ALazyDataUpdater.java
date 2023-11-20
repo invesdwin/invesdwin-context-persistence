@@ -91,10 +91,6 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                     //some sort of double checked locking to skip if someone else came before us
                     return;
                 }
-                if (!TimeSeriesProperties.isUpdateEnabled()) {
-                    lastUpdateCheck = newUpdateCheck;
-                    return;
-                }
                 final Future<?> future = getNestedExecutor().getNestedExecutor().submit(new Runnable() {
                     @Override
                     public void run() {
