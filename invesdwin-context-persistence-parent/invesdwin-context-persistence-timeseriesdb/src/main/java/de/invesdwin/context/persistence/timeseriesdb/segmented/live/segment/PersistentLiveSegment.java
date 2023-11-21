@@ -4,7 +4,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDBInternals;
-import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
+import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentStatus;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
@@ -199,7 +199,7 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
         };
         try {
             Assertions.checkTrue(updater.update());
-        } catch (final IncompleteUpdateFoundException e) {
+        } catch (final IncompleteUpdateRetryableException e) {
             throw new RuntimeException(e);
         }
         empty = false;

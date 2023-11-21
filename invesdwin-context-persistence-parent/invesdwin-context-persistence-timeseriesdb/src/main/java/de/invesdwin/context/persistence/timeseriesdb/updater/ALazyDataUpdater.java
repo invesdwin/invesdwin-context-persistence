@@ -10,7 +10,7 @@ import org.apache.commons.lang3.BooleanUtils;
 
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
-import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
+import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.concurrent.future.Futures;
@@ -128,7 +128,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
         return !FDates.isSameJulianDay(lastUpdateCheck, curTime);
     }
 
-    protected final FDate doUpdate(final FDate estimatedTo) throws IncompleteUpdateFoundException {
+    protected final FDate doUpdate(final FDate estimatedTo) throws IncompleteUpdateRetryableException {
         if (estimatedTo == null) {
             throw new NullPointerException("estimatedTo should not be null");
         }
@@ -198,7 +198,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
             final String taskName = "Loading " + getElementsName() + " for " + keyToString(getKey());
             final Callable<Percent> progress = newProgressCallable(estimatedTo, updater);
             return TaskInfoCallable.of(taskName, task, progress).call();
-        } catch (final IncompleteUpdateFoundException e) {
+        } catch (final IncompleteUpdateRetryableException e) {
             throw e;
         } catch (final Throwable e) {
             throw Throwables.propagate(e);

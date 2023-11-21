@@ -14,7 +14,7 @@ import org.apache.commons.lang3.RandomUtils;
 import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
+import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.PeriodicalSegmentFinder;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.HistoricalCacheSegmentFinder;
@@ -65,7 +65,7 @@ public class ALiveSegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest e
     private final int testReturnMaxResultsValue = 2;
     private final TestGapHistoricalCache cache = new TestGapHistoricalCache();
 
-    public ALiveSegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest() throws IncompleteUpdateFoundException {
+    public ALiveSegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest() throws IncompleteUpdateRetryableException {
         this.entities = new ArrayList<FDate>();
         entities.add(FDateBuilder.newDate(1990, 1, 1));
         entities.add(FDateBuilder.newDate(1991, 1, 1));
@@ -1129,7 +1129,7 @@ public class ALiveSegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest e
     }
 
     @Test
-    public void testNewEntityIncomingAfterClear() throws IncompleteUpdateFoundException {
+    public void testNewEntityIncomingAfterClear() throws IncompleteUpdateRetryableException {
         final List<FDate> newEntities = new ArrayList<FDate>(entities);
         final FDate newEntity = FDateBuilder.newDate(1996, 1, 1);
         newEntities.add(newEntity);
@@ -1152,7 +1152,7 @@ public class ALiveSegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest e
     }
 
     @Test
-    public void testNewEntityIncomingPullingAdjustKeyProvider() throws IncompleteUpdateFoundException {
+    public void testNewEntityIncomingPullingAdjustKeyProvider() throws IncompleteUpdateRetryableException {
         cache.setAdjustKeyProvider(new APullingHistoricalCacheAdjustKeyProvider(cache) {
             @Override
             protected FDate innerGetHighestAllowedKey() {
@@ -1183,7 +1183,7 @@ public class ALiveSegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest e
     }
 
     @Test
-    public void testNewEntityIncomingPushingAdjustKeyProvider() throws IncompleteUpdateFoundException {
+    public void testNewEntityIncomingPushingAdjustKeyProvider() throws IncompleteUpdateRetryableException {
         final APushingHistoricalCacheAdjustKeyProvider adjustKeyProvider = new APushingHistoricalCacheAdjustKeyProvider(
                 cache) {
             @Override
@@ -1219,7 +1219,7 @@ public class ALiveSegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest e
 
     @Test
     public void testNewEntityIncomingPushingAdjustKeyProviderWithoutInitialPush()
-            throws IncompleteUpdateFoundException {
+            throws IncompleteUpdateRetryableException {
         final APushingHistoricalCacheAdjustKeyProvider adjustKeyProvider = new APushingHistoricalCacheAdjustKeyProvider(
                 cache) {
             @Override
@@ -1253,7 +1253,7 @@ public class ALiveSegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest e
     }
 
     @Test
-    public void testNewEntityIncomingPushingAdjustKeyProviderWithoutPush() throws IncompleteUpdateFoundException {
+    public void testNewEntityIncomingPushingAdjustKeyProviderWithoutPush() throws IncompleteUpdateRetryableException {
         final APushingHistoricalCacheAdjustKeyProvider adjustKeyProvider = new APushingHistoricalCacheAdjustKeyProvider(
                 cache) {
             @Override

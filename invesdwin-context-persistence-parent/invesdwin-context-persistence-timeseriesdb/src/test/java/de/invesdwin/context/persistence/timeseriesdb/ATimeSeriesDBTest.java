@@ -32,7 +32,7 @@ public class ATimeSeriesDBTest extends ATest {
     //CHECKSTYLE:ON
 
     @Test
-    public void testGetPreviousAndNext() throws IncompleteUpdateFoundException {
+    public void testGetPreviousAndNext() throws IncompleteUpdateRetryableException {
         final String key = "asdf";
         final ATimeSeriesDB<String, FDate> table = new ATimeSeriesDB<String, FDate>("testGetPrevious") {
 
@@ -136,7 +136,7 @@ public class ATimeSeriesDBTest extends ATest {
     }
 
     @Test
-    public void testUpdateFile() throws IncompleteUpdateFoundException {
+    public void testUpdateFile() throws IncompleteUpdateRetryableException {
         final String key = "asdf";
         final ATimeSeriesDB<String, FDate> table = new ATimeSeriesDB<String, FDate>("testUpdateFile") {
 
@@ -272,7 +272,7 @@ public class ATimeSeriesDBTest extends ATest {
     }
 
     @Test
-    public void testGetPreviousAndNextSkipFile() throws IncompleteUpdateFoundException {
+    public void testGetPreviousAndNextSkipFile() throws IncompleteUpdateRetryableException {
         final String key = "asdf";
         final ATimeSeriesDB<String, FDate> table = new ATimeSeriesDB<String, FDate>("testGetPreviousSkipFile") {
 

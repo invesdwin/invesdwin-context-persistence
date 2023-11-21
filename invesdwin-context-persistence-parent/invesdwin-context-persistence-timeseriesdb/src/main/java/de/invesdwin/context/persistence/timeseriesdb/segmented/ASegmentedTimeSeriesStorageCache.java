@@ -21,7 +21,7 @@ import de.invesdwin.context.integration.retry.task.BackOffPolicies;
 import de.invesdwin.context.integration.retry.task.RetryOriginator;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
-import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
+import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
@@ -462,7 +462,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 }
             }
         } catch (final Throwable t) {
-            if (Throwables.isCausedByType(t, IncompleteUpdateFoundException.class)) {
+            if (Throwables.isCausedByType(t, IncompleteUpdateRetryableException.class)) {
                 segmentedTable.deleteRange(new SegmentedKey<K>(segmentedKey.getKey(), segmentedKey.getSegment()));
                 throw new RetryLaterRuntimeException(t);
             } else {
