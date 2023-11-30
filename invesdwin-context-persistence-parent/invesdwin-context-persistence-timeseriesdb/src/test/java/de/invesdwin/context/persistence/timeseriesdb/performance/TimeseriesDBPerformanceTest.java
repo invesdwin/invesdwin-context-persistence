@@ -13,7 +13,7 @@ import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.IPersistentMapType;
-import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
+import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.PersistentMapType;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
@@ -35,7 +35,7 @@ import de.invesdwin.util.time.duration.Duration;
 public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
 
     @Test
-    public void testTimeSeriesDbPerformance() throws IncompleteUpdateFoundException, InterruptedException {
+    public void testTimeSeriesDbPerformance() throws IncompleteUpdateRetryableException, InterruptedException {
         final ATimeSeriesDB<String, FDate> table = new ATimeSeriesDB<String, FDate>("testTimeSeriesDbPerformance") {
 
             @Override

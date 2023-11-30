@@ -3,7 +3,6 @@ package de.invesdwin.context.persistence.timeseriesdb.segmented.live;
 import java.io.Closeable;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 
@@ -129,20 +128,20 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
         return historicalSegmentTable.getLatestValue(key, FDates.MAX_DATE);
     }
 
-    public ICloseableIterable<V> readRangeValues(final FDate from, final FDate to, final Lock readLock,
+    public ICloseableIterable<V> readRangeValues(final FDate from, final FDate to, final ILock readLock,
             final ISkipFileFunction skipFileFunction) {
         readLock.lock();
         try {
             if (liveSegment == null) {
                 //no live segment, go with historical
-                final Lock compositeReadLock = Locks.newCompositeLock(readLock,
+                final ILock compositeReadLock = Locks.newCompositeLock(readLock,
                         historicalSegmentTable.getTableLock(key).readLock());
                 return historicalSegmentLookupTableCache.readRangeValues(from, to, compositeReadLock, skipFileFunction);
             } else {
                 final FDate liveSegmentFrom = liveSegment.getSegmentedKey().getSegment().getFrom();
                 if (liveSegmentFrom.isAfter(to)) {
                     //live segment is after requested range, go with historical
-                    final Lock compositeReadLock = Locks.newCompositeLock(readLock,
+                    final ILock compositeReadLock = Locks.newCompositeLock(readLock,
                             historicalSegmentTable.getTableLock(key).readLock());
                     return historicalSegmentLookupTableCache.readRangeValues(from, to, compositeReadLock,
                             skipFileFunction);
@@ -151,7 +150,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
                     return liveSegment.rangeValues(from, to, readLock, skipFileFunction);
                 } else {
                     //use both segments
-                    final Lock compositeReadLock = Locks.newCompositeLock(readLock,
+                    final ILock compositeReadLock = Locks.newCompositeLock(readLock,
                             historicalSegmentTable.getTableLock(key).readLock());
                     final ICloseableIterable<V> historicalRangeValues = historicalSegmentTable
                             .getSegmentedLookupTableCache(key)
@@ -167,13 +166,13 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
         }
     }
 
-    public ICloseableIterable<V> readRangeValuesReverse(final FDate from, final FDate to, final Lock readLock,
+    public ICloseableIterable<V> readRangeValuesReverse(final FDate from, final FDate to, final ILock readLock,
             final ISkipFileFunction skipFileFunction) {
         readLock.lock();
         try {
             if (liveSegment == null) {
                 //no live segment, go with historical
-                final Lock compositeReadLock = Locks.newCompositeLock(readLock,
+                final ILock compositeReadLock = Locks.newCompositeLock(readLock,
                         historicalSegmentTable.getTableLock(key).readLock());
                 return historicalSegmentLookupTableCache.readRangeValuesReverse(from, to, compositeReadLock,
                         skipFileFunction);
@@ -181,7 +180,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
                 final FDate liveSegmentFrom = liveSegment.getSegmentedKey().getSegment().getFrom();
                 if (liveSegmentFrom.isAfter(from)) {
                     //live segment is after requested range, go with historical
-                    final Lock compositeReadLock = Locks.newCompositeLock(readLock,
+                    final ILock compositeReadLock = Locks.newCompositeLock(readLock,
                             historicalSegmentTable.getTableLock(key).readLock());
                     return historicalSegmentLookupTableCache.readRangeValuesReverse(from, to, compositeReadLock,
                             skipFileFunction);
@@ -192,7 +191,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
                     //use both segments
                     final ICloseableIterable<V> liveRangeValues = liveSegment.rangeReverseValues(from, liveSegmentFrom,
                             readLock, skipFileFunction);
-                    final Lock compositeReadLock = Locks.newCompositeLock(readLock,
+                    final ILock compositeReadLock = Locks.newCompositeLock(readLock,
                             historicalSegmentTable.getTableLock(key).readLock());
                     final ICloseableIterable<V> historicalRangeValues = historicalSegmentTable
                             .getSegmentedLookupTableCache(key)

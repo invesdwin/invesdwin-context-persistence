@@ -1,8 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented;
 
 import java.io.File;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -12,6 +10,7 @@ import de.invesdwin.context.integration.compression.lz4.LZ4Streams;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ITimeSeriesUpdater;
@@ -228,7 +227,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
 
     @Override
     public boolean isEmptyOrInconsistent(final K key) {
-        final Lock readLock = getTableLock(key).readLock();
+        final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
             return getSegmentedLookupTableCache(key).isEmptyOrInconsistent();
@@ -241,7 +240,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
     public void deleteRange(final K key) {
         final ILock writeLock = getTableLock(key).writeLock();
         try {
-            if (!writeLock.tryLock(1, TimeUnit.MINUTES)) {
+            if (!writeLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
                 throw Locks.getLockTrace()
                         .handleLockException(writeLock.getName(),
                                 new RetryLaterRuntimeException(
@@ -280,7 +279,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
 
     @Override
     public V getLatestValue(final K key, final FDate date) {
-        final Lock readLock = getTableLock(key).readLock();
+        final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
             if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
@@ -307,7 +306,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
 
     @Override
     public V getLatestValue(final K key, final long index) {
-        final Lock readLock = getTableLock(key).readLock();
+        final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
             final ASegmentedTimeSeriesStorageCache<K, V> lookupTableCache = getSegmentedLookupTableCache(key);
@@ -335,7 +334,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
 
     @Override
     public long getLatestValueIndex(final K key, final FDate date) {
-        final Lock readLock = getTableLock(key).readLock();
+        final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
             if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
@@ -356,7 +355,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
 
     @Override
     public long size(final K key) {
-        final Lock readLock = getTableLock(key).readLock();
+        final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
             return getSegmentedLookupTableCache(key).size();
@@ -377,7 +376,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
 
     @Override
     public V getPreviousValue(final K key, final FDate date, final int shiftBackUnits) {
-        final Lock readLock = getTableLock(key).readLock();
+        final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
             if (date == null) {
@@ -404,7 +403,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
 
     @Override
     public V getNextValue(final K key, final FDate date, final int shiftForwardUnits) {
-        final Lock readLock = getTableLock(key).readLock();
+        final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
             if (date.isAfterOrEqualTo(FDates.MAX_DATE)) {

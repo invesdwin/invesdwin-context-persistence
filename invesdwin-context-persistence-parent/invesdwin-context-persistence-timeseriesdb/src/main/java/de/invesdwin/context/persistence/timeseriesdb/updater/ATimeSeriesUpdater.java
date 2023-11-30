@@ -2,7 +2,6 @@ package de.invesdwin.context.persistence.timeseriesdb.updater;
 
 import java.io.File;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -10,8 +9,10 @@ import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDBInternals;
-import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateFoundException;
+import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateAbortedException;
+import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.PrepareForUpdateResult;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdaterInternalMethods;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
@@ -78,10 +79,10 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     }
 
     @Override
-    public final boolean update() throws IncompleteUpdateFoundException {
+    public final boolean update() throws IncompleteUpdateRetryableException {
         final ILock writeLock = table.getTableLock(key).writeLock();
         try {
-            if (!writeLock.tryLock(1, TimeUnit.MINUTES)) {
+            if (!writeLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
                 throw Locks.getLockTrace()
                         .handleLockException(writeLock.getName(),
                                 new RetryLaterRuntimeException(
@@ -95,7 +96,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         final File updateLockSyncFile = new File(updateLockFile.getAbsolutePath() + ".sync");
         try (FileChannelLock updateLockSyncFileLock = new FileChannelLock(updateLockSyncFile)) {
             if (updateLockSyncFile.exists() || !updateLockSyncFileLock.tryLock() || updateLockFile.exists()) {
-                throw new IncompleteUpdateFoundException("Incomplete update found for table [" + table.getName()
+                throw new IncompleteUpdateRetryableException("Incomplete update found for table [" + table.getName()
                         + "] and key [" + key + "], need to clean everything up to restore all from scratch.");
             }
             try {
@@ -107,16 +108,24 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                 Assertions.assertThat(updateLockFile.delete()).isTrue();
                 return true;
             } catch (final Throwable t) {
-                final IncompleteUpdateFoundException incompleteException = Throwables.getCauseByType(t,
-                        IncompleteUpdateFoundException.class);
-                if (incompleteException != null) {
-                    throw incompleteException;
-                } else {
-                    throw new IncompleteUpdateFoundException("Something unexpected went wrong", t);
-                }
+                throw propagateIncompleteUpdateException(t);
             }
         } finally {
             writeLock.unlock();
+        }
+    }
+
+    protected IncompleteUpdateRetryableException propagateIncompleteUpdateException(final Throwable t)
+            throws IncompleteUpdateRetryableException {
+        if (Throwables.isCausedByType(t, IncompleteUpdateAbortedException.class)) {
+            throw Throwables.propagate(t);
+        }
+        final IncompleteUpdateRetryableException incompleteException = Throwables.getCauseByType(t,
+                IncompleteUpdateRetryableException.class);
+        if (incompleteException != null) {
+            return incompleteException;
+        } else {
+            return new IncompleteUpdateRetryableException("Something unexpected went wrong that could be retried", t);
         }
     }
 
