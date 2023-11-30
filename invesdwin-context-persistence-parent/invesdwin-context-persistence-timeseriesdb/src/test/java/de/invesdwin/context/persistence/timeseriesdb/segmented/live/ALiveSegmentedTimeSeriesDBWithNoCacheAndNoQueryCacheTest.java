@@ -209,9 +209,9 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends AT
             }
 
             @Override
-            public void putNextLiveValue(final String key, final FDate nextLiveValue) {
+            public boolean putNextLiveValue(final String key, final FDate nextLiveValue) {
                 curTime = nextLiveValue;
-                super.putNextLiveValue(key, nextLiveValue);
+                return super.putNextLiveValue(key, nextLiveValue);
             }
 
             @Override

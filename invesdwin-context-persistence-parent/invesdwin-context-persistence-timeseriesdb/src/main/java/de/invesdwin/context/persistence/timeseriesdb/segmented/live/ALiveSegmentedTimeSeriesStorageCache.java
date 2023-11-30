@@ -442,7 +442,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
         return liveSegmentLock;
     }
 
-    public void putNextLiveValue(final V nextLiveValue) {
+    public boolean putNextLiveValue(final V nextLiveValue) {
         final ILock liveWriteLock = liveSegmentLock.writeLock();
         liveWriteLock.lock();
         try {
@@ -461,7 +461,8 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
                 throw new IllegalStateException("lastAvailableHistoricalSegmentTo [" + lastAvailableHistoricalSegmentTo
                         + "] should be before or equal to liveSegmentFrom [" + segment.getFrom() + "]");
             }
-            if (liveSegment != null && nextLiveEndTimeKey.isAfterNotNullSafe(liveSegment.getSegmentedKey().getSegment().getTo())) {
+            if (liveSegment != null
+                    && nextLiveEndTimeKey.isAfterNotNullSafe(liveSegment.getSegmentedKey().getSegment().getTo())) {
                 if (!lastAvailableHistoricalSegmentTo
                         .isBeforeOrEqualToNotNullSafe(liveSegment.getSegmentedKey().getSegment().getTo())) {
                     throw new IllegalStateException(
@@ -478,7 +479,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
                         newLiveSegment(segmentedKey, historicalSegmentTable, batchFlushInterval),
                         liveSegmentLock.readLock());
             }
-            liveSegment.putNextLiveValue(nextLiveStartTime, nextLiveEndTimeKey, nextLiveValue);
+            return liveSegment.putNextLiveValue(nextLiveStartTime, nextLiveEndTimeKey, nextLiveValue);
         } finally {
             liveWriteLock.unlock();
         }

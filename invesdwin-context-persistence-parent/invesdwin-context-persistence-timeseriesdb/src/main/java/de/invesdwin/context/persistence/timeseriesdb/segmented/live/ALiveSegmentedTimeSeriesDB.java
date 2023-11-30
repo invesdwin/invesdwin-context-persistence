@@ -512,11 +512,11 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
         return ATimeSeriesDB.getDefaultStorageName(name);
     }
 
-    public void putNextLiveValue(final K key, final V nextLiveValue) {
+    public boolean putNextLiveValue(final K key, final V nextLiveValue) {
         final Lock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            getLiveSegmentedLookupTableCache(key).putNextLiveValue(nextLiveValue);
+            return getLiveSegmentedLookupTableCache(key).putNextLiveValue(nextLiveValue);
         } finally {
             readLock.unlock();
         }
