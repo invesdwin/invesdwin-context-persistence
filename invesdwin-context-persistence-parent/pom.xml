@@ -56,7 +56,7 @@
 
 		<version.ezdb>0.1.18-SNAPSHOT</version.ezdb>
 		<version.leveldb>1.3-inv2</version.leveldb>
-		<version.snappy>1.1.8.4</version.snappy>
+		<version.snappy>1.1.10.5</version.snappy>
 		<version.mapdb>3.0.8</version.mapdb>
 		<version.eclipse-collections>7.1.0</version.eclipse-collections>
 		<version.questdb>6.2.1</version.questdb>
@@ -74,9 +74,9 @@
 
 		<version.tkrzw-java>0.1.27</version.tkrzw-java>
 		<version.duckdb>0.3.1</version.duckdb>
-		<version.sqlite>3.36.0.3</version.sqlite>
+		<version.sqlite>3.44.1.0</version.sqlite>
 		<version.derby>10.15.2.0</version.derby>
-		<version.h2>2.1.210</version.h2>
+		<version.h2>2.2.224</version.h2>
 		<version.krati>0.4.9</version.krati>
 		<version.sg-cdb>1.0.4</version.sg-cdb>
 		<version.tokyocabinet>1.24.6</version.tokyocabinet>
