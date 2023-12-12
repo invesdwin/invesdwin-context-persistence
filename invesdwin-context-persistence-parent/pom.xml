@@ -75,7 +75,7 @@
 		<version.tkrzw-java>0.1.27</version.tkrzw-java>
 		<version.duckdb>0.3.1</version.duckdb>
 		<version.sqlite>3.44.1.0</version.sqlite>
-		<version.derby>10.15.2.0</version.derby>
+		<version.derby>10.17.1.0</version.derby>
 		<version.h2>2.2.224</version.h2>
 		<version.krati>0.4.9</version.krati>
 		<version.sg-cdb>1.0.4</version.sg-cdb>
