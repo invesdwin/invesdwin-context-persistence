@@ -18,7 +18,6 @@ import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSerie
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ParallelUpdateProgress;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.SequentialUpdateProgress;
-import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
@@ -94,21 +93,27 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             throw new RuntimeException(e);
         }
         final File updateLockSyncFile = new File(updateLockFile.getAbsolutePath() + ".sync");
-        try (FileChannelLock updateLockSyncFileLock = new FileChannelLock(updateLockSyncFile)) {
-            if (updateLockSyncFile.exists() || !updateLockSyncFileLock.tryLock() || updateLockFile.exists()) {
+        try (FileChannelLock updateLockSyncFileLock = new FileChannelLock(updateLockSyncFile) {
+            @Override
+            protected boolean isThreadLockEnabled() {
+                return true;
+            }
+        }) {
+            if (!updateLockSyncFileLock.tryLock()) {
                 throw new IncompleteUpdateRetryableException("Incomplete update found for table [" + table.getName()
                         + "] and key [" + key + "], need to clean everything up to restore all from scratch.");
             }
+            Files.touchQuietly(updateLockFile);
             try {
-                Files.touchQuietly(updateLockFile);
                 final Instant updateStart = new Instant();
                 onUpdateStart();
                 doUpdate();
                 onUpdateFinished(updateStart);
-                Assertions.assertThat(updateLockFile.delete()).isTrue();
                 return true;
             } catch (final Throwable t) {
                 throw propagateIncompleteUpdateException(t);
+            } finally {
+                Files.deleteQuietly(updateLockFile);
             }
         } finally {
             writeLock.unlock();
