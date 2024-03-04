@@ -1668,7 +1668,7 @@ public class ALiveSegmentedTimeSeriesDBWithCacheTest extends ATest {
         }
     }
 
-    private class TestGapHistoricalCache extends AGapHistoricalCache<FDate> {
+    private final class TestGapHistoricalCache extends AGapHistoricalCache<FDate> {
 
         {
             enableTrailingQueryCore();

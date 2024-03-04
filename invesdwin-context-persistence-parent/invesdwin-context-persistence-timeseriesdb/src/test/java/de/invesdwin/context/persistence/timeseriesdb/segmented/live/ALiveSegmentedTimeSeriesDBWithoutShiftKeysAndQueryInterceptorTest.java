@@ -65,7 +65,8 @@ public class ALiveSegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest e
     private final int testReturnMaxResultsValue = 2;
     private final TestGapHistoricalCache cache = new TestGapHistoricalCache();
 
-    public ALiveSegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest() throws IncompleteUpdateRetryableException {
+    public ALiveSegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest()
+            throws IncompleteUpdateRetryableException {
         this.entities = new ArrayList<FDate>();
         entities.add(FDateBuilder.newDate(1990, 1, 1));
         entities.add(FDateBuilder.newDate(1991, 1, 1));
@@ -1670,7 +1671,7 @@ public class ALiveSegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest e
         }
     }
 
-    private class TestGapHistoricalCache extends AGapHistoricalCache<FDate> {
+    private final class TestGapHistoricalCache extends AGapHistoricalCache<FDate> {
 
         {
             enableTrailingQueryCore();

@@ -617,7 +617,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
     }
 
-    private static class LastValue<V> {
+    private static final class LastValue<V> {
         private FDate key = null;
         private final IBufferingIterator<V> values = new BufferingIterator<V>();
 

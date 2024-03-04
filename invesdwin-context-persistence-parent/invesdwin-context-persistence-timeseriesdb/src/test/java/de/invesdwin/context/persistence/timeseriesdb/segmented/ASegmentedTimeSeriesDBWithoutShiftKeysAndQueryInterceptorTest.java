@@ -1641,7 +1641,7 @@ public class ASegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest exten
         }
     }
 
-    private class TestGapHistoricalCache extends AGapHistoricalCache<FDate> {
+    private final class TestGapHistoricalCache extends AGapHistoricalCache<FDate> {
 
         {
             enableTrailingQueryCore();

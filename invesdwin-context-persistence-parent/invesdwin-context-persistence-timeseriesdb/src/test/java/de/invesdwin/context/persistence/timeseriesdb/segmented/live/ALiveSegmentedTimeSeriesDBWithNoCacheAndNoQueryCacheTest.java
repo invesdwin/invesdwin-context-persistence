@@ -1581,7 +1581,7 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends AT
         }
     }
 
-    private class TestGapHistoricalCache extends AGapHistoricalCache<FDate> {
+    private final class TestGapHistoricalCache extends AGapHistoricalCache<FDate> {
 
         @Override
         protected IHistoricalCacheQueryCore<FDate> newQueryCore() {
