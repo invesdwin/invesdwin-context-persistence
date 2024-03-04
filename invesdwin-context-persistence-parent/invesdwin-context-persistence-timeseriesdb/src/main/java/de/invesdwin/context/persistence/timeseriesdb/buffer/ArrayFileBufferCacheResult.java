@@ -167,6 +167,9 @@ public class ArrayFileBufferCacheResult<V> extends RefCountReverseCloseableItera
     }
 
     private int determineHighIndex(final Function<V, FDate> extractEndTime, final FDate high, final int lastIndex) {
+        if (list.isEmpty()) {
+            return -1;
+        }
         final int highIndex;
         if (high == null || high.isAfterNotNullSafe(extractEndTime.apply(list.get(lastIndex)))) {
             highIndex = lastIndex;
