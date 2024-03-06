@@ -19,7 +19,10 @@ public final class MemoryFileSummarySerde implements ISerde<MemoryFileSummary> {
     private static final int MEMORYRESOURCEURISIZE_INDEX = VALUECOUNT_INDEX + VALUECOUNT_SIZE;
     private static final int MEMORYRESOURCEURISIZE_SIZE = Integer.BYTES;
 
-    private static final int MEMORYOFFSET_INDEX = MEMORYRESOURCEURISIZE_INDEX + MEMORYRESOURCEURISIZE_SIZE;
+    private static final int PRECEDINGMEMORYOFFSET_INDEX = MEMORYRESOURCEURISIZE_INDEX + MEMORYRESOURCEURISIZE_SIZE;
+    private static final int PRECEDINGMEMORYOFFSET_SIZE = Long.BYTES;
+
+    private static final int MEMORYOFFSET_INDEX = PRECEDINGMEMORYOFFSET_INDEX + PRECEDINGMEMORYOFFSET_SIZE;
     private static final int MEMORYOFFSET_SIZE = Long.BYTES;
 
     private static final int MEMORYLENGTH_INDEX = MEMORYOFFSET_INDEX + MEMORYOFFSET_SIZE;
@@ -67,6 +70,7 @@ public final class MemoryFileSummarySerde implements ISerde<MemoryFileSummary> {
         final long precedingValueCount = buffer.getLong(PRECEDINGVALUECOUNT_INDEX);
         final int valueCount = buffer.getInt(VALUECOUNT_INDEX);
         final int memoryResourceUriSize = buffer.getInt(MEMORYRESOURCEURISIZE_INDEX);
+        final long precedingMemoryOffset = buffer.getLong(PRECEDINGMEMORYOFFSET_INDEX);
         final long memoryOffset = buffer.getLong(MEMORYOFFSET_INDEX);
         final long memoryLength = buffer.getLong(MEMORYLENGTH_INDEX);
         if (valueFixedLength != null) {
@@ -76,7 +80,7 @@ public final class MemoryFileSummarySerde implements ISerde<MemoryFileSummary> {
             buffer.getBytes(lastValueIndex, lastValue);
             final String memoryResourceUri = buffer.getStringUtf8(memoryResourceUriIndex, memoryResourceUriSize);
             return new MemoryFileSummary(firstValue, lastValue, precedingValueCount, valueCount, memoryResourceUri,
-                    memoryOffset, memoryLength);
+                    precedingMemoryOffset, memoryOffset, memoryLength);
         } else {
             final int firstValueLength = buffer.getInt(firstValueLengthIndex);
             final int lastValueLength = buffer.getInt(lastValueLengthIndex);
@@ -89,7 +93,7 @@ public final class MemoryFileSummarySerde implements ISerde<MemoryFileSummary> {
             position += lastValueLength;
             final String memoryResourceUri = buffer.getStringUtf8(position, memoryResourceUriSize);
             return new MemoryFileSummary(firstValue, lastValue, precedingValueCount, valueCount, memoryResourceUri,
-                    memoryOffset, memoryLength);
+                    precedingMemoryOffset, memoryOffset, memoryLength);
         }
     }
 
@@ -100,6 +104,7 @@ public final class MemoryFileSummarySerde implements ISerde<MemoryFileSummary> {
         final String memoryResourceUri = obj.getMemoryResourceUri();
         final byte[] memoryResourceUriBytes = ByteBuffers.newStringUtf8Bytes(memoryResourceUri);
         final int memoryResourceUriSize = memoryResourceUriBytes.length;
+        final long preecedingMemoryOffset = obj.getPrecedingMemoryOffset();
         final long memoryOffset = obj.getMemoryOffset();
         final long memorySize = obj.getMemoryLength();
         final byte[] firstValue = obj.getFirstValue();
@@ -108,6 +113,7 @@ public final class MemoryFileSummarySerde implements ISerde<MemoryFileSummary> {
         buffer.putLong(PRECEDINGVALUECOUNT_INDEX, precedingValueCount);
         buffer.putInt(VALUECOUNT_INDEX, valueCount);
         buffer.putInt(MEMORYRESOURCEURISIZE_INDEX, memoryResourceUriSize);
+        buffer.putLong(PRECEDINGMEMORYOFFSET_INDEX, preecedingMemoryOffset);
         buffer.putLong(MEMORYOFFSET_INDEX, memoryOffset);
         buffer.putLong(MEMORYLENGTH_INDEX, memorySize);
         if (valueFixedLength != null) {

@@ -195,14 +195,14 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     public void finishFile(final FDate time, final V firstValue, final V lastValue, final long precedingValueCount,
-            final int valueCount, final String memoryResourceUri, final long memoryResourceOffset,
+            final int valueCount, final String memoryResourceUri, final long precedingMemoryOffset,
             final long memoryOffset, final long memoryLength) {
         final MemoryFileSummary summary = new MemoryFileSummary(valueSerde, firstValue, lastValue, precedingValueCount,
-                valueCount, memoryResourceUri, memoryResourceOffset, memoryOffset, memoryLength);
+                valueCount, memoryResourceUri, precedingMemoryOffset, memoryOffset, memoryLength);
         assertSummary(summary);
         storage.getFileLookupTable().put(hashKey, time, summary);
-        final long memoryFileSize = getMemoryFile().length();
-        final long expectedMemoryFileSize = memoryOffset + memoryLength;
+        final long memoryFileSize = precedingMemoryOffset + getMemoryFile().length();
+        final long expectedMemoryFileSize = precedingMemoryOffset + memoryOffset + memoryLength;
         if (memoryFileSize != expectedMemoryFileSize) {
             throw new IllegalStateException(
                     "memoryFileSize[" + memoryFileSize + "] != expectedMemoryFileSize[" + expectedMemoryFileSize + "]");
@@ -216,8 +216,8 @@ public class TimeSeriesStorageCache<K, V> {
         metadata.setExpectedMemoryFileSize(expectedMemoryFileSize);
         final FDate firstValueDate = extractEndTime.apply(firstValue);
         final FDate lastValueDate = extractEndTime.apply(lastValue);
-        metadata.setSummary(time, firstValueDate, lastValueDate, valueCount, memoryResourceUri, memoryOffset,
-                memoryLength);
+        metadata.setSummary(time, firstValueDate, lastValueDate, precedingValueCount, valueCount, memoryResourceUri,
+                precedingMemoryOffset, memoryOffset, memoryLength);
         clearCaches();
     }
 
@@ -1028,7 +1028,8 @@ public class TimeSeriesStorageCache<K, V> {
                 .getLatest(hashKey, FDates.MAX_DATE);
         final FDate updateFrom;
         final List<V> lastValues;
-        final long addressOffset;
+        final long precedingMemoryOffset;
+        final long memoryOffset;
         final long precedingValueCount;
         if (latestFile != null) {
             final FDate latestRangeKey;
@@ -1042,19 +1043,22 @@ public class TimeSeriesStorageCache<K, V> {
                 if (!lastValues.isEmpty()) {
                     //remove last value because it might be an incomplete bar
                     final V lastValue = lastValues.remove(lastValues.size() - 1);
-                    addressOffset = latestSummary.getMemoryOffset();
+                    precedingMemoryOffset = latestSummary.getPrecedingMemoryOffset();
+                    memoryOffset = latestSummary.getMemoryOffset();
                     precedingValueCount = latestSummary.getPrecedingValueCount();
                     updateFrom = extractEndTime.apply(lastValue);
                     latestRangeKey = latestFile.getRangeKey();
                 } else {
-                    addressOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength() + 1L;
+                    precedingMemoryOffset = latestSummary.getPrecedingMemoryOffset();
+                    memoryOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength() + 1L;
                     precedingValueCount = latestSummary.getPrecedingValueCount() + latestSummary.getValueCount();
                     updateFrom = latestFile.getRangeKey();
                     latestRangeKey = latestFile.getRangeKey().addMilliseconds(1);
                 }
             } else {
                 lastValues = Collections.emptyList();
-                addressOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength() + 1L;
+                precedingMemoryOffset = latestSummary.getPrecedingMemoryOffset();
+                memoryOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength() + 1L;
                 precedingValueCount = latestSummary.getPrecedingValueCount() + latestSummary.getValueCount();
                 updateFrom = latestFile.getRangeKey();
                 latestRangeKey = latestFile.getRangeKey().addMilliseconds(1);
@@ -1069,11 +1073,13 @@ public class TimeSeriesStorageCache<K, V> {
         } else {
             updateFrom = null;
             lastValues = Collections.emptyList();
-            addressOffset = 0L;
+            precedingMemoryOffset = 0L;
+            memoryOffset = 0L;
             precedingValueCount = 0L;
         }
         clearCaches();
-        return new PrepareForUpdateResult<>(updateFrom, lastValues, addressOffset, precedingValueCount);
+        return new PrepareForUpdateResult<>(updateFrom, lastValues, precedingMemoryOffset, memoryOffset,
+                precedingValueCount);
     }
 
     private void assertShiftUnitsPositiveNonZero(final int shiftUnits) {

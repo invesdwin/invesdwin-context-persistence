@@ -25,10 +25,11 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
     private final ITimeSeriesUpdaterInternalMethods<K, V> parent;
     private final TextDescription name;
 
+    private final long precedingMemoryOffset;
     private long memoryOffset;
     private long precedingValueCount;
     private final File memoryFile;
-    private final String memoryFilePath;
+    private final String memoryResourceUri;
     private int valueCount;
     private V firstElement;
     private FDate minTime;
@@ -38,17 +39,19 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
     private BufferedFileDataOutputStream out;
 
     public SequentialUpdateProgress(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
-            final long initialAddressOffset, final long initialPrecedingValueCount) {
+            final long initialPrecedingMemoryOffset, final long initialMemoryOffset,
+            final long initialPrecedingValueCount) {
         this.parent = parent;
         this.name = new TextDescription("%s[%s]: write", ATimeSeriesUpdater.class.getSimpleName(), parent.getKey());
-        this.memoryOffset = initialAddressOffset;
+        this.precedingMemoryOffset = initialPrecedingMemoryOffset;
+        this.memoryOffset = initialMemoryOffset;
         this.precedingValueCount = initialPrecedingValueCount;
         this.memoryFile = parent.getLookupTable().getMemoryFile();
-        this.memoryFilePath = memoryFile.getAbsolutePath();
+        this.memoryResourceUri = memoryFile.getAbsolutePath();
         try {
             this.out = new BufferedFileDataOutputStream(memoryFile);
-            if (initialAddressOffset > 0L) {
-                this.out.seek(initialAddressOffset);
+            if (initialMemoryOffset > 0L) {
+                this.out.seek(initialMemoryOffset);
             }
         } catch (final IOException e) {
             throw new RuntimeException(e);
@@ -110,8 +113,8 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
             collection.close();
             final long memoryLength = out.position() - memoryOffset;
             parent.getLookupTable()
-                    .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount, memoryFilePath,
-                            memoryOffset, memoryLength);
+                    .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount, memoryResourceUri,
+                            precedingMemoryOffset, memoryOffset, memoryLength);
             memoryOffset += memoryLength;
             precedingValueCount += valueCount;
             parent.onFlush(flushIndex, this);
@@ -187,12 +190,12 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
     }
 
     public static <K, V> void doUpdate(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
-            final long initialAddressOffset, final long initialPrecedingValueCount,
-            final ICloseableIterable<? extends V> source) {
+            final long initialPrecedingMemoryOffset, final long initialMemoryOffset,
+            final long initialPrecedingValueCount, final ICloseableIterable<? extends V> source) {
         try (ICloseableIterator<SequentialUpdateProgress<K, V>> batchWriterProducer = new ICloseableIterator<SequentialUpdateProgress<K, V>>() {
 
             private final SequentialUpdateProgress<K, V> progress = new SequentialUpdateProgress<K, V>(parent,
-                    initialAddressOffset, initialPrecedingValueCount);
+                    initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount);
             private final ICloseableIterator<? extends V> elements = source.iterator();
 
             @Override
@@ -209,6 +212,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
                         final FDate startTime = parent.extractStartTime(element);
                         final FDate endTime = parent.extractEndTime(element);
                         if (progress.onElement(element, startTime, endTime)) {
+                            System.out.println("TODO implement workaround");
                             return progress;
                         }
                     }

@@ -110,8 +110,8 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
         collection.close();
     }
 
-    public void transferToMemoryFile(final FileOutputStream memoryFileOut, final String memoryFilePath,
-            final int flushIndex, final long precedingValueCount) {
+    public void transferToMemoryFile(final FileOutputStream memoryFileOut, final String memoryResourceUri,
+            final long precedingMemoryOffset, final int flushIndex, final long precedingValueCount) {
         try (FileInputStream tempIn = new FileInputStream(tempFile)) {
             final long tempFileLength = tempFile.length();
             long remaining = tempFileLength;
@@ -123,9 +123,10 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                 position += copied;
             }
             //close first so that lz4 writes out its footer bytes (a flush is not sufficient)
+            System.out.println("TODO implement workaround");
             parent.getLookupTable()
-                    .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount, memoryFilePath,
-                            memoryOffset, tempFileLength);
+                    .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount, memoryResourceUri,
+                            precedingMemoryOffset, memoryOffset, tempFileLength);
             Files.deleteQuietly(tempFile);
             parent.onFlush(flushIndex, this);
         } catch (final IOException e) {
@@ -187,8 +188,8 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
     }
 
     public static <K, V> void doUpdate(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
-            final long initialAddressOffset, final long initialPrecedingValueCount,
-            final ICloseableIterable<? extends V> source) {
+            final long initialPrecedingMemoryOffset, final long initialMemoryOffset,
+            final long initialPrecedingValueCount, final ICloseableIterable<? extends V> source) {
         final File memoryFile = parent.getLookupTable().getMemoryFile();
         final File tempDir = new File(memoryFile.getParentFile(), ATimeSeriesUpdater.class.getSimpleName());
         Files.deleteQuietly(tempDir);
@@ -251,7 +252,8 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                         return request;
                     }
                 }) {
-                    flush(parent, initialAddressOffset, initialPrecedingValueCount, parallelConsumer);
+                    flush(parent, initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount,
+                            parallelConsumer);
                 }
             }
             if (batchWriterProducer.hasNext()) {
@@ -264,24 +266,27 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
     }
 
     private static <K, V> void flush(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
-            final long initialAddressOffset, final long initialPrecedingValueCount,
+            final long initialPrecedingMemoryOffset, final long initialMemoryOffset,
+            final long initialPrecedingValueCount,
             final ICloseableIterator<ParallelUpdateProgress<K, V>> batchWriterProducer) {
         int flushIndex = 0;
+        final long precedingMemoryOffset = initialPrecedingMemoryOffset;
         long precedingValueCount = initialPrecedingValueCount;
 
         final File memoryFile = parent.getLookupTable().getMemoryFile();
-        final String memoryFilePath = memoryFile.getAbsolutePath();
+        final String memoryResourceUri = memoryFile.getAbsolutePath();
 
         try (FileOutputStream memoryFileOut = new FileOutputStream(memoryFile, true)) {
-            if (initialAddressOffset > 0L) {
-                memoryFileOut.getChannel().position(initialAddressOffset);
+            if (initialMemoryOffset > 0L) {
+                memoryFileOut.getChannel().position(initialMemoryOffset);
             }
 
             try {
                 while (true) {
                     final ParallelUpdateProgress<K, V> progress = batchWriterProducer.next();
                     flushIndex++;
-                    progress.transferToMemoryFile(memoryFileOut, memoryFilePath, flushIndex, precedingValueCount);
+                    progress.transferToMemoryFile(memoryFileOut, memoryResourceUri, precedingMemoryOffset, flushIndex,
+                            precedingValueCount);
                     precedingValueCount += progress.getValueCount();
                     ParallelUpdateProgressPool.INSTANCE.returnObject(progress);
                 }
