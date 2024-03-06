@@ -195,9 +195,10 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     public void finishFile(final FDate time, final V firstValue, final V lastValue, final long precedingValueCount,
-            final int valueCount, final String memoryResourceUri, final long memoryOffset, final long memoryLength) {
+            final int valueCount, final String memoryResourceUri, final long memoryResourceOffset,
+            final long memoryOffset, final long memoryLength) {
         final MemoryFileSummary summary = new MemoryFileSummary(valueSerde, firstValue, lastValue, precedingValueCount,
-                valueCount, memoryResourceUri, memoryOffset, memoryLength);
+                valueCount, memoryResourceUri, memoryResourceOffset, memoryOffset, memoryLength);
         assertSummary(summary);
         storage.getFileLookupTable().put(hashKey, time, summary);
         final long memoryFileSize = getMemoryFile().length();
@@ -210,7 +211,7 @@ public class TimeSeriesStorageCache<K, V> {
         final long prevMemoryFileSize = metadata.getExpectedMemoryFileSize();
         if (prevMemoryFileSize > expectedMemoryFileSize) {
             throw new IllegalStateException("memoryFileFize[" + memoryFileSize
-                    + "] not be less than prevMemoryFileSize[" + prevMemoryFileSize + "]");
+                    + "] should not be less than prevMemoryFileSize[" + prevMemoryFileSize + "]");
         }
         metadata.setExpectedMemoryFileSize(expectedMemoryFileSize);
         final FDate firstValueDate = extractEndTime.apply(firstValue);
@@ -862,6 +863,7 @@ public class TimeSeriesStorageCache<K, V> {
             });
             return value.getValue(valueSerde);
         }
+
     }
 
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
@@ -976,6 +978,7 @@ public class TimeSeriesStorageCache<K, V> {
             }
         }
         long calculatedMemoryFileSize = 0;
+        final String prevMemoryResourceUri = null;
         MemoryFileSummary prevSummary = null;
         try (ICloseableIterator<MemoryFileSummary> summaries = readRangeFiles(null, null, DisabledLock.INSTANCE, null)
                 .iterator()) {
