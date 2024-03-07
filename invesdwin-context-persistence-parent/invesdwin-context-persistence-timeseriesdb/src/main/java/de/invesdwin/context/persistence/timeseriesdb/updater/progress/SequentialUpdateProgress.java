@@ -48,7 +48,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         this.precedingMemoryOffset = initialPrecedingMemoryOffset;
         this.memoryOffset = initialMemoryOffset;
         this.precedingValueCount = initialPrecedingValueCount;
-        this.memoryFile = newMemoryFile(parent);
+        this.memoryFile = newMemoryFile();
         this.memoryResourceUri = memoryFile.getAbsolutePath();
         try {
             this.out = new BufferedFileDataOutputStream(memoryFile);
@@ -60,8 +60,8 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         }
     }
 
-    public File newMemoryFile(final ITimeSeriesUpdaterInternalMethods<K, V> parent) {
-        return new File(parent.getLookupTable().getMemoryFile().getAbsolutePath() + "." + precedingMemoryOffset);
+    private File newMemoryFile() {
+        return ParallelUpdateProgress.newMemoryFile(parent, precedingMemoryOffset);
     }
 
     @Override
@@ -129,7 +129,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
                     && memoryOffset > SegmentedMemoryMappedFile.WINDOWS_MAX_LENGTH_PER_SEGMENT_DISK) {
                 precedingMemoryOffset += memoryOffset;
                 memoryOffset = 0;
-                memoryFile = newMemoryFile(parent);
+                memoryFile = newMemoryFile();
                 out.close();
                 out = new BufferedFileDataOutputStream(memoryFile);
                 collection = new ConfiguredSerializingCollection(memoryFile);
