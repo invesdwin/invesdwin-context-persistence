@@ -10,6 +10,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -31,7 +32,6 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
     private long memoryOffset;
     private long precedingValueCount;
     private File memoryFile;
-    private final String memoryResourceUri;
     private int valueCount;
     private V firstElement;
     private FDate minTime;
@@ -49,7 +49,6 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         this.memoryOffset = initialMemoryOffset;
         this.precedingValueCount = initialPrecedingValueCount;
         this.memoryFile = newMemoryFile();
-        this.memoryResourceUri = memoryFile.getAbsolutePath();
         try {
             this.out = new BufferedFileDataOutputStream(memoryFile);
             if (initialMemoryOffset > 0L) {
@@ -61,7 +60,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
     }
 
     private File newMemoryFile() {
-        return ParallelUpdateProgress.newMemoryFile(parent, precedingMemoryOffset);
+        return TimeSeriesStorageCache.newMemoryFile(parent, precedingMemoryOffset);
     }
 
     @Override
@@ -119,7 +118,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
             collection.close();
             final long memoryLength = out.position() - memoryOffset;
             parent.getLookupTable()
-                    .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount, memoryResourceUri,
+                    .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
                             precedingMemoryOffset, memoryOffset, memoryLength);
             memoryOffset += memoryLength;
             precedingValueCount += valueCount;
