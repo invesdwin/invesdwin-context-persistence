@@ -39,6 +39,7 @@ import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummaryBy
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdaterInternalMethods;
 import de.invesdwin.util.collections.Collections;
 import de.invesdwin.util.collections.eviction.EvictionMode;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
@@ -58,6 +59,8 @@ import de.invesdwin.util.concurrent.reference.MutableSoftReference;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.lang.Files;
+import de.invesdwin.util.lang.Objects;
+import de.invesdwin.util.lang.OperatingSystem;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.FromBufferDelegateSerde;
 import de.invesdwin.util.marshallers.serde.ISerde;
@@ -183,8 +186,18 @@ public class TimeSeriesStorageCache<K, V> {
         return new File(getDataDirectory(), "updateRunning.lock");
     }
 
-    public File getMemoryFile() {
-        return new File(getDataDirectory(), "memory.data");
+    public static File newMemoryFile(final ITimeSeriesUpdaterInternalMethods<?, ?> parent,
+            final long precedingMemoryOffset) {
+        final File memoryFile = new File(parent.getLookupTable().getDataDirectory(), "memory.data");
+        return newMemoryFile(memoryFile, precedingMemoryOffset);
+    }
+
+    public static File newMemoryFile(final File memoryFile, final long precedingMemoryOffset) {
+        if (OperatingSystem.isWindows()) {
+            return new File(memoryFile.getAbsolutePath() + "." + precedingMemoryOffset);
+        } else {
+            return memoryFile;
+        }
     }
 
     public synchronized MemoryFileMetadata getMemoryFileMetadata() {
@@ -195,13 +208,14 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     public void finishFile(final FDate time, final V firstValue, final V lastValue, final long precedingValueCount,
-            final int valueCount, final String memoryResourceUri, final long memoryOffset, final long memoryLength) {
+            final int valueCount, final File memoryFile, final long precedingMemoryOffset, final long memoryOffset,
+            final long memoryLength) {
         final MemoryFileSummary summary = new MemoryFileSummary(valueSerde, firstValue, lastValue, precedingValueCount,
-                valueCount, memoryResourceUri, memoryOffset, memoryLength);
+                valueCount, memoryFile.getAbsolutePath(), precedingMemoryOffset, memoryOffset, memoryLength);
         assertSummary(summary);
         storage.getFileLookupTable().put(hashKey, time, summary);
-        final long memoryFileSize = getMemoryFile().length();
-        final long expectedMemoryFileSize = memoryOffset + memoryLength;
+        final long memoryFileSize = precedingMemoryOffset + memoryFile.length();
+        final long expectedMemoryFileSize = precedingMemoryOffset + memoryOffset + memoryLength;
         if (memoryFileSize != expectedMemoryFileSize) {
             throw new IllegalStateException(
                     "memoryFileSize[" + memoryFileSize + "] != expectedMemoryFileSize[" + expectedMemoryFileSize + "]");
@@ -210,13 +224,13 @@ public class TimeSeriesStorageCache<K, V> {
         final long prevMemoryFileSize = metadata.getExpectedMemoryFileSize();
         if (prevMemoryFileSize > expectedMemoryFileSize) {
             throw new IllegalStateException("memoryFileFize[" + memoryFileSize
-                    + "] not be less than prevMemoryFileSize[" + prevMemoryFileSize + "]");
+                    + "] should not be less than prevMemoryFileSize[" + prevMemoryFileSize + "]");
         }
         metadata.setExpectedMemoryFileSize(expectedMemoryFileSize);
         final FDate firstValueDate = extractEndTime.apply(firstValue);
         final FDate lastValueDate = extractEndTime.apply(lastValue);
-        metadata.setSummary(time, firstValueDate, lastValueDate, valueCount, memoryResourceUri, memoryOffset,
-                memoryLength);
+        metadata.setSummary(time, firstValueDate, lastValueDate, precedingValueCount, valueCount,
+                memoryFile.getAbsolutePath(), precedingMemoryOffset, memoryOffset, memoryLength);
         clearCaches();
     }
 
@@ -862,6 +876,7 @@ public class TimeSeriesStorageCache<K, V> {
             });
             return value.getValue(valueSerde);
         }
+
     }
 
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
@@ -965,18 +980,12 @@ public class TimeSeriesStorageCache<K, V> {
             }
         }
         final MemoryFileMetadata metadata = getMemoryFileMetadata();
-        final long memoryFileSize = getMemoryFile().length();
         final long expectedMemoryFileSize = metadata.getExpectedMemoryFileSize();
-        if (expectedMemoryFileSize != MemoryFileMetadata.MISSING_EXPECTED_MEMORY_FILE_SIZE) {
-            if (memoryFileSize != expectedMemoryFileSize) {
-                log.warn(
-                        "Table data for [%s] is inconsistent and needs to be reset. MemoryFileSize[%s] != ExpectedMemoryFileSize[%s]",
-                        hashKey, memoryFileSize, expectedMemoryFileSize);
-                return true;
-            }
-        }
         long calculatedMemoryFileSize = 0;
+        long actualMemoryFileSize = 0;
         MemoryFileSummary prevSummary = null;
+        File prevMemoryFile = null;
+
         try (ICloseableIterator<MemoryFileSummary> summaries = readRangeFiles(null, null, DisabledLock.INSTANCE, null)
                 .iterator()) {
             boolean noFileFound = true;
@@ -984,8 +993,12 @@ public class TimeSeriesStorageCache<K, V> {
                 final MemoryFileSummary summary = summaries.next();
                 final File memoryFile = new File(summary.getMemoryResourceUri());
                 final long memoryFileLength = memoryFile.length();
-                calculatedMemoryFileSize = summary.getMemoryOffset() + summary.getMemoryLength();
-                if (calculatedMemoryFileSize > memoryFileLength) {
+                calculatedMemoryFileSize = summary.getPrecedingMemoryOffset() + summary.getMemoryOffset()
+                        + summary.getMemoryLength();
+                if (!Objects.equals(prevMemoryFile, memoryFile)) {
+                    actualMemoryFileSize += memoryFileLength;
+                }
+                if (calculatedMemoryFileSize > actualMemoryFileSize) {
                     log.warn("Table data for [%s] is inconsistent and needs to be reset. Empty file: [%s]", hashKey,
                             summary);
                     return true;
@@ -999,16 +1012,23 @@ public class TimeSeriesStorageCache<K, V> {
                     return true;
                 }
                 prevSummary = summary;
+                prevMemoryFile = memoryFile;
                 noFileFound = false;
             }
             if (noFileFound) {
                 return true;
             }
             if (expectedMemoryFileSize != MemoryFileMetadata.MISSING_EXPECTED_MEMORY_FILE_SIZE) {
-                if (memoryFileSize != calculatedMemoryFileSize) {
+                if (expectedMemoryFileSize != calculatedMemoryFileSize) {
                     log.warn(
-                            "Table data for [%s] is inconsistent and needs to be reset. MemoryFileSize[%s] != CalculatedMemoryFileSize[%s]",
-                            hashKey, memoryFileSize, calculatedMemoryFileSize);
+                            "Table data for [%s] is inconsistent and needs to be reset. ExpectedMemoryFileSize[%s] != CalculatedMemoryFileSize[%s]",
+                            hashKey, expectedMemoryFileSize, calculatedMemoryFileSize);
+                    return true;
+                }
+                if (actualMemoryFileSize != expectedMemoryFileSize) {
+                    log.warn(
+                            "Table data for [%s] is inconsistent and needs to be reset. ActualMemoryFileSize[%s] != ExpectedMemoryFileSize[%s]",
+                            hashKey, actualMemoryFileSize, expectedMemoryFileSize);
                     return true;
                 }
             }
@@ -1025,7 +1045,8 @@ public class TimeSeriesStorageCache<K, V> {
                 .getLatest(hashKey, FDates.MAX_DATE);
         final FDate updateFrom;
         final List<V> lastValues;
-        final long addressOffset;
+        final long precedingMemoryOffset;
+        final long memoryOffset;
         final long precedingValueCount;
         if (latestFile != null) {
             final FDate latestRangeKey;
@@ -1039,19 +1060,22 @@ public class TimeSeriesStorageCache<K, V> {
                 if (!lastValues.isEmpty()) {
                     //remove last value because it might be an incomplete bar
                     final V lastValue = lastValues.remove(lastValues.size() - 1);
-                    addressOffset = latestSummary.getMemoryOffset();
+                    precedingMemoryOffset = latestSummary.getPrecedingMemoryOffset();
+                    memoryOffset = latestSummary.getMemoryOffset();
                     precedingValueCount = latestSummary.getPrecedingValueCount();
                     updateFrom = extractEndTime.apply(lastValue);
                     latestRangeKey = latestFile.getRangeKey();
                 } else {
-                    addressOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength() + 1L;
+                    precedingMemoryOffset = latestSummary.getPrecedingMemoryOffset();
+                    memoryOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength() + 1L;
                     precedingValueCount = latestSummary.getPrecedingValueCount() + latestSummary.getValueCount();
                     updateFrom = latestFile.getRangeKey();
                     latestRangeKey = latestFile.getRangeKey().addMilliseconds(1);
                 }
             } else {
                 lastValues = Collections.emptyList();
-                addressOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength() + 1L;
+                precedingMemoryOffset = latestSummary.getPrecedingMemoryOffset();
+                memoryOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength() + 1L;
                 precedingValueCount = latestSummary.getPrecedingValueCount() + latestSummary.getValueCount();
                 updateFrom = latestFile.getRangeKey();
                 latestRangeKey = latestFile.getRangeKey().addMilliseconds(1);
@@ -1066,11 +1090,13 @@ public class TimeSeriesStorageCache<K, V> {
         } else {
             updateFrom = null;
             lastValues = Collections.emptyList();
-            addressOffset = 0L;
+            precedingMemoryOffset = 0L;
+            memoryOffset = 0L;
             precedingValueCount = 0L;
         }
         clearCaches();
-        return new PrepareForUpdateResult<>(updateFrom, lastValues, addressOffset, precedingValueCount);
+        return new PrepareForUpdateResult<>(updateFrom, lastValues, precedingMemoryOffset, memoryOffset,
+                precedingValueCount);
     }
 
     private void assertShiftUnitsPositiveNonZero(final int shiftUnits) {

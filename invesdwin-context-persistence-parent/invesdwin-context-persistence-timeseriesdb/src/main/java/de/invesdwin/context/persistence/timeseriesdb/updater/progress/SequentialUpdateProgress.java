@@ -10,12 +10,15 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.lang.OperatingSystem;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
+import de.invesdwin.util.streams.buffer.file.SegmentedMemoryMappedFile;
 import de.invesdwin.util.streams.pool.buffered.BufferedFileDataOutputStream;
 import de.invesdwin.util.time.date.FDate;
 
@@ -25,10 +28,10 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
     private final ITimeSeriesUpdaterInternalMethods<K, V> parent;
     private final TextDescription name;
 
+    private long precedingMemoryOffset;
     private long memoryOffset;
     private long precedingValueCount;
-    private final File memoryFile;
-    private final String memoryFilePath;
+    private File memoryFile;
     private int valueCount;
     private V firstElement;
     private FDate minTime;
@@ -38,21 +41,26 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
     private BufferedFileDataOutputStream out;
 
     public SequentialUpdateProgress(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
-            final long initialAddressOffset, final long initialPrecedingValueCount) {
+            final long initialPrecedingMemoryOffset, final long initialMemoryOffset,
+            final long initialPrecedingValueCount) {
         this.parent = parent;
         this.name = new TextDescription("%s[%s]: write", ATimeSeriesUpdater.class.getSimpleName(), parent.getKey());
-        this.memoryOffset = initialAddressOffset;
+        this.precedingMemoryOffset = initialPrecedingMemoryOffset;
+        this.memoryOffset = initialMemoryOffset;
         this.precedingValueCount = initialPrecedingValueCount;
-        this.memoryFile = parent.getLookupTable().getMemoryFile();
-        this.memoryFilePath = memoryFile.getAbsolutePath();
+        this.memoryFile = newMemoryFile();
         try {
             this.out = new BufferedFileDataOutputStream(memoryFile);
-            if (initialAddressOffset > 0L) {
-                this.out.seek(initialAddressOffset);
+            if (initialMemoryOffset > 0L) {
+                this.out.seek(initialMemoryOffset);
             }
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private File newMemoryFile() {
+        return TimeSeriesStorageCache.newMemoryFile(parent, precedingMemoryOffset);
     }
 
     @Override
@@ -83,7 +91,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         if (firstElement == null) {
             firstElement = element;
             minTime = endTime;
-            collection = new ConfiguredSerializingCollection();
+            collection = new ConfiguredSerializingCollection(memoryFile);
         }
         if (maxTime != null) {
             if (maxTime.isAfterNotNullSafe(startTime)) {
@@ -110,11 +118,21 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
             collection.close();
             final long memoryLength = out.position() - memoryOffset;
             parent.getLookupTable()
-                    .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount, memoryFilePath,
-                            memoryOffset, memoryLength);
+                    .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
+                            precedingMemoryOffset, memoryOffset, memoryLength);
             memoryOffset += memoryLength;
             precedingValueCount += valueCount;
             parent.onFlush(flushIndex, this);
+
+            if (OperatingSystem.isWindows()
+                    && memoryOffset > SegmentedMemoryMappedFile.WINDOWS_MAX_LENGTH_PER_SEGMENT_DISK) {
+                precedingMemoryOffset += memoryOffset;
+                memoryOffset = 0;
+                memoryFile = newMemoryFile();
+                out.close();
+                out = new BufferedFileDataOutputStream(memoryFile);
+                collection = new ConfiguredSerializingCollection(memoryFile);
+            }
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
@@ -134,8 +152,8 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
 
     private final class ConfiguredSerializingCollection extends SerializingCollection<V> {
 
-        private ConfiguredSerializingCollection() {
-            super(name, memoryFile, false);
+        private ConfiguredSerializingCollection(final File file) {
+            super(name, file, false);
         }
 
         @Override
@@ -187,12 +205,12 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
     }
 
     public static <K, V> void doUpdate(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
-            final long initialAddressOffset, final long initialPrecedingValueCount,
-            final ICloseableIterable<? extends V> source) {
+            final long initialPrecedingMemoryOffset, final long initialMemoryOffset,
+            final long initialPrecedingValueCount, final ICloseableIterable<? extends V> source) {
         try (ICloseableIterator<SequentialUpdateProgress<K, V>> batchWriterProducer = new ICloseableIterator<SequentialUpdateProgress<K, V>>() {
 
             private final SequentialUpdateProgress<K, V> progress = new SequentialUpdateProgress<K, V>(parent,
-                    initialAddressOffset, initialPrecedingValueCount);
+                    initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount);
             private final ICloseableIterator<? extends V> elements = source.iterator();
 
             @Override

@@ -39,7 +39,8 @@ public class MemoryFileMetadata {
     }
 
     public void setSummary(final FDate time, final FDate firstValueDate, final FDate lastValueDate,
-            final int valueCount, final String memoryResourceUri, final long memoryOffset, final long memoryLength) {
+            final long precedingValueCount, final int valueCount, final String memoryResourceUri,
+            final long precedingMemoryOffset, final long memoryOffset, final long memoryLength) {
         final StringBuilder logEntry = new StringBuilder();
         logEntry.append("\n");
         logEntry.append(MemoryFileSummary.class.getSimpleName());
@@ -47,6 +48,8 @@ public class MemoryFileMetadata {
         logEntry.append(new FDate());
         logEntry.append("\nMEMORY_RESOURCE_URI=");
         logEntry.append(memoryResourceUri);
+        logEntry.append("\nPRECEDING_MEMORY_OFFSET=");
+        logEntry.append(precedingMemoryOffset);
         logEntry.append("\nMEMORY_OFFSET=");
         logEntry.append(memoryOffset);
         logEntry.append("\nMEMORY_LENGTH=");
@@ -57,6 +60,8 @@ public class MemoryFileMetadata {
         logEntry.append(firstValueDate);
         logEntry.append("\nLAST_VALUE_DATE=");
         logEntry.append(lastValueDate);
+        logEntry.append("\nPRECEDING_VALUE_COUNT=");
+        logEntry.append(precedingValueCount);
         logEntry.append("\nVALUE_COUNT=");
         logEntry.append(valueCount);
         logEntry.append("\n");

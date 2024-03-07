@@ -166,7 +166,7 @@ public final class FileBufferCache {
         final File memoryFile = key.getMemoryFile();
         try {
             return IMemoryMappedFile.map(memoryFile.getAbsolutePath(), 0L, memoryFile.length(), true,
-                    key.isCloseALlowed());
+                    key.isCloseAllowed());
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
@@ -332,13 +332,13 @@ public final class FileBufferCache {
 
         private final String hashKey;
         private final File memoryFile;
-        private final boolean closeALlowed;
+        private final boolean closeAllowed;
         private final int hashCode;
 
         private FileCacheKey(final String hashKey, final File memoryFile, final boolean closeAllowed) {
             this.hashKey = hashKey;
             this.memoryFile = memoryFile;
-            this.closeALlowed = closeAllowed;
+            this.closeAllowed = closeAllowed;
             this.hashCode = Objects.hashCode(FileCacheKey.class, hashKey, memoryFile, closeAllowed);
         }
 
@@ -350,8 +350,8 @@ public final class FileBufferCache {
             return memoryFile;
         }
 
-        public boolean isCloseALlowed() {
-            return closeALlowed;
+        public boolean isCloseAllowed() {
+            return closeAllowed;
         }
 
         @Override
@@ -364,7 +364,7 @@ public final class FileBufferCache {
             if (obj instanceof FileCacheKey) {
                 final FileCacheKey cObj = (FileCacheKey) obj;
                 return Objects.equals(hashKey, cObj.hashKey) && Objects.equals(memoryFile, cObj.memoryFile)
-                        && Objects.equals(closeALlowed, cObj.closeALlowed);
+                        && Objects.equals(closeAllowed, cObj.closeAllowed);
             }
             return false;
         }

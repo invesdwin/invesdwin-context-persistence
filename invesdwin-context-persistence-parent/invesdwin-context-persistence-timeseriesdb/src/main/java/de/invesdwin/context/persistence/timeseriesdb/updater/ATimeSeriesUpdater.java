@@ -138,7 +138,8 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         final PrepareForUpdateResult<V> prepareForUpdateResult = lookupTable.prepareForUpdate(shouldRedoLastFile());
         final FDate updateFrom = prepareForUpdateResult.getUpdateFrom();
         final List<V> lastValues = prepareForUpdateResult.getLastValues();
-        final long initialAddressOffset = prepareForUpdateResult.getAddressOffset();
+        final long initialPrecedingMemoryOffset = prepareForUpdateResult.getPrecedingMemorOffset();
+        final long initialMemoryOffset = prepareForUpdateResult.getMemoryOffset();
         final long initialPrecedingValueCount = prepareForUpdateResult.getPrecedingValueCount();
 
         final ICloseableIterable<? extends V> source = getSource(updateFrom);
@@ -205,11 +206,11 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues, skippingSource);
 
         if (shouldWriteInParallel()) {
-            ParallelUpdateProgress.doUpdate(internalMethods, initialAddressOffset, initialPrecedingValueCount,
-                    flatteningSources);
+            ParallelUpdateProgress.doUpdate(internalMethods, initialPrecedingMemoryOffset, initialMemoryOffset,
+                    initialPrecedingValueCount, flatteningSources);
         } else {
-            SequentialUpdateProgress.doUpdate(internalMethods, initialAddressOffset, initialPrecedingValueCount,
-                    flatteningSources);
+            SequentialUpdateProgress.doUpdate(internalMethods, initialPrecedingMemoryOffset, initialMemoryOffset,
+                    initialPrecedingValueCount, flatteningSources);
         }
     }
 
