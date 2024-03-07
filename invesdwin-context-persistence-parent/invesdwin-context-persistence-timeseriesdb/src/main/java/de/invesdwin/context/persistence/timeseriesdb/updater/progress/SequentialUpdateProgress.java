@@ -13,9 +13,11 @@ import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.lang.OperatingSystem;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
+import de.invesdwin.util.streams.buffer.file.SegmentedMemoryMappedFile;
 import de.invesdwin.util.streams.pool.buffered.BufferedFileDataOutputStream;
 import de.invesdwin.util.time.date.FDate;
 
@@ -25,10 +27,10 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
     private final ITimeSeriesUpdaterInternalMethods<K, V> parent;
     private final TextDescription name;
 
-    private final long precedingMemoryOffset;
+    private long precedingMemoryOffset;
     private long memoryOffset;
     private long precedingValueCount;
-    private final File memoryFile;
+    private File memoryFile;
     private final String memoryResourceUri;
     private int valueCount;
     private V firstElement;
@@ -46,7 +48,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         this.precedingMemoryOffset = initialPrecedingMemoryOffset;
         this.memoryOffset = initialMemoryOffset;
         this.precedingValueCount = initialPrecedingValueCount;
-        this.memoryFile = parent.getLookupTable().getMemoryFile();
+        this.memoryFile = newMemoryFile(parent);
         this.memoryResourceUri = memoryFile.getAbsolutePath();
         try {
             this.out = new BufferedFileDataOutputStream(memoryFile);
@@ -56,6 +58,10 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public File newMemoryFile(final ITimeSeriesUpdaterInternalMethods<K, V> parent) {
+        return new File(parent.getLookupTable().getMemoryFile().getAbsolutePath() + "." + precedingMemoryOffset);
     }
 
     @Override
@@ -86,7 +92,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         if (firstElement == null) {
             firstElement = element;
             minTime = endTime;
-            collection = new ConfiguredSerializingCollection();
+            collection = new ConfiguredSerializingCollection(memoryFile);
         }
         if (maxTime != null) {
             if (maxTime.isAfterNotNullSafe(startTime)) {
@@ -118,6 +124,16 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
             memoryOffset += memoryLength;
             precedingValueCount += valueCount;
             parent.onFlush(flushIndex, this);
+
+            if (OperatingSystem.isWindows()
+                    && memoryOffset > SegmentedMemoryMappedFile.WINDOWS_MAX_LENGTH_PER_SEGMENT_DISK) {
+                precedingMemoryOffset += memoryOffset;
+                memoryOffset = 0;
+                memoryFile = newMemoryFile(parent);
+                out.close();
+                out = new BufferedFileDataOutputStream(memoryFile);
+                collection = new ConfiguredSerializingCollection(memoryFile);
+            }
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
@@ -137,8 +153,8 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
 
     private final class ConfiguredSerializingCollection extends SerializingCollection<V> {
 
-        private ConfiguredSerializingCollection() {
-            super(name, memoryFile, false);
+        private ConfiguredSerializingCollection(final File file) {
+            super(name, file, false);
         }
 
         @Override
@@ -212,7 +228,6 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
                         final FDate startTime = parent.extractStartTime(element);
                         final FDate endTime = parent.extractEndTime(element);
                         if (progress.onElement(element, startTime, endTime)) {
-                            System.out.println("TODO implement workaround");
                             return progress;
                         }
                     }
