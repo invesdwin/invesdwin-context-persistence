@@ -61,14 +61,16 @@ public class HibernateExtendedJpaDialect extends HibernateJpaDialect {
     private static class ConnectionContext {
         private final Connection connection;
         private final Integer originalIsolation;
+        private final boolean originalReadOnly;
 
         ConnectionContext(final Connection connection, final TransactionDefinition definition) throws SQLException {
             this.connection = connection;
             this.originalIsolation = DataSourceUtils.prepareConnectionForTransaction(connection, definition);
+            this.originalReadOnly = definition.isReadOnly();
         }
 
         public void reset() {
-            DataSourceUtils.resetConnectionAfterTransaction(connection, originalIsolation);
+            DataSourceUtils.resetConnectionAfterTransaction(connection, originalIsolation, originalReadOnly);
         }
 
     }

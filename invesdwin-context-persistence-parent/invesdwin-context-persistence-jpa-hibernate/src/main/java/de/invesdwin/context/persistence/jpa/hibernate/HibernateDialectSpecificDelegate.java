@@ -6,20 +6,19 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.concurrent.ThreadSafe;
-import jakarta.inject.Named;
 import javax.sql.DataSource;
 
 import org.hibernate.cfg.AvailableSettings;
-import org.hibernate.dialect.DerbyTenSevenDialect;
+import org.hibernate.dialect.DerbyDialect;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.dialect.H2Dialect;
 import org.hibernate.dialect.HSQLDialect;
-import org.hibernate.dialect.MariaDB106Dialect;
-import org.hibernate.dialect.MySQL8Dialect;
-import org.hibernate.dialect.Oracle12cDialect;
-import org.hibernate.dialect.PostgreSQL95Dialect;
-import org.hibernate.dialect.SQLServer2016Dialect;
-import org.hibernate.dialect.SybaseASE157Dialect;
+import org.hibernate.dialect.MariaDBDialect;
+import org.hibernate.dialect.MySQLDialect;
+import org.hibernate.dialect.OracleDialect;
+import org.hibernate.dialect.PostgreSQLDialect;
+import org.hibernate.dialect.SQLServerDialect;
+import org.hibernate.dialect.SybaseASEDialect;
 import org.hibernate.jpa.HibernatePersistenceProvider;
 import org.springframework.orm.jpa.JpaDialect;
 import org.springframework.orm.jpa.JpaVendorAdapter;
@@ -40,6 +39,7 @@ import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.time.date.FTimeUnit;
 import de.invesdwin.util.time.duration.Duration;
+import jakarta.inject.Named;
 import jakarta.persistence.spi.PersistenceProvider;
 
 @Named
@@ -75,8 +75,6 @@ public class HibernateDialectSpecificDelegate implements IDialectSpecificDelegat
         //        <prop key="hibernate.hbm2ddl.auto">${hibernate.hbm2ddl.auto}</prop>
         props.put(AvailableSettings.HBM2DDL_AUTO, getHibernateHbm2DdlAuto(context));
         //        <!-- Performance settings -->
-        //        <prop key="hibernate.bytecode.use_reflection_optimizer">true</prop>
-        props.put(AvailableSettings.USE_REFLECTION_OPTIMIZER, String.valueOf(true));
         //        <prop key="hibernate.max_fetch_depth">3</prop>
         props.put(AvailableSettings.MAX_FETCH_DEPTH, String.valueOf(3));
         //        <prop key="hibernate.jdbc.fetch_size">${de.invesdwin.context.persistence.jpa.PersistenceProperties.CONNECTION_BATCH_SIZE}</prop>
@@ -137,23 +135,23 @@ public class HibernateDialectSpecificDelegate implements IDialectSpecificDelegat
         final ConnectionDialect dialect = context.getConnectionDialect();
         switch (dialect) {
         case MSSQLSERVER:
-            return SQLServer2016Dialect.class;
+            return SQLServerDialect.class;
         case MARIADB:
-            return MariaDB106Dialect.class;
+            return MariaDBDialect.class;
         case MYSQL:
-            return MySQL8Dialect.class;
+            return MySQLDialect.class;
         case POSTGRESQL:
-            return PostgreSQL95Dialect.class;
+            return PostgreSQLDialect.class;
         case ORACLE:
-            return Oracle12cDialect.class;
+            return OracleDialect.class;
         case H2:
             return H2Dialect.class;
         case HSQLDB:
             return HSQLDialect.class;
         case SYBASE:
-            return SybaseASE157Dialect.class;
+            return SybaseASEDialect.class;
         case DERBY:
-            return DerbyTenSevenDialect.class;
+            return DerbyDialect.class;
         default:
             throw UnknownArgumentException.newInstance(ConnectionDialect.class, dialect);
         }

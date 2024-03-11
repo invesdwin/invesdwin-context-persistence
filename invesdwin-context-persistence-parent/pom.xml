@@ -47,7 +47,7 @@
 		<version.hikaricp>5.0.0</version.hikaricp>
 		<version.c3p0>0.9.5.5</version.c3p0>
 		<version.p6spy>3.9.1</version.p6spy>
-		<version.hibernate>6.1.5.Final</version.hibernate>
+		<version.hibernate>6.4.4.Final</version.hibernate>
 		<version.jboss-logging>3.5.0.Final</version.jboss-logging>
 		<version.datanucleus>6.0.2</version.datanucleus>
 		<version.datanucleus-cache>6.0.0-release</version.datanucleus-cache>
