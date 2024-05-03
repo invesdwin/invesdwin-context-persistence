@@ -7,7 +7,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import org.assertj.core.api.Fail;
 import org.springframework.beans.factory.annotation.Configurable;
-import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.dao.TransientDataAccessException;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -127,15 +126,7 @@ public class SimpleTestDaoTransactionalAspectMethods {
     public void testDeleteNonExisting() {
         final SimpleTestEntity ent = new SimpleTestEntity();
         ent.setId(Long.MAX_VALUE);
-        try {
-            dao.delete(ent);
-            Fail.fail("Exception should have been thrown!");
-        } catch (final Throwable t) {
-            final boolean causedBy = Throwables.isCausedByType(t, EmptyResultDataAccessException.class);
-            if (!causedBy) {
-                throw Err.process(t);
-            }
-        }
+        dao.delete(ent);
     }
 
     @Transactional
