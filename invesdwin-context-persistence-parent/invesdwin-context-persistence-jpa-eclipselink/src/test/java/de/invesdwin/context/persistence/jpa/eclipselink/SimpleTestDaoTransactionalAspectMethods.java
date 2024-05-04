@@ -44,12 +44,12 @@ public class SimpleTestDaoTransactionalAspectMethods {
     public void testDeleteWithoutTransaction() {
         SimpleTestEntity ent1 = new SimpleTestEntity();
         ent1.setName("one");
-        ent1 = dao.save(ent1);
+        ent1 = dao.saveAndFlush(ent1);
         Assertions.assertThat(dao.findOneById(ent1.getId())).isNotNull();
 
         final SimpleTestEntity ent2 = new SimpleTestEntity();
         ent2.setName("999");
-        dao.save(ent2);
+        dao.saveAndFlush(ent2);
 
         dao.delete(ent1);
         final SimpleTestEntity ent2lazy = new SimpleTestEntity();
@@ -98,7 +98,7 @@ public class SimpleTestDaoTransactionalAspectMethods {
         for (int i = 0; i < 10; i++) {
             SimpleTestEntity ent = new SimpleTestEntity();
             ent.setName("" + i);
-            ent = dao.save(ent);
+            ent = dao.saveAndFlush(ent);
             Assertions.assertThat(dao.findOneById(ent.getId())).isNotNull();
             ids.add(ent.getId());
         }
