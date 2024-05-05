@@ -20,7 +20,6 @@ import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
-import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.IntegerSerde;
@@ -34,8 +33,6 @@ public class FileLiveSegmentTest extends ATest {
 
     @Test
     public void testInverseOrder() {
-        Throwables.setDebugStackTraceEnabled(true);
-
         final Map<Integer, FDate> extractTime = new HashMap<>();
         final SegmentedKey<FDate> segmentedKey = new SegmentedKey<FDate>(FDates.MIN_DATE,
                 new TimeRange(FDates.MIN_DATE, FDates.MAX_DATE));

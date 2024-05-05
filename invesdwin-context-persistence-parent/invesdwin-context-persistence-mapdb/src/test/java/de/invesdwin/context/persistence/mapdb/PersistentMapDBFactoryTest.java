@@ -11,14 +11,12 @@ import de.invesdwin.context.integration.persistentmap.APersistentMap;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.error.Throwables;
 
 @NotThreadSafe
 public class PersistentMapDBFactoryTest extends ATest {
 
     @Test
     public void testItWorks() {
-        Throwables.setDebugStackTraceEnabled(true);
         final APersistentMap<String, Integer> map = new APersistentMap<String, Integer>("testItWorks") {
             @Override
             public File getBaseDirectory() {

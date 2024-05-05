@@ -11,7 +11,6 @@ import de.invesdwin.context.integration.persistentmap.APersistentMap;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.IntegerSerde;
 import de.invesdwin.util.marshallers.serde.basic.StringUtf8Serde;
@@ -21,7 +20,6 @@ public class PersistentChronicleMapFactoryTest extends ATest {
 
     @Test
     public void testItWorks() {
-        Throwables.setDebugStackTraceEnabled(true);
         final APersistentMap<String, Integer> map = new APersistentMap<String, Integer>("testItWorks") {
             @Override
             public File getBaseDirectory() {
