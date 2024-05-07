@@ -89,7 +89,6 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                                                 + key + "]. Please ensure all iterators are closed!"));
             }
         } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
         final File updateLockSyncFile = new File(updateLockFile.getAbsolutePath() + ".sync");
