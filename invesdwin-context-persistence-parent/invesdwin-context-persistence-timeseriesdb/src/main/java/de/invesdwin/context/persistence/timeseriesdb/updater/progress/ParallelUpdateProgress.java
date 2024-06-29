@@ -22,11 +22,10 @@ import de.invesdwin.util.collections.iterable.concurrent.ProducerQueueIterable;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
 import de.invesdwin.util.lang.Files;
-import de.invesdwin.util.lang.OperatingSystem;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
-import de.invesdwin.util.streams.buffer.file.SegmentedMemoryMappedFile;
+import de.invesdwin.util.streams.buffer.file.IMemoryMappedFile;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
@@ -113,7 +112,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
         collection.close();
     }
 
-    public void transferToMemoryFile(final FileOutputStream memoryFileOut, final File memoryFile,
+    public long transferToMemoryFile(final FileOutputStream memoryFileOut, final File memoryFile,
             final long precedingMemoryOffset, final long memoryOffset, final int flushIndex,
             final long precedingValueCount) {
         try (FileInputStream tempIn = new FileInputStream(tempFile)) {
@@ -131,6 +130,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                             precedingMemoryOffset, memoryOffset, tempFileLength);
             Files.deleteQuietly(tempFile);
             parent.onFlush(flushIndex, this);
+            return tempFileLength;
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
@@ -288,13 +288,13 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                 while (true) {
                     final ParallelUpdateProgress<K, V> progress = batchWriterProducer.next();
                     flushIndex++;
-                    final long memoryOffset = memoryFileOut.getChannel().position();
-                    progress.transferToMemoryFile(memoryFileOut, memoryFile, precedingMemoryOffset, memoryOffset,
-                            flushIndex, precedingValueCount);
+                    long memoryOffset = memoryFileOut.getChannel().position();
+                    final long memoryLength = progress.transferToMemoryFile(memoryFileOut, memoryFile,
+                            precedingMemoryOffset, memoryOffset, flushIndex, precedingValueCount);
                     precedingValueCount += progress.getValueCount();
 
-                    if (OperatingSystem.isWindows()
-                            && memoryOffset > SegmentedMemoryMappedFile.WINDOWS_MAX_LENGTH_PER_SEGMENT_DISK) {
+                    memoryOffset += memoryLength;
+                    if (IMemoryMappedFile.isSegmentSizeExceeded(memoryOffset)) {
                         precedingMemoryOffset += memoryOffset;
                         memoryFile = TimeSeriesStorageCache.newMemoryFile(parent, precedingMemoryOffset);
                         memoryFileOut = new FileOutputStream(memoryFile, true);

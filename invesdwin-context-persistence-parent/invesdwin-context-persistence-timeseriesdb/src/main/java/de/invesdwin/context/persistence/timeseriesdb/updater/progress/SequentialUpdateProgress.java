@@ -14,11 +14,10 @@ import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
-import de.invesdwin.util.lang.OperatingSystem;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
-import de.invesdwin.util.streams.buffer.file.SegmentedMemoryMappedFile;
+import de.invesdwin.util.streams.buffer.file.IMemoryMappedFile;
 import de.invesdwin.util.streams.pool.buffered.BufferedFileDataOutputStream;
 import de.invesdwin.util.time.date.FDate;
 
@@ -124,8 +123,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
             precedingValueCount += valueCount;
             parent.onFlush(flushIndex, this);
 
-            if (OperatingSystem.isWindows()
-                    && memoryOffset > SegmentedMemoryMappedFile.WINDOWS_MAX_LENGTH_PER_SEGMENT_DISK) {
+            if (IMemoryMappedFile.isSegmentSizeExceeded(memoryOffset)) {
                 precedingMemoryOffset += memoryOffset;
                 memoryOffset = 0;
                 memoryFile = newMemoryFile();
