@@ -29,32 +29,48 @@ public enum PersistentMapType implements IPersistentMapType {
     OFF_HEAP {
         @Override
         public <K, V> IPersistentMapFactory<K, V> newFactory() {
-            //otherwise use chronicle map for faster put/get
-            return new PersistentChronicleMapFactory<K, V>() {
-                @Override
-                public boolean isDiskPersistenceSupported() {
-                    return false;
-                }
-            };
+            if (TimeSeriesProperties.PERSISTENT_CHRONICLE_MAP_ENABLED) {
+                //otherwise use chronicle map for faster put/get
+                return new PersistentChronicleMapFactory<K, V>() {
+                    @Override
+                    public boolean isDiskPersistenceSupported() {
+                        return false;
+                    }
+                };
+            } else {
+                return ON_HEAP.newFactory();
+            }
         }
 
         @Override
         public boolean isRemoveFullySupported() {
-            //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
-            return false;
+            if (TimeSeriesProperties.PERSISTENT_CHRONICLE_MAP_ENABLED) {
+                //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
+                return false;
+            } else {
+                return ON_HEAP.isRemoveFullySupported();
+            }
         }
     },
     DISK_FAST {
         @Override
         public <K, V> IPersistentMapFactory<K, V> newFactory() {
-            //otherwise use chronicle map for faster put/get
-            return new PersistentChronicleMapFactory<>();
+            if (TimeSeriesProperties.PERSISTENT_CHRONICLE_MAP_ENABLED) {
+                //otherwise use chronicle map for faster put/get
+                return new PersistentChronicleMapFactory<>();
+            } else {
+                return DISK_MEDIUM.newFactory();
+            }
         }
 
         @Override
         public boolean isRemoveFullySupported() {
-            //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
-            return false;
+            if (TimeSeriesProperties.PERSISTENT_CHRONICLE_MAP_ENABLED) {
+                //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
+                return false;
+            } else {
+                return DISK_MEDIUM.isRemoveFullySupported();
+            }
         }
     },
     DISK_SAFE {
