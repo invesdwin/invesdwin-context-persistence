@@ -54,6 +54,8 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     private final Object storageLock = new Object();
     @GuardedBy("storageLock")
     private TimeSeriesStorage storage;
+    @GuardedBy("storageLock")
+    private boolean storageClosed;
 
     public ATimeSeriesDB(final String name) {
         this.name = name;
@@ -85,6 +87,9 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     public TimeSeriesStorage getStorage() {
         synchronized (storageLock) {
+            if (storageClosed) {
+                throw new IllegalStateException("storage already closed");
+            }
             if (storage == null) {
                 storage = corruptionHandlingNewStorage();
             }
@@ -387,6 +392,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
                 storage.close();
                 storage = null;
             }
+            storageClosed = true;
         }
         key_lookupTableCache.clear();
         key_tableLock.clear();

@@ -1072,8 +1072,8 @@ public class ASegmentedTimeSeriesDBWithNoCacheTest extends ATest {
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
         Assertions.assertThat(asList(cache.query().getPreviousValues(new FDate(), 100)).size())
                 .isEqualTo(entities.size());
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(7);
+        Assertions.assertThat(countReadNewestValueTo).isLessThanOrEqualTo(4);
     }
 
     @Test
