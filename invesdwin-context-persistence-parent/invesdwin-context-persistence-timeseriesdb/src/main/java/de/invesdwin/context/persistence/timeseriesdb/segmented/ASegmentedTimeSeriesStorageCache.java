@@ -6,7 +6,9 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -49,6 +51,7 @@ import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
+import de.invesdwin.util.concurrent.future.Futures;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
@@ -59,6 +62,7 @@ import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.math.decimal.scaled.Percent;
+import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
 import de.invesdwin.util.time.duration.Duration;
@@ -114,6 +118,10 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     private boolean lookupByIndexAvailable;
     @GuardedBy("precedingValueCountCache")
     private Future<?> lookupByIndexAvailableFuture;
+    @GuardedBy("precedingValueCountCache")
+    private long lookupByIndexAvailableFutureLastRunNanos = Instant.DUMMY_NANOS;
+    private volatile boolean lookupByIndexAvailableFutureDisabled;
+    private final ILock deleteLock;
 
     public ASegmentedTimeSeriesStorageCache(final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable,
             final SegmentedTimeSeriesStorage storage, final K key, final String hashKey) {
@@ -129,6 +137,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 return downloadSegmentElements(t);
             }
         };
+        this.deleteLock = Locks.newReentrantLock(ASegmentedTimeSeriesStorageCache.class.getSimpleName() + "_"
+                + segmentedTable.getName() + "_" + hashKey + "_deleteLock");
     }
 
     public ICloseableIterable<V> readRangeValues(final FDate from, final FDate to, final ILock readLock,
@@ -644,32 +654,56 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         return filteredSegments;
     }
 
-    public synchronized void deleteAll() {
-        final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable = storage
-                .getSegmentStatusTable();
-        final List<TimeRange> rangeKeys;
-        try (ICloseableIterator<TimeRange> rangeKeysIterator = new ATransformingIterator<RangeTableRow<String, TimeRange, SegmentStatus>, TimeRange>(
-                segmentStatusTable.range(hashKey)) {
-
-            @Override
-            protected TimeRange transform(final RangeTableRow<String, TimeRange, SegmentStatus> value) {
-                return value.getRangeKey();
+    public void deleteAll() {
+        lookupByIndexAvailableFutureDisabled = true;
+        try {
+            final Future<?> future = lookupByIndexAvailableFuture;
+            if (future != null) {
+                //abort parallel task to prevent write lock from taking too long to be acquired
+                future.cancel(true);
+                try {
+                    Futures.waitNoInterrupt(future, TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT);
+                } catch (final CancellationException e) {
+                    //success
+                } catch (final TimeoutException e) {
+                    throw new RetryLaterRuntimeException("Unable to cancel lookupByIndexAvailableFuture within: "
+                            + TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT, e);
+                }
             }
-        }) {
-            rangeKeys = Lists.toListWithoutHasNext(rangeKeysIterator);
+
+            deleteLock.lock();
+            try {
+                final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable = storage
+                        .getSegmentStatusTable();
+                final List<TimeRange> rangeKeys;
+                try (ICloseableIterator<TimeRange> rangeKeysIterator = new ATransformingIterator<RangeTableRow<String, TimeRange, SegmentStatus>, TimeRange>(
+                        segmentStatusTable.range(hashKey)) {
+
+                    @Override
+                    protected TimeRange transform(final RangeTableRow<String, TimeRange, SegmentStatus> value) {
+                        return value.getRangeKey();
+                    }
+                }) {
+                    rangeKeys = Lists.toListWithoutHasNext(rangeKeysIterator);
+                }
+                for (int i = 0; i < rangeKeys.size(); i++) {
+                    final TimeRange rangeKey = rangeKeys.get(i);
+                    segmentedTable.deleteRange(new SegmentedKey<K>(key, rangeKey));
+                }
+                segmentStatusTable.deleteRange(hashKey);
+                storage.deleteRange_latestValueLookupTable(hashKey);
+                storage.deleteRange_nextValueLookupTable(hashKey);
+                storage.deleteRange_previousValueLookupTable(hashKey);
+                storage.deleteRange_latestValueIndexLookupTable(hashKey);
+                storage.deleteRange_nextValueIndexLookupTable(hashKey);
+                storage.deleteRange_previousValueIndexLookupTable(hashKey);
+                clearCaches();
+            } finally {
+                deleteLock.unlock();
+            }
+        } finally {
+            lookupByIndexAvailableFutureDisabled = false;
         }
-        for (int i = 0; i < rangeKeys.size(); i++) {
-            final TimeRange rangeKey = rangeKeys.get(i);
-            segmentedTable.deleteRange(new SegmentedKey<K>(key, rangeKey));
-        }
-        segmentStatusTable.deleteRange(hashKey);
-        storage.deleteRange_latestValueLookupTable(hashKey);
-        storage.deleteRange_nextValueLookupTable(hashKey);
-        storage.deleteRange_previousValueLookupTable(hashKey);
-        storage.deleteRange_latestValueIndexLookupTable(hashKey);
-        storage.deleteRange_nextValueIndexLookupTable(hashKey);
-        storage.deleteRange_previousValueIndexLookupTable(hashKey);
-        clearCaches();
     }
 
     private void clearCaches() {
@@ -1019,18 +1053,27 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         }
     }
 
-    private synchronized void maybePrepareForUpdate(final TimeRange segmentToBeInitialized) {
-        final FDate prevLastAvailableSegmentTo = getPrevLastAvailableSegmentTo();
-        if (isNewSegmentAtTheEnd(prevLastAvailableSegmentTo, segmentToBeInitialized)) {
-            if (prevLastAvailableSegmentTo != null) {
-                storage.deleteRange_latestValueLookupTable(hashKey, prevLastAvailableSegmentTo);
-                storage.deleteRange_nextValueLookupTable(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
-                storage.deleteRange_previousValueLookupTable(hashKey, prevLastAvailableSegmentTo);
-                storage.deleteRange_latestValueIndexLookupTable(hashKey, prevLastAvailableSegmentTo);
-                storage.deleteRange_nextValueIndexLookupTable(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
-                storage.deleteRange_previousValueIndexLookupTable(hashKey, prevLastAvailableSegmentTo);
+    private void maybePrepareForUpdate(final TimeRange segmentToBeInitialized) {
+        try {
+            deleteLock.lockInterruptibly();
+        } catch (final InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        try {
+            final FDate prevLastAvailableSegmentTo = getPrevLastAvailableSegmentTo();
+            if (isNewSegmentAtTheEnd(prevLastAvailableSegmentTo, segmentToBeInitialized)) {
+                if (prevLastAvailableSegmentTo != null) {
+                    storage.deleteRange_latestValueLookupTable(hashKey, prevLastAvailableSegmentTo);
+                    storage.deleteRange_nextValueLookupTable(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
+                    storage.deleteRange_previousValueLookupTable(hashKey, prevLastAvailableSegmentTo);
+                    storage.deleteRange_latestValueIndexLookupTable(hashKey, prevLastAvailableSegmentTo);
+                    storage.deleteRange_nextValueIndexLookupTable(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
+                    storage.deleteRange_previousValueIndexLookupTable(hashKey, prevLastAvailableSegmentTo);
+                }
+                clearCaches();
             }
-            clearCaches();
+        } finally {
+            deleteLock.unlock();
         }
     }
 
@@ -1138,20 +1181,38 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             if (lookupByIndexAvailable) {
                 return true;
             }
+            if (lookupByIndexAvailableFutureDisabled) {
+                return false;
+            }
             if (lookupByIndexAvailableFuture == null || lookupByIndexAvailableFuture.isDone()) {
                 final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key, null);
                 if (lastAvailableSegmentTo == null) {
                     return false;
                 }
+                final long currentNanos = System.nanoTime();
+                if (TimeSeriesProperties.ACQUIRE_UPDATE_LOCK_TIMEOUT
+                        .isGreaterThanNanos(currentNanos - lookupByIndexAvailableFutureLastRunNanos)) {
+                    return false;
+                }
+                lookupByIndexAvailableFutureLastRunNanos = currentNanos;
                 lookupByIndexAvailableFuture = LOAD_INDEX_EXECUTOR.submit(new Runnable() {
                     @Override
                     public void run() {
-                        final ISegmentFinder segmentFinder = getSegmentFinder(key);
-                        final TimeRange lastAvailableSegment = segmentFinder.getCacheQueryWithFuture()
-                                .getValue(lastAvailableSegmentTo.addMilliseconds(-1));
-                        getPrecedingValueCount(new SegmentedKey<K>(key, lastAvailableSegment));
-                        synchronized (precedingValueCountCache) {
-                            lookupByIndexAvailable = true;
+                        try {
+                            final ISegmentFinder segmentFinder = getSegmentFinder(key);
+                            final TimeRange lastAvailableSegment = segmentFinder.getCacheQueryWithFuture()
+                                    .getValue(lastAvailableSegmentTo.addMilliseconds(-1));
+                            getPrecedingValueCount(new SegmentedKey<K>(key, lastAvailableSegment));
+                            synchronized (precedingValueCountCache) {
+                                lookupByIndexAvailable = true;
+                            }
+                        } catch (final Throwable t) {
+                            if (Throwables.isCausedByInterrupt(t)) {
+                                //ignore
+                                return;
+                            } else {
+                                throw t;
+                            }
                         }
                     }
                 });
@@ -1266,6 +1327,11 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
     @Override
     public void close() {
+        lookupByIndexAvailableFutureDisabled = true;
+        final Future<?> future = lookupByIndexAvailableFuture;
+        if (future != null) {
+            future.cancel(true);
+        }
         clearCaches();
         closed = true;
     }
