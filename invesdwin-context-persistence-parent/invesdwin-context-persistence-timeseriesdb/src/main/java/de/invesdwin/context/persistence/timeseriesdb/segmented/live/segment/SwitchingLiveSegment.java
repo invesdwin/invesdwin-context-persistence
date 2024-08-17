@@ -32,7 +32,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     private FDate firstValueKey;
     private final IBufferingIterator<V> firstValue = new BufferingIterator<>();
-    private FDate lastValueKey;
+    private volatile FDate lastValueKey;
     private final IBufferingIterator<V> lastValue = new BufferingIterator<>();
     private int inProgressSize = 0;
     private final int batchFlushInterval;
@@ -243,8 +243,8 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
         for (int i = 0; i < latestValueProviders.size(); i++) {
             final ILiveSegment<K, V> latestValueProvider = latestValueProviders.get(i);
             final V newValue = latestValueProvider.getLatestValue(date);
-            final FDate newValueTime = historicalSegmentTable.extractEndTime(newValue);
-            if (newValueTime.isBeforeOrEqualTo(date)) {
+            final FDate newValueEndTime = historicalSegmentTable.extractEndTime(newValue);
+            if (newValueEndTime.isBeforeOrEqualTo(date)) {
                 /*
                  * even if we got the first value in this segment and it is after the desired key we just continue to
                  * the beginning to search for an earlier value until we reach the overall firstValue
