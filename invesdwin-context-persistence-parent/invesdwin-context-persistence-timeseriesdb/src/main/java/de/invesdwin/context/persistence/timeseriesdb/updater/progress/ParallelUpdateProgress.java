@@ -44,7 +44,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
     private FDate minTime;
     private V lastElement;
     private FDate maxTime;
-    private final Object[] batch = new Object[ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL];
+    private final Object[] batch = new Object[ATimeSeriesUpdater.DEFAULT_BATCH_FLUSH_INTERVAL];
 
     public void init(final ITimeSeriesUpdaterInternalMethods<K, V> parent, final File tempFile) {
         this.parent = parent;
@@ -99,7 +99,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
         lastElement = element;
         batch[valueCount] = element;
         valueCount++;
-        return valueCount % ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL == 0;
+        return valueCount % ATimeSeriesUpdater.DEFAULT_BATCH_FLUSH_INTERVAL == 0;
     }
 
     @SuppressWarnings("unchecked")

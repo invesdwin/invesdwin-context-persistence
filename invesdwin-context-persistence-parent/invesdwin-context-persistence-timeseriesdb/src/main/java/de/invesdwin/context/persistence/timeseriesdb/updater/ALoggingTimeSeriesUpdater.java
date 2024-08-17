@@ -19,7 +19,7 @@ import de.invesdwin.util.time.duration.Duration;
 @NotThreadSafe
 public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater<K, V> {
 
-    public static final int BATCH_LOG_INTERVAL = 100_000 / ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL;
+    public static final int BATCH_LOG_INTERVAL = 100_000 / ATimeSeriesUpdater.DEFAULT_BATCH_FLUSH_INTERVAL;
 
     private final Log log;
     @GuardedBy("this")

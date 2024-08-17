@@ -112,7 +112,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
     }
 
     protected int getBatchFlushInterval() {
-        return ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL;
+        return ATimeSeriesUpdater.DEFAULT_BATCH_FLUSH_INTERVAL;
     }
 
     protected abstract ICloseableIterable<? extends V> downloadSegmentElements(SegmentedKey<K> segmentedKey);

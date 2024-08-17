@@ -20,7 +20,7 @@ public abstract class ADatabasePerformanceTest extends ATest {
     protected static final int READS = 100;
     protected static final int VALUES = 100_000;
     protected static final String HASH_KEY = "HASH_KEY";
-    protected static final int FLUSH_INTERVAL = ADelegateRangeTable.BATCH_FLUSH_INTERVAL;
+    protected static final int FLUSH_INTERVAL = ADelegateRangeTable.DEFAULT_BATCH_FLUSH_INTERVAL;
 
     protected void printProgress(final String action, final Instant start, final long count, final int maxCount) {
         final Duration duration = start.toDuration();

@@ -58,7 +58,7 @@ public abstract class ADelegateDailyDownloadRangeTableRequest<K, V>
                                     final K key = extractKey(value);
                                     batch.put(key, value);
                                     count++;
-                                    if (count >= ADelegateRangeTable.BATCH_FLUSH_INTERVAL) {
+                                    if (count >= ADelegateRangeTable.DEFAULT_BATCH_FLUSH_INTERVAL) {
                                         batch.flush();
                                         if (loopCheck.check()) {
                                             printProgress("Indexing [" + getDownloadFileName() + "]", start, count);

@@ -48,7 +48,7 @@ import ezdb.util.TableIterator;
 @ThreadSafe
 public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
 
-    public static final int BATCH_FLUSH_INTERVAL = 10_000;
+    public static final int DEFAULT_BATCH_FLUSH_INTERVAL = 10_000;
 
     protected final RangeTableInternalMethods internalMethods;
     private final IRangeTableDb db;

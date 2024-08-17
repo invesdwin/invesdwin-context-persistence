@@ -108,7 +108,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         lastElement = element;
         collection.add(element);
         valueCount++;
-        return valueCount % ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL == 0;
+        return valueCount % ATimeSeriesUpdater.DEFAULT_BATCH_FLUSH_INTERVAL == 0;
     }
 
     private void write(final int flushIndex) {

@@ -46,7 +46,7 @@ public class WriteThorughRangeTable<H, R, V> implements RangeTable<H, R, V> {
                     final RangeTableRow<H, R, V> next = range.next();
                     batch.put(next.getHashKey(), next.getRangeKey(), next.getValue());
                     count++;
-                    if (count >= ADelegateRangeTable.BATCH_FLUSH_INTERVAL) {
+                    if (count >= ADelegateRangeTable.DEFAULT_BATCH_FLUSH_INTERVAL) {
                         count = 0;
                     }
                 }

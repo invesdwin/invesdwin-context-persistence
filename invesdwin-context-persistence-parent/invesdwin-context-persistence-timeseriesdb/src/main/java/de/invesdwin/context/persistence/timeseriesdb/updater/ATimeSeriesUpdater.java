@@ -33,8 +33,8 @@ import de.invesdwin.util.time.date.FDate;
 @NotThreadSafe
 public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, V> {
 
-    public static final int BATCH_FLUSH_INTERVAL = ADelegateRangeTable.BATCH_FLUSH_INTERVAL;
-    public static final int BATCH_QUEUE_SIZE = 500_000 / BATCH_FLUSH_INTERVAL;
+    public static final int DEFAULT_BATCH_FLUSH_INTERVAL = ADelegateRangeTable.DEFAULT_BATCH_FLUSH_INTERVAL;
+    public static final int BATCH_QUEUE_SIZE = 500_000 / DEFAULT_BATCH_FLUSH_INTERVAL;
     public static final boolean LARGE_COMPRESSOR = true;
 
     private final ISerde<V> valueSerde;

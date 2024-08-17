@@ -1051,7 +1051,7 @@ public class TimeSeriesStorageCache<K, V> {
         if (latestFile != null) {
             final FDate latestRangeKey;
             final MemoryFileSummary latestSummary = latestFile.getValue();
-            if (shouldRedoLastFile && latestSummary.getValueCount() < ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL) {
+            if (shouldRedoLastFile && latestSummary.getValueCount() < ATimeSeriesUpdater.DEFAULT_BATCH_FLUSH_INTERVAL) {
                 lastValues = new ArrayList<V>();
                 try (ICloseableIterator<V> lastColl = newIterableResult("prepareForUpdate", latestSummary,
                         DisabledLock.INSTANCE).iterator()) {

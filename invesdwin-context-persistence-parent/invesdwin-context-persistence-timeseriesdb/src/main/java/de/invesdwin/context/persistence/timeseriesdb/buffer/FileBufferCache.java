@@ -61,7 +61,7 @@ public final class FileBufferCache {
     private static final LoadingCache<FileCacheKey, IMemoryMappedFile> FILE_CACHE;
 
     private static final IObjectPool<ArrayList> LIST_POOL = new AgronaObjectPool<ArrayList>(
-            () -> new ArrayList<>(ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL),
+            () -> new ArrayList<>(ATimeSeriesUpdater.DEFAULT_BATCH_FLUSH_INTERVAL),
             TimeSeriesProperties.FILE_BUFFER_CACHE_MAX_SEGMENTS_COUNT);
 
     /**

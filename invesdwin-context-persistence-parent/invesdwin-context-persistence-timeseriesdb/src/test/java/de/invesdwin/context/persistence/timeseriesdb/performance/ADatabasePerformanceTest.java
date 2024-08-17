@@ -25,7 +25,7 @@ public abstract class ADatabasePerformanceTest extends ATest {
     protected static final long READS = 100;
     protected static final long VALUES = 1_000_000;
     protected static final String HASH_KEY = "HASH_KEY";
-    protected static final int FLUSH_INTERVAL = ATimeSeriesUpdater.BATCH_FLUSH_INTERVAL;
+    protected static final int FLUSH_INTERVAL = ATimeSeriesUpdater.DEFAULT_BATCH_FLUSH_INTERVAL;
 
     protected void printProgress(final String action, final Instant start, final long count, final long maxCount) {
         final Duration duration = start.toDuration();

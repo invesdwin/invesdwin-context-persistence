@@ -21,6 +21,7 @@ import de.invesdwin.context.persistence.ezdb.db.WriteThroughRangeTableDb;
 import de.invesdwin.context.persistence.ezdb.db.storage.LevelDBJavaRangeTableDb;
 import de.invesdwin.context.persistence.ezdb.db.storage.RangeTableInternalMethods;
 import de.invesdwin.context.persistence.ezdb.db.storage.map.TreeMapRangeTableDb;
+import de.invesdwin.context.persistence.ezdb.table.ADelegateTable;
 import de.invesdwin.util.bean.tuple.Pair;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -51,7 +52,7 @@ import ezdb.util.TableIterator;
 @ThreadSafe
 public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTable<H, R, V> {
 
-    public static final int BATCH_FLUSH_INTERVAL = 10_000;
+    public static final int DEFAULT_BATCH_FLUSH_INTERVAL = ADelegateTable.DEFAULT_BATCH_FLUSH_INTERVAL;
 
     protected final RangeTableInternalMethods internalMethods;
     private final IRangeTableDb db;
