@@ -37,7 +37,7 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
 
     private final Object elementLock = new Object();
     private final AtomicLong elementCount = new AtomicLong();
-    private Instant lastLogElementTime = new Instant();
+    private Instant lastLogElementTime;
     @GuardedBy("elementLock")
     private FDate elementMinTime;
     @GuardedBy("elementLock")
@@ -59,6 +59,7 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
         final long elements = elementCount.incrementAndGet();
         if (elementMinTime == null) {
             elementMinTime = progress.getMinTime();
+            lastLogElementTime = new Instant();
         }
         if (shouldLogElements()) {
             synchronized (elementLock) {
