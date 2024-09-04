@@ -114,6 +114,9 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
             }
 
             @Override
+            protected void onElement(final IUpdateProgress<String, FDate> updateProgress) {}
+
+            @Override
             protected void onFlush(final int flushIndex, final IUpdateProgress<String, FDate> updateProgress) {
                 try {
                     if (loopCheck.check()) {
@@ -125,7 +128,7 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
             }
 
             @Override
-            public Percent getProgress() {
+            public Percent getProgress(final FDate minTime, final FDate maxTime) {
                 return null;
             }
         };

@@ -185,6 +185,9 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
 
             @Override
+            protected void onElement(final IUpdateProgress<SegmentedKey<K>, V> updateProgress) {}
+
+            @Override
             protected void onFlush(final int flushIndex, final IUpdateProgress<SegmentedKey<K>, V> updateProgress) {}
 
             @Override
@@ -193,7 +196,7 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
 
             @Override
-            public Percent getProgress() {
+            public Percent getProgress(final FDate minTime, final FDate maxTime) {
                 return null;
             }
         };

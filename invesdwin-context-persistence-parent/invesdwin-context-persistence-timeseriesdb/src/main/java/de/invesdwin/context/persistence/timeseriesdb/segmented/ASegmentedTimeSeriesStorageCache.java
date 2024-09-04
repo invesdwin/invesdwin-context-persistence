@@ -517,17 +517,15 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 }
 
                 @Override
-                public Percent getProgress() {
+                public Percent getProgress(final FDate minTime, final FDate maxTime) {
+                    if (minTime == null) {
+                        return null;
+                    }
+                    if (maxTime == null) {
+                        return null;
+                    }
                     final FDate estimatedTo = segmentedKey.getSegment().getTo();
-                    final FDate from = getMinTime();
-                    if (from == null) {
-                        return null;
-                    }
-                    final FDate curTime = getMaxTime();
-                    if (curTime == null) {
-                        return null;
-                    }
-                    return new Percent(new Duration(from, curTime), new Duration(from, estimatedTo))
+                    return new Percent(new Duration(minTime, maxTime), new Duration(minTime, estimatedTo))
                             .orLower(Percent.ONE_HUNDRED_PERCENT);
                 }
             };

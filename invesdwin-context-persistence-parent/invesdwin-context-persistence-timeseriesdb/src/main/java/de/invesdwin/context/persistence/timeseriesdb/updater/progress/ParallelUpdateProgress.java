@@ -99,6 +99,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
         lastElement = element;
         batch[valueCount] = element;
         valueCount++;
+        parent.onElement(this);
         return valueCount % ATimeSeriesUpdater.DEFAULT_BATCH_FLUSH_INTERVAL == 0;
     }
 

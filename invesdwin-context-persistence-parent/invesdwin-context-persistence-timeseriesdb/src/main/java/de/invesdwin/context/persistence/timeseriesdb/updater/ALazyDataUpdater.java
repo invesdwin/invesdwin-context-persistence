@@ -163,16 +163,14 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 }
 
                 @Override
-                public Percent getProgress() {
-                    final FDate from = getMinTime();
-                    if (from == null) {
+                public Percent getProgress(final FDate minTime, final FDate maxTime) {
+                    if (minTime == null) {
                         return null;
                     }
-                    final FDate curTime = getMaxTime();
-                    if (curTime == null) {
+                    if (maxTime == null) {
                         return null;
                     }
-                    return new Percent(new Duration(from, curTime), new Duration(from, estimatedTo))
+                    return new Percent(new Duration(minTime, maxTime), new Duration(minTime, estimatedTo))
                             .orLower(Percent.ONE_HUNDRED_PERCENT);
                 }
 

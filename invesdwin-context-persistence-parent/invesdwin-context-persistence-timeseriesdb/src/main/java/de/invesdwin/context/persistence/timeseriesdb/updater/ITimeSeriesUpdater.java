@@ -16,4 +16,6 @@ public interface ITimeSeriesUpdater<K, V> {
 
     Percent getProgress();
 
+    Percent getProgress(FDate minTime, FDate maxTime);
+
 }

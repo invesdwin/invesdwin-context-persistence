@@ -27,6 +27,7 @@ import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 
@@ -192,13 +193,18 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             }
 
             @Override
-            public void onFlush(final int flushIndex, final IUpdateProgress<K, V> progress) {
-                count += progress.getValueCount();
+            public void onFlush(final int flushIndex, final IUpdateProgress<K, V> updateProgress) {
+                count += updateProgress.getValueCount();
                 if (minTime == null) {
-                    minTime = progress.getMinTime();
+                    minTime = updateProgress.getMinTime();
                 }
-                maxTime = progress.getMaxTime();
-                ATimeSeriesUpdater.this.onFlush(flushIndex, progress);
+                maxTime = updateProgress.getMaxTime();
+                ATimeSeriesUpdater.this.onFlush(flushIndex, updateProgress);
+            }
+
+            @Override
+            public void onElement(final IUpdateProgress<K, V> updateProgress) {
+                ATimeSeriesUpdater.this.onElement(updateProgress);
             }
 
         };
@@ -234,6 +240,13 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
 
     protected abstract FDate extractEndTime(V element);
 
+    @Override
+    public Percent getProgress() {
+        return getProgress(getMinTime(), getMaxTime());
+    }
+
     protected abstract void onFlush(int flushIndex, IUpdateProgress<K, V> updateProgress);
+
+    protected abstract void onElement(IUpdateProgress<K, V> updateProgress);
 
 }

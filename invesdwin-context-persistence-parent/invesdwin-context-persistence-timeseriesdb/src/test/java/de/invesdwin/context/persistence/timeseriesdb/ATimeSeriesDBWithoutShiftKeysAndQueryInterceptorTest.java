@@ -135,10 +135,13 @@ public class ATimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest extends ATest 
             }
 
             @Override
+            protected void onElement(final IUpdateProgress<String, FDate> updateProgress) {}
+
+            @Override
             protected void onFlush(final int flushIndex, final IUpdateProgress<String, FDate> updateProgress) {}
 
             @Override
-            public Percent getProgress() {
+            public Percent getProgress(final FDate minTime, final FDate maxTime) {
                 return null;
             }
         };

@@ -17,6 +17,8 @@ public interface ITimeSeriesUpdaterInternalMethods<K, V> {
 
     FDate extractEndTime(V element);
 
+    void onElement(IUpdateProgress<K, V> updateProgress);
+
     void onFlush(int flushIndex, IUpdateProgress<K, V> updateProgress);
 
     K getKey();
