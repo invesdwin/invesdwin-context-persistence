@@ -23,6 +23,7 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
 
     public static final int BATCH_LOG_INTERVAL = 100_000 / ATimeSeriesUpdater.DEFAULT_BATCH_FLUSH_INTERVAL;
     public static final Duration ELEMENT_LOG_INTERVAL = Duration.FIVE_SECONDS;
+    public static final Duration FLUSH_LOG_INTERVAL = Duration.ONE_SECOND;
 
     private final Log log;
     private final AtomicInteger lastFlushIndex = new AtomicInteger();
@@ -106,7 +107,8 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
 
     private void logFlush() {
         //if we are too fast, only print status once a second
-        if (lastLogFlushTime == null || lastLogFlushTime.isGreaterThan(Duration.ONE_SECOND)) {
+        if ((lastLogFlushTime == null || lastLogFlushTime.isGreaterThan(FLUSH_LOG_INTERVAL))
+                && (lastLogElementTime == null || lastLogElementTime.isGreaterThan(FLUSH_LOG_INTERVAL))) {
             final Duration flushDuration = updateStart.toDuration();
             final Percent progress = getProgress();
             if (progress != null) {
