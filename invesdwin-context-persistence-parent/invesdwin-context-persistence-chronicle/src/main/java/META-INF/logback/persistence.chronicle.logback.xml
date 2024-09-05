@@ -2,5 +2,8 @@
 
 	<logger name="net.openhft.chronicle.map.ChronicleMapBuilder" additivity="true" level="ERROR">
 	</logger>
-
+	
+	<logger name="net.openhft.affinity.impl.VanillaCpuLayout" additivity="true" level="ERROR">
+	</logger>
+	
 </configuration>
