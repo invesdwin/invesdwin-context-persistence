@@ -197,6 +197,11 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
     }
 
     private Table<H, V> initializeTableInitLocked(final ILock readLock) {
+        initializeTableInitLockedRetry(readLock, true);
+        return tableFinalizer.table;
+    }
+
+    private void initializeTableInitLockedRetry(final ILock readLock, final boolean retry) {
         //otherwise initialize it with write lock (though check again because of lock switch)
         initializeTable();
 
@@ -204,10 +209,15 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
         readLock.lock();
         if (tableFinalizer.table == null) {
             readLock.unlock();
-            throw new RetryLaterRuntimeException(
-                    "table might have been deleted in the mean time, thus retry initialization");
+
+            if (retry) {
+                //retry immediately at least once to avoid unnecessary exceptions on the outside
+                initializeTableInitLockedRetry(readLock, false);
+            } else {
+                throw new RetryLaterRuntimeException(
+                        "table might have been deleted in the mean time, thus retry initialization");
+            }
         }
-        return tableFinalizer.table;
     }
 
     private void maybePurgeTable() {
