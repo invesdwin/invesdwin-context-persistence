@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.timeseriesdb.segmented.live;
 
 import java.io.File;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -24,6 +25,7 @@ import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
+import de.invesdwin.util.concurrent.lambda.callable.AFastLazyCallable;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
@@ -37,8 +39,8 @@ import de.invesdwin.util.time.date.FDates;
 @ThreadSafe
 public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmentedTimeSeriesDBInternals<K, V> {
 
-    private final ISerde<V> valueSerde;
-    private final Integer valueFixedLength;
+    private final Supplier<ISerde<V>> valueSerde;
+    private final Supplier<Integer> valueFixedLength;
     private final ICompressionFactory compressionFactory;
     private final TimeSeriesLookupMode lookupMode;
     private final HistoricalSegmentTable historicalSegmentTable;
@@ -58,8 +60,18 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
     private final ALoadingCache<K, ALiveSegmentedTimeSeriesStorageCache<K, V>> key_liveSegmentedLookupTableCache;
 
     public ALiveSegmentedTimeSeriesDB(final String name) {
-        this.valueSerde = newValueSerde();
-        this.valueFixedLength = newValueFixedLength();
+        this.valueSerde = new AFastLazyCallable<ISerde<V>>() {
+            @Override
+            protected ISerde<V> innerCall() {
+                return newValueSerde();
+            }
+        };
+        this.valueFixedLength = new AFastLazyCallable<Integer>() {
+            @Override
+            protected Integer innerCall() {
+                return newValueFixedLength();
+            }
+        };
         this.compressionFactory = newCompressionFactory();
         this.lookupMode = newLookupMode();
         this.historicalSegmentTable = new HistoricalSegmentTable(name);
@@ -89,12 +101,12 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
 
     @Override
     public ISerde<V> getValueSerde() {
-        return valueSerde;
+        return valueSerde.get();
     }
 
     @Override
     public Integer getValueFixedLength() {
-        return valueFixedLength;
+        return valueFixedLength.get();
     }
 
     @Override

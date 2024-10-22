@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.timeseriesdb;
 
 import java.io.File;
+import java.util.function.Supplier;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -17,6 +18,7 @@ import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
+import de.invesdwin.util.concurrent.lambda.callable.AFastLazyCallable;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
@@ -33,8 +35,8 @@ import de.invesdwin.util.time.date.FDates;
 public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V> {
 
     private final String name;
-    private final ISerde<V> valueSerde;
-    private final Integer valueFixedLength;
+    private final Supplier<ISerde<V>> valueSerde;
+    private final Supplier<Integer> valueFixedLength;
     private final ICompressionFactory compressionFactory;
     private final TimeSeriesLookupMode lookupMode;
     private final File directory;
@@ -57,8 +59,18 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     public ATimeSeriesDB(final String name) {
         this.name = name;
-        this.valueSerde = newValueSerde();
-        this.valueFixedLength = newValueFixedLength();
+        this.valueSerde = new AFastLazyCallable<ISerde<V>>() {
+            @Override
+            protected ISerde<V> innerCall() {
+                return newValueSerde();
+            }
+        };
+        this.valueFixedLength = new AFastLazyCallable<Integer>() {
+            @Override
+            protected Integer innerCall() {
+                return newValueFixedLength();
+            }
+        };
         this.compressionFactory = newCompressionFactory();
         this.lookupMode = newLookupMode();
         final File baseDirectory = getBaseDirectory();
@@ -71,7 +83,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
             @Override
             protected TimeSeriesStorageCache<K, V> loadValue(final K key) {
                 final String hashKey = hashKeyToString(key);
-                return new TimeSeriesStorageCache<K, V>(getStorage(), hashKey, valueSerde, valueFixedLength,
+                return new TimeSeriesStorageCache<K, V>(getStorage(), hashKey, getValueSerde(), getValueFixedLength(),
                         input -> extractEndTime(input), getLookupMode());
             }
 
@@ -94,13 +106,13 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     private TimeSeriesStorage corruptionHandlingNewStorage() {
         try {
-            return newStorage(directory, valueFixedLength, compressionFactory);
+            return newStorage(directory, getValueFixedLength(), compressionFactory);
         } catch (final Throwable t) {
             if (Throwables.isCausedByType(t, CorruptedStorageException.class)) {
                 Err.process(new RuntimeException("Resetting " + ATimeSeriesDB.class.getSimpleName() + " ["
                         + getDirectory() + "] because the storage has been corrupted"));
                 deleteCorruptedStorage(directory);
-                return newStorage(directory, valueFixedLength, compressionFactory);
+                return newStorage(directory, getValueFixedLength(), compressionFactory);
             } else {
                 throw Throwables.propagate(t);
             }
@@ -146,7 +158,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     @Override
     public Integer getValueFixedLength() {
-        return valueFixedLength;
+        return valueFixedLength.get();
     }
 
     @Override
@@ -360,7 +372,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     @Override
     public ISerde<V> getValueSerde() {
-        return valueSerde;
+        return valueSerde.get();
     }
 
     @Override
