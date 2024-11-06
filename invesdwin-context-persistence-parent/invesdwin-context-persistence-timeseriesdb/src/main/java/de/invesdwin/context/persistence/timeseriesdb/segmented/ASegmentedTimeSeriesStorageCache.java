@@ -1076,16 +1076,18 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     }
 
     private FDate getPrevLastAvailableSegmentTo() {
-        if (cachedPrevLastAvailableSegmentTo == null) {
+        Optional<FDate> cachedPrevLastAvailableSegmentToCopy = cachedPrevLastAvailableSegmentTo;
+        if (cachedPrevLastAvailableSegmentToCopy == null) {
             final RangeTableRow<String, TimeRange, SegmentStatus> latestRow = storage.getSegmentStatusTable()
                     .getLatest(hashKey);
             if (latestRow != null) {
-                cachedPrevLastAvailableSegmentTo = Optional.of(latestRow.getRangeKey().getTo());
+                cachedPrevLastAvailableSegmentToCopy = Optional.of(latestRow.getRangeKey().getTo());
             } else {
-                cachedPrevLastAvailableSegmentTo = Optional.empty();
+                cachedPrevLastAvailableSegmentToCopy = Optional.empty();
             }
+            cachedPrevLastAvailableSegmentTo = cachedPrevLastAvailableSegmentToCopy;
         }
-        return cachedPrevLastAvailableSegmentTo.orElse(null);
+        return cachedPrevLastAvailableSegmentToCopy.orElse(null);
     }
 
     private boolean isNewSegmentAtTheEnd(final FDate prevLastAvailableSegmentTo,
@@ -1116,10 +1118,11 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         if (cachedFirstValue != null) {
             maybePrepareForUpdate(null);
         }
-        if (cachedFirstValue == null) {
+        Optional<V> cachedFirstValueCopy = cachedFirstValue;
+        if (cachedFirstValueCopy == null) {
             final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
             if (firstAvailableSegmentFrom == null) {
-                cachedFirstValue = Optional.empty();
+                cachedFirstValueCopy = Optional.empty();
             } else {
                 FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key, null);
                 final ISegmentFinder segmentFinder = getSegmentFinder(key);
@@ -1135,7 +1138,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                     throw new IllegalStateException("segment.from [" + segment.getFrom()
                             + "] should be equal to firstAvailableSegmentFrom [" + firstAvailableSegmentFrom + "]");
                 }
-                while (cachedFirstValue == null && segment.getFrom().isBeforeOrEqualTo(lastSegment.getFrom())) {
+                while (cachedFirstValueCopy == null && segment.getFrom().isBeforeOrEqualTo(lastSegment.getFrom())) {
                     final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
                     maybeInitSegment(segmentedKey);
                     final V potentialFirstValue = segmentedTable.getLookupTableCache(segmentedKey).getFirstValue();
@@ -1144,31 +1147,34 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                         segment = segmentFinder.getCacheQuery().getValue(segment.getTo().addMilliseconds(1));
                     } else {
                         firstValue = potentialFirstValue;
-                        cachedFirstValue = Optional.of(firstValue);
+                        cachedFirstValueCopy = Optional.of(firstValue);
                     }
                 }
-                if (cachedFirstValue == null) {
-                    cachedFirstValue = Optional.empty();
+                if (cachedFirstValueCopy == null) {
+                    cachedFirstValueCopy = Optional.empty();
                 }
+                cachedFirstValue = cachedFirstValueCopy;
             }
         }
-        return cachedFirstValue.orElse(null);
+        return cachedFirstValueCopy.orElse(null);
     }
 
     public V getLastValue() {
         if (cachedLastValue != null) {
             maybePrepareForUpdate(null);
         }
-        if (cachedLastValue == null) {
+        Optional<V> cachedLastValueCopy = cachedLastValue;
+        if (cachedLastValueCopy == null) {
             final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key, null);
             if (lastAvailableSegmentTo == null) {
-                cachedLastValue = Optional.empty();
+                cachedLastValueCopy = Optional.empty();
             } else {
                 final V lastValue = getLatestValue(FDates.MAX_DATE);
-                cachedLastValue = Optional.ofNullable(lastValue);
+                cachedLastValueCopy = Optional.ofNullable(lastValue);
             }
+            cachedLastValue = cachedLastValueCopy;
         }
-        return cachedLastValue.orElse(null);
+        return cachedLastValueCopy.orElse(null);
     }
 
     public boolean isLookupByIndexAvailable() {
@@ -1266,7 +1272,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     }
 
     public long size() {
-        if (cachedSize == -1L) {
+        long cachedSizeCopy = cachedSize;
+        if (cachedSizeCopy == -1L) {
             long size = 0;
             try (ICloseableIterator<RangeTableRow<String, TimeRange, SegmentStatus>> rangeValues = storage
                     .getSegmentStatusTable()
@@ -1282,9 +1289,10 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             } catch (final NoSuchElementException e) {
                 //end reached
             }
-            cachedSize = size;
+            cachedSizeCopy = size;
+            cachedSize = cachedSizeCopy;
         }
-        return cachedSize;
+        return cachedSizeCopy;
     }
 
     public boolean isEmptyOrInconsistent() {

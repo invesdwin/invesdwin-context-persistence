@@ -618,11 +618,12 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     public V getFirstValue() {
-        if (cachedFirstValue == null) {
+        Optional<V> cachedFirstValueCopy = cachedFirstValue;
+        if (cachedFirstValueCopy == null) {
             final ArrayList<? extends RangeTableRow<String, FDate, MemoryFileSummary>> list = getAllRangeKeys(
                     DisabledLock.INSTANCE).getList();
             if (list.isEmpty()) {
-                cachedFirstValue = Optional.empty();
+                cachedFirstValueCopy = Optional.empty();
             } else {
                 final RangeTableRow<String, FDate, MemoryFileSummary> row = list.get(0);
                 final MemoryFileSummary latestValue = row.getValue();
@@ -632,18 +633,20 @@ public class TimeSeriesStorageCache<K, V> {
                 } else {
                     firstValue = latestValue.getFirstValue(valueSerde);
                 }
-                cachedFirstValue = Optional.ofNullable(firstValue);
+                cachedFirstValueCopy = Optional.ofNullable(firstValue);
             }
+            cachedFirstValue = cachedFirstValueCopy;
         }
-        return cachedFirstValue.orElse(null);
+        return cachedFirstValueCopy.orElse(null);
     }
 
     public V getLastValue() {
-        if (cachedLastValue == null) {
+        Optional<V> cachedLastValueCopy = cachedLastValue;
+        if (cachedLastValueCopy == null) {
             final ArrayList<? extends RangeTableRow<String, FDate, MemoryFileSummary>> list = getAllRangeKeys(
                     DisabledLock.INSTANCE).getList();
             if (list.isEmpty()) {
-                cachedLastValue = Optional.empty();
+                cachedLastValueCopy = Optional.empty();
             } else {
                 final RangeTableRow<String, FDate, MemoryFileSummary> row = list.get(list.size() - 1);
                 final MemoryFileSummary latestValue = row.getValue();
@@ -653,10 +656,11 @@ public class TimeSeriesStorageCache<K, V> {
                 } else {
                     lastValue = latestValue.getLastValue(valueSerde);
                 }
-                cachedLastValue = Optional.ofNullable(lastValue);
+                cachedLastValueCopy = Optional.ofNullable(lastValue);
             }
+            cachedLastValue = cachedLastValueCopy;
         }
-        return cachedLastValue.orElse(null);
+        return cachedLastValueCopy.orElse(null);
     }
 
     public synchronized void deleteAll() {
@@ -780,20 +784,22 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     public long size() {
-        if (cachedSize == -1L) {
+        long cachedSizeCopy = cachedSize;
+        if (cachedSizeCopy == -1L) {
             final ArrayList<? extends RangeTableRow<String, FDate, MemoryFileSummary>> list = getAllRangeKeys(
                     DisabledLock.INSTANCE).getList();
             if (list.isEmpty()) {
-                cachedSize = 0;
+                cachedSizeCopy = 0;
             } else {
                 long size = 0;
                 for (int i = 0; i < list.size(); i++) {
                     size += list.get(i).getValue().getValueCount();
                 }
-                cachedSize = size;
+                cachedSizeCopy = size;
             }
+            cachedSize = cachedSizeCopy;
         }
-        return cachedSize;
+        return cachedSizeCopy;
     }
 
     public V getPreviousValue(final FDate date, final int shiftBackUnits) {
