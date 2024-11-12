@@ -48,7 +48,8 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
             //cleanup initially
             this.table.deleteRange(segmentedKey);
         } else if (existingStatus != null) {
-            throw UnknownArgumentException.newInstance(SegmentStatus.class, existingStatus);
+            throw new IllegalStateException("Existing " + SegmentStatus.class.getSimpleName() + " [" + existingStatus
+                    + "] should be " + SegmentStatus.INITIALIZING + ": " + segmentedKey);
         }
     }
 
