@@ -1151,7 +1151,6 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                     cachedFirstValue = Optional.empty();
                 }
             }
-            cachedFirstValue = cachedFirstValueCopy;
         }
         return cachedFirstValue.orElse(null);
     }
