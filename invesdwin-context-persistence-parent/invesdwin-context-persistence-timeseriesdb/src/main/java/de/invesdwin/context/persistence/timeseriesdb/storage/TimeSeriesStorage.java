@@ -280,9 +280,7 @@ public class TimeSeriesStorage {
             });
         } else {
             //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
-            if (!latestValueLookupTable.isEmpty()) {
-                latestValueLookupTable.deleteTable();
-            }
+            latestValueLookupTable.deleteTable();
         }
     }
 
@@ -296,9 +294,7 @@ public class TimeSeriesStorage {
                 });
             } else {
                 //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
-                if (!latestValueLookupTable.isEmpty()) {
-                    latestValueLookupTable.deleteTable();
-                }
+                latestValueLookupTable.deleteTable();
             }
         }
     }
@@ -310,9 +306,7 @@ public class TimeSeriesStorage {
             });
         } else {
             //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
-            if (!latestValueLookupTable.isEmpty()) {
-                nextValueLookupTable.deleteTable();
-            }
+            nextValueLookupTable.deleteTable();
         }
     }
 
@@ -323,9 +317,7 @@ public class TimeSeriesStorage {
             });
         } else {
             //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
-            if (!previousValueLookupTable.isEmpty()) {
-                previousValueLookupTable.deleteTable();
-            }
+            previousValueLookupTable.deleteTable();
         }
     }
 
@@ -339,9 +331,7 @@ public class TimeSeriesStorage {
                 });
             } else {
                 //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
-                if (!previousValueLookupTable.isEmpty()) {
-                    previousValueLookupTable.deleteTable();
-                }
+                previousValueLookupTable.deleteTable();
             }
         }
     }
@@ -353,9 +343,7 @@ public class TimeSeriesStorage {
             });
         } else {
             //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
-            if (!latestValueIndexLookupTable.isEmpty()) {
-                latestValueIndexLookupTable.deleteTable();
-            }
+            latestValueIndexLookupTable.deleteTable();
         }
     }
 
@@ -369,9 +357,7 @@ public class TimeSeriesStorage {
                 });
             } else {
                 //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
-                if (!latestValueIndexLookupTable.isEmpty()) {
-                    latestValueIndexLookupTable.deleteTable();
-                }
+                latestValueIndexLookupTable.deleteTable();
             }
         }
     }
@@ -383,9 +369,7 @@ public class TimeSeriesStorage {
             });
         } else {
             //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
-            if (!latestValueIndexLookupTable.isEmpty()) {
-                nextValueIndexLookupTable.deleteTable();
-            }
+            nextValueIndexLookupTable.deleteTable();
         }
     }
 
@@ -396,9 +380,7 @@ public class TimeSeriesStorage {
             });
         } else {
             //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
-            if (!previousValueIndexLookupTable.isEmpty()) {
-                previousValueIndexLookupTable.deleteTable();
-            }
+            previousValueIndexLookupTable.deleteTable();
         }
     }
 
@@ -412,9 +394,7 @@ public class TimeSeriesStorage {
                 });
             } else {
                 //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
-                if (!previousValueIndexLookupTable.isEmpty()) {
-                    previousValueIndexLookupTable.deleteTable();
-                }
+                previousValueIndexLookupTable.deleteTable();
             }
         }
     }
