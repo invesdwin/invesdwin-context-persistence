@@ -9,7 +9,7 @@ public class DisabledDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     private static final DisabledDataUpdater INSTANCE = new DisabledDataUpdater<>();
 
     @Override
-    public void maybeUpdate() {
+    public void maybeUpdate(final boolean force) {
         //noop
     }
 
