@@ -85,7 +85,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     private volatile Optional<V> cachedFirstValue;
     private volatile Optional<V> cachedLastValue;
     private volatile long cachedSize = -1L;
-    private volatile Optional<FDate> cachedPrevLastAvailableSegmentTo;
+    private volatile Optional<FDate> cachedPrevLastAvailableSegmentToWithoutLive;
+    private volatile Optional<FDate> cachedPrevLastAvailableSegmentToWithLive;
     private final Log log = new Log(this);
 
     private final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable;
@@ -709,7 +710,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         cachedFirstValue = null;
         cachedLastValue = null;
         cachedSize = -1L;
-        cachedPrevLastAvailableSegmentTo = null;
+        cachedPrevLastAvailableSegmentToWithLive = null;
+        cachedPrevLastAvailableSegmentToWithoutLive = null;
         precedingValueCountCache.clear();
         latestSegmentedKeyFromIndexCache.clear();
     }
@@ -1058,8 +1060,16 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             throw new RuntimeException(e);
         }
         try {
-            final FDate prevLastAvailableSegmentTo = getPrevLastAvailableSegmentTo();
-            if (isNewSegmentAtTheEnd(prevLastAvailableSegmentTo, segmentToBeInitialized)) {
+            final FDate maxLastAvailableSegmentToWithoutInitializing;
+            if (segmentToBeInitialized == null) {
+                maxLastAvailableSegmentToWithoutInitializing = getLastAvailableSegmentTo(key, null);
+            } else {
+                maxLastAvailableSegmentToWithoutInitializing = null;
+            }
+            final FDate prevLastAvailableSegmentTo = getPrevLastAvailableSegmentTo(
+                    maxLastAvailableSegmentToWithoutInitializing);
+            if (isNewSegmentAtTheEnd(maxLastAvailableSegmentToWithoutInitializing, prevLastAvailableSegmentTo,
+                    segmentToBeInitialized)) {
                 if (prevLastAvailableSegmentTo != null) {
                     storage.deleteRange_latestValueLookupTable(hashKey, prevLastAvailableSegmentTo);
                     storage.deleteRange_nextValueLookupTable(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
@@ -1075,29 +1085,67 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         }
     }
 
-    private FDate getPrevLastAvailableSegmentTo() {
-        Optional<FDate> cachedPrevLastAvailableSegmentToCopy = cachedPrevLastAvailableSegmentTo;
-        if (cachedPrevLastAvailableSegmentToCopy == null) {
+    private FDate getPrevLastAvailableSegmentTo(final FDate maxLastAvailableSegmentToWithoutLive) {
+        if (maxLastAvailableSegmentToWithoutLive == null) {
+            return getPrevLastAvailableSegmentToWithLive();
+        } else {
+            return getPrevLastAvailableSegmentToWithoutLive(maxLastAvailableSegmentToWithoutLive);
+        }
+    }
+
+    private FDate getPrevLastAvailableSegmentToWithoutLive(final FDate maxLastAvailableSegmentToWithoutLive) {
+        Optional<FDate> cachedPrevLastAvailableSegmentToWithoutLiveCopy = cachedPrevLastAvailableSegmentToWithoutLive;
+        if (cachedPrevLastAvailableSegmentToWithoutLiveCopy == null) {
+            RangeTableRow<String, TimeRange, SegmentStatus> latestRow = storage.getSegmentStatusTable()
+                    .getLatest(hashKey);
+            if (latestRow != null) {
+                while (latestRow.getValue() == SegmentStatus.INITIALIZING
+                        && maxLastAvailableSegmentToWithoutLive.isBeforeNotNullSafe(latestRow.getRangeKey().getTo())) {
+                    //this must be a live segment which we are not interested in here
+                    final RangeTableRow<String, TimeRange, SegmentStatus> prevRow = storage.getSegmentStatusTable()
+                            .getLatest(hashKey, latestRow.getRangeKey().subtractDuration(Duration.ONE_MILLISECOND));
+                    if (prevRow == null) {
+                        //no earlier segment available
+                        break;
+                    }
+                    if (prevRow.getRangeKey().getTo().isAfterOrEqualToNotNullSafe(latestRow.getRangeKey().getTo())) {
+                        //no earlier segment available
+                        break;
+                    }
+                    latestRow = prevRow;
+                }
+                cachedPrevLastAvailableSegmentToWithoutLiveCopy = Optional.of(latestRow.getRangeKey().getTo());
+            } else {
+                cachedPrevLastAvailableSegmentToWithoutLiveCopy = Optional.empty();
+            }
+            cachedPrevLastAvailableSegmentToWithoutLive = cachedPrevLastAvailableSegmentToWithoutLiveCopy;
+        }
+        return cachedPrevLastAvailableSegmentToWithoutLiveCopy.orElse(null);
+    }
+
+    private FDate getPrevLastAvailableSegmentToWithLive() {
+        Optional<FDate> cachedPrevLastAvailableSegmentToWithLiveCopy = cachedPrevLastAvailableSegmentToWithLive;
+        if (cachedPrevLastAvailableSegmentToWithLiveCopy == null) {
             final RangeTableRow<String, TimeRange, SegmentStatus> latestRow = storage.getSegmentStatusTable()
                     .getLatest(hashKey);
             if (latestRow != null) {
-                cachedPrevLastAvailableSegmentToCopy = Optional.of(latestRow.getRangeKey().getTo());
+                cachedPrevLastAvailableSegmentToWithLiveCopy = Optional.of(latestRow.getRangeKey().getTo());
             } else {
-                cachedPrevLastAvailableSegmentToCopy = Optional.empty();
+                cachedPrevLastAvailableSegmentToWithLiveCopy = Optional.empty();
             }
-            cachedPrevLastAvailableSegmentTo = cachedPrevLastAvailableSegmentToCopy;
+            cachedPrevLastAvailableSegmentToWithLive = cachedPrevLastAvailableSegmentToWithLiveCopy;
         }
-        return cachedPrevLastAvailableSegmentToCopy.orElse(null);
+        return cachedPrevLastAvailableSegmentToWithLiveCopy.orElse(null);
     }
 
-    private boolean isNewSegmentAtTheEnd(final FDate prevLastAvailableSegmentTo,
-            final TimeRange segmentToBeInitialized) {
+    private boolean isNewSegmentAtTheEnd(final FDate maxLastAvailableSegmentToWithoutLive,
+            final FDate prevLastAvailableSegmentTo, final TimeRange segmentToBeInitialized) {
         if (prevLastAvailableSegmentTo == null) {
             return true;
         }
         final FDate lastAvailableSegmentTo;
         if (segmentToBeInitialized == null) {
-            lastAvailableSegmentTo = getLastAvailableSegmentTo(key, null);
+            lastAvailableSegmentTo = maxLastAvailableSegmentToWithoutLive;
         } else {
             lastAvailableSegmentTo = getLastAvailableSegmentTo(key, segmentToBeInitialized.getTo());
         }
@@ -1106,8 +1154,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         }
         if (segmentToBeInitialized == null) {
             /*
-             * prevLastAvailableSegmentTo could be higher than lastAvailableSegmentTo after a restart when live segment
-             * was in initializing state
+             * prevLastAvailableSegmentToWithLive could be higher than lastAvailableSegmentTo after a restart when live
+             * segment was in initializing state, thus we have to make sure to compare against the last initialized
+             * segment if available and can not do equals check here against prevLastAvailableSegmentToWithoutLive
              */
             return lastAvailableSegmentTo.isAfterNotNullSafe(prevLastAvailableSegmentTo);
         } else {
