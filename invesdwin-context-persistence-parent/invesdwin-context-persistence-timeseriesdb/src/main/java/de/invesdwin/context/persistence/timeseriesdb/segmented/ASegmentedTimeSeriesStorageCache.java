@@ -1086,10 +1086,10 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     }
 
     private FDate getPrevLastAvailableSegmentTo(final FDate maxLastAvailableSegmentToWithoutLive) {
-        if (maxLastAvailableSegmentToWithoutLive == null) {
-            return getPrevLastAvailableSegmentToWithLive();
-        } else {
+        if (maxLastAvailableSegmentToWithoutLive != null) {
             return getPrevLastAvailableSegmentToWithoutLive(maxLastAvailableSegmentToWithoutLive);
+        } else {
+            return getPrevLastAvailableSegmentToWithLive();
         }
     }
 
