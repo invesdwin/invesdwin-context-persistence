@@ -1104,8 +1104,16 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         if (lastAvailableSegmentTo == null) {
             return false;
         }
-        return !lastAvailableSegmentTo.equals(prevLastAvailableSegmentTo) && (segmentToBeInitialized == null
-                || segmentToBeInitialized.getFrom().isAfter(prevLastAvailableSegmentTo));
+        if (segmentToBeInitialized == null) {
+            /*
+             * prevLastAvailableSegmentTo could be higher than lastAvailableSegmentTo after a restart when live segment
+             * was in initializing state
+             */
+            return lastAvailableSegmentTo.isAfterNotNullSafe(prevLastAvailableSegmentTo);
+        } else {
+            return !lastAvailableSegmentTo.equals(prevLastAvailableSegmentTo)
+                    && segmentToBeInitialized.getFrom().isAfter(prevLastAvailableSegmentTo);
+        }
     }
 
     private void assertShiftUnitsPositiveNonZero(final int shiftUnits) {
