@@ -300,9 +300,17 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         if (status == null || status == SegmentStatus.INITIALIZING) {
             Future<?> future = segmentedKey_maybeInitSegmentAsyncFuture.get(segmentedKey);
             if (future == null || future.isDone()) {
+                if (Threads.isInterrupted()) {
+                    //abort when shutting down
+                    return false;
+                }
                 //we can trigger or retry an async update
                 future = MAYBE_INIT_SEGMENT_ASYNC_EXECUTOR.submit(() -> {
                     try {
+                        if (Threads.isInterrupted()) {
+                            //abort when shutting down
+                            return;
+                        }
                         maybeInitSegmentSync(segmentedKey, source);
                     } catch (final Throwable t) {
                         throw Err.process(t);
