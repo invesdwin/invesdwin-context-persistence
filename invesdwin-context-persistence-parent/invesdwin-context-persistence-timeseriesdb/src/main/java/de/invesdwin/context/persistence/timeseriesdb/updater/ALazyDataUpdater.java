@@ -37,6 +37,8 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     private volatile FDate lastUpdateCheck = FDates.MIN_DATE;
     @GuardedBy("this")
     private IReentrantLock updateLock;
+    @GuardedBy("this")
+    private Future<?> updateFuture;
 
     public ALazyDataUpdater(final K key) {
         if (key == null) {
@@ -75,10 +77,6 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     public final void maybeUpdate(final boolean force) {
         final FDate newUpdateCheck = new FDate();
         if (force || shouldCheckForUpdate(newUpdateCheck)) {
-            if (Threads.isThreadRetryDisabledDefault()) {
-                //don't update from UI thread, finalizer or when already interrupted
-                return;
-            }
             final IReentrantLock updateLock = getUpdateLock();
             if (shouldSkipUpdateOnCurrentThreadIfAlreadyRunning()) {
                 try {
@@ -96,26 +94,35 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                     //some sort of double checked locking to skip if someone else came before us
                     return;
                 }
-                final Future<?> future = getNestedExecutor().getNestedExecutor().submit(new Runnable() {
-                    @Override
-                    public void run() {
-                        final ILock writeLock = getTable().getTableLock(key).writeLock();
-                        if (!writeLock.tryLock()) {
-                            //don't try to update if currently a backtest is running which is keeping iterators open
-                            return;
+                Future<?> updateFutureCopy = updateFuture;
+                if (updateFutureCopy == null
+                        || updateFutureCopy.isDone() && (force || shouldCheckForUpdate(newUpdateCheck))) {
+                    updateFutureCopy = getNestedExecutor().getNestedExecutor().submit(new Runnable() {
+                        @Override
+                        public void run() {
+                            final ILock writeLock = getTable().getTableLock(key).writeLock();
+                            if (!writeLock.tryLock()) {
+                                //don't try to update if currently a backtest is running which is keeping iterators open
+                                return;
+                            }
+                            try {
+                                innerMaybeUpdate(key);
+                            } finally {
+                                //update timestamp only at the end
+                                lastUpdateCheck = newUpdateCheck;
+                                writeLock.unlock();
+                            }
                         }
-                        try {
-                            innerMaybeUpdate(key);
-                        } finally {
-                            //update timestamp only at the end
-                            lastUpdateCheck = newUpdateCheck;
-                            writeLock.unlock();
-                        }
-                    }
-
-                });
+                    });
+                    updateFuture = updateFutureCopy;
+                }
+                if (Threads.isThreadRetryDisabledDefault()) {
+                    //don't update from UI thread, finalizer or when already interrupted
+                    return;
+                }
                 try {
-                    Futures.wait(future);
+                    Futures.wait(updateFutureCopy);
+                    updateFuture = null;
                 } catch (final InterruptedException e) {
                     throw new RuntimeException(e);
                 }

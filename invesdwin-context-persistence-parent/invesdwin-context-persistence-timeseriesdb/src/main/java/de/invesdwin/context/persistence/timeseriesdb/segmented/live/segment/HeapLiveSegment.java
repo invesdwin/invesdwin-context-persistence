@@ -276,7 +276,7 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
     public void convertLiveSegmentToHistorical() {
         final ASegmentedTimeSeriesStorageCache<K, V> lookupTableCache = historicalSegmentTable
                 .getSegmentedLookupTableCache(getSegmentedKey().getKey());
-        final boolean initialized = lookupTableCache.maybeInitSegment(getSegmentedKey(),
+        final boolean initialized = lookupTableCache.maybeInitSegmentSync(getSegmentedKey(),
                 new Function<SegmentedKey<K>, ICloseableIterable<? extends V>>() {
                     @Override
                     public ICloseableIterable<? extends V> apply(final SegmentedKey<K> t) {

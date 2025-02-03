@@ -22,6 +22,7 @@ import de.invesdwin.context.integration.retry.task.ARetryCallable;
 import de.invesdwin.context.integration.retry.task.BackOffPolicies;
 import de.invesdwin.context.integration.retry.task.RetryOriginator;
 import de.invesdwin.context.log.Log;
+import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
@@ -50,6 +51,7 @@ import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.concurrent.Executors;
+import de.invesdwin.util.concurrent.Threads;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
 import de.invesdwin.util.concurrent.future.Futures;
 import de.invesdwin.util.concurrent.lock.ILock;
@@ -75,10 +77,14 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     public static final EvictionMode EVICTION_MODE = TimeSeriesStorageCache.EVICTION_MODE;
 
     private static final WrappedExecutorService LOAD_INDEX_EXECUTOR;
+    private static final WrappedExecutorService MAYBE_INIT_SEGMENT_ASYNC_EXECUTOR;
 
     static {
         LOAD_INDEX_EXECUTOR = Executors
                 .newFixedThreadPool(ASegmentedTimeSeriesStorageCache.class.getSimpleName() + "_LOAD_INDEX", 1);
+        MAYBE_INIT_SEGMENT_ASYNC_EXECUTOR = Executors.newFixedThreadPool(
+                ASegmentedTimeSeriesStorageCache.class.getSimpleName() + "_MAYBE_INIT_SEGMENT_ASYNC_EXECUTOR",
+                Executors.getCpuThreadPoolCount());
     }
 
     private volatile boolean closed;
@@ -123,6 +129,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     private long lookupByIndexAvailableFutureLastRunNanos = Instant.DUMMY_NANOS;
     private volatile boolean lookupByIndexAvailableFutureDisabled;
     private final ILock deleteLock;
+    private final Map<SegmentedKey<K>, Future<?>> segmentedKey_maybeInitSegmentAsyncFuture = ILockCollectionFactory
+            .getInstance(true)
+            .newConcurrentMap();
 
     public ASegmentedTimeSeriesStorageCache(final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable,
             final SegmentedTimeSeriesStorage storage, final K key, final String hashKey) {
@@ -263,10 +272,60 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     protected abstract ISegmentFinder getSegmentFinder(K key);
 
     public void maybeInitSegment(final SegmentedKey<K> segmentedKey) {
-        maybeInitSegment(segmentedKey, source);
+        if (Threads.isThreadRetryDisabled()) {
+            maybeInitSegmentAsync(segmentedKey, source);
+        } else {
+            maybeInitSegmentSync(segmentedKey, source);
+        }
     }
 
-    public boolean maybeInitSegment(final SegmentedKey<K> segmentedKey,
+    public boolean maybeInitSegmentAsync(final SegmentedKey<K> segmentedKey,
+            final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
+        if (!assertValidSegment(segmentedKey)) {
+            return false;
+        }
+        //1. check segment status in series storage
+        final IReadWriteLock segmentTableLock = segmentedTable.getTableLock(segmentedKey);
+        final ILock segmentReadLock = segmentTableLock.readLock();
+        if (!segmentReadLock.tryLock()) {
+            return false;
+        }
+        final SegmentStatus status;
+        try {
+            status = storage.getSegmentStatusTable().get(hashKey, segmentedKey.getSegment());
+        } finally {
+            segmentReadLock.unlock();
+        }
+        //2. if not existing or false, set status to false -> start segment update -> after update set status to true
+        if (status == null || status == SegmentStatus.INITIALIZING) {
+            Future<?> future = segmentedKey_maybeInitSegmentAsyncFuture.get(segmentedKey);
+            if (future == null || future.isDone()) {
+                //we can trigger or retry an async update
+                future = MAYBE_INIT_SEGMENT_ASYNC_EXECUTOR.submit(() -> {
+                    try {
+                        maybeInitSegmentSync(segmentedKey, source);
+                    } catch (final Throwable t) {
+                        throw Err.process(t);
+                    } finally {
+                        segmentedKey_maybeInitSegmentAsyncFuture.remove(segmentedKey);
+                    }
+                });
+                segmentedKey_maybeInitSegmentAsyncFuture.put(segmentedKey, future);
+                if (future.isDone()) {
+                    //make sure entry is removed even if async task finished before the put operation happened
+                    segmentedKey_maybeInitSegmentAsyncFuture.remove(segmentedKey);
+                }
+                return true;
+            } else {
+                //update already in progress
+                return false;
+            }
+        }
+        //3. if true do nothing
+        return false;
+    }
+
+    public boolean maybeInitSegmentSync(final SegmentedKey<K> segmentedKey,
             final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
         if (!assertValidSegment(segmentedKey)) {
             return false;
