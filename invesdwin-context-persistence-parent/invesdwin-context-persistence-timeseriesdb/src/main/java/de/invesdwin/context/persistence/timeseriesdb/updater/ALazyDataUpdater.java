@@ -13,6 +13,7 @@ import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
+import de.invesdwin.util.concurrent.Threads;
 import de.invesdwin.util.concurrent.future.Futures;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.IReentrantLock;
@@ -74,6 +75,10 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     public final void maybeUpdate(final boolean force) {
         final FDate newUpdateCheck = new FDate();
         if (force || shouldCheckForUpdate(newUpdateCheck)) {
+            if (Threads.isThreadRetryDisabledDefault()) {
+                //don't update from UI thread, finalizer or when already interrupted//don't update from UI thread, finalizer or when already interrupted
+                return;
+            }
             final IReentrantLock updateLock = getUpdateLock();
             if (shouldSkipUpdateOnCurrentThreadIfAlreadyRunning()) {
                 try {
