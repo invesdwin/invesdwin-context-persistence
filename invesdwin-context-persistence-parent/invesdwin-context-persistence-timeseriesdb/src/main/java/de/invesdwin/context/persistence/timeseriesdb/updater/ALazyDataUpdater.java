@@ -76,7 +76,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
         final FDate newUpdateCheck = new FDate();
         if (force || shouldCheckForUpdate(newUpdateCheck)) {
             if (Threads.isThreadRetryDisabledDefault()) {
-                //don't update from UI thread, finalizer or when already interrupted//don't update from UI thread, finalizer or when already interrupted
+                //don't update from UI thread, finalizer or when already interrupted
                 return;
             }
             final IReentrantLock updateLock = getUpdateLock();
