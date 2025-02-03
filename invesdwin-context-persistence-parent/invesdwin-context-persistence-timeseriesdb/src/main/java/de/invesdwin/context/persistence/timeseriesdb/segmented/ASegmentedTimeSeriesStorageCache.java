@@ -17,6 +17,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.lang3.SerializationException;
 import org.springframework.retry.backoff.BackOffPolicy;
 
+import de.invesdwin.context.integration.retry.NonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.task.ARetryCallable;
 import de.invesdwin.context.integration.retry.task.BackOffPolicies;
@@ -273,14 +274,13 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
     public void maybeInitSegment(final SegmentedKey<K> segmentedKey) {
         if (Threads.isThreadRetryDisabled()) {
-            maybeInitSegmentAsync(segmentedKey, source);
+            maybeInitSegmentAsync(segmentedKey);
         } else {
             maybeInitSegmentSync(segmentedKey, source);
         }
     }
 
-    public boolean maybeInitSegmentAsync(final SegmentedKey<K> segmentedKey,
-            final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
+    private boolean maybeInitSegmentAsync(final SegmentedKey<K> segmentedKey) {
         if (!assertValidSegment(segmentedKey)) {
             return false;
         }
@@ -288,7 +288,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         final IReadWriteLock segmentTableLock = segmentedTable.getTableLock(segmentedKey);
         final ILock segmentReadLock = segmentTableLock.readLock();
         if (!segmentReadLock.tryLock()) {
-            return false;
+            throw new NonBlockingRetryLaterRuntimeException(ASegmentedTimeSeriesStorageCache.class.getSimpleName()
+                    + ".maybeInitSegmentAsync(" + segmentedKey + " segment " + getElementsName()
+                    + "): readlock could not be acquired for async update check while operating in non-blocking mode");
         }
         final SegmentStatus status;
         try {
@@ -323,10 +325,13 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                     //make sure entry is removed even if async task finished before the put operation happened
                     segmentedKey_maybeInitSegmentAsyncFuture.remove(segmentedKey);
                 }
-                return true;
+                throw new NonBlockingRetryLaterRuntimeException(ASegmentedTimeSeriesStorageCache.class.getSimpleName()
+                        + ".maybeInitSegmentAsync(" + segmentedKey + " segment " + getElementsName()
+                        + "): async update started while operating in non-blocking mode");
             } else {
-                //update already in progress
-                return false;
+                throw new NonBlockingRetryLaterRuntimeException(ASegmentedTimeSeriesStorageCache.class.getSimpleName()
+                        + ".maybeInitSegmentAsync(" + segmentedKey + " segment " + getElementsName()
+                        + "): async update is in progress while operating in non-blocking mode");
             }
         }
         //3. if true do nothing

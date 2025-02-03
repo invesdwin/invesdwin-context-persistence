@@ -8,6 +8,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.commons.lang3.BooleanUtils;
 
+import de.invesdwin.context.integration.retry.NonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
@@ -116,9 +117,10 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                     });
                     updateFuture = updateFutureCopy;
                 }
-                if (Threads.isThreadRetryDisabledDefault()) {
-                    //don't update from UI thread, finalizer or when already interrupted
-                    return;
+                if (Threads.isThreadRetryDisabled()) {
+                    throw new NonBlockingRetryLaterRuntimeException(
+                            ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate(" + key + " " + getElementsName()
+                                    + "): update is in progress while operating in non-blocking mode");
                 }
                 try {
                     Futures.wait(updateFutureCopy);
