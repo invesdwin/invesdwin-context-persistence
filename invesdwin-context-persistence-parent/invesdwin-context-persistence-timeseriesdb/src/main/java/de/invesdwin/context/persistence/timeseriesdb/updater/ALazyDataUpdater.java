@@ -121,7 +121,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 } else {
                     reason = "is in progress";
                 }
-                if (Threads.isThreadRetryDisabled()) {
+                if (Threads.isThreadRetryDisabledDefault()) {
                     throw new NonBlockingRetryLaterRuntimeException(
                             ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: async update " + reason
                                     + " while operating in non-blocking mode for " + getElementsName() + ": " + key);

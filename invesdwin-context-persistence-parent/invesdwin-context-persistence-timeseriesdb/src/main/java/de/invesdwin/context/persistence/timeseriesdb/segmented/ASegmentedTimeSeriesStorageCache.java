@@ -273,7 +273,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     protected abstract ISegmentFinder getSegmentFinder(K key);
 
     public void maybeInitSegment(final SegmentedKey<K> segmentedKey) {
-        if (Threads.isThreadRetryDisabled()) {
+        if (Threads.isThreadRetryDisabledDefault()) {
             maybeInitSegmentAsync(segmentedKey);
         } else {
             maybeInitSegmentSync(segmentedKey, source);
