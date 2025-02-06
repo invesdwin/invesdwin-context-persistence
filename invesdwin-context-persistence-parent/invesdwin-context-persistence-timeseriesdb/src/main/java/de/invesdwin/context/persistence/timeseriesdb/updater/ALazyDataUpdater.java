@@ -96,6 +96,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                     return;
                 }
                 Future<?> updateFutureCopy = updateFuture;
+                final String reason;
                 if (updateFutureCopy == null
                         || updateFutureCopy.isDone() && (force || shouldCheckForUpdate(newUpdateCheck))) {
                     updateFutureCopy = getNestedExecutor().getNestedExecutor().submit(new Runnable() {
@@ -116,11 +117,14 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                         }
                     });
                     updateFuture = updateFutureCopy;
+                    reason = "started";
+                } else {
+                    reason = "is in progress";
                 }
                 if (Threads.isThreadRetryDisabled()) {
                     throw new NonBlockingRetryLaterRuntimeException(
-                            ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate(" + key + " " + getElementsName()
-                                    + "): update is in progress while operating in non-blocking mode");
+                            ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: async update " + reason
+                                    + " while operating in non-blocking mode for " + getElementsName() + ": " + key);
                 }
                 try {
                     Futures.wait(updateFutureCopy);

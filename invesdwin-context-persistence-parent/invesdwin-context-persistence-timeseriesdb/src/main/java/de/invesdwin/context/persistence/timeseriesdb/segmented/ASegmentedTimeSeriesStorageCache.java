@@ -289,8 +289,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         final ILock segmentReadLock = segmentTableLock.readLock();
         if (!segmentReadLock.tryLock()) {
             throw new NonBlockingRetryLaterRuntimeException(ASegmentedTimeSeriesStorageCache.class.getSimpleName()
-                    + ".maybeInitSegmentAsync(" + segmentedKey + " segment " + getElementsName()
-                    + "): readlock could not be acquired for async update check while operating in non-blocking mode");
+                    + ".maybeInitSegmentAsync: readlock could not be acquired for async update check while operating in non-blocking mode for segment "
+                    + getElementsName() + ": " + segmentedKey);
         }
         final SegmentStatus status;
         try {
@@ -301,6 +301,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         //2. if not existing or false, set status to false -> start segment update -> after update set status to true
         if (status == null || status == SegmentStatus.INITIALIZING) {
             Future<?> future = segmentedKey_maybeInitSegmentAsyncFuture.get(segmentedKey);
+            final String reason;
             if (future == null || future.isDone()) {
                 if (Threads.isInterrupted()) {
                     //abort when shutting down
@@ -325,14 +326,13 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                     //make sure entry is removed even if async task finished before the put operation happened
                     segmentedKey_maybeInitSegmentAsyncFuture.remove(segmentedKey);
                 }
-                throw new NonBlockingRetryLaterRuntimeException(ASegmentedTimeSeriesStorageCache.class.getSimpleName()
-                        + ".maybeInitSegmentAsync(" + segmentedKey + " segment " + getElementsName()
-                        + "): async update started while operating in non-blocking mode");
+                reason = "started";
             } else {
-                throw new NonBlockingRetryLaterRuntimeException(ASegmentedTimeSeriesStorageCache.class.getSimpleName()
-                        + ".maybeInitSegmentAsync(" + segmentedKey + " segment " + getElementsName()
-                        + "): async update is in progress while operating in non-blocking mode");
+                reason = "is in progress";
             }
+            throw new NonBlockingRetryLaterRuntimeException(ASegmentedTimeSeriesStorageCache.class.getSimpleName()
+                    + ".maybeInitSegmentAsync: async update " + reason
+                    + " while operating in non-blocking mode for segment " + getElementsName() + ": " + segmentedKey);
         }
         //3. if true do nothing
         return false;
