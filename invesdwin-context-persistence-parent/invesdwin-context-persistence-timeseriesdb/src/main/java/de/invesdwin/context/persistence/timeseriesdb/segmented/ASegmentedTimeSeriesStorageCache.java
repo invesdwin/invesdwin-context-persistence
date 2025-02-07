@@ -17,6 +17,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.lang3.SerializationException;
 import org.springframework.retry.backoff.BackOffPolicy;
 
+import de.invesdwin.context.integration.DatabaseThreads;
 import de.invesdwin.context.integration.retry.NonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.task.ARetryCallable;
@@ -273,7 +274,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     protected abstract ISegmentFinder getSegmentFinder(K key);
 
     public void maybeInitSegment(final SegmentedKey<K> segmentedKey) {
-        if (Threads.isThreadRetryDisabledDefault()) {
+        if (DatabaseThreads.isThreadBlockingUpdateDatabaseDisabled()) {
             maybeInitSegmentAsync(segmentedKey);
         } else {
             maybeInitSegmentSync(segmentedKey, source);
