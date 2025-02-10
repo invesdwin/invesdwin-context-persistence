@@ -288,7 +288,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         //1. check segment status in series storage
         final IReadWriteLock segmentTableLock = segmentedTable.getTableLock(segmentedKey);
         final ILock segmentReadLock = segmentTableLock.readLock();
-        if (!segmentReadLock.tryLock()) {
+        if (!segmentReadLock.tryLockNoInterrupt(TimeSeriesProperties.NON_BLOCKING_ASYNC_UPDATE_WAIT_TIMEOUT)) {
             throw new NonBlockingRetryLaterRuntimeException(ASegmentedTimeSeriesStorageCache.class.getSimpleName()
                     + ".maybeInitSegmentAsync: readlock could not be acquired for async update check while operating in non-blocking mode for segment "
                     + getElementsName() + ": " + segmentedKey);
@@ -331,9 +331,17 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             } else {
                 reason = "is in progress";
             }
-            throw new NonBlockingRetryLaterRuntimeException(ASegmentedTimeSeriesStorageCache.class.getSimpleName()
-                    + ".maybeInitSegmentAsync: async update " + reason
-                    + " while operating in non-blocking mode for segment " + getElementsName() + ": " + segmentedKey);
+
+            try {
+                Futures.waitNoInterrupt(future, TimeSeriesProperties.NON_BLOCKING_ASYNC_UPDATE_WAIT_TIMEOUT);
+                //make sure entry is removed even if async task finished before the put operation happened
+                segmentedKey_maybeInitSegmentAsyncFuture.remove(segmentedKey);
+            } catch (final TimeoutException e) {
+                throw new NonBlockingRetryLaterRuntimeException(
+                        ASegmentedTimeSeriesStorageCache.class.getSimpleName() + ".maybeInitSegmentAsync: async update "
+                                + reason + " while operating in non-blocking mode for segment " + getElementsName()
+                                + ": " + segmentedKey);
+            }
         }
         //3. if true do nothing
         return false;

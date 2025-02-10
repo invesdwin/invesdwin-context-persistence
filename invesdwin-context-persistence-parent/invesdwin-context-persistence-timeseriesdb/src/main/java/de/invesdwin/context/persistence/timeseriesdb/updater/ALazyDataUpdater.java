@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.timeseriesdb.updater;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -122,15 +123,19 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                     reason = "is in progress";
                 }
                 if (DatabaseThreads.isThreadBlockingUpdateDatabaseDisabled()) {
-                    throw new NonBlockingRetryLaterRuntimeException(
-                            ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: async update " + reason
-                                    + " while operating in non-blocking mode for " + getElementsName() + ": " + key);
-                }
-                try {
-                    Futures.wait(updateFutureCopy);
+                    try {
+                        Futures.waitNoInterrupt(updateFutureCopy,
+                                TimeSeriesProperties.NON_BLOCKING_ASYNC_UPDATE_WAIT_TIMEOUT);
+                        updateFuture = null;
+                    } catch (final TimeoutException e) {
+                        throw new NonBlockingRetryLaterRuntimeException(
+                                ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: async update " + reason
+                                        + " while operating in non-blocking mode for " + getElementsName() + ": " + key,
+                                e);
+                    }
+                } else {
+                    Futures.waitNoInterrupt(updateFutureCopy);
                     updateFuture = null;
-                } catch (final InterruptedException e) {
-                    throw new RuntimeException(e);
                 }
             } finally {
                 updateLock.unlock();
