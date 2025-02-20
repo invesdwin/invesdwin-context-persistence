@@ -28,7 +28,7 @@ public class ChronicleQueuePerformanceTest extends ADatabasePerformanceTest {
                 .build();
 
         final Instant writesStart = new Instant();
-        try (ExcerptAppender acquireAppender = queue.acquireAppender()) {
+        try (ExcerptAppender acquireAppender = queue.createAppender()) {
             int i = 0;
             for (final FDate date : newValues()) {
                 try (DocumentContext doc = acquireAppender.writingDocument()) {
