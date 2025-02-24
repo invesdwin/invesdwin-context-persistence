@@ -311,7 +311,7 @@ public class TimeSeriesStorage {
             });
         } else {
             //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
-            if (!latestValueLookupTable.isEmpty()) {
+            if (!nextValueLookupTable.isEmpty()) {
                 nextValueLookupTable.deleteTable();
             }
         }
@@ -384,7 +384,7 @@ public class TimeSeriesStorage {
             });
         } else {
             //chronicle map does not really support deleting entries, the file size gets bloaded which causes significant I/O
-            if (!latestValueIndexLookupTable.isEmpty()) {
+            if (!nextValueIndexLookupTable.isEmpty()) {
                 nextValueIndexLookupTable.deleteTable();
             }
         }
