@@ -2,12 +2,11 @@ package de.invesdwin.context.persistence.timeseriesdb.storage.key;
 
 import javax.annotation.concurrent.Immutable;
 
-import de.invesdwin.util.bean.AValueObject;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.time.date.FDate;
 
 @Immutable
-public class HashRangeKey extends AValueObject implements Comparable<Object> {
+public class HashRangeKey implements Comparable<Object> {
 
     private final String hashKey;
     private final FDate rangeKey;
@@ -52,6 +51,11 @@ public class HashRangeKey extends AValueObject implements Comparable<Object> {
         } else {
             return 1;
         }
+    }
+
+    @Override
+    public String toString() {
+        return Objects.toString(this);
     }
 
 }
