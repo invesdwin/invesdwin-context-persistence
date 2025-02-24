@@ -27,8 +27,8 @@ public class TimeSeriesStorage {
 
     /**
      * LevelDB should be smaller on disk than ChronicleMap and supports range removals during updates. Though LevelDB is
-     * a lot slower than ChronicleMap. MapDB is a compromise, though it might do long running compactions after a
-     * threshold of removals.
+     * a lot slower than ChronicleMap. MapDB could be a compromise, though it can do long running compactions after a
+     * threshold of removals and it slows down significantly when above 1.5gb in size.
      */
     public static final PersistentMapType DEFAULT_MAP_TYPE = PersistentMapType.DISK_FAST;
     public static final int CACHE_SIZE = AHistoricalCache.DEFAULT_MAXIMUM_SIZE_LIMIT;
