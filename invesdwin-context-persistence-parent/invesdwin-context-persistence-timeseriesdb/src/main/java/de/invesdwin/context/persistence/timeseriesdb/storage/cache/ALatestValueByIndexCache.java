@@ -44,12 +44,10 @@ public abstract class ALatestValueByIndexCache<V> {
         final int bisect = FDates.bisect(this::extractEndTime, values, date, BisectDuplicateKeyHandling.UNDEFINED);
         switch (bisect) {
         case PREV_PREV_INDEX: {
-            if (moveBackward()) {
-                //prevPrev is now Prev
-                return values.get(PREV_INDEX);
-            } else {
-                return values.get(PREV_PREV_INDEX);
-            }
+            final V prevPrevValue = values.get(PREV_PREV_INDEX);
+            //now for sure move backward
+            moveBackward();
+            return prevPrevValue;
         }
         case PREV_INDEX: {
             return values.get(PREV_INDEX);
@@ -59,47 +57,44 @@ public abstract class ALatestValueByIndexCache<V> {
         }
         case NEXT_INDEX: {
             final V nextValue = values.get(NEXT_INDEX);
-            if (date.isAfterNotNullSafe(extractEndTime(nextValue))) {
+            final FDate nextKey = extractEndTime(nextValue);
+            if (date.isAfterNotNullSafe(nextKey)) {
                 //move forward a bit earlier to increase hit rate
                 moveForward();
             }
             return nextValue;
         }
         case NEXT_NEXT_INDEX: {
-            if (moveForward()) {
-                //nextNext is now next
-                return values.get(NEXT_INDEX);
-            } else {
-                return values.get(NEXT_NEXT_INDEX);
-            }
+            final V nextNextValue = values.get(NEXT_NEXT_INDEX);
+            //now for sure move forward
+            moveForward();
+            return nextNextValue;
         }
         default:
             throw UnknownArgumentException.newInstance(Integer.class, bisect);
         }
     }
 
-    private boolean moveForward() {
+    private void moveForward() {
         if (getKey(NEXT_NEXT_INDEX).equalsNotNullSafe(getKey(NEXT_INDEX))) {
             //no more data to move to
-            return false;
+            return;
         }
         final long nextNextNextStorageIndex = curStorageIndex + 3L;
         curStorageIndex++;
         final V nextNextValue = getLatestValue(nextNextNextStorageIndex);
         values.circularAdd(nextNextValue);
-        return true;
     }
 
-    private boolean moveBackward() {
+    private void moveBackward() {
         if (getKey(PREV_PREV_INDEX).equalsNotNullSafe(getKey(PREV_INDEX))) {
             //no more data to move to
-            return false;
+            return;
         }
         final long prevPrevPrevStorageIndex = curStorageIndex - 3L;
         curStorageIndex--;
         final V prevPrevValue = getLatestValue(prevPrevPrevStorageIndex);
         values.circularPrepend(prevPrevValue);
-        return true;
     }
 
     private V init(final FDate date, final int lastResetIndex) {
