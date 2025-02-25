@@ -1,6 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb.storage.cache;
 
-import javax.annotation.concurrent.ThreadSafe;
+import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.util.collections.circular.CircularGenericArrayQueue;
 import de.invesdwin.util.error.UnknownArgumentException;
@@ -8,7 +8,7 @@ import de.invesdwin.util.time.date.BisectDuplicateKeyHandling;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
 
-@ThreadSafe
+@NotThreadSafe
 public abstract class ALatestValueByIndexCache<V> {
 
     private static final int PREV_PREV_INDEX = 0;
