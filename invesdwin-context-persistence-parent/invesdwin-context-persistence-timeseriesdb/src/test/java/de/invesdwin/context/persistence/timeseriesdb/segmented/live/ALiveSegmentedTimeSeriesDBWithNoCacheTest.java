@@ -1074,7 +1074,7 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheTest extends ATest {
         Assertions.assertThat(asList(cache.query().getPreviousKeys(new FDate(), 100)).size())
                 .isEqualTo(entities.size());
         Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(7);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
+        Assertions.assertThat(countReadNewestValueTo).isLessThanOrEqualTo(4);
     }
 
     @Test

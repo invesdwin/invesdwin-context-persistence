@@ -39,6 +39,7 @@ import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFi
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
+import de.invesdwin.context.persistence.timeseriesdb.storage.cache.ALatestValueByIndexCache;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.RangeShiftUnitsKey;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ALoggingTimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ITimeSeriesUpdater;
@@ -62,6 +63,7 @@ import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
+import de.invesdwin.util.concurrent.reference.WeakThreadLocalReference;
 import de.invesdwin.util.concurrent.taskinfo.provider.TaskInfoCallable;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.error.Throwables;
@@ -136,6 +138,13 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     private final Map<SegmentedKey<K>, Future<?>> segmentedKey_maybeInitSegmentAsyncFuture = ILockCollectionFactory
             .getInstance(true)
             .newConcurrentMap();
+    private final WeakThreadLocalReference<ALatestValueByIndexCache<V>> latestValueByIndexCacheHolder = new WeakThreadLocalReference<ALatestValueByIndexCache<V>>() {
+        @Override
+        protected ALatestValueByIndexCache<V> initialValue() {
+            return new LatestValueByIndexCache();
+        };
+    };
+    private volatile int lastResetIndex = 0;
 
     private final ALoadingCache<FDate, Long> latestValueIndexLookupCache = new ALoadingCache<FDate, Long>() {
 
@@ -676,6 +685,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         latestValueIndexLookupCache.clear();
         nextValueIndexLookupCache.clear();
         previousValueIndexLookupCache.clear();
+        lastResetIndex++;
     }
 
     protected abstract ITimeSeriesUpdater<SegmentedKey<K>, V> newSegmentUpdaterOverride(SegmentedKey<K> segmentedKey,
@@ -849,6 +859,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         latestValueIndexLookupCache.clear();
         nextValueIndexLookupCache.clear();
         previousValueIndexLookupCache.clear();
+        lastResetIndex++;
     }
 
     public long getLatestValueIndex(final FDate pDate) {
@@ -915,8 +926,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     }
 
     private V getLatestValueByIndex(final FDate date) {
-        final long valueIndex = getLatestValueIndex(date);
-        return getLatestValue(valueIndex);
+        final ALatestValueByIndexCache<V> latestValueByIndexCache = latestValueByIndexCacheHolder.get();
+        return latestValueByIndexCache.getLatestValueByIndex(date);
     }
 
     private V getLatestValueByValue(final FDate pDate) {
@@ -1533,6 +1544,28 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         }
         clearCaches();
         closed = true;
+    }
+
+    private final class LatestValueByIndexCache extends ALatestValueByIndexCache<V> {
+        @Override
+        protected long getLatestValueIndex(final FDate key) {
+            return ASegmentedTimeSeriesStorageCache.this.getLatestValueIndex(key);
+        }
+
+        @Override
+        protected V getLatestValue(final long index) {
+            return ASegmentedTimeSeriesStorageCache.this.getLatestValue(index);
+        }
+
+        @Override
+        protected FDate extractEndTime(final V value) {
+            return segmentedTable.extractEndTime(value);
+        }
+
+        @Override
+        protected int getLastResetIndex() {
+            return lastResetIndex;
+        }
     }
 
 }

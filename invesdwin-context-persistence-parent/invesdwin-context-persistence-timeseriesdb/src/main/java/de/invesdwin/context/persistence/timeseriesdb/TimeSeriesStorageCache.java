@@ -38,6 +38,7 @@ import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummaryByteBuffer;
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
+import de.invesdwin.context.persistence.timeseriesdb.storage.cache.ALatestValueByIndexCache;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.RangeShiftUnitsKey;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdaterInternalMethods;
@@ -57,6 +58,7 @@ import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.concurrent.reference.MutableSoftReference;
+import de.invesdwin.util.concurrent.reference.WeakThreadLocalReference;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.lang.Files;
@@ -130,6 +132,13 @@ public class TimeSeriesStorageCache<K, V> {
             return newLatestRangeKeyIndex(key);
         }
     };
+    private final WeakThreadLocalReference<ALatestValueByIndexCache<V>> latestValueByIndexCacheHolder = new WeakThreadLocalReference<ALatestValueByIndexCache<V>>() {
+        @Override
+        protected ALatestValueByIndexCache<V> initialValue() {
+            return new LatestValueByIndexCache();
+        };
+    };
+    private volatile int lastResetIndex = 0;
 
     private final String hashKey;
     private final ISerde<V> valueSerde;
@@ -738,6 +747,7 @@ public class TimeSeriesStorageCache<K, V> {
         latestValueIndexLookupCache.clear();
         nextValueIndexLookupCache.clear();
         previousValueIndexLookupCache.clear();
+        lastResetIndex++;
     }
 
     public V getLatestValue(final FDate date) {
@@ -753,8 +763,8 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     private V getLatestValueByIndex(final FDate date) {
-        final long valueIndex = getLatestValueIndex(date);
-        return getLatestValue(valueIndex);
+        final ALatestValueByIndexCache<V> latestValueByIndexCache = latestValueByIndexCacheHolder.get();
+        return latestValueByIndexCache.getLatestValueByIndex(date);
     }
 
     public long getLatestValueIndex(final FDate date) {
@@ -1150,6 +1160,7 @@ public class TimeSeriesStorageCache<K, V> {
             latestValueIndexLookupCache.clear();
             nextValueIndexLookupCache.clear();
             previousValueIndexLookupCache.clear();
+            lastResetIndex++;
         } else {
             updateFrom = null;
             lastValues = Collections.emptyList();
@@ -1192,6 +1203,28 @@ public class TimeSeriesStorageCache<K, V> {
             }
         }
         return cachedAllRangeKeysCopy;
+    }
+
+    private final class LatestValueByIndexCache extends ALatestValueByIndexCache<V> {
+        @Override
+        protected long getLatestValueIndex(final FDate key) {
+            return TimeSeriesStorageCache.this.getLatestValueIndex(key);
+        }
+
+        @Override
+        protected V getLatestValue(final long index) {
+            return TimeSeriesStorageCache.this.getLatestValue(index);
+        }
+
+        @Override
+        protected FDate extractEndTime(final V value) {
+            return extractEndTime.apply(value);
+        }
+
+        @Override
+        protected int getLastResetIndex() {
+            return lastResetIndex;
+        }
     }
 
     private static final class MmapInputStream extends PreLockedDelegateInputStream {
