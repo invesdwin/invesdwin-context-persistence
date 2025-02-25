@@ -38,7 +38,10 @@ public abstract class ALatestValueByIndexCache<V> {
         final int lastResetIndex = getLastResetIndex();
         if (prevResetIndex != lastResetIndex) {
             return init(date, lastResetIndex);
-        } else if (!date.isBetweenInclusiveNotNullSafe(getKey(PREV_PREV_INDEX), getKey(NEXT_NEXT_INDEX))) {
+        }
+        final FDate prevPrevKey = getKey(PREV_PREV_INDEX);
+        final FDate nextNextKey = getKey(NEXT_NEXT_INDEX);
+        if (!date.isBetweenInclusiveNotNullSafe(prevPrevKey, nextNextKey)) {
             return init(date, lastResetIndex);
         }
         final int bisect = FDates.bisect(this::extractEndTime, values, date, BisectDuplicateKeyHandling.UNDEFINED);
