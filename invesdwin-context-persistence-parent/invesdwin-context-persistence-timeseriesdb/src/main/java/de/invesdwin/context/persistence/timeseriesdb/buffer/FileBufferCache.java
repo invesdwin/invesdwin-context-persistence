@@ -9,6 +9,7 @@ import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -214,36 +215,60 @@ public final class FileBufferCache {
     public static <T> IFileBufferCacheResult<T> getResult(final String hashKey, final MemoryFileSummary summary,
             final IFileBufferSource source) {
         if (TimeSeriesProperties.FILE_BUFFER_CACHE_SEGMENTS_ENABLED) {
-            final ResultCacheKey key = new ResultCacheKey(hashKey, summary, source);
-            if (MemoryLimit.isMemoryLimitReached()) {
-                MemoryLimit.maybeClearCacheUnchecked(FileBufferCache.class, "RESULT_CACHE", RESULT_CACHE,
-                        RESULT_CACHE_CLEAR_LOCK);
+            if (source.getReadLock().isLocked()) {
+                //prevent async deadlock when write lock is active
                 return getResultNoCache(source);
-            } else {
-                if (source.getReadLock().isLocked()) {
-                    //prevent async deadlock when write lock is active
+            }
+            final ResultCacheKey key = new ResultCacheKey(hashKey, summary, source);
+            final ConcurrentMap<ResultCacheKey, ?> asMap = RESULT_CACHE.asMap();
+            if (MemoryLimit.isMemoryLimitReached() && !asMap.containsKey(key)) {
+                if (!MemoryLimit.maybeClearCacheUnchecked(FileBufferCache.class, "RESULT_CACHE", RESULT_CACHE,
+                        RESULT_CACHE_CLEAR_LOCK, TimeSeriesProperties.FILE_BUFFER_CACHE_MIN_SEGMENTS_COUNT)) {
+                    maybeEvictOneResult(asMap);
+                }
+            }
+            try {
+                final SoftReference<IFileBufferCacheResult> valueHolder = Futures.getNoInterrupt(RESULT_CACHE.get(key),
+                        TimeSeriesProperties.FILE_BUFFER_CACHE_ASYNC_TIMEOUT);
+                if (valueHolder == null) {
+                    RESULT_CACHE.asMap().remove(key);
                     return getResultNoCache(source);
                 }
-                try {
-                    final SoftReference<IFileBufferCacheResult> valueHolder = Futures.getNoInterrupt(
-                            RESULT_CACHE.get(key), TimeSeriesProperties.FILE_BUFFER_CACHE_ASYNC_TIMEOUT);
-                    if (valueHolder == null) {
-                        RESULT_CACHE.asMap().remove(key);
-                        return getResultNoCache(source);
-                    }
-                    final IFileBufferCacheResult value = valueHolder.get();
-                    if (value == null) {
-                        RESULT_CACHE.asMap().remove(key);
-                        return getResultNoCache(source);
-                    }
-                    return value;
-                } catch (final TimeoutException e) {
-                    //prevent async deadlock when write lock just became active
+                final IFileBufferCacheResult value = valueHolder.get();
+                if (value == null) {
+                    RESULT_CACHE.asMap().remove(key);
                     return getResultNoCache(source);
                 }
+                return value;
+            } catch (final TimeoutException e) {
+                //prevent async deadlock when write lock just became active
+                return getResultNoCache(source);
             }
         } else {
             return getResultNoCache(source);
+        }
+    }
+
+    protected static void maybeEvictOneResult(final ConcurrentMap<ResultCacheKey, ?> asMap) {
+        if (asMap.size() >= TimeSeriesProperties.FILE_BUFFER_CACHE_MIN_SEGMENTS_COUNT) {
+            synchronized (RESULT_CACHE) {
+                if (asMap.size() >= TimeSeriesProperties.FILE_BUFFER_CACHE_MIN_SEGMENTS_COUNT) {
+                    /*
+                     * either clear the whole cache in maybeClearCacheUnchecked or evict one element to make space for
+                     * loading another element; don't know which order the iterator will go through the elements
+                     * (hopefully least recently accessed/added), maybe picking a random one or using a heuristic based
+                     * on time comparisons would be better (e.g. when this request is earlier, evict the newest and vice
+                     * versa)
+                     */
+                    final Iterator<ResultCacheKey> iterator = asMap.keySet().iterator();
+                    while (iterator.hasNext()) {
+                        final ResultCacheKey first = iterator.next();
+                        if (asMap.remove(first) != null) {
+                            break;
+                        }
+                    }
+                }
+            }
         }
     }
 
