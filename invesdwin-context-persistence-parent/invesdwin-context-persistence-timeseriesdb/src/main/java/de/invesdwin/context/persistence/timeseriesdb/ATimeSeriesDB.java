@@ -36,7 +36,6 @@ import de.invesdwin.util.time.duration.Duration;
 @ThreadSafe
 public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V> {
 
-    private static final Duration EXPIRE_AFTER_ACCESS = TimeSeriesStorageCache.EXPIRE_AFTER_ACCESS.multiply(5);
     private final String name;
     private final Supplier<ISerde<V>> valueSerde;
     private final Supplier<Integer> valueFixedLength;
@@ -101,8 +100,13 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
             }
 
             @Override
+            protected Integer getInitialMaximumSize() {
+                return TimeSeriesStorageCache.MAXIMUM_SIZE;
+            }
+
+            @Override
             protected Duration getExpireAfterAccess() {
-                return EXPIRE_AFTER_ACCESS;
+                return TimeSeriesStorageCache.EXPIRE_AFTER_ACCESS;
             }
 
         };

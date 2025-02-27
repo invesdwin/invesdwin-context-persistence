@@ -81,9 +81,9 @@ import ezdb.table.RangeTableRow;
 
 @NotThreadSafe
 public class TimeSeriesStorageCache<K, V> {
-    public static final Integer MAXIMUM_SIZE = 1000;
+    public static final Integer MAXIMUM_SIZE = TimeSeriesProperties.STORAGE_CACHE_MAXIMUM_SIZE;
     public static final EvictionMode EVICTION_MODE = AHistoricalCache.EVICTION_MODE;
-    public static final Duration EXPIRE_AFTER_ACCESS = TimeSeriesProperties.FILE_BUFFER_CACHE_EVICTION_TIMEOUT;
+    public static final Duration EXPIRE_AFTER_ACCESS = TimeSeriesProperties.STORAGE_CACHE_EVICTION_TIMEOUT;
 
     private static final String READ_RANGE_VALUES = "readRangeValues";
     private static final String READ_RANGE_VALUES_REVERSE = "readRangeValuesReverse";

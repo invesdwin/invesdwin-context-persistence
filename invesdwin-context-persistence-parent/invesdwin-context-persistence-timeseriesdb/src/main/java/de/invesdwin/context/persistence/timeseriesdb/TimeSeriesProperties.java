@@ -28,6 +28,8 @@ public final class TimeSeriesProperties {
     public static final Duration FILE_BUFFER_CACHE_EVICTION_TIMEOUT;
     public static final Duration FILE_BUFFER_CACHE_ASYNC_TIMEOUT;
     public static final IPrimitiveArrayAllocator FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR;
+    public static final Duration STORAGE_CACHE_EVICTION_TIMEOUT;
+    public static final int STORAGE_CACHE_MAXIMUM_SIZE;
     public static final boolean PERSISTENT_CHRONICLE_MAP_ENABLED;
     private static final SystemProperties SYSTEM_PROPERTIES;
 
@@ -45,6 +47,8 @@ public final class TimeSeriesProperties {
         FILE_BUFFER_CACHE_MAX_MMAP_COUNT = SYSTEM_PROPERTIES.getInteger("FILE_BUFFER_CACHE_MAX_MMAP_COUNT");
         FILE_BUFFER_CACHE_EVICTION_TIMEOUT = SYSTEM_PROPERTIES.getDuration("FILE_BUFFER_CACHE_EVICTION_TIMEOUT");
         FILE_BUFFER_CACHE_ASYNC_TIMEOUT = SYSTEM_PROPERTIES.getDuration("FILE_BUFFER_CACHE_ASYNC_TIMEOUT");
+        STORAGE_CACHE_EVICTION_TIMEOUT = SYSTEM_PROPERTIES.getDuration("STORAGE_CACHE_EVICTION_TIMEOUT");
+        STORAGE_CACHE_MAXIMUM_SIZE = SYSTEM_PROPERTIES.getInteger("STORAGE_CACHE_MAXIMUM_SIZE");
         PERSISTENT_CHRONICLE_MAP_ENABLED = determinePersistentChronicleMapEnabled();
         FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR = null;
     }
