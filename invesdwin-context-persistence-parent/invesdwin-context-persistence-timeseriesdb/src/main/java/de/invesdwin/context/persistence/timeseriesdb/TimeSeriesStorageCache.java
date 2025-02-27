@@ -80,7 +80,6 @@ import ezdb.table.RangeTableRow;
 @NotThreadSafe
 public class TimeSeriesStorageCache<K, V> {
     public static final Integer MAXIMUM_SIZE = 1_000;
-    public static final Integer MAXIMUM_SIZE_TRIGGER = MAXIMUM_SIZE * 2;
     public static final EvictionMode EVICTION_MODE = AHistoricalCache.EVICTION_MODE;
 
     private static final String READ_RANGE_VALUES = "readRangeValues";
@@ -132,6 +131,72 @@ public class TimeSeriesStorageCache<K, V> {
             return newLatestRangeKeyIndex(key);
         }
     };
+    private final ALoadingCache<FDate, Long> latestValueIndexLookupCache = new ALoadingCache<FDate, Long>() {
+
+        @Override
+        protected Integer getInitialMaximumSize() {
+            return AHistoricalCache.DEFAULT_MAXIMUM_SIZE;
+        };
+
+        @Override
+        protected EvictionMode getEvictionMode() {
+            return EVICTION_MODE;
+        }
+
+        @Override
+        protected boolean isHighConcurrency() {
+            return true;
+        }
+
+        @Override
+        protected Long loadValue(final FDate key) {
+            return latestValueIndexLookup(key);
+        }
+    };
+    private final ALoadingCache<RangeShiftUnitsKey, Long> previousValueIndexLookupCache = new ALoadingCache<RangeShiftUnitsKey, Long>() {
+
+        @Override
+        protected Integer getInitialMaximumSize() {
+            return AHistoricalCache.DEFAULT_MAXIMUM_SIZE;
+        }
+
+        @Override
+        protected EvictionMode getEvictionMode() {
+            return EVICTION_MODE;
+        }
+
+        @Override
+        protected boolean isHighConcurrency() {
+            return true;
+        }
+
+        @Override
+        protected Long loadValue(final RangeShiftUnitsKey key) {
+            return previousValueIndexLookup(key.getRangeKey(), key.getShiftUnits());
+        }
+    };
+    private final ALoadingCache<RangeShiftUnitsKey, Long> nextValueIndexLookupCache = new ALoadingCache<RangeShiftUnitsKey, Long>() {
+
+        @Override
+        protected Integer getInitialMaximumSize() {
+            return AHistoricalCache.DEFAULT_MAXIMUM_SIZE;
+        }
+
+        @Override
+        protected EvictionMode getEvictionMode() {
+            return EVICTION_MODE;
+        }
+
+        @Override
+        protected boolean isHighConcurrency() {
+            return true;
+        }
+
+        @Override
+        protected Long loadValue(final RangeShiftUnitsKey key) {
+            return nextValueIndexLookup(key.getRangeKey(), key.getShiftUnits());
+        }
+    };
     private final WeakThreadLocalReference<ALatestValueByIndexCache<V>> latestValueByIndexCacheHolder = new WeakThreadLocalReference<ALatestValueByIndexCache<V>>() {
         @Override
         protected ALatestValueByIndexCache<V> initialValue() {
@@ -162,58 +227,6 @@ public class TimeSeriesStorageCache<K, V> {
     private final Log log = new Log(this);
     @GuardedBy("this")
     private MemoryFileMetadata memoryFileMetadata;
-
-    private final ALoadingCache<FDate, Long> latestValueIndexLookupCache = new ALoadingCache<FDate, Long>() {
-
-        @Override
-        protected Long loadValue(final FDate key) {
-            return latestValueIndexLookup(key);
-        }
-
-        @Override
-        protected boolean isHighConcurrency() {
-            return true;
-        }
-
-        @Override
-        protected Integer getInitialMaximumSize() {
-            return AHistoricalCache.DEFAULT_MAXIMUM_SIZE;
-        };
-    };
-    private final ALoadingCache<RangeShiftUnitsKey, Long> previousValueIndexLookupCache = new ALoadingCache<RangeShiftUnitsKey, Long>() {
-
-        @Override
-        protected Long loadValue(final RangeShiftUnitsKey key) {
-            return previousValueIndexLookup(key.getRangeKey(), key.getShiftUnits());
-        }
-
-        @Override
-        protected boolean isHighConcurrency() {
-            return true;
-        }
-
-        @Override
-        protected Integer getInitialMaximumSize() {
-            return AHistoricalCache.DEFAULT_MAXIMUM_SIZE;
-        };
-    };
-    private final ALoadingCache<RangeShiftUnitsKey, Long> nextValueIndexLookupCache = new ALoadingCache<RangeShiftUnitsKey, Long>() {
-
-        @Override
-        protected Long loadValue(final RangeShiftUnitsKey key) {
-            return nextValueIndexLookup(key.getRangeKey(), key.getShiftUnits());
-        }
-
-        @Override
-        protected boolean isHighConcurrency() {
-            return true;
-        }
-
-        @Override
-        protected Integer getInitialMaximumSize() {
-            return AHistoricalCache.DEFAULT_MAXIMUM_SIZE;
-        };
-    };
 
     public TimeSeriesStorageCache(final TimeSeriesStorage storage, final String hashKey, final ISerde<V> valueSerde,
             final Integer fixedLength, final Function<V, FDate> extractTime, final TimeSeriesLookupMode lookupMode) {

@@ -113,19 +113,97 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     private final ALoadingCache<Long, IndexedSegmentedKey<K>> latestSegmentedKeyFromIndexCache = new ALoadingCache<Long, IndexedSegmentedKey<K>>() {
 
         @Override
-        protected IndexedSegmentedKey<K> loadValue(final Long key) {
-            return newLatestSegmentedKeyFromIndex(key);
+        protected Integer getInitialMaximumSize() {
+            return MAXIMUM_SIZE;
         }
 
         @Override
-        protected Integer getInitialMaximumSize() {
-            return MAXIMUM_SIZE;
+        protected EvictionMode getEvictionMode() {
+            return EVICTION_MODE;
         }
 
         @Override
         protected boolean isHighConcurrency() {
             return true;
         }
+
+        @Override
+        protected IndexedSegmentedKey<K> loadValue(final Long key) {
+            return newLatestSegmentedKeyFromIndex(key);
+        }
+    };
+    private final ALoadingCache<FDate, Long> latestValueIndexLookupCache = new ALoadingCache<FDate, Long>() {
+
+        @Override
+        protected Integer getInitialMaximumSize() {
+            return AHistoricalCache.DEFAULT_MAXIMUM_SIZE;
+        }
+
+        @Override
+        protected EvictionMode getEvictionMode() {
+            return EVICTION_MODE;
+        }
+
+        @Override
+        protected boolean isHighConcurrency() {
+            return true;
+        }
+
+        @Override
+        protected Long loadValue(final FDate key) {
+            return latestValueIndexLookup(key);
+        }
+    };
+    private final ALoadingCache<RangeShiftUnitsKey, Long> previousValueIndexLookupCache = new ALoadingCache<RangeShiftUnitsKey, Long>() {
+
+        @Override
+        protected Integer getInitialMaximumSize() {
+            return AHistoricalCache.DEFAULT_MAXIMUM_SIZE;
+        }
+
+        @Override
+        protected EvictionMode getEvictionMode() {
+            return EVICTION_MODE;
+        }
+
+        @Override
+        protected boolean isHighConcurrency() {
+            return true;
+        }
+
+        @Override
+        protected Long loadValue(final RangeShiftUnitsKey key) {
+            return previousValueIndexLookup(key.getRangeKey(), key.getShiftUnits());
+        }
+    };
+    private final ALoadingCache<RangeShiftUnitsKey, Long> nextValueIndexLookupCache = new ALoadingCache<RangeShiftUnitsKey, Long>() {
+
+        @Override
+        protected Integer getInitialMaximumSize() {
+            return AHistoricalCache.DEFAULT_MAXIMUM_SIZE;
+        }
+
+        @Override
+        protected EvictionMode getEvictionMode() {
+            return EVICTION_MODE;
+        }
+
+        @Override
+        protected boolean isHighConcurrency() {
+            return true;
+        }
+
+        @Override
+        protected Long loadValue(final RangeShiftUnitsKey key) {
+            return nextValueIndexLookup(key.getRangeKey(), key.getShiftUnits());
+        }
+
+    };
+    private final WeakThreadLocalReference<ALatestValueByIndexCache<V>> latestValueByIndexCacheHolder = new WeakThreadLocalReference<ALatestValueByIndexCache<V>>() {
+        @Override
+        protected ALatestValueByIndexCache<V> initialValue() {
+            return new LatestValueByIndexCache();
+        };
     };
     @GuardedBy("precedingValueCountCache")
     private boolean lookupByIndexAvailable;
@@ -138,65 +216,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     private final Map<SegmentedKey<K>, Future<?>> segmentedKey_maybeInitSegmentAsyncFuture = ILockCollectionFactory
             .getInstance(true)
             .newConcurrentMap();
-    private final WeakThreadLocalReference<ALatestValueByIndexCache<V>> latestValueByIndexCacheHolder = new WeakThreadLocalReference<ALatestValueByIndexCache<V>>() {
-        @Override
-        protected ALatestValueByIndexCache<V> initialValue() {
-            return new LatestValueByIndexCache();
-        };
-    };
     private volatile int lastResetIndex = 0;
-
-    private final ALoadingCache<FDate, Long> latestValueIndexLookupCache = new ALoadingCache<FDate, Long>() {
-
-        @Override
-        protected Long loadValue(final FDate key) {
-            return latestValueIndexLookup(key);
-        }
-
-        @Override
-        protected boolean isHighConcurrency() {
-            return true;
-        }
-
-        @Override
-        protected Integer getInitialMaximumSize() {
-            return AHistoricalCache.DEFAULT_MAXIMUM_SIZE;
-        };
-    };
-    private final ALoadingCache<RangeShiftUnitsKey, Long> previousValueIndexLookupCache = new ALoadingCache<RangeShiftUnitsKey, Long>() {
-
-        @Override
-        protected Long loadValue(final RangeShiftUnitsKey key) {
-            return previousValueIndexLookup(key.getRangeKey(), key.getShiftUnits());
-        }
-
-        @Override
-        protected boolean isHighConcurrency() {
-            return true;
-        }
-
-        @Override
-        protected Integer getInitialMaximumSize() {
-            return AHistoricalCache.DEFAULT_MAXIMUM_SIZE;
-        };
-    };
-    private final ALoadingCache<RangeShiftUnitsKey, Long> nextValueIndexLookupCache = new ALoadingCache<RangeShiftUnitsKey, Long>() {
-
-        @Override
-        protected Long loadValue(final RangeShiftUnitsKey key) {
-            return nextValueIndexLookup(key.getRangeKey(), key.getShiftUnits());
-        }
-
-        @Override
-        protected boolean isHighConcurrency() {
-            return true;
-        }
-
-        @Override
-        protected Integer getInitialMaximumSize() {
-            return AHistoricalCache.DEFAULT_MAXIMUM_SIZE;
-        };
-    };
 
     public ASegmentedTimeSeriesStorageCache(final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable,
             final SegmentedTimeSeriesStorage storage, final K key, final String hashKey) {
