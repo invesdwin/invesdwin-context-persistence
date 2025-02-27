@@ -18,6 +18,7 @@ import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
+import de.invesdwin.util.collections.loadingcache.caffeine.ACaffeineLoadingCache;
 import de.invesdwin.util.concurrent.lambda.callable.AFastLazyCallable;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
@@ -30,10 +31,12 @@ import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
+import de.invesdwin.util.time.duration.Duration;
 
 @ThreadSafe
 public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V> {
 
+    private static final Duration EXPIRE_AFTER_ACCESS = TimeSeriesStorageCache.EXPIRE_AFTER_ACCESS.multiply(5);
     private final String name;
     private final Supplier<ISerde<V>> valueSerde;
     private final Supplier<Integer> valueFixedLength;
@@ -79,7 +82,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
                     "Should not use current working directory as base directory: " + baseDirectory);
         }
         this.directory = new File(baseDirectory, getStorageName(Files.normalizePath(getName())));
-        this.key_lookupTableCache = new ALoadingCache<K, TimeSeriesStorageCache<K, V>>() {
+        this.key_lookupTableCache = new ACaffeineLoadingCache<K, TimeSeriesStorageCache<K, V>>() {
             @Override
             protected TimeSeriesStorageCache<K, V> loadValue(final K key) {
                 final String hashKey = hashKeyToString(key);
@@ -90,6 +93,16 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
             @Override
             protected boolean isHighConcurrency() {
                 return true;
+            }
+
+            @Override
+            protected Boolean getSoftValues() {
+                return true;
+            }
+
+            @Override
+            protected Duration getExpireAfterAccess() {
+                return EXPIRE_AFTER_ACCESS;
             }
 
         };

@@ -53,7 +53,8 @@ import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
 import de.invesdwin.util.collections.list.Lists;
-import de.invesdwin.util.collections.loadingcache.ALoadingCache;
+import de.invesdwin.util.collections.loadingcache.ILoadingCache;
+import de.invesdwin.util.collections.loadingcache.caffeine.ACaffeineLoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.Threads;
@@ -81,6 +82,7 @@ import ezdb.table.RangeTableRow;
 public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeable {
     public static final Integer MAXIMUM_SIZE = TimeSeriesStorageCache.MAXIMUM_SIZE;
     public static final EvictionMode EVICTION_MODE = TimeSeriesStorageCache.EVICTION_MODE;
+    public static final Duration EXPIRE_AFTER_ACCESS = TimeSeriesStorageCache.EXPIRE_AFTER_ACCESS;
 
     private static final WrappedExecutorService LOAD_INDEX_EXECUTOR;
     private static final WrappedExecutorService MAYBE_INIT_SEGMENT_ASYNC_EXECUTOR;
@@ -110,7 +112,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     private final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source;
     private final Map<SegmentedKey<K>, Long> precedingValueCountCache = ILockCollectionFactory.getInstance(true)
             .newConcurrentMap();
-    private final ALoadingCache<Long, IndexedSegmentedKey<K>> latestSegmentedKeyFromIndexCache = new ALoadingCache<Long, IndexedSegmentedKey<K>>() {
+    private final ILoadingCache<Long, IndexedSegmentedKey<K>> latestSegmentedKeyFromIndexCache = new ACaffeineLoadingCache<Long, IndexedSegmentedKey<K>>() {
 
         @Override
         protected Integer getInitialMaximumSize() {
@@ -128,11 +130,17 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         }
 
         @Override
+        protected Duration getExpireAfterAccess() {
+            return EXPIRE_AFTER_ACCESS;
+        }
+
+        @Override
         protected IndexedSegmentedKey<K> loadValue(final Long key) {
             return newLatestSegmentedKeyFromIndex(key);
         }
+
     };
-    private final ALoadingCache<FDate, Long> latestValueIndexLookupCache = new ALoadingCache<FDate, Long>() {
+    private final ILoadingCache<FDate, Long> latestValueIndexLookupCache = new ACaffeineLoadingCache<FDate, Long>() {
 
         @Override
         protected Integer getInitialMaximumSize() {
@@ -147,6 +155,11 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         @Override
         protected boolean isHighConcurrency() {
             return true;
+        }
+
+        @Override
+        protected Duration getExpireAfterAccess() {
+            return EXPIRE_AFTER_ACCESS;
         }
 
         @Override
@@ -154,7 +167,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             return latestValueIndexLookup(key);
         }
     };
-    private final ALoadingCache<RangeShiftUnitsKey, Long> previousValueIndexLookupCache = new ALoadingCache<RangeShiftUnitsKey, Long>() {
+    private final ILoadingCache<RangeShiftUnitsKey, Long> previousValueIndexLookupCache = new ACaffeineLoadingCache<RangeShiftUnitsKey, Long>() {
 
         @Override
         protected Integer getInitialMaximumSize() {
@@ -169,6 +182,11 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         @Override
         protected boolean isHighConcurrency() {
             return true;
+        }
+
+        @Override
+        protected Duration getExpireAfterAccess() {
+            return EXPIRE_AFTER_ACCESS;
         }
 
         @Override
@@ -176,7 +194,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             return previousValueIndexLookup(key.getRangeKey(), key.getShiftUnits());
         }
     };
-    private final ALoadingCache<RangeShiftUnitsKey, Long> nextValueIndexLookupCache = new ALoadingCache<RangeShiftUnitsKey, Long>() {
+    private final ILoadingCache<RangeShiftUnitsKey, Long> nextValueIndexLookupCache = new ACaffeineLoadingCache<RangeShiftUnitsKey, Long>() {
 
         @Override
         protected Integer getInitialMaximumSize() {
@@ -191,6 +209,11 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         @Override
         protected boolean isHighConcurrency() {
             return true;
+        }
+
+        @Override
+        protected Duration getExpireAfterAccess() {
+            return EXPIRE_AFTER_ACCESS;
         }
 
         @Override
