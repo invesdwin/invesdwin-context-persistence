@@ -18,7 +18,6 @@ import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeKey;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeKeySerde;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeShiftUnitsKey;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeShiftUnitsKeySerde;
-import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.time.date.FDate;
 
@@ -31,7 +30,6 @@ public class TimeSeriesStorage {
      * threshold of removals and it slows down significantly when above 1.5gb in size.
      */
     public static final PersistentMapType DEFAULT_MAP_TYPE = PersistentMapType.DISK_FAST;
-    public static final int CACHE_SIZE = AHistoricalCache.DEFAULT_MAXIMUM_SIZE_LIMIT;
     private final File directory;
     private final ICompressionFactory compressionFactory;
     private final ADelegateRangeTable<String, FDate, MemoryFileSummary> fileLookupTable;

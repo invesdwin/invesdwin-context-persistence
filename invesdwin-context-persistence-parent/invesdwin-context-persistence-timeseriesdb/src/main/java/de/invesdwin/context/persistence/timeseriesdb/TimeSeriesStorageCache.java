@@ -53,9 +53,8 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.PeekingCloseableIterator;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterator;
 import de.invesdwin.util.collections.list.Lists;
+import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.ILoadingCache;
-import de.invesdwin.util.collections.loadingcache.caffeine.ACaffeineLoadingCache;
-import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.concurrent.reference.MutableSoftReference;
@@ -81,14 +80,15 @@ import ezdb.table.RangeTableRow;
 @NotThreadSafe
 public class TimeSeriesStorageCache<K, V> {
     public static final Integer MAXIMUM_SIZE = TimeSeriesProperties.STORAGE_CACHE_MAXIMUM_SIZE;
-    public static final EvictionMode EVICTION_MODE = AHistoricalCache.EVICTION_MODE;
+    public static final EvictionMode EVICTION_MODE = EvictionMode.ClearConcurrent;
+    public static final boolean HIGH_CONCURRENCY = false;
 
     private static final String READ_RANGE_VALUES = "readRangeValues";
     private static final String READ_RANGE_VALUES_REVERSE = "readRangeValuesReverse";
     private static final Function<RangeTableRow<String, FDate, MemoryFileSummary>, FDate> EXTRACT_END_TIME_FROM_RANGE_KEYS = (
             r) -> r.getRangeKey();
     private final TimeSeriesStorage storage;
-    private final ILoadingCache<FDate, RangeTableRow<String, FDate, MemoryFileSummary>> fileLookupTable_latestRangeKeyCache = new ACaffeineLoadingCache<FDate, RangeTableRow<String, FDate, MemoryFileSummary>>() {
+    private final ILoadingCache<FDate, RangeTableRow<String, FDate, MemoryFileSummary>> fileLookupTable_latestRangeKeyCache = new ALoadingCache<FDate, RangeTableRow<String, FDate, MemoryFileSummary>>() {
 
         @Override
         protected Integer getInitialMaximumSize() {
@@ -102,7 +102,7 @@ public class TimeSeriesStorageCache<K, V> {
 
         @Override
         protected boolean isHighConcurrency() {
-            return true;
+            return HIGH_CONCURRENCY;
         }
 
         @Override
@@ -110,7 +110,7 @@ public class TimeSeriesStorageCache<K, V> {
             return newLatestRangeKey(key);
         }
     };
-    private final ILoadingCache<Long, RangeTableRow<String, FDate, MemoryFileSummary>> fileLookupTable_latestRangeKeyIndexCache = new ACaffeineLoadingCache<Long, RangeTableRow<String, FDate, MemoryFileSummary>>() {
+    private final ILoadingCache<Long, RangeTableRow<String, FDate, MemoryFileSummary>> fileLookupTable_latestRangeKeyIndexCache = new ALoadingCache<Long, RangeTableRow<String, FDate, MemoryFileSummary>>() {
 
         @Override
         protected Integer getInitialMaximumSize() {
@@ -124,7 +124,7 @@ public class TimeSeriesStorageCache<K, V> {
 
         @Override
         protected boolean isHighConcurrency() {
-            return true;
+            return HIGH_CONCURRENCY;
         }
 
         @Override
@@ -132,7 +132,7 @@ public class TimeSeriesStorageCache<K, V> {
             return newLatestRangeKeyIndex(key);
         }
     };
-    private final ILoadingCache<FDate, Long> latestValueIndexLookupCache = new ACaffeineLoadingCache<FDate, Long>() {
+    private final ILoadingCache<FDate, Long> latestValueIndexLookupCache = new ALoadingCache<FDate, Long>() {
 
         @Override
         protected Integer getInitialMaximumSize() {
@@ -146,7 +146,7 @@ public class TimeSeriesStorageCache<K, V> {
 
         @Override
         protected boolean isHighConcurrency() {
-            return true;
+            return HIGH_CONCURRENCY;
         }
 
         @Override
@@ -154,7 +154,7 @@ public class TimeSeriesStorageCache<K, V> {
             return latestValueIndexLookup(key);
         }
     };
-    private final ILoadingCache<RangeShiftUnitsKey, Long> previousValueIndexLookupCache = new ACaffeineLoadingCache<RangeShiftUnitsKey, Long>() {
+    private final ILoadingCache<RangeShiftUnitsKey, Long> previousValueIndexLookupCache = new ALoadingCache<RangeShiftUnitsKey, Long>() {
 
         @Override
         protected Integer getInitialMaximumSize() {
@@ -168,7 +168,7 @@ public class TimeSeriesStorageCache<K, V> {
 
         @Override
         protected boolean isHighConcurrency() {
-            return true;
+            return HIGH_CONCURRENCY;
         }
 
         @Override
@@ -176,7 +176,7 @@ public class TimeSeriesStorageCache<K, V> {
             return previousValueIndexLookup(key.getRangeKey(), key.getShiftUnits());
         }
     };
-    private final ILoadingCache<RangeShiftUnitsKey, Long> nextValueIndexLookupCache = new ACaffeineLoadingCache<RangeShiftUnitsKey, Long>() {
+    private final ILoadingCache<RangeShiftUnitsKey, Long> nextValueIndexLookupCache = new ALoadingCache<RangeShiftUnitsKey, Long>() {
 
         @Override
         protected Integer getInitialMaximumSize() {
@@ -190,7 +190,7 @@ public class TimeSeriesStorageCache<K, V> {
 
         @Override
         protected boolean isHighConcurrency() {
-            return true;
+            return HIGH_CONCURRENCY;
         }
 
         @Override
@@ -436,7 +436,8 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     private RangeTableRow<String, FDate, MemoryFileSummary> getLatestRangeKeyIndex(final long key) {
-        return fileLookupTable_latestRangeKeyIndexCache.get(key);
+        return newLatestRangeKeyIndex(key);
+        //        return fileLookupTable_latestRangeKeyIndexCache.get(key);
     }
 
     private RangeTableRow<String, FDate, MemoryFileSummary> newLatestRangeKeyIndex(final long key) {
