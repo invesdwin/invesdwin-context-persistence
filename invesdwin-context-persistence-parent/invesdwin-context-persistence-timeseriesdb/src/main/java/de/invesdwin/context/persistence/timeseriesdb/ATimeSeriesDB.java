@@ -106,7 +106,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
             @Override
             protected Duration getExpireAfterAccess() {
-                return TimeSeriesStorageCache.EXPIRE_AFTER_ACCESS;
+                return TimeSeriesProperties.STORAGE_CACHE_EVICTION_TIMEOUT;
             }
 
         };

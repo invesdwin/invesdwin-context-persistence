@@ -82,7 +82,6 @@ import ezdb.table.RangeTableRow;
 public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeable {
     public static final Integer MAXIMUM_SIZE = TimeSeriesStorageCache.MAXIMUM_SIZE;
     public static final EvictionMode EVICTION_MODE = TimeSeriesStorageCache.EVICTION_MODE;
-    public static final Duration EXPIRE_AFTER_ACCESS = TimeSeriesStorageCache.EXPIRE_AFTER_ACCESS;
 
     private static final WrappedExecutorService LOAD_INDEX_EXECUTOR;
     private static final WrappedExecutorService MAYBE_INIT_SEGMENT_ASYNC_EXECUTOR;
@@ -130,11 +129,6 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         }
 
         @Override
-        protected Duration getExpireAfterAccess() {
-            return EXPIRE_AFTER_ACCESS;
-        }
-
-        @Override
         protected IndexedSegmentedKey<K> loadValue(final Long key) {
             return newLatestSegmentedKeyFromIndex(key);
         }
@@ -155,11 +149,6 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         @Override
         protected boolean isHighConcurrency() {
             return true;
-        }
-
-        @Override
-        protected Duration getExpireAfterAccess() {
-            return EXPIRE_AFTER_ACCESS;
         }
 
         @Override
@@ -185,11 +174,6 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         }
 
         @Override
-        protected Duration getExpireAfterAccess() {
-            return EXPIRE_AFTER_ACCESS;
-        }
-
-        @Override
         protected Long loadValue(final RangeShiftUnitsKey key) {
             return previousValueIndexLookup(key.getRangeKey(), key.getShiftUnits());
         }
@@ -209,11 +193,6 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         @Override
         protected boolean isHighConcurrency() {
             return true;
-        }
-
-        @Override
-        protected Duration getExpireAfterAccess() {
-            return EXPIRE_AFTER_ACCESS;
         }
 
         @Override

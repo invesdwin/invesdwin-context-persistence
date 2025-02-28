@@ -76,14 +76,12 @@ import de.invesdwin.util.streams.pool.buffered.BufferedFileDataInputStream;
 import de.invesdwin.util.streams.pool.buffered.PreLockedBufferedFileDataInputStream;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
-import de.invesdwin.util.time.duration.Duration;
 import ezdb.table.RangeTableRow;
 
 @NotThreadSafe
 public class TimeSeriesStorageCache<K, V> {
     public static final Integer MAXIMUM_SIZE = TimeSeriesProperties.STORAGE_CACHE_MAXIMUM_SIZE;
     public static final EvictionMode EVICTION_MODE = AHistoricalCache.EVICTION_MODE;
-    public static final Duration EXPIRE_AFTER_ACCESS = TimeSeriesProperties.STORAGE_CACHE_EVICTION_TIMEOUT;
 
     private static final String READ_RANGE_VALUES = "readRangeValues";
     private static final String READ_RANGE_VALUES_REVERSE = "readRangeValuesReverse";
@@ -105,11 +103,6 @@ public class TimeSeriesStorageCache<K, V> {
         @Override
         protected boolean isHighConcurrency() {
             return true;
-        }
-
-        @Override
-        protected Duration getExpireAfterAccess() {
-            return EXPIRE_AFTER_ACCESS;
         }
 
         @Override
@@ -135,11 +128,6 @@ public class TimeSeriesStorageCache<K, V> {
         }
 
         @Override
-        protected Duration getExpireAfterAccess() {
-            return EXPIRE_AFTER_ACCESS;
-        }
-
-        @Override
         protected RangeTableRow<String, FDate, MemoryFileSummary> loadValue(final Long key) {
             return newLatestRangeKeyIndex(key);
         }
@@ -159,11 +147,6 @@ public class TimeSeriesStorageCache<K, V> {
         @Override
         protected boolean isHighConcurrency() {
             return true;
-        }
-
-        @Override
-        protected Duration getExpireAfterAccess() {
-            return EXPIRE_AFTER_ACCESS;
         }
 
         @Override
@@ -189,11 +172,6 @@ public class TimeSeriesStorageCache<K, V> {
         }
 
         @Override
-        protected Duration getExpireAfterAccess() {
-            return EXPIRE_AFTER_ACCESS;
-        }
-
-        @Override
         protected Long loadValue(final RangeShiftUnitsKey key) {
             return previousValueIndexLookup(key.getRangeKey(), key.getShiftUnits());
         }
@@ -213,11 +191,6 @@ public class TimeSeriesStorageCache<K, V> {
         @Override
         protected boolean isHighConcurrency() {
             return true;
-        }
-
-        @Override
-        protected Duration getExpireAfterAccess() {
-            return EXPIRE_AFTER_ACCESS;
         }
 
         @Override
