@@ -19,7 +19,7 @@ public abstract class ALatestValueByIndexCache<V> {
 
     private final CircularGenericArrayQueue<V> values = new CircularGenericArrayQueue<>(5);
     private long curStorageIndex;
-    private volatile int prevResetIndex = getLastResetIndex() - 1;
+    private int prevResetIndex = getLastResetIndex() - 1;
 
     protected abstract int getLastResetIndex();
 
@@ -85,8 +85,8 @@ public abstract class ALatestValueByIndexCache<V> {
         }
         final long nextNextNextStorageIndex = curStorageIndex + 3L;
         curStorageIndex++;
-        final V nextNextValue = getLatestValue(nextNextNextStorageIndex);
-        values.circularAdd(nextNextValue);
+        final V nextNextNextValue = getLatestValue(nextNextNextStorageIndex);
+        values.circularAdd(nextNextNextValue);
     }
 
     private void moveBackward() {
@@ -96,8 +96,8 @@ public abstract class ALatestValueByIndexCache<V> {
         }
         final long prevPrevPrevStorageIndex = curStorageIndex - 3L;
         curStorageIndex--;
-        final V prevPrevValue = getLatestValue(prevPrevPrevStorageIndex);
-        values.circularPrepend(prevPrevValue);
+        final V prevPrevPrevValue = getLatestValue(prevPrevPrevStorageIndex);
+        values.circularPrepend(prevPrevPrevValue);
     }
 
     private V init(final FDate date, final int lastResetIndex) {
