@@ -42,10 +42,8 @@ import de.invesdwin.util.time.date.FTimeUnit;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.range.TimeRange;
 
-// CHECKSTYLE:OFF
 @ThreadSafe
-public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
-    //CHECKSTYLE:ON
+public class NoGapValuesALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
 
     private static final String KEY = "asdf";
     private ALiveSegmentedTimeSeriesDB<String, FDate> table;
@@ -62,7 +60,7 @@ public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
     private final int testReturnMaxResultsValue = 2;
     private final TestGapHistoricalCache cache = new TestGapHistoricalCache();
 
-    public ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest() throws IncompleteUpdateRetryableException {
+    public NoGapValuesALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest() throws IncompleteUpdateRetryableException {
         this.entities = new ArrayList<FDate>();
         entities.add(FDateBuilder.newDate(1990, 1, 1));
         entities.add(FDateBuilder.newDate(1991, 1, 1));
@@ -1671,6 +1669,11 @@ public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
 
         {
             enableTrailingQueryCore();
+        }
+
+        @Override
+        protected de.invesdwin.util.collections.loadingcache.historical.internal.IValuesMap<FDate> newValuesMap() {
+            return new ValuesMap();
         }
 
         @Override

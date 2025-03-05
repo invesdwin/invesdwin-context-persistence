@@ -43,10 +43,8 @@ import de.invesdwin.util.time.date.IFDateProvider;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.range.TimeRange;
 
-// CHECKSTYLE:OFF
 @ThreadSafe
-public class ASegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest {
-    //CHECKSTYLE:ON
+public class NoGapValuesASegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest {
 
     private static final String KEY = "asdf";
     private ASegmentedTimeSeriesDB<String, FDate> table;
@@ -63,7 +61,7 @@ public class ASegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest 
     private final int testReturnMaxResultsValue = 2;
     private final TestGapHistoricalCache cache = new TestGapHistoricalCache();
 
-    public ASegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest() {
+    public NoGapValuesASegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest() {
         this.entities = new ArrayList<FDate>();
         entities.add(FDateBuilder.newDate(1990, 1, 1));
         entities.add(FDateBuilder.newDate(1991, 1, 1));
@@ -1551,6 +1549,11 @@ public class ASegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest 
     }
 
     private final class TestGapHistoricalCache extends AGapHistoricalCache<FDate> {
+
+        @Override
+        protected de.invesdwin.util.collections.loadingcache.historical.internal.IValuesMap<FDate> newValuesMap() {
+            return new ValuesMap();
+        }
 
         @Override
         protected de.invesdwin.util.collections.loadingcache.historical.query.internal.core.IHistoricalCacheQueryCore<FDate> newQueryCore() {

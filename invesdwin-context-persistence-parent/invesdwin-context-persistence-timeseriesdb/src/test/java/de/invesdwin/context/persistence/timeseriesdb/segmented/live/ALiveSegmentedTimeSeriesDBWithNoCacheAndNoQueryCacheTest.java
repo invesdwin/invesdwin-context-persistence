@@ -1,10 +1,8 @@
-// CHECKSTYLE:OFF
 package de.invesdwin.context.persistence.timeseriesdb.segmented.live;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -23,6 +21,7 @@ import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFi
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.tuple.Pair;
+import de.invesdwin.util.collections.Collections;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
@@ -34,8 +33,6 @@ import de.invesdwin.util.collections.loadingcache.historical.IHistoricalEntry;
 import de.invesdwin.util.collections.loadingcache.historical.key.APullingHistoricalCacheAdjustKeyProvider;
 import de.invesdwin.util.collections.loadingcache.historical.key.APushingHistoricalCacheAdjustKeyProvider;
 import de.invesdwin.util.collections.loadingcache.historical.key.IHistoricalCacheAdjustKeyProvider;
-import de.invesdwin.util.collections.loadingcache.historical.query.internal.core.DefaultHistoricalCacheQueryCore;
-import de.invesdwin.util.collections.loadingcache.historical.query.internal.core.IHistoricalCacheQueryCore;
 import de.invesdwin.util.collections.loadingcache.historical.refresh.HistoricalCacheRefreshManager;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
@@ -48,6 +45,7 @@ import de.invesdwin.util.time.date.IFDateProvider;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.range.TimeRange;
 
+// CHECKSTYLE:OFF
 @ThreadSafe
 public class ALiveSegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ATest {
     //CHECKSTYLE:ON
@@ -1584,8 +1582,9 @@ public class ALiveSegmentedTimeSeriesDBWithNoCacheAndNoQueryCacheTest extends AT
     private final class TestGapHistoricalCache extends AGapHistoricalCache<FDate> {
 
         @Override
-        protected IHistoricalCacheQueryCore<FDate> newQueryCore() {
-            return new DefaultHistoricalCacheQueryCore<FDate>(internalMethods);
+        protected de.invesdwin.util.collections.loadingcache.historical.query.internal.core.IHistoricalCacheQueryCore<FDate> newQueryCore() {
+            return new de.invesdwin.util.collections.loadingcache.historical.query.internal.core.DefaultHistoricalCacheQueryCore<FDate>(
+                    internalMethods);
         }
 
         @Override

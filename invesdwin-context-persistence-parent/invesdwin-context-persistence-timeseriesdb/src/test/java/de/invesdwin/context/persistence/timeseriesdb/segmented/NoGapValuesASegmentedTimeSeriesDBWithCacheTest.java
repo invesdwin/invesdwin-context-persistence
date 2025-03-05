@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb.segmented.live;
+package de.invesdwin.context.persistence.timeseriesdb.segmented;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -13,8 +13,6 @@ import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.PeriodicalSegmentFinder;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.HistoricalCacheSegmentFinder;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.context.test.ATest;
@@ -42,13 +40,11 @@ import de.invesdwin.util.time.date.FTimeUnit;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.range.TimeRange;
 
-// CHECKSTYLE:OFF
 @ThreadSafe
-public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
-    //CHECKSTYLE:ON
+public class NoGapValuesASegmentedTimeSeriesDBWithCacheTest extends ATest {
 
     private static final String KEY = "asdf";
-    private ALiveSegmentedTimeSeriesDB<String, FDate> table;
+    private ASegmentedTimeSeriesDB<String, FDate> table;
 
     private final List<FDate> entities;
 
@@ -62,7 +58,7 @@ public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
     private final int testReturnMaxResultsValue = 2;
     private final TestGapHistoricalCache cache = new TestGapHistoricalCache();
 
-    public ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest() throws IncompleteUpdateRetryableException {
+    public NoGapValuesASegmentedTimeSeriesDBWithCacheTest() throws IncompleteUpdateRetryableException {
         this.entities = new ArrayList<FDate>();
         entities.add(FDateBuilder.newDate(1990, 1, 1));
         entities.add(FDateBuilder.newDate(1991, 1, 1));
@@ -75,12 +71,11 @@ public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+
         final AHistoricalCache<TimeRange> segmentFinderCache = PeriodicalSegmentFinder
                 .newCache(new Duration(2, FTimeUnit.YEARS), false);
         final ISegmentFinder segmentFinder = new HistoricalCacheSegmentFinder(segmentFinderCache, null);
-        table = new ALiveSegmentedTimeSeriesDB<String, FDate>(getClass().getSimpleName()) {
-
-            private FDate curTime = null;
+        table = new ASegmentedTimeSeriesDB<String, FDate>(getClass().getSimpleName()) {
 
             @Override
             public ISegmentFinder getSegmentFinder(final String key) {
@@ -133,35 +128,18 @@ public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
 
             @Override
             public FDate getFirstAvailableHistoricalSegmentFrom(final String key) {
-                if (entities.isEmpty() || curTime == null) {
+                if (entities.isEmpty()) {
                     return null;
                 }
-                final FDate firstTime = FDates.min(curTime, entities.get(0));
-                final TimeRange firstSegment = segmentFinder.getCacheQuery().getValue(firstTime);
-                if (firstSegment.getTo().isBeforeOrEqualTo(curTime)) {
-                    return firstSegment.getFrom();
-                } else {
-                    return segmentFinder.getCacheQuery().getValue(firstSegment.getFrom().addMilliseconds(-1)).getFrom();
-                }
+                return segmentFinder.getCacheQuery().getValue(entities.get(0)).getFrom();
             }
 
             @Override
             public FDate getLastAvailableHistoricalSegmentTo(final String key, final FDate updateTo) {
-                if (entities.isEmpty() || curTime == null) {
+                if (entities.isEmpty()) {
                     return null;
                 }
-                final TimeRange lastSegment = segmentFinder.getCacheQuery().getValue(curTime);
-                if (lastSegment.getTo().isBeforeOrEqualTo(curTime)) {
-                    return lastSegment.getTo();
-                } else {
-                    return segmentFinder.getCacheQuery().getValue(lastSegment.getFrom().addMilliseconds(-1)).getTo();
-                }
-            }
-
-            @Override
-            public boolean putNextLiveValue(final String key, final FDate nextLiveValue) {
-                curTime = nextLiveValue;
-                return super.putNextLiveValue(key, nextLiveValue);
+                return segmentFinder.getCacheQuery().getValue(entities.get(entities.size() - 1)).getTo();
             }
 
             @Override
@@ -169,9 +147,6 @@ public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
                 return "values";
             }
         };
-        for (final FDate entity : entities) {
-            table.putNextLiveValue(KEY, entity);
-        }
     }
 
     @Override
@@ -1032,13 +1007,13 @@ public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
 
         FDate previousKey = cache.query().getPreviousKey(new FDate(), entities.size());
         Assertions.assertThat(previousKey).isEqualTo(entities.get(0));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         //loading newest entity is faster than always loading all entities
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
         previousKey = cache.query().getPreviousKey(new FDate(), 1);
         Assertions.assertThat(previousKey).isEqualTo(entities.get(entities.size() - 2));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
     }
 
@@ -1051,12 +1026,12 @@ public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
         Assertions.assertThat(nextKey).isEqualTo(entities.get(entities.size() - 1));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         //loading newest entity is faster than always loading all entities
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
         nextKey = cache.query().setFutureEnabled().getNextKey(FDates.MIN_DATE, 1);
         Assertions.assertThat(nextKey).isEqualTo(entities.get(1));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
     }
 
     @Test
@@ -1140,7 +1115,6 @@ public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
             }
         }
         entities.add(newEntity);
-        table.putNextLiveValue(KEY, newEntity);
         final FDate wrongValue = cache.query().getValue(newEntity);
         Assertions.assertThat(wrongValue).isEqualTo(entities.get(entities.size() - 2));
         HistoricalCacheRefreshManager.forceRefresh();
@@ -1174,7 +1148,6 @@ public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
             }
         }
         entities.add(newEntity);
-        table.putNextLiveValue(KEY, newEntity);
         final FDate correctValue = cache.query().getValue(newEntity);
         Assertions.assertThat(correctValue).isEqualTo(newEntity);
     }
@@ -1209,7 +1182,6 @@ public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
         }
         adjustKeyProvider.pushHighestAllowedKey(newEntity);
         entities.add(newEntity);
-        table.putNextLiveValue(KEY, newEntity);
         final FDate correctValue = cache.query().getValue(newEntity);
         Assertions.assertThat(correctValue).isEqualTo(newEntity);
     }
@@ -1244,7 +1216,6 @@ public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
         }
         adjustKeyProvider.pushHighestAllowedKey(newEntity);
         entities.add(newEntity);
-        table.putNextLiveValue(KEY, newEntity);
         final FDate correctValue = cache.query().getValue(newEntity);
         Assertions.assertThat(correctValue).isEqualTo(newEntity);
     }
@@ -1278,7 +1249,6 @@ public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
         }
         adjustKeyProvider.pushHighestAllowedKey(newEntity);
         entities.add(newEntity);
-        table.putNextLiveValue(KEY, newEntity);
         final FDate correctValue = cache.query().getValue(newEntity);
         Assertions.assertThat(correctValue).isEqualTo(newEntity);
     }
@@ -1674,6 +1644,11 @@ public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
         }
 
         @Override
+        protected de.invesdwin.util.collections.loadingcache.historical.internal.IValuesMap<FDate> newValuesMap() {
+            return new ValuesMap();
+        }
+
+        @Override
         protected FDate adjustKey(final FDate key) {
             countAdjustKey++;
             return super.adjustKey(key);
@@ -1682,11 +1657,6 @@ public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ATest {
         @Override
         public void setAdjustKeyProvider(final IHistoricalCacheAdjustKeyProvider adjustKeyProvider) {
             super.setAdjustKeyProvider(adjustKeyProvider);
-        }
-
-        @Override
-        protected Integer getInitialMaximumSize() {
-            return null;
         }
 
         @Override

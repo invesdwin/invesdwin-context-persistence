@@ -1,10 +1,8 @@
-// CHECKSTYLE:OFF
 package de.invesdwin.context.persistence.timeseriesdb.segmented.live;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 
@@ -22,6 +20,7 @@ import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFi
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.tuple.Pair;
+import de.invesdwin.util.collections.Collections;
 import de.invesdwin.util.collections.iterable.ATransformingIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
@@ -46,6 +45,7 @@ import de.invesdwin.util.time.date.FTimeUnit;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.range.TimeRange;
 
+// CHECKSTYLE:OFF
 @ThreadSafe
 public class ALiveSegmentedTimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest extends ATest {
     //CHECKSTYLE:ON

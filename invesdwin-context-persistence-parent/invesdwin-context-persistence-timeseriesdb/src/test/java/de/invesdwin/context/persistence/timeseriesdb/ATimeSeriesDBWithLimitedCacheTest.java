@@ -1,10 +1,8 @@
-// CHECKSTYLE:OFF
 package de.invesdwin.context.persistence.timeseriesdb;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 
@@ -19,6 +17,7 @@ import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdatePro
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.bean.tuple.Pair;
+import de.invesdwin.util.collections.Collections;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
@@ -38,6 +37,7 @@ import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
 import de.invesdwin.util.time.date.FDates;
 
+// CHECKSTYLE:OFF
 @ThreadSafe
 public class ATimeSeriesDBWithLimitedCacheTest extends ATest {
     //CHECKSTYLE:ON
