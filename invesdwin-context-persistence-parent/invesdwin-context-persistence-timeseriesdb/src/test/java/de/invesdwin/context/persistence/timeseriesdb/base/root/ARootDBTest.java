@@ -20,7 +20,6 @@ import de.invesdwin.util.collections.loadingcache.historical.AGapHistoricalCache
 import de.invesdwin.util.collections.loadingcache.historical.key.APullingHistoricalCacheAdjustKeyProvider;
 import de.invesdwin.util.collections.loadingcache.historical.key.APushingHistoricalCacheAdjustKeyProvider;
 import de.invesdwin.util.collections.loadingcache.historical.key.IHistoricalCacheAdjustKeyProvider;
-import de.invesdwin.util.collections.loadingcache.historical.refresh.HistoricalCacheRefreshManager;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
 import de.invesdwin.util.time.date.FDates;
@@ -165,29 +164,6 @@ public abstract class ARootDBTest extends ATest {
         Assertions.assertThat(values).isEmpty();
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(21);
-    }
-
-    @Test
-    public void testNewEntityIncomingAfterClear() throws IncompleteUpdateRetryableException {
-        final List<FDate> newEntities = new ArrayList<FDate>(entities);
-        final FDate newEntity = FDateBuilder.newDate(1996, 1, 1);
-        newEntities.add(newEntity);
-        for (final FDate entity : newEntities) {
-            final FDate value = cache.query().getValue(entity);
-            if (newEntity.equals(entity)) {
-                Assertions.assertThat(value).isNotEqualTo(newEntity);
-                Assertions.assertThat(value).isEqualTo(entities.get(entities.size() - 1));
-            } else {
-                Assertions.assertThat(value).isEqualTo(entity);
-            }
-        }
-        entities.add(newEntity);
-        putNewEntity(newEntity);
-        final FDate wrongValue = cache.query().getValue(newEntity);
-        Assertions.assertThat(wrongValue).isEqualTo(entities.get(entities.size() - 2));
-        HistoricalCacheRefreshManager.forceRefresh();
-        final FDate correctValue = cache.query().getValue(newEntity);
-        Assertions.assertThat(correctValue).isEqualTo(newEntity);
     }
 
     @Test

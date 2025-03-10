@@ -9,12 +9,15 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import org.junit.jupiter.api.Test;
 
+import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.base.root.ARootDBTest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.Collections;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.collections.loadingcache.historical.IHistoricalEntry;
+import de.invesdwin.util.collections.loadingcache.historical.refresh.HistoricalCacheRefreshManager;
 import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.date.FDateBuilder;
 import de.invesdwin.util.time.date.FDates;
 
 @NotThreadSafe
@@ -23,6 +26,29 @@ public abstract class ANoGapValuesBaseDBWithNoCacheTest extends ARootDBTest {
     @Override
     protected ATestGapHistoricalCache newTestGapHistoricalCache() {
         return new TestGapHistoricalCache();
+    }
+
+    @Test
+    public void testNewEntityIncomingAfterClear() throws IncompleteUpdateRetryableException {
+        final List<FDate> newEntities = new ArrayList<FDate>(entities);
+        final FDate newEntity = FDateBuilder.newDate(1996, 1, 1);
+        newEntities.add(newEntity);
+        for (final FDate entity : newEntities) {
+            final FDate value = cache.query().getValue(entity);
+            if (newEntity.equals(entity)) {
+                Assertions.assertThat(value).isNotEqualTo(newEntity);
+                Assertions.assertThat(value).isEqualTo(entities.get(entities.size() - 1));
+            } else {
+                Assertions.assertThat(value).isEqualTo(entity);
+            }
+        }
+        entities.add(newEntity);
+        putNewEntity(newEntity);
+        final FDate wrongValue = cache.query().getValue(newEntity);
+        Assertions.assertThat(wrongValue).isEqualTo(entities.get(entities.size() - 2));
+        HistoricalCacheRefreshManager.forceRefresh();
+        final FDate correctValue = cache.query().getValue(newEntity);
+        Assertions.assertThat(correctValue).isEqualTo(newEntity);
     }
 
     @Test
