@@ -157,14 +157,14 @@ public abstract class ARootDBTest extends ATest {
             final FDate cachedEntity = cache.query().getValue(entity);
             Assertions.assertThat(cachedEntity).isNull();
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(21);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(18);
 
         //new minKey limit gets tested
         final Collection<FDate> values = asList(cache.query().getPreviousValues(FDates.MIN_DATE, 5));
         Assertions.assertThat(values).isEmpty();
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(8);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(24);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(21);
     }
 
     @Test
