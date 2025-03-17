@@ -3,14 +3,12 @@ package de.invesdwin.context.persistence.timeseriesdb.segmented;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
-import de.invesdwin.context.persistence.timeseriesdb.base.ABaseDBWithLimitedCacheTest;
+import de.invesdwin.context.persistence.timeseriesdb.base.ANoGapValuesBaseDBWithCacheTest;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesDBWithCacheTest.TestSegmentedTimeSeriesDB;
 import de.invesdwin.util.time.date.FDate;
 
-// CHECKSTYLE:OFF
 @NotThreadSafe
-public class ASegmentedTimeSeriesDBWithLimitedCacheTest extends ABaseDBWithLimitedCacheTest {
-    //CHECKSTYLE:ON
+public class NoGapValuesASegmentedTimeSeriesDBWithCacheTest extends ANoGapValuesBaseDBWithCacheTest {
 
     @Override
     protected void putNewEntity(final FDate newEntity) throws IncompleteUpdateRetryableException {
