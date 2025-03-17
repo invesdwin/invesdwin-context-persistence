@@ -66,12 +66,12 @@ public abstract class ARootDBTest extends ATest {
         table.close();
     }
 
-    protected <T> List<T> asList(final Iterable<T> iterable) {
+    protected final <T> List<T> asList(final Iterable<T> iterable) {
         return Lists.toListWithoutHasNext(iterable);
     }
 
     @Test
-    public void testGetPreviousAndNextValue() {
+    public final void testGetPreviousAndNextValue() {
         for (int i = 0; i < entities.size(); i++) {
             final FDate value = cache.query().getPreviousValue(entities.get(entities.size() - 1), i);
             final FDate expectedValue = entities.get(entities.size() - i - 1);
@@ -106,7 +106,7 @@ public abstract class ARootDBTest extends ATest {
     }
 
     @Test
-    public void testGetPreviousAndNextValues() {
+    public final void testGetPreviousAndNextValues() {
         for (int i = 1; i < entities.size(); i++) {
             final List<FDate> value = Lists
                     .toListWithoutHasNext(cache.query().getPreviousValues(entities.get(entities.size() - 1), i));
@@ -150,7 +150,7 @@ public abstract class ARootDBTest extends ATest {
     }
 
     @Test
-    public void testGetPreviousAndNextKeys() {
+    public final void testGetPreviousAndNextKeys() {
         for (int i = 1; i < entities.size(); i++) {
             final List<FDate> value = Lists
                     .toListWithoutHasNext(cache.query().getPreviousKeys(entities.get(entities.size() - 1), i));
@@ -194,7 +194,7 @@ public abstract class ARootDBTest extends ATest {
     }
 
     @Test
-    public void testGetPreviousAndNextEntries() {
+    public final void testGetPreviousAndNextEntries() {
         for (int i = 1; i < entities.size(); i++) {
             final List<FDate> value = Lists.toListWithoutHasNext(IHistoricalEntry
                     .unwrapEntryValues(cache.query().getPreviousEntries(entities.get(entities.size() - 1), i)));
@@ -239,7 +239,7 @@ public abstract class ARootDBTest extends ATest {
     }
 
     @Test
-    public void testGetPreviousAndNextKey() {
+    public final void testGetPreviousAndNextKey() {
         for (int i = 0; i < entities.size(); i++) {
             final FDate value = cache.query().getPreviousKey(entities.get(entities.size() - 1), i);
             final FDate expectedValue = entities.get(entities.size() - i - 1);
@@ -274,7 +274,7 @@ public abstract class ARootDBTest extends ATest {
     }
 
     @Test
-    public void testGetPreviousAndNextEntry() {
+    public final void testGetPreviousAndNextEntry() {
         for (int i = 0; i < entities.size(); i++) {
             final FDate value = IHistoricalEntry
                     .unwrapEntryValue(cache.query().getPreviousEntry(entities.get(entities.size() - 1), i));
@@ -314,7 +314,7 @@ public abstract class ARootDBTest extends ATest {
     }
 
     @Test
-    public void testInconsistentGapKey() {
+    public final void testInconsistentGapKey() {
         FDate searchedKey = entities.get(0);
         FDate value = cache.query().getValue(searchedKey);
         Assertions.assertThat(value).isEqualTo(searchedKey);
@@ -325,7 +325,7 @@ public abstract class ARootDBTest extends ATest {
     }
 
     @Test
-    public void testRandomizedPreviousValues() {
+    public final void testRandomizedPreviousValues() {
         final List<Pair<Integer, Integer>> reproduce = new ArrayList<Pair<Integer, Integer>>();
         try {
             for (int i = 0; i < 100000; i++) {
@@ -347,7 +347,7 @@ public abstract class ARootDBTest extends ATest {
         }
     }
 
-    protected void reproduce(final List<Pair<Integer, Integer>> reproduce, final Throwable t) {
+    protected final void reproduce(final List<Pair<Integer, Integer>> reproduce, final Throwable t) {
         //CHECKSTYLE:OFF
         System.out.println(reproduce.size() + ". step: " + t.toString());
         //CHECKSTYLE:ON
@@ -369,7 +369,7 @@ public abstract class ARootDBTest extends ATest {
     }
 
     @Test
-    public void testGetPreviousAndNextWithTable() {
+    public final void testGetPreviousAndNextWithTable() {
         for (int i = 0; i < entities.size(); i++) {
             final FDate value = table.getPreviousValue(KEY, entities.get(entities.size() - 1), i);
             final FDate expectedValue = entities.get(entities.size() - i - 1);
@@ -404,7 +404,7 @@ public abstract class ARootDBTest extends ATest {
     }
 
     @Test
-    public void testNewEntityIncomingPullingAdjustKeyProvider() throws IncompleteUpdateRetryableException {
+    public final void testNewEntityIncomingPullingAdjustKeyProvider() throws IncompleteUpdateRetryableException {
         cache.setAdjustKeyProvider(new APullingHistoricalCacheAdjustKeyProvider(cache) {
             @Override
             protected FDate innerGetHighestAllowedKey() {
@@ -435,7 +435,7 @@ public abstract class ARootDBTest extends ATest {
     }
 
     @Test
-    public void testNewEntityIncomingPushingAdjustKeyProvider() throws IncompleteUpdateRetryableException {
+    public final void testNewEntityIncomingPushingAdjustKeyProvider() throws IncompleteUpdateRetryableException {
         final APushingHistoricalCacheAdjustKeyProvider adjustKeyProvider = new APushingHistoricalCacheAdjustKeyProvider(
                 cache) {
             @Override
@@ -470,7 +470,7 @@ public abstract class ARootDBTest extends ATest {
     }
 
     @Test
-    public void testNewEntityIncomingPushingAdjustKeyProviderWithoutInitialPush()
+    public final void testNewEntityIncomingPushingAdjustKeyProviderWithoutInitialPush()
             throws IncompleteUpdateRetryableException {
         final APushingHistoricalCacheAdjustKeyProvider adjustKeyProvider = new APushingHistoricalCacheAdjustKeyProvider(
                 cache) {
@@ -505,7 +505,8 @@ public abstract class ARootDBTest extends ATest {
     }
 
     @Test
-    public void testNewEntityIncomingPushingAdjustKeyProviderWithoutPush() throws IncompleteUpdateRetryableException {
+    public final void testNewEntityIncomingPushingAdjustKeyProviderWithoutPush()
+            throws IncompleteUpdateRetryableException {
         final APushingHistoricalCacheAdjustKeyProvider adjustKeyProvider = new APushingHistoricalCacheAdjustKeyProvider(
                 cache) {
             @Override
