@@ -26,7 +26,7 @@ import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSer
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
-import de.invesdwin.util.collections.circular.CircularGenericArray;
+import de.invesdwin.util.collections.circular.CircularGenericArrayQueue;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -61,7 +61,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     private boolean needsFlush;
     private FDate firstValueKey;
     private final IBufferingIterator<V> firstValue = new BufferingIterator<>();
-    private final CircularGenericArray<LastValue<V>> lastValues = new CircularGenericArray<LastValue<V>>(
+    private final CircularGenericArrayQueue<LastValue<V>> lastValues = new CircularGenericArrayQueue<LastValue<V>>(
             LAST_VALUE_HISTORY);
     private File file;
     private WeakReference<ArrayFileBufferCacheResult<V>> inMemoryCacheHolder;
@@ -488,7 +488,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
         final ASegmentedTimeSeriesStorageCache<K, V> lookupTableCache = historicalSegmentTable
                 .getSegmentedLookupTableCache(getSegmentedKey().getKey());
-        final boolean initialized = lookupTableCache.maybeInitSegment(getSegmentedKey(),
+        final boolean initialized = lookupTableCache.maybeInitSegmentSync(getSegmentedKey(),
                 new Function<SegmentedKey<K>, ICloseableIterable<? extends V>>() {
                     @Override
                     public ICloseableIterable<? extends V> apply(final SegmentedKey<K> t) {

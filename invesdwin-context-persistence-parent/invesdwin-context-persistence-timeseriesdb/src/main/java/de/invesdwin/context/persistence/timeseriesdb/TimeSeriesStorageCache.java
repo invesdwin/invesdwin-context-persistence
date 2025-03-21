@@ -38,6 +38,8 @@ import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummaryByteBuffer;
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
+import de.invesdwin.context.persistence.timeseriesdb.storage.cache.ALatestValueByIndexCache;
+import de.invesdwin.context.persistence.timeseriesdb.storage.key.RangeShiftUnitsKey;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdaterInternalMethods;
 import de.invesdwin.util.collections.Collections;
@@ -52,10 +54,11 @@ import de.invesdwin.util.collections.iterable.PeekingCloseableIterator;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterator;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
-import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
+import de.invesdwin.util.collections.loadingcache.ILoadingCache;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.concurrent.reference.MutableSoftReference;
+import de.invesdwin.util.concurrent.reference.WeakThreadLocalReference;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.lang.Files;
@@ -76,16 +79,16 @@ import ezdb.table.RangeTableRow;
 
 @NotThreadSafe
 public class TimeSeriesStorageCache<K, V> {
-    public static final Integer MAXIMUM_SIZE = 1_000;
-    public static final Integer MAXIMUM_SIZE_TRIGGER = MAXIMUM_SIZE * 2;
-    public static final EvictionMode EVICTION_MODE = AHistoricalCache.EVICTION_MODE;
+    public static final Integer MAXIMUM_SIZE = TimeSeriesProperties.STORAGE_CACHE_MAXIMUM_SIZE;
+    public static final EvictionMode EVICTION_MODE = EvictionMode.ClearConcurrent;
+    public static final boolean HIGH_CONCURRENCY = false;
 
     private static final String READ_RANGE_VALUES = "readRangeValues";
     private static final String READ_RANGE_VALUES_REVERSE = "readRangeValuesReverse";
     private static final Function<RangeTableRow<String, FDate, MemoryFileSummary>, FDate> EXTRACT_END_TIME_FROM_RANGE_KEYS = (
             r) -> r.getRangeKey();
     private final TimeSeriesStorage storage;
-    private final ALoadingCache<FDate, RangeTableRow<String, FDate, MemoryFileSummary>> fileLookupTable_latestRangeKeyCache = new ALoadingCache<FDate, RangeTableRow<String, FDate, MemoryFileSummary>>() {
+    private final ILoadingCache<FDate, RangeTableRow<String, FDate, MemoryFileSummary>> fileLookupTable_latestRangeKeyCache = new ALoadingCache<FDate, RangeTableRow<String, FDate, MemoryFileSummary>>() {
 
         @Override
         protected Integer getInitialMaximumSize() {
@@ -99,7 +102,7 @@ public class TimeSeriesStorageCache<K, V> {
 
         @Override
         protected boolean isHighConcurrency() {
-            return true;
+            return HIGH_CONCURRENCY;
         }
 
         @Override
@@ -107,7 +110,7 @@ public class TimeSeriesStorageCache<K, V> {
             return newLatestRangeKey(key);
         }
     };
-    private final ALoadingCache<Long, RangeTableRow<String, FDate, MemoryFileSummary>> fileLookupTable_latestRangeKeyIndexCache = new ALoadingCache<Long, RangeTableRow<String, FDate, MemoryFileSummary>>() {
+    private final ILoadingCache<Long, RangeTableRow<String, FDate, MemoryFileSummary>> fileLookupTable_latestRangeKeyIndexCache = new ALoadingCache<Long, RangeTableRow<String, FDate, MemoryFileSummary>>() {
 
         @Override
         protected Integer getInitialMaximumSize() {
@@ -121,7 +124,7 @@ public class TimeSeriesStorageCache<K, V> {
 
         @Override
         protected boolean isHighConcurrency() {
-            return true;
+            return HIGH_CONCURRENCY;
         }
 
         @Override
@@ -129,6 +132,79 @@ public class TimeSeriesStorageCache<K, V> {
             return newLatestRangeKeyIndex(key);
         }
     };
+    private final ILoadingCache<FDate, Long> latestValueIndexLookupCache = new ALoadingCache<FDate, Long>() {
+
+        @Override
+        protected Integer getInitialMaximumSize() {
+            return MAXIMUM_SIZE;
+        };
+
+        @Override
+        protected EvictionMode getEvictionMode() {
+            return EVICTION_MODE;
+        }
+
+        @Override
+        protected boolean isHighConcurrency() {
+            return HIGH_CONCURRENCY;
+        }
+
+        @Override
+        protected Long loadValue(final FDate key) {
+            return latestValueIndexLookup(key);
+        }
+    };
+    private final ILoadingCache<RangeShiftUnitsKey, Long> previousValueIndexLookupCache = new ALoadingCache<RangeShiftUnitsKey, Long>() {
+
+        @Override
+        protected Integer getInitialMaximumSize() {
+            return MAXIMUM_SIZE;
+        }
+
+        @Override
+        protected EvictionMode getEvictionMode() {
+            return EVICTION_MODE;
+        }
+
+        @Override
+        protected boolean isHighConcurrency() {
+            return HIGH_CONCURRENCY;
+        }
+
+        @Override
+        protected Long loadValue(final RangeShiftUnitsKey key) {
+            return previousValueIndexLookup(key.getRangeKey(), key.getShiftUnits());
+        }
+    };
+    private final ILoadingCache<RangeShiftUnitsKey, Long> nextValueIndexLookupCache = new ALoadingCache<RangeShiftUnitsKey, Long>() {
+
+        @Override
+        protected Integer getInitialMaximumSize() {
+            return MAXIMUM_SIZE;
+        }
+
+        @Override
+        protected EvictionMode getEvictionMode() {
+            return EVICTION_MODE;
+        }
+
+        @Override
+        protected boolean isHighConcurrency() {
+            return HIGH_CONCURRENCY;
+        }
+
+        @Override
+        protected Long loadValue(final RangeShiftUnitsKey key) {
+            return nextValueIndexLookup(key.getRangeKey(), key.getShiftUnits());
+        }
+    };
+    private final WeakThreadLocalReference<ALatestValueByIndexCache<V>> latestValueByIndexCacheHolder = new WeakThreadLocalReference<ALatestValueByIndexCache<V>>() {
+        @Override
+        protected ALatestValueByIndexCache<V> initialValue() {
+            return new LatestValueByIndexCache();
+        };
+    };
+    private volatile int lastResetIndex = 0;
 
     private final String hashKey;
     private final ISerde<V> valueSerde;
@@ -360,7 +436,8 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     private RangeTableRow<String, FDate, MemoryFileSummary> getLatestRangeKeyIndex(final long key) {
-        return fileLookupTable_latestRangeKeyIndexCache.get(key);
+        return newLatestRangeKeyIndex(key);
+        //        return fileLookupTable_latestRangeKeyIndexCache.get(key);
     }
 
     private RangeTableRow<String, FDate, MemoryFileSummary> newLatestRangeKeyIndex(final long key) {
@@ -618,11 +695,12 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     public V getFirstValue() {
-        if (cachedFirstValue == null) {
+        Optional<V> cachedFirstValueCopy = cachedFirstValue;
+        if (cachedFirstValueCopy == null) {
             final ArrayList<? extends RangeTableRow<String, FDate, MemoryFileSummary>> list = getAllRangeKeys(
                     DisabledLock.INSTANCE).getList();
             if (list.isEmpty()) {
-                cachedFirstValue = Optional.empty();
+                cachedFirstValueCopy = Optional.empty();
             } else {
                 final RangeTableRow<String, FDate, MemoryFileSummary> row = list.get(0);
                 final MemoryFileSummary latestValue = row.getValue();
@@ -632,18 +710,20 @@ public class TimeSeriesStorageCache<K, V> {
                 } else {
                     firstValue = latestValue.getFirstValue(valueSerde);
                 }
-                cachedFirstValue = Optional.ofNullable(firstValue);
+                cachedFirstValueCopy = Optional.ofNullable(firstValue);
             }
+            cachedFirstValue = cachedFirstValueCopy;
         }
-        return cachedFirstValue.orElse(null);
+        return cachedFirstValueCopy.orElse(null);
     }
 
     public V getLastValue() {
-        if (cachedLastValue == null) {
+        Optional<V> cachedLastValueCopy = cachedLastValue;
+        if (cachedLastValueCopy == null) {
             final ArrayList<? extends RangeTableRow<String, FDate, MemoryFileSummary>> list = getAllRangeKeys(
                     DisabledLock.INSTANCE).getList();
             if (list.isEmpty()) {
-                cachedLastValue = Optional.empty();
+                cachedLastValueCopy = Optional.empty();
             } else {
                 final RangeTableRow<String, FDate, MemoryFileSummary> row = list.get(list.size() - 1);
                 final MemoryFileSummary latestValue = row.getValue();
@@ -653,10 +733,11 @@ public class TimeSeriesStorageCache<K, V> {
                 } else {
                     lastValue = latestValue.getLastValue(valueSerde);
                 }
-                cachedLastValue = Optional.ofNullable(lastValue);
+                cachedLastValueCopy = Optional.ofNullable(lastValue);
             }
+            cachedLastValue = cachedLastValueCopy;
         }
-        return cachedLastValue.orElse(null);
+        return cachedLastValueCopy.orElse(null);
     }
 
     public synchronized void deleteAll() {
@@ -664,9 +745,6 @@ public class TimeSeriesStorageCache<K, V> {
         storage.deleteRange_latestValueLookupTable(hashKey);
         storage.deleteRange_nextValueLookupTable(hashKey);
         storage.deleteRange_previousValueLookupTable(hashKey);
-        storage.deleteRange_latestValueIndexLookupTable(hashKey);
-        storage.deleteRange_nextValueIndexLookupTable(hashKey);
-        storage.deleteRange_previousValueIndexLookupTable(hashKey);
         clearCaches();
         Files.deleteNative(newDataDirectory());
         memoryFileMetadata = null;
@@ -681,6 +759,10 @@ public class TimeSeriesStorageCache<K, V> {
         cachedFirstValue = null;
         cachedLastValue = null;
         cachedSize = -1L;
+        latestValueIndexLookupCache.clear();
+        nextValueIndexLookupCache.clear();
+        previousValueIndexLookupCache.clear();
+        lastResetIndex++;
     }
 
     public V getLatestValue(final FDate date) {
@@ -696,33 +778,35 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     private V getLatestValueByIndex(final FDate date) {
-        final long valueIndex = getLatestValueIndex(date);
-        return getLatestValue(valueIndex);
+        final ALatestValueByIndexCache<V> latestValueByIndexCache = latestValueByIndexCacheHolder.get();
+        return latestValueByIndexCache.getLatestValueByIndex(date);
     }
 
     public long getLatestValueIndex(final FDate date) {
-        final long valueIndex = storage.getOrLoad_latestValueIndexLookupTable(hashKey, date, () -> {
-            final RangeTableRow<String, FDate, MemoryFileSummary> row = getLatestRangeKey(date);
-            if (row == null) {
-                return null;
-            }
-            final MemoryFileSummary summary = row.getValue();
-            if (summary == null) {
-                return null;
-            }
-            try (IFileBufferCacheResult<V> result = getResultCached("latestValueLookupCache.loadValue", summary,
-                    DisabledLock.INSTANCE)) {
-                final int latestValueIndex = result.getLatestValueIndex(extractEndTime, date);
-                if (latestValueIndex == -1 && getFirstValue() != null) {
-                    return 0L;
-                }
-                if (latestValueIndex == -1) {
-                    return -1L;
-                }
-                return row.getValue().getPrecedingValueCount() + latestValueIndex;
-            }
-        });
+        final long valueIndex = latestValueIndexLookupCache.get(date);
         return valueIndex;
+    }
+
+    private long latestValueIndexLookup(final FDate date) {
+        final RangeTableRow<String, FDate, MemoryFileSummary> row = getLatestRangeKey(date);
+        if (row == null) {
+            return -1L;
+        }
+        final MemoryFileSummary summary = row.getValue();
+        if (summary == null) {
+            return -1L;
+        }
+        try (IFileBufferCacheResult<V> result = getResultCached("latestValueLookupCache.loadValue", summary,
+                DisabledLock.INSTANCE)) {
+            final int latestValueIndex = result.getLatestValueIndex(extractEndTime, date);
+            if (latestValueIndex == -1 && getFirstValue() != null) {
+                return 0L;
+            }
+            if (latestValueIndex == -1) {
+                return -1L;
+            }
+            return row.getValue().getPrecedingValueCount() + latestValueIndex;
+        }
     }
 
     public V getLatestValue(final long index) {
@@ -780,20 +864,22 @@ public class TimeSeriesStorageCache<K, V> {
     }
 
     public long size() {
-        if (cachedSize == -1L) {
+        long cachedSizeCopy = cachedSize;
+        if (cachedSizeCopy == -1L) {
             final ArrayList<? extends RangeTableRow<String, FDate, MemoryFileSummary>> list = getAllRangeKeys(
                     DisabledLock.INSTANCE).getList();
             if (list.isEmpty()) {
-                cachedSize = 0;
+                cachedSizeCopy = 0;
             } else {
                 long size = 0;
                 for (int i = 0; i < list.size(); i++) {
                     size += list.get(i).getValue().getValueCount();
                 }
-                cachedSize = size;
+                cachedSizeCopy = size;
             }
+            cachedSize = cachedSizeCopy;
         }
-        return cachedSize;
+        return cachedSizeCopy;
     }
 
     public V getPreviousValue(final FDate date, final int shiftBackUnits) {
@@ -818,35 +904,36 @@ public class TimeSeriesStorageCache<K, V> {
         if (date.isBeforeOrEqualTo(firstTime)) {
             return firstValue;
         } else {
-            final long valueIndex = storage.getOrLoad_previousValueIndexLookupTable(hashKey, date, shiftBackUnits,
-                    () -> {
-                        final AShiftBackUnitsLoopLongIndex<V> shiftBackLoop = new AShiftBackUnitsLoopLongIndex<V>(date,
-                                shiftBackUnits) {
-                            @Override
-                            protected V getLatestValue(final long index) {
-                                return TimeSeriesStorageCache.this.getLatestValue(index);
-                            }
-
-                            @Override
-                            protected long getLatestValueIndex(final FDate date) {
-                                return TimeSeriesStorageCache.this.getLatestValueIndex(date);
-                            }
-
-                            @Override
-                            protected FDate extractEndTime(final V value) {
-                                return extractEndTime.apply(value);
-                            }
-
-                            @Override
-                            protected long size() {
-                                return TimeSeriesStorageCache.this.size();
-                            }
-                        };
-                        shiftBackLoop.loop();
-                        return shiftBackLoop.getPrevValueIndex();
-                    });
+            final long valueIndex = previousValueIndexLookupCache.get(new RangeShiftUnitsKey(date, shiftBackUnits));
             return getLatestValue(valueIndex);
         }
+    }
+
+    private long previousValueIndexLookup(final FDate date, final int shiftBackUnits) {
+        final AShiftBackUnitsLoopLongIndex<V> shiftBackLoop = new AShiftBackUnitsLoopLongIndex<V>(date,
+                shiftBackUnits) {
+            @Override
+            protected V getLatestValue(final long index) {
+                return TimeSeriesStorageCache.this.getLatestValue(index);
+            }
+
+            @Override
+            protected long getLatestValueIndex(final FDate date) {
+                return TimeSeriesStorageCache.this.getLatestValueIndex(date);
+            }
+
+            @Override
+            protected FDate extractEndTime(final V value) {
+                return extractEndTime.apply(value);
+            }
+
+            @Override
+            protected long size() {
+                return TimeSeriesStorageCache.this.size();
+            }
+        };
+        shiftBackLoop.loop();
+        return shiftBackLoop.getPrevValueIndex();
     }
 
     private V getPreviousValueByValue(final FDate date, final int shiftBackUnits) {
@@ -901,35 +988,36 @@ public class TimeSeriesStorageCache<K, V> {
         if (date.isAfterOrEqualTo(lastTime)) {
             return lastValue;
         } else {
-            final long valueIndex = storage.getOrLoad_nextValueIndexLookupTable(hashKey, date, shiftForwardUnits,
-                    () -> {
-                        final AShiftForwardUnitsLoopLongIndex<V> shiftForwardLoop = new AShiftForwardUnitsLoopLongIndex<V>(
-                                date, shiftForwardUnits) {
-                            @Override
-                            protected V getLatestValue(final long index) {
-                                return TimeSeriesStorageCache.this.getLatestValue(index);
-                            }
-
-                            @Override
-                            protected long getLatestValueIndex(final FDate date) {
-                                return TimeSeriesStorageCache.this.getLatestValueIndex(date);
-                            }
-
-                            @Override
-                            protected FDate extractEndTime(final V value) {
-                                return extractEndTime.apply(value);
-                            }
-
-                            @Override
-                            protected long size() {
-                                return TimeSeriesStorageCache.this.size();
-                            }
-                        };
-                        shiftForwardLoop.loop();
-                        return shiftForwardLoop.getNextValueIndex();
-                    });
+            final long valueIndex = nextValueIndexLookupCache.get(new RangeShiftUnitsKey(date, shiftForwardUnits));
             return getLatestValue(valueIndex);
         }
+    }
+
+    private long nextValueIndexLookup(final FDate date, final int shiftForwardUnits) {
+        final AShiftForwardUnitsLoopLongIndex<V> shiftForwardLoop = new AShiftForwardUnitsLoopLongIndex<V>(date,
+                shiftForwardUnits) {
+            @Override
+            protected V getLatestValue(final long index) {
+                return TimeSeriesStorageCache.this.getLatestValue(index);
+            }
+
+            @Override
+            protected long getLatestValueIndex(final FDate date) {
+                return TimeSeriesStorageCache.this.getLatestValueIndex(date);
+            }
+
+            @Override
+            protected FDate extractEndTime(final V value) {
+                return extractEndTime.apply(value);
+            }
+
+            @Override
+            protected long size() {
+                return TimeSeriesStorageCache.this.size();
+            }
+        };
+        shiftForwardLoop.loop();
+        return shiftForwardLoop.getNextValueIndex();
     }
 
     private V getNextValueByValue(final FDate date, final int shiftForwardUnits) {
@@ -1084,9 +1172,10 @@ public class TimeSeriesStorageCache<K, V> {
             storage.deleteRange_latestValueLookupTable(hashKey, latestRangeKey);
             storage.deleteRange_nextValueLookupTable(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
             storage.deleteRange_previousValueLookupTable(hashKey, latestRangeKey);
-            storage.deleteRange_latestValueIndexLookupTable(hashKey, latestRangeKey);
-            storage.deleteRange_nextValueIndexLookupTable(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
-            storage.deleteRange_previousValueIndexLookupTable(hashKey, latestRangeKey);
+            latestValueIndexLookupCache.clear();
+            nextValueIndexLookupCache.clear();
+            previousValueIndexLookupCache.clear();
+            lastResetIndex++;
         } else {
             updateFrom = null;
             lastValues = Collections.emptyList();
@@ -1129,6 +1218,28 @@ public class TimeSeriesStorageCache<K, V> {
             }
         }
         return cachedAllRangeKeysCopy;
+    }
+
+    private final class LatestValueByIndexCache extends ALatestValueByIndexCache<V> {
+        @Override
+        protected long getLatestValueIndex(final FDate key) {
+            return TimeSeriesStorageCache.this.getLatestValueIndex(key);
+        }
+
+        @Override
+        protected V getLatestValue(final long index) {
+            return TimeSeriesStorageCache.this.getLatestValue(index);
+        }
+
+        @Override
+        protected FDate extractEndTime(final V value) {
+            return extractEndTime.apply(value);
+        }
+
+        @Override
+        protected int getLastResetIndex() {
+            return lastResetIndex;
+        }
     }
 
     private static final class MmapInputStream extends PreLockedDelegateInputStream {

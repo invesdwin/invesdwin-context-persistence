@@ -2,12 +2,15 @@ package de.invesdwin.context.persistence.timeseriesdb.updater;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.commons.lang3.BooleanUtils;
 
+import de.invesdwin.context.integration.DatabaseThreads;
+import de.invesdwin.context.integration.retry.NonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
@@ -36,6 +39,8 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     private volatile FDate lastUpdateCheck = FDates.MIN_DATE;
     @GuardedBy("this")
     private IReentrantLock updateLock;
+    @GuardedBy("this")
+    private Future<?> updateFuture;
 
     public ALazyDataUpdater(final K key) {
         if (key == null) {
@@ -71,9 +76,9 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     }
 
     @Override
-    public final void maybeUpdate() {
+    public final void maybeUpdate(final boolean force) {
         final FDate newUpdateCheck = new FDate();
-        if (shouldCheckForUpdate(newUpdateCheck)) {
+        if (force || shouldCheckForUpdate(newUpdateCheck)) {
             final IReentrantLock updateLock = getUpdateLock();
             if (shouldSkipUpdateOnCurrentThreadIfAlreadyRunning()) {
                 try {
@@ -87,32 +92,50 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 updateLock.lock();
             }
             try {
-                if (!shouldCheckForUpdate(newUpdateCheck)) {
+                if (!force && !shouldCheckForUpdate(newUpdateCheck)) {
                     //some sort of double checked locking to skip if someone else came before us
                     return;
                 }
-                final Future<?> future = getNestedExecutor().getNestedExecutor().submit(new Runnable() {
-                    @Override
-                    public void run() {
-                        final ILock writeLock = getTable().getTableLock(key).writeLock();
-                        if (!writeLock.tryLock()) {
-                            //don't try to update if currently a backtest is running which is keeping iterators open
-                            return;
+                Future<?> updateFutureCopy = updateFuture;
+                final String reason;
+                if (updateFutureCopy == null
+                        || updateFutureCopy.isDone() && (force || shouldCheckForUpdate(newUpdateCheck))) {
+                    updateFutureCopy = getNestedExecutor().getNestedExecutor().submit(new Runnable() {
+                        @Override
+                        public void run() {
+                            final ILock writeLock = getTable().getTableLock(key).writeLock();
+                            if (!writeLock.tryLock()) {
+                                //don't try to update if currently a backtest is running which is keeping iterators open
+                                return;
+                            }
+                            try {
+                                innerMaybeUpdate(key);
+                            } finally {
+                                //update timestamp only at the end
+                                lastUpdateCheck = newUpdateCheck;
+                                writeLock.unlock();
+                            }
                         }
-                        try {
-                            innerMaybeUpdate(key);
-                        } finally {
-                            //update timestamp only at the end
-                            lastUpdateCheck = newUpdateCheck;
-                            writeLock.unlock();
-                        }
+                    });
+                    updateFuture = updateFutureCopy;
+                    reason = "started";
+                } else {
+                    reason = "is in progress";
+                }
+                if (DatabaseThreads.isThreadBlockingUpdateDatabaseDisabled()) {
+                    try {
+                        Futures.waitNoInterrupt(updateFutureCopy,
+                                TimeSeriesProperties.NON_BLOCKING_ASYNC_UPDATE_WAIT_TIMEOUT);
+                        updateFuture = null;
+                    } catch (final TimeoutException e) {
+                        throw new NonBlockingRetryLaterRuntimeException(
+                                ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: async update " + reason
+                                        + " while operating in non-blocking mode for " + getElementsName() + ": " + key,
+                                e);
                     }
-
-                });
-                try {
-                    Futures.wait(future);
-                } catch (final InterruptedException e) {
-                    throw new RuntimeException(e);
+                } else {
+                    Futures.waitNoInterrupt(updateFutureCopy);
+                    updateFuture = null;
                 }
             } finally {
                 updateLock.unlock();

@@ -1,4 +1,6 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
 		<groupId>de.invesdwin</groupId>
@@ -20,7 +22,8 @@
 			<scope>provided</scope>
 			<exclusions>
 				<exclusion>
-					<!--  Authentication failed for https://nexus.chronicle.software/content/repositories/thirdparty/net/openhft/chronicle-bytes/2.22.22/chronicle-bytes-2.22.22.pom -->
+					<!--  Authentication failed for
+					https://nexus.chronicle.software/content/repositories/thirdparty/net/openhft/chronicle-bytes/2.22.22/chronicle-bytes-2.22.22.pom -->
 					<groupId>net.openhft</groupId>
 					<artifactId>chronicle-bytes</artifactId>
 				</exclusion>
@@ -47,8 +50,18 @@
 		</dependency>
 		<dependency>
 			<!-- upperbound deps -->
+			<groupId>net.openhft</groupId>
+			<artifactId>posix</artifactId>
+		</dependency>
+		<dependency>
+			<!-- upperbound deps -->
 			<groupId>net.java.dev.jna</groupId>
 			<artifactId>jna</artifactId>
+		</dependency>
+		<dependency>
+			<!-- upperbound deps -->
+			<groupId>com.github.jnr</groupId>
+			<artifactId>jnr-ffi</artifactId>
 		</dependency>
 	</dependencies>
 

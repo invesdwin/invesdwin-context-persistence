@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.timeseriesdb.segmented;
 
 import java.io.File;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -19,6 +20,8 @@ import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
+import de.invesdwin.util.collections.loadingcache.ILoadingCache;
+import de.invesdwin.util.concurrent.lambda.callable.AFastLazyCallable;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
@@ -32,12 +35,12 @@ import de.invesdwin.util.time.date.FDates;
 @ThreadSafe
 public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeriesDBInternals<K, V> {
 
-    private final ISerde<V> valueSerde;
-    private final Integer valueFixedLength;
+    private final Supplier<ISerde<V>> valueSerde;
+    private final Supplier<Integer> valueFixedLength;
     private final ICompressionFactory compressionFactory;
     private final TimeSeriesLookupMode lookupMode;
     private final SegmentedTable segmentedTable;
-    private final ALoadingCache<K, IReadWriteLock> key_tableLock = new ALoadingCache<K, IReadWriteLock>() {
+    private final ILoadingCache<K, IReadWriteLock> key_tableLock = new ALoadingCache<K, IReadWriteLock>() {
         @Override
         protected IReadWriteLock loadValue(final K key) {
             return Locks.newReentrantReadWriteLock(ASegmentedTimeSeriesDB.class.getSimpleName() + "_" + getName() + "_"
@@ -49,11 +52,21 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
             return true;
         }
     };
-    private final ALoadingCache<K, ASegmentedTimeSeriesStorageCache<K, V>> key_segmentedLookupTableCache;
+    private final ILoadingCache<K, ASegmentedTimeSeriesStorageCache<K, V>> key_segmentedLookupTableCache;
 
     public ASegmentedTimeSeriesDB(final String name) {
-        this.valueSerde = newValueSerde();
-        this.valueFixedLength = newValueFixedLength();
+        this.valueSerde = new AFastLazyCallable<ISerde<V>>() {
+            @Override
+            protected ISerde<V> innerCall() {
+                return newValueSerde();
+            }
+        };
+        this.valueFixedLength = new AFastLazyCallable<Integer>() {
+            @Override
+            protected Integer innerCall() {
+                return newValueFixedLength();
+            }
+        };
         this.compressionFactory = newCompressionFactory();
         this.lookupMode = newLookupMode();
         this.segmentedTable = new SegmentedTable(name);
@@ -118,12 +131,12 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
 
     @Override
     public ISerde<V> getValueSerde() {
-        return valueSerde;
+        return valueSerde.get();
     }
 
     @Override
     public Integer getValueFixedLength() {
-        return valueFixedLength;
+        return valueFixedLength.get();
     }
 
     @Override
