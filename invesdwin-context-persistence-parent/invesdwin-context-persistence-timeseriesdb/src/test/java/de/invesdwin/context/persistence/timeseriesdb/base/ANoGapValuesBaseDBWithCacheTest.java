@@ -1047,7 +1047,7 @@ public abstract class ANoGapValuesBaseDBWithCacheTest extends ARootDBTest {
         }
 
         @Override
-        protected de.invesdwin.util.collections.loadingcache.historical.internal.IValuesMap<FDate> newValuesMap() {
+        protected de.invesdwin.util.collections.loadingcache.historical.IValuesMap<FDate> newValuesMap() {
             return new ValuesMap();
         }
 
