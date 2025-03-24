@@ -1052,7 +1052,7 @@ public abstract class ANoGapValuesBaseDBWithoutShiftKeysAndQueryInterceptorTest 
         }
 
         @Override
-        protected de.invesdwin.util.collections.loadingcache.historical.internal.IValuesMap<FDate> newValuesMap() {
+        protected de.invesdwin.util.collections.loadingcache.historical.IValuesMap<FDate> newValuesMap() {
             return new ValuesMap();
         }
 
