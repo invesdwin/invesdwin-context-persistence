@@ -1199,6 +1199,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     private V getNextValueByValue(final FDate date, final int shiftForwardUnits) {
         assertShiftUnitsPositiveNonZero(shiftForwardUnits);
         final V lastValue = getLastValue();
+        if (lastValue == null) {
+            return null;
+        }
         final FDate lastTime = segmentedTable.extractEndTime(lastValue);
         if (date.isAfterOrEqualTo(lastTime)) {
             return lastValue;
