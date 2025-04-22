@@ -89,7 +89,7 @@ public class PersistentMapTypeTest extends ATest {
             }
             final byte[] bytesMapped = mapMapped.get(i);
             if (!ByteBuffers.equals(bytes, bytesMapped)) {
-                throw new IllegalStateException("file " + i + " " + size);
+                throw new IllegalStateException("mapped " + i + " " + size);
             }
 
             if (size >= maxSize) {
