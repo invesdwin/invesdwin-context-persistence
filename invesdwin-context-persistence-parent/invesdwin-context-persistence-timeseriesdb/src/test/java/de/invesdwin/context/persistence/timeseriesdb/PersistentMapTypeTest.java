@@ -83,14 +83,7 @@ public class PersistentMapTypeTest extends ATest {
 
             size += bytes.length;
 
-            final byte[] bytesFile = mapFile.get(i);
-            if (!ByteBuffers.equals(bytes, bytesFile)) {
-                throw new IllegalStateException("file " + i + " " + size);
-            }
-            final byte[] bytesMapped = mapMapped.get(i);
-            if (!ByteBuffers.equals(bytes, bytesMapped)) {
-                throw new IllegalStateException("mapped " + i + " " + size);
-            }
+            assertGet(size, mapMapped, mapFile, i, bytes);
 
             if (size >= maxSize) {
                 break;
@@ -98,6 +91,18 @@ public class PersistentMapTypeTest extends ATest {
 
         }
 
+    }
+
+    private void assertGet(final long size, final ConcurrentMap<Integer, byte[]> mapMapped,
+            final ConcurrentMap<Integer, byte[]> mapFile, final int i, final byte[] bytes) {
+        final byte[] bytesFile = mapFile.get(i);
+        if (!ByteBuffers.equals(bytes, bytesFile)) {
+            throw new IllegalStateException("file " + i + " " + size);
+        }
+        final byte[] bytesMapped = mapMapped.get(i);
+        if (!ByteBuffers.equals(bytes, bytesMapped)) {
+            throw new IllegalStateException("mapped " + i + " " + size);
+        }
     }
 
 }
