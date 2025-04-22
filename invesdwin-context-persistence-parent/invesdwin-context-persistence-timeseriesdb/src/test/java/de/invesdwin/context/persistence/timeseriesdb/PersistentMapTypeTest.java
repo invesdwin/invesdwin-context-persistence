@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.timeseriesdb;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -14,6 +15,7 @@ import de.invesdwin.context.integration.persistentmap.large.LargePersistentMapFa
 import de.invesdwin.context.integration.persistentmap.large.storage.FileChunkStorage;
 import de.invesdwin.context.integration.persistentmap.large.storage.IChunkStorage;
 import de.invesdwin.context.test.ATest;
+import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.math.decimal.scaled.ByteSizeScale;
 import de.invesdwin.util.math.random.IRandomGenerator;
@@ -25,7 +27,11 @@ import de.invesdwin.util.streams.buffer.bytes.ByteBuffers;
 public class PersistentMapTypeTest extends ATest {
 
     @Test
-    public void testRandom() {
+    public void testRandom() throws IOException {
+        final File dir = new File(ContextProperties.getCacheDirectory(), PersistentMapTypeTest.class.getSimpleName());
+        Files.deleteNative(dir);
+        Files.forceMkdir(dir);
+
         final LargePersistentMapFactory<Integer, byte[]> factoryMapped = new LargePersistentMapFactory<>(
                 PersistentMapType.DISK_SAFE.newFactory());
         final LargePersistentMapFactory<Integer, byte[]> factoryFile = new LargePersistentMapFactory<Integer, byte[]>(
@@ -46,7 +52,7 @@ public class PersistentMapTypeTest extends ATest {
 
             @Override
             public File getDirectory() {
-                return ContextProperties.getCacheDirectory();
+                return dir;
             }
         };
         final APersistentMapConfig<Integer, byte[]> configFile = new APersistentMapConfig<Integer, byte[]>(
@@ -59,7 +65,7 @@ public class PersistentMapTypeTest extends ATest {
 
             @Override
             public File getDirectory() {
-                return ContextProperties.getCacheDirectory();
+                return dir;
             }
         };
         final long maxSize = (long) ByteSizeScale.BYTES.convert(10, ByteSizeScale.GIGABYTES);
