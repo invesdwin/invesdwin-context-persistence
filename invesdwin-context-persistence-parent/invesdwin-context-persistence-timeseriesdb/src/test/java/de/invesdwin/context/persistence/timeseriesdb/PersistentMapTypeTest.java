@@ -12,7 +12,7 @@ import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.persistentmap.APersistentMapConfig;
 import de.invesdwin.context.integration.persistentmap.large.LargePersistentMapFactory;
 import de.invesdwin.context.integration.persistentmap.large.storage.IChunkStorage;
-import de.invesdwin.context.integration.persistentmap.large.storage.MappedChunkStorage;
+import de.invesdwin.context.integration.persistentmap.large.storage.MappedFileChunkStorage;
 import de.invesdwin.context.integration.persistentmap.large.storage.ParallelFileChunkStorage;
 import de.invesdwin.context.integration.persistentmap.large.storage.SequentialFileChunkStorage;
 import de.invesdwin.context.test.ATest;
@@ -33,12 +33,12 @@ public class PersistentMapTypeTest extends ATest {
         Files.deleteNative(dir);
         Files.forceMkdir(dir);
 
-        final LargePersistentMapFactory<Integer, byte[]> factoryMapped = new LargePersistentMapFactory<Integer, byte[]>(
+        final LargePersistentMapFactory<Integer, byte[]> factoryMappedFile = new LargePersistentMapFactory<Integer, byte[]>(
                 PersistentMapType.DISK_SAFE.newFactory()) {
             @Override
             protected IChunkStorage<byte[]> newChunkStorage(final File directory, final ISerde<byte[]> valueSerde,
                     final boolean readOnly, final boolean closeAllowed) {
-                return new MappedChunkStorage<byte[]>(directory, valueSerde, readOnly, closeAllowed);
+                return new MappedFileChunkStorage<byte[]>(directory, valueSerde, readOnly, closeAllowed);
             }
         };
         final LargePersistentMapFactory<Integer, byte[]> factoryParallelFile = new LargePersistentMapFactory<Integer, byte[]>(
@@ -57,8 +57,8 @@ public class PersistentMapTypeTest extends ATest {
                 return new SequentialFileChunkStorage<byte[]>(directory, valueSerde);
             }
         };
-        final APersistentMapConfig<Integer, byte[]> configMapped = new APersistentMapConfig<Integer, byte[]>(
-                "testRandomMapped") {
+        final APersistentMapConfig<Integer, byte[]> configMappedFile = new APersistentMapConfig<Integer, byte[]>(
+                "testRandomMappedFile") {
 
             @Override
             public boolean isDiskPersistence() {
@@ -99,7 +99,7 @@ public class PersistentMapTypeTest extends ATest {
         final long maxSize = (long) ByteSizeScale.BYTES.convert(10, ByteSizeScale.GIGABYTES);
         long size = 0;
 
-        final ConcurrentMap<Integer, byte[]> mapMapped = factoryMapped.newPersistentMap(configMapped);
+        final ConcurrentMap<Integer, byte[]> mapMappedFile = factoryMappedFile.newPersistentMap(configMappedFile);
         final ConcurrentMap<Integer, byte[]> mapParallelFile = factoryParallelFile.newPersistentMap(configParallelFile);
         final ConcurrentMap<Integer, byte[]> mapSequentialFile = factorySequentialFile
                 .newPersistentMap(configSequentialFile);
@@ -108,13 +108,13 @@ public class PersistentMapTypeTest extends ATest {
             final byte[] bytes = new byte[random
                     .nextInt((int) ByteSizeScale.BYTES.convert(100, ByteSizeScale.MEGABYTES))];
             random.nextBytes(bytes);
-            mapMapped.put(i, bytes);
+            mapMappedFile.put(i, bytes);
             mapParallelFile.put(i, bytes);
             mapSequentialFile.put(i, bytes);
 
             size += bytes.length;
 
-            assertGet("mapped", size, mapMapped, i, bytes);
+            assertGet("mappedFile", size, mapMappedFile, i, bytes);
             assertGet("parallelFile", size, mapParallelFile, i, bytes);
             assertGet("sequentialFile", size, mapSequentialFile, i, bytes);
 
