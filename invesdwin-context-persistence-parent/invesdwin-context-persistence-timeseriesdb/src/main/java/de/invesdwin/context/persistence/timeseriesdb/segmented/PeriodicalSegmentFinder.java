@@ -12,6 +12,7 @@ import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
 import de.invesdwin.util.time.date.FTimeUnit;
 import de.invesdwin.util.time.date.FWeekday;
+import de.invesdwin.util.time.date.millis.WeekAdjustment;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.range.TimeRange;
 
@@ -166,7 +167,7 @@ public class PeriodicalSegmentFinder {
         FDate start = lookupTime.truncate(boundsTimeUnit);
         if (period.isExactMultipleOfPeriod(FTimeUnit.WEEKS.durationValue())) {
             //weekly periods should start at the previous monday (even if it is in the previous year)
-            start = start.setFWeekday(FWeekday.Monday);
+            start = start.setFWeekday(FWeekday.Monday, WeekAdjustment.PREVIOUS);
         }
         final FDate end = start.add(boundsTimeUnit, 1).addMilliseconds(-1);
         return new TimeRange(start, end);

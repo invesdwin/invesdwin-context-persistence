@@ -41,6 +41,8 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     private IReentrantLock updateLock;
     @GuardedBy("this")
     private Future<?> updateFuture;
+    @GuardedBy("none for performance")
+    private String updaterId;
 
     public ALazyDataUpdater(final K key) {
         if (key == null) {
@@ -49,14 +51,25 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
         this.key = key;
     }
 
+    public final String getUpdaterId() {
+        if (updaterId == null) {
+            updaterId = newUpdaterId();
+        }
+        return updaterId;
+    }
+
+    protected String newUpdaterId() {
+        return ALazyDataUpdater.class.getSimpleName() + "_" + getTable().getName() + "_"
+                + getTable().getDirectory().getAbsolutePath() + "_" + keyToString(key) + "_" + getElementsName();
+    }
+
     public K getKey() {
         return key;
     }
 
     private synchronized IReentrantLock getUpdateLock() {
         if (updateLock == null) {
-            updateLock = Locks.newReentrantLock(
-                    ALazyDataUpdater.class.getSimpleName() + "_" + getTable().getName() + "_" + key + "_updateLock");
+            updateLock = Locks.newReentrantLock(getUpdaterId() + "_updateLock");
         }
         return updateLock;
     }
@@ -110,6 +123,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                             }
                             try {
                                 innerMaybeUpdate(key);
+                                LazyDataUpdaterProperties.maybeUpdateFinished(getUpdaterId());
                             } finally {
                                 //update timestamp only at the end
                                 lastUpdateCheck = newUpdateCheck;
@@ -218,7 +232,9 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
             };
             final String taskName = "Loading " + getElementsName() + " for " + keyToString(getKey());
             final Callable<Percent> progress = newProgressCallable(estimatedTo, updater);
-            return TaskInfoCallable.of(taskName, task, progress).call();
+            final FDate updatedTo = TaskInfoCallable.of(taskName, task, progress).call();
+            LazyDataUpdaterProperties.setLastUpdateTo(getUpdaterId(), FDates.max(estimatedTo, updatedTo));
+            return updatedTo;
         } catch (final IncompleteUpdateRetryableException e) {
             throw e;
         } catch (final Throwable e) {
