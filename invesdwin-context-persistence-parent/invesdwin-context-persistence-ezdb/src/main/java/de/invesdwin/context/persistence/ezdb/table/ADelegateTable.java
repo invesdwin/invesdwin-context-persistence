@@ -9,6 +9,9 @@ import java.util.function.Supplier;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.iq80.leveldb.compression.LZ4Accessor;
+import org.iq80.leveldb.compression.SnappyAccessor;
+
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.task.ARetryCallable;
@@ -21,6 +24,7 @@ import de.invesdwin.context.persistence.ezdb.db.WriteThroughRangeTableDb;
 import de.invesdwin.context.persistence.ezdb.db.storage.LevelDBJavaRangeTableDb;
 import de.invesdwin.context.persistence.ezdb.db.storage.RangeTableInternalMethods;
 import de.invesdwin.context.persistence.ezdb.db.storage.map.TreeMapRangeTableDb;
+import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.concurrent.lock.ILock;
@@ -63,6 +67,16 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
     private volatile FDate tableCreationTime;
 
     private final AtomicBoolean initializing = new AtomicBoolean();
+
+    static {
+        /*
+         * prevent leveldb from complaining about snappy being null by making sure it is loaded earler via static
+         * initializer
+         */
+        Assertions.checkNotNull(SnappyAccessor.SNAPPY, "SNAPPY");
+        Assertions.checkNotNull(LZ4Accessor.LZ4FAST, "LZ4FAST");
+        Assertions.checkNotNull(LZ4Accessor.LZ4HC, "LZ4HC");
+    }
 
     public ADelegateTable(final String name) {
         this.name = name;
