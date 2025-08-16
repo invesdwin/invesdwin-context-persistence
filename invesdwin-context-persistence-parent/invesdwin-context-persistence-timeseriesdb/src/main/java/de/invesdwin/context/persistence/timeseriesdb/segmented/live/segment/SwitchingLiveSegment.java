@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 
 import java.util.List;
+import java.util.Set;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -10,6 +11,8 @@ import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSer
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.util.collections.Arrays;
+import de.invesdwin.util.collections.Collections;
+import de.invesdwin.util.collections.eviction.EvictionMode;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -24,6 +27,8 @@ import de.invesdwin.util.time.date.FDate;
 public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     private static final Log LOG = new Log(SwitchingLiveSegment.class);
+    private final Set<FDate> nextLiveStartTime_lastWarnings = Collections
+            .newSetFromMap(EvictionMode.LeastRecentlyAdded.newMap(10));
     private final SegmentedKey<K> segmentedKey;
     private final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable;
     private final ILiveSegment<K, V> inProgress;
@@ -158,15 +163,17 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
             final V nextLiveValue) {
         if (!lastValue.isEmpty()) {
             if (lastValueKey.isAfterNotNullSafe(nextLiveStartTime)) {
-                LOG.warn("%s: nextLiveStartTime [%s] should be after or equal to lastLiveKey [%s]", segmentedKey,
-                        nextLiveStartTime, lastValueKey);
+                if (nextLiveStartTime_lastWarnings.add(nextLiveStartTime)) {
+                    LOG.warn("nextLiveStartTime [%s] should be after or equal to lastLiveKey [%s]: %s",
+                            nextLiveStartTime, lastValueKey, segmentedKey);
+                }
                 return false;
             }
         }
         if (nextLiveStartTime.isAfterNotNullSafe(nextLiveEndTimeKey)) {
             throw new IllegalArgumentException(TextDescription.format(
-                    "%s: nextLiveEndTimeKey [%s] should be after or equal to nextLiveStartTime [%s]", segmentedKey,
-                    nextLiveEndTimeKey, nextLiveStartTime));
+                    "%s: nextLiveEndTimeKey [%s] should be after or equal to nextLiveStartTime [%s]: %s",
+                    nextLiveEndTimeKey, nextLiveStartTime, segmentedKey));
         }
         inProgress.putNextLiveValue(nextLiveStartTime, nextLiveEndTimeKey, nextLiveValue);
         if (firstValue.isEmpty() || firstValueKey.equalsNotNullSafe(nextLiveEndTimeKey)) {
