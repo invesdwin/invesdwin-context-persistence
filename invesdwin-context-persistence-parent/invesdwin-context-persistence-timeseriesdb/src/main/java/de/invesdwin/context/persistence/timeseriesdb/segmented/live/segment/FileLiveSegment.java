@@ -320,8 +320,9 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
         lastValue.values.add(nextLiveValue);
         lastValue.key = nextLiveEndTimeKey;
-        if (inMemoryCacheHolder != null) {
-            final ArrayFileBufferCacheResult<V> inMemoryCache = inMemoryCacheHolder.get();
+        final WeakReference<ArrayFileBufferCacheResult<V>> inMemoryCacheHolderCopy = inMemoryCacheHolder;
+        if (inMemoryCacheHolderCopy != null) {
+            final ArrayFileBufferCacheResult<V> inMemoryCache = inMemoryCacheHolderCopy.get();
             if (inMemoryCache != null) {
                 inMemoryCache.getList().add(nextLiveValue);
             }
@@ -509,8 +510,9 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     private ArrayFileBufferCacheResult<V> getFlushedValues() {
-        if (inMemoryCacheHolder != null) {
-            final ArrayFileBufferCacheResult<V> inMemoryCache = inMemoryCacheHolder.get();
+        final WeakReference<ArrayFileBufferCacheResult<V>> inMemoryCacheHolderCopy = inMemoryCacheHolder;
+        if (inMemoryCacheHolderCopy != null) {
+            final ArrayFileBufferCacheResult<V> inMemoryCache = inMemoryCacheHolderCopy.get();
             if (inMemoryCache != null) {
                 return inMemoryCache;
             } else {
