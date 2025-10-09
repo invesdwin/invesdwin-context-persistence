@@ -23,6 +23,7 @@ import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.nested.ANestedExecutor;
 import de.invesdwin.util.concurrent.taskinfo.provider.TaskInfoCallable;
 import de.invesdwin.util.error.Throwables;
+import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
@@ -31,6 +32,9 @@ import io.netty.util.concurrent.FastThreadLocal;
 
 @ThreadSafe
 public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
+
+    public static final String REASON_DOES_NOT_EQUAL = "does not equal";
+    public static final String REASON_IS_BEFORE = "is before";
 
     private static final FastThreadLocal<Boolean> SKIP_UPDATE_ON_CURRENT_THREAD_IF_ALREADY_RUNNING = new FastThreadLocal<Boolean>();
     protected final Log log = new Log(this);
@@ -61,6 +65,11 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     protected String newUpdaterId() {
         return ALazyDataUpdater.class.getSimpleName() + "_" + getTable().getName() + "_"
                 + getTable().getDirectory().getAbsolutePath() + "_" + keyToString(key) + "_" + getElementsName();
+    }
+
+    @Override
+    public String toString() {
+        return Objects.toStringHelper(this).addValue(keyToString(key)).toString();
     }
 
     public K getKey() {
@@ -154,6 +163,33 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
             } finally {
                 updateLock.unlock();
             }
+        }
+    }
+
+    protected <T> void logReload(final boolean logged, final String name, final T oldValue, final String reason,
+            final T newValue) {
+        if (!logged) {
+            logReload(name, oldValue, reason, newValue);
+        }
+    }
+
+    protected <T> void logReload(final String name, final T oldValue, final String reason, final T newValue) {
+        if (oldValue != null) {
+            log.warn("Updating [%s] after reset because existing %s [%s] %s [%s]", this, name, oldValue, reason,
+                    newValue);
+        }
+    }
+
+    protected <T> void logUpdate(final boolean logged, final String name, final T oldValue, final String reason,
+            final T newValue) {
+        if (!logged) {
+            logUpdate(name, oldValue, reason, newValue);
+        }
+    }
+
+    protected <T> void logUpdate(final String name, final T oldValue, final String reason, final T newValue) {
+        if (oldValue != null) {
+            log.warn("Updating [%s] because existing %s [%s] %s [%s]", this, name, oldValue, reason, newValue);
         }
     }
 
