@@ -305,4 +305,8 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
 
     protected abstract void innerMaybeUpdate(K key);
 
+    public void reset() {
+        lastUpdateCheck = FDates.MIN_DATE;
+    }
+
 }
