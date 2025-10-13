@@ -41,6 +41,8 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     private final K key;
     @GuardedBy("getUpdateLock()")
     private volatile FDate lastUpdateCheck = FDates.MIN_DATE;
+    @GuardedBy("getUpdateLock()")
+    private volatile int lastResetIndex = Integer.MIN_VALUE;
     @GuardedBy("this")
     private IReentrantLock updateLock;
     @GuardedBy("this")
@@ -135,6 +137,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                                 LazyDataUpdaterProperties.maybeUpdateFinished(getUpdaterId());
                                 //update timestamp only at the end if successful
                                 lastUpdateCheck = newUpdateCheck;
+                                lastResetIndex = getTable().getLastResetIndex();
                             } finally {
                                 writeLock.unlock();
                             }
@@ -198,7 +201,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     }
 
     protected boolean shouldCheckForUpdate(final FDate curTime) {
-        return !FDates.isSameJulianDay(lastUpdateCheck, curTime);
+        return !FDates.isSameJulianDay(lastUpdateCheck, curTime) || lastResetIndex != getTable().getLastResetIndex();
     }
 
     protected final FDate doUpdate(final FDate estimatedTo) throws IncompleteUpdateRetryableException {
@@ -304,9 +307,5 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     protected abstract FDate extractEndTime(V element);
 
     protected abstract void innerMaybeUpdate(K key);
-
-    public void reset() {
-        lastUpdateCheck = FDates.MIN_DATE;
-    }
 
 }

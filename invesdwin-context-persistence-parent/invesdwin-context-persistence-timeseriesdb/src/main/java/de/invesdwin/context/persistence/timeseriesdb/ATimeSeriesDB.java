@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.timeseriesdb;
 
 import java.io.File;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -58,6 +59,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     private final Object storageLock = new Object();
     @GuardedBy("storageLock")
     private TimeSeriesStorage storage;
+    private final AtomicInteger lastResetIndex = new AtomicInteger();
 
     public ATimeSeriesDB(final String name) {
         this.name = name;
@@ -138,6 +140,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     protected void deleteCorruptedStorage(final File directory) {
         Files.deleteNative(directory);
+        lastResetIndex.incrementAndGet();
     }
 
     @Override
@@ -372,6 +375,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         }
         try {
             getLookupTableCache(key).deleteAll();
+            lastResetIndex.incrementAndGet();
         } finally {
             writeLock.unlock();
         }
@@ -541,6 +545,10 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
             return true;
         }
 
+    }
+
+    public int getLastResetIndex() {
+        return lastResetIndex.get();
     }
 
 }
