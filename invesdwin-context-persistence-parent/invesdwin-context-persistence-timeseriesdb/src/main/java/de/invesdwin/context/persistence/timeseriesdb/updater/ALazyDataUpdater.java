@@ -133,9 +133,9 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                             try {
                                 innerMaybeUpdate(key);
                                 LazyDataUpdaterProperties.maybeUpdateFinished(getUpdaterId());
-                            } finally {
-                                //update timestamp only at the end
+                                //update timestamp only at the end if successful
                                 lastUpdateCheck = newUpdateCheck;
+                            } finally {
                                 writeLock.unlock();
                             }
                         }
