@@ -177,10 +177,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     }
 
     protected <T> void logReload(final String name, final T oldValue, final String reason, final T newValue) {
-        if (oldValue != null) {
-            log.warn("Updating [%s] after reset because existing %s [%s] %s [%s]", this, name, oldValue, reason,
-                    newValue);
-        }
+        log.warn("Updating [%s] after reset because existing %s [%s] %s [%s]", this, name, oldValue, reason, newValue);
     }
 
     protected <T> void logUpdate(final boolean logged, final String name, final T oldValue, final String reason,
@@ -191,9 +188,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     }
 
     protected <T> void logUpdate(final String name, final T oldValue, final String reason, final T newValue) {
-        if (oldValue != null) {
-            log.warn("Updating [%s] because existing %s [%s] %s [%s]", this, name, oldValue, reason, newValue);
-        }
+        log.warn("Updating [%s] because existing %s [%s] %s [%s]", this, name, oldValue, reason, newValue);
     }
 
     protected boolean shouldSkipUpdateOnCurrentThreadIfAlreadyRunning() {
