@@ -2,7 +2,7 @@ package de.invesdwin.context.persistence.jpa.test.internal;
 
 import java.util.List;
 
-import javax.annotation.concurrent.NotThreadSafe;
+import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.beans.init.locations.PositionedResource;
 import de.invesdwin.context.persistence.jpa.test.PersistenceTest;
@@ -13,7 +13,7 @@ import de.invesdwin.util.lang.reflection.Reflections;
 import jakarta.inject.Named;
 
 @Named
-@NotThreadSafe
+@ThreadSafe
 public class PersistenceTestStub extends StubSupport {
 
     @Override
