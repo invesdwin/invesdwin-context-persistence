@@ -79,7 +79,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         this.lookupMode = newLookupMode();
         final File baseDirectory = getBaseDirectory();
         if (baseDirectory == null) {
-            throw new IllegalStateException(
+            throw new RetryLaterRuntimeException(
                     "The base directory should not be null, maybe this table was already finalized?");
         }
         if (Objects.equals(baseDirectory.getAbsolutePath(), new File(".").getAbsolutePath())) {
