@@ -78,6 +78,10 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         this.compressionFactory = newCompressionFactory();
         this.lookupMode = newLookupMode();
         final File baseDirectory = getBaseDirectory();
+        if (baseDirectory == null) {
+            throw new RetryLaterRuntimeException(
+                    "The base directory should not be null, maybe this table was already finalized?");
+        }
         if (Objects.equals(baseDirectory.getAbsolutePath(), new File(".").getAbsolutePath())) {
             throw new IllegalStateException(
                     "Should not use current working directory as base directory: " + baseDirectory);
