@@ -92,7 +92,7 @@ public abstract class ABaseDBWithNoCacheAndNoQueryCacheTest extends ARootDBTest 
         for (final FDate entity : entities) {
             Assertions.assertThat(cache.query().setFutureEnabled().getValue(entity.addYears(-5))).isNotNull();
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(4);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(3);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
 
         //again in the same limit
@@ -148,7 +148,7 @@ public abstract class ABaseDBWithNoCacheAndNoQueryCacheTest extends ARootDBTest 
         for (final FDate entity : entities) {
             Assertions.assertThat(cache.query().setFutureEnabled().getValue(entity.addYears(-5))).isNotNull();
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(9);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
 
         //again in the same limit
@@ -242,7 +242,7 @@ public abstract class ABaseDBWithNoCacheAndNoQueryCacheTest extends ARootDBTest 
 
         previousKey = cache.query().getPreviousKey(new FDate(), 1);
         Assertions.assertThat(previousKey).isEqualTo(entities.get(entities.size() - 2));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
     }
 
@@ -270,7 +270,7 @@ public abstract class ABaseDBWithNoCacheAndNoQueryCacheTest extends ARootDBTest 
 
         previousValue = cache.query().getPreviousValue(new FDate(), 1);
         Assertions.assertThat(previousValue).isEqualTo(entities.get(entities.size() - 2));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
     }
 
@@ -300,7 +300,7 @@ public abstract class ABaseDBWithNoCacheAndNoQueryCacheTest extends ARootDBTest 
 
         previousValue = cache.query().getPreviousValue(entities.get(entities.size() - 1), 1);
         Assertions.assertThat(previousValue).isEqualTo(entities.get(entities.size() - 2));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
     }
 
@@ -555,7 +555,7 @@ public abstract class ABaseDBWithNoCacheAndNoQueryCacheTest extends ARootDBTest 
 
         previousKey = cache.query().getPreviousKey(new FDate(), 1);
         Assertions.assertThat(previousKey).isEqualTo(entities.get(entities.size() - 2));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(4);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
     }
 
@@ -587,7 +587,7 @@ public abstract class ABaseDBWithNoCacheAndNoQueryCacheTest extends ARootDBTest 
 
         previousKey = cache.query().getPreviousKey(new FDate(), 1);
         Assertions.assertThat(previousKey).isEqualTo(entities.get(entities.size() - 2));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(13);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(9);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
     }
 
@@ -603,7 +603,7 @@ public abstract class ABaseDBWithNoCacheAndNoQueryCacheTest extends ARootDBTest 
 
         nextKey = cache.query().setFutureEnabled().getNextKey(FDates.MIN_DATE, 1);
         Assertions.assertThat(nextKey).isEqualTo(entities.get(1));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
     }
 
@@ -620,7 +620,7 @@ public abstract class ABaseDBWithNoCacheAndNoQueryCacheTest extends ARootDBTest 
 
         previousKey = cache.query().getPreviousKey(new FDate(), 1);
         Assertions.assertThat(previousKey).isEqualTo(entities.get(entities.size() - 2));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(4);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
     }
 
@@ -648,8 +648,8 @@ public abstract class ABaseDBWithNoCacheAndNoQueryCacheTest extends ARootDBTest 
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
         Assertions.assertThat(asList(cache.query().getPreviousKeys(new FDate(), 100)).size())
                 .isEqualTo(entities.size());
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(8);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(5);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
     }
 
     @Test
@@ -671,8 +671,8 @@ public abstract class ABaseDBWithNoCacheAndNoQueryCacheTest extends ARootDBTest 
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
         Assertions.assertThat(asList(cache.query().getPreviousValues(new FDate(), 100)).size())
                 .isEqualTo(entities.size());
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(8);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(5);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
     }
 
     @Test
@@ -754,9 +754,9 @@ public abstract class ABaseDBWithNoCacheAndNoQueryCacheTest extends ARootDBTest 
             final List<FDate> expectedValues = entities.subList(0, index + 1);
             Assertions.assertThat(previousValues).isEqualTo(expectedValues);
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(5);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(6);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(4);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(3);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 
@@ -768,9 +768,9 @@ public abstract class ABaseDBWithNoCacheAndNoQueryCacheTest extends ARootDBTest 
             final List<FDate> expectedValues = entities.subList(0, index + 1);
             Assertions.assertThat(previousValues).isEqualTo(expectedValues);
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(5);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(6);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(5);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 
@@ -898,9 +898,9 @@ public abstract class ABaseDBWithNoCacheAndNoQueryCacheTest extends ARootDBTest 
 
         final Collection<FDate> previousValuesCached = asList(cache.query().getPreviousValues(key, 10));
         Assertions.assertThat(previousValuesCached).isEqualTo(entities);
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(8);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(5);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(7);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
+        Assertions.assertThat(countInnerExtractKey).isEqualTo(5);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 

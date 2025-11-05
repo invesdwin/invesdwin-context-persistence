@@ -162,7 +162,7 @@ public abstract class ABaseDBWithUnlimitedCacheTest extends ARootDBTest {
         for (final FDate entity : new HashSet<FDate>(entities)) {
             Assertions.assertThat(cache.query().getValue(entity.addDays(2))).isNotNull();
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
         //simulate cache eviction
@@ -174,7 +174,7 @@ public abstract class ABaseDBWithUnlimitedCacheTest extends ARootDBTest {
         for (final FDate entity : entities) {
             Assertions.assertThat(cache.query().getValue(entity.addDays(2))).isNotNull();
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(13);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(12);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(6);
     }
 
