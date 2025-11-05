@@ -30,8 +30,6 @@ import de.invesdwin.context.persistence.timeseriesdb.buffer.source.IFileBufferSo
 import de.invesdwin.context.persistence.timeseriesdb.buffer.source.IterableFileBufferSource;
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftBackUnitsLoopLongIndex;
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftForwardUnitsLoopLongIndex;
-import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftBackUnitsLoop;
-import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftForwardUnitsLoop;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileMetadata;
 import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
@@ -55,6 +53,8 @@ import de.invesdwin.util.collections.iterable.skip.ASkippingIterator;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.ILoadingCache;
+import de.invesdwin.util.collections.loadingcache.historical.query.impl.ShiftBackUnitsLoop;
+import de.invesdwin.util.collections.loadingcache.historical.query.impl.ShiftForwardUnitsLoop;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.concurrent.reference.MutableSoftReference;

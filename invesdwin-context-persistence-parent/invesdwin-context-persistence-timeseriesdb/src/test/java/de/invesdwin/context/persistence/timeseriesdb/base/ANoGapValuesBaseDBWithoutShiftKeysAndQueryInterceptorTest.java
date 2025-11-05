@@ -1067,7 +1067,7 @@ public abstract class ANoGapValuesBaseDBWithoutShiftKeysAndQueryInterceptorTest 
         }
 
         @Override
-        protected IHistoricalCacheRangeQueryInterceptor<FDate> getRangeQueryInterceptor() {
+        protected IHistoricalCacheRangeQueryInterceptor<FDate> newRangeQueryInterceptor() {
             return new AHistoricalCacheRangeQueryInterceptor<FDate>(this) {
 
                 @Override

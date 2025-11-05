@@ -1062,7 +1062,7 @@ public abstract class ABaseDBWithoutShiftKeysAndQueryInterceptorTest extends ARo
         }
 
         @Override
-        protected IHistoricalCacheRangeQueryInterceptor<FDate> getRangeQueryInterceptor() {
+        protected IHistoricalCacheRangeQueryInterceptor<FDate> newRangeQueryInterceptor() {
             return new AHistoricalCacheRangeQueryInterceptor<FDate>(this) {
 
                 @Override

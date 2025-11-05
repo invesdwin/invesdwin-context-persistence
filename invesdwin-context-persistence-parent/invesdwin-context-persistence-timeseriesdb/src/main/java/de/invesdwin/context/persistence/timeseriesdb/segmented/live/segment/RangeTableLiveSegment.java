@@ -8,7 +8,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
-import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftForwardUnitsLoop;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
@@ -20,6 +19,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.iterable.buffer.IBufferingIterator;
+import de.invesdwin.util.collections.loadingcache.historical.query.impl.ShiftForwardUnitsLoop;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.lang.string.description.TextDescription;

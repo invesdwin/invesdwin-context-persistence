@@ -9,7 +9,6 @@ import java.util.function.Function;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.log.Log;
-import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftForwardUnitsLoop;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
@@ -24,6 +23,7 @@ import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.iterable.buffer.IBufferingIterator;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
+import de.invesdwin.util.collections.loadingcache.historical.query.impl.ShiftForwardUnitsLoop;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.error.FastNoSuchElementException;

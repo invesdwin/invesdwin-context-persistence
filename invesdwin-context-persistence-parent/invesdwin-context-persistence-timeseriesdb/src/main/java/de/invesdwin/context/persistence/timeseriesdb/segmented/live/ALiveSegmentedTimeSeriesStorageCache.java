@@ -11,8 +11,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.commons.lang3.mutable.MutableInt;
 
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
-import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftBackUnitsLoop;
-import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftForwardUnitsLoop;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
@@ -26,6 +24,8 @@ import de.invesdwin.util.collections.Arrays;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.collections.loadingcache.historical.query.impl.ShiftBackUnitsLoop;
+import de.invesdwin.util.collections.loadingcache.historical.query.impl.ShiftForwardUnitsLoop;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
