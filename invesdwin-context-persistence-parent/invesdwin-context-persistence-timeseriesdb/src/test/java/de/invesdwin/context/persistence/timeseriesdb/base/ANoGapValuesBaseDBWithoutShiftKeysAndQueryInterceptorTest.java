@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -17,7 +18,9 @@ import de.invesdwin.util.collections.iterable.ATransformingIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.loadingcache.historical.IHistoricalEntry;
 import de.invesdwin.util.collections.loadingcache.historical.interceptor.AHistoricalCacheRangeQueryInterceptor;
+import de.invesdwin.util.collections.loadingcache.historical.interceptor.IHistoricalCacheNextQueryInterceptor;
 import de.invesdwin.util.collections.loadingcache.historical.interceptor.IHistoricalCacheRangeQueryInterceptor;
+import de.invesdwin.util.collections.loadingcache.historical.interceptor.RangeHistoricalCacheNextQueryInterceptor;
 import de.invesdwin.util.collections.loadingcache.historical.refresh.HistoricalCacheRefreshManager;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
@@ -1081,6 +1084,18 @@ public abstract class ANoGapValuesBaseDBWithoutShiftKeysAndQueryInterceptorTest 
                     };
                 }
 
+            };
+        }
+
+        @Override
+        protected IHistoricalCacheNextQueryInterceptor<FDate> newNextQueryInterceptor() {
+            return new RangeHistoricalCacheNextQueryInterceptor<FDate>(getRangeQueryInterceptor()) {
+                @Override
+                public Optional<? extends IHistoricalEntry<FDate>> getNextEntry(final FDate key,
+                        final int shiftForwardUnits) {
+                    final FDate nextValue = table.getNextValue(KEY, key, shiftForwardUnits);
+                    return Optional.ofNullable(IHistoricalEntry.valueOf(nextValue));
+                }
             };
         }
 
