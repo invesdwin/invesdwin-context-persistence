@@ -108,33 +108,33 @@ public class ATimeSeriesDBTest extends ATest {
         for (int i = 1; i < dates.size(); i++) {
             final FDate value = table.getPreviousValue(key, dates.get(dates.size() - 1), i);
             final FDate expectedValue = dates.get(dates.size() - i - 1);
-            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+            Assertions.checkEquals(expectedValue, value, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < dates.size(); i++) {
             final FDate value = table.getPreviousValue(key, FDates.MAX_DATE, i);
             final FDate expectedValue = dates.get(dates.size() - i - 1);
-            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+            Assertions.checkEquals(expectedValue, value, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < dates.size(); i++) {
             final FDate value = table.getPreviousValue(key, FDates.MIN_DATE, i);
             final FDate expectedValue = dates.get(0);
-            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+            Assertions.checkEquals(expectedValue, value, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
 
         for (int i = 1; i < dates.size(); i++) {
             final FDate value = table.getNextValue(key, dates.get(0), i);
             final FDate expectedValue = dates.get(i);
-            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+            Assertions.checkEquals(expectedValue, value, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < dates.size(); i++) {
             final FDate value = table.getNextValue(key, FDates.MIN_DATE, i);
             final FDate expectedValue = dates.get(i);
-            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+            Assertions.checkEquals(expectedValue, value, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
         for (int i = 1; i < dates.size(); i++) {
             final FDate value = table.getNextValue(key, FDates.MAX_DATE, i);
             final FDate expectedValue = dates.get(dates.size() - 1);
-            Assertions.checkEquals(value, expectedValue, i + ": expected [" + expectedValue + "] got [" + value + "]");
+            Assertions.checkEquals(expectedValue, value, i + ": expected [" + expectedValue + "] got [" + value + "]");
         }
     }
 
