@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.timeseriesdb.array;
 
 import java.io.Closeable;
 import java.io.File;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -22,6 +23,7 @@ import de.invesdwin.util.collections.attributes.AttributesMap;
 import de.invesdwin.util.collections.attributes.IAttributesMap;
 import de.invesdwin.util.collections.bitset.IBitSet;
 import de.invesdwin.util.lang.Objects;
+import de.invesdwin.util.lang.UUIDs;
 import de.invesdwin.util.math.BitSets;
 import de.invesdwin.util.streams.buffer.bytes.FakeAllocatorBuffer;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
@@ -29,12 +31,18 @@ import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 @ThreadSafe
 public final class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Closeable {
 
+    private static final AtomicInteger NEXT_ID = new AtomicInteger(Objects.hashCode(UUIDs.newPseudoRandomUUID()));
+
     private final FlyweightPrimitiveArrayPersistentMap<String> map;
     private AttributesMap attributes;
     private IProperties properties;
 
     public FlyweightPrimitiveArrayAllocator(final String name, final File directory) {
         this.map = new FlyweightPrimitiveArrayPersistentMap<>(name, directory);
+    }
+
+    private int nextId() {
+        return NEXT_ID.getAndIncrement();
     }
 
     public File getDirectory() {
@@ -78,7 +86,7 @@ public final class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAl
 
     @Override
     public IByteBuffer newByteBuffer(final String id, final int size) {
-        Assertions.checkNull(map.put(id, new FakeAllocatorBuffer(size)));
+        Assertions.checkNull(map.put(id, new FakeAllocatorBuffer(nextId(), size)));
         final IByteBuffer instance = (IByteBuffer) map.get(id);
         Assertions.checkNotNull(instance);
         return instance;
@@ -86,7 +94,8 @@ public final class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAl
 
     @Override
     public IDoubleArray newDoubleArray(final String id, final int size) {
-        Assertions.checkNull(map.put(id, new BufferDoubleArray(new FakeAllocatorBuffer(size * Double.BYTES))));
+        Assertions
+                .checkNull(map.put(id, new BufferDoubleArray(new FakeAllocatorBuffer(nextId(), size * Double.BYTES))));
         final IDoubleArray instance = (IDoubleArray) map.get(id);
         Assertions.checkNotNull(instance);
         return instance;
@@ -94,7 +103,8 @@ public final class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAl
 
     @Override
     public IIntegerArray newIntegerArray(final String id, final int size) {
-        Assertions.checkNull(map.put(id, new BufferIntegerArray(new FakeAllocatorBuffer(size * Integer.BYTES))));
+        Assertions.checkNull(
+                map.put(id, new BufferIntegerArray(new FakeAllocatorBuffer(nextId(), size * Integer.BYTES))));
         final IIntegerArray instance = (IIntegerArray) map.get(id);
         Assertions.checkNotNull(instance);
         return instance;
@@ -102,8 +112,8 @@ public final class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAl
 
     @Override
     public IBooleanArray newBooleanArray(final String id, final int size) {
-        Assertions.checkNull(map.put(id,
-                new BufferBooleanArray(new FakeAllocatorBuffer((BitSets.wordIndex(size) + 1) * Long.BYTES), size)));
+        Assertions.checkNull(map.put(id, new BufferBooleanArray(
+                new FakeAllocatorBuffer(nextId(), (BitSets.wordIndex(size) + 1) * Long.BYTES), size)));
         final IBooleanArray instance = (IBooleanArray) map.get(id);
         Assertions.checkNotNull(instance);
         return instance;
@@ -117,7 +127,7 @@ public final class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAl
 
     @Override
     public ILongArray newLongArray(final String id, final int size) {
-        Assertions.checkNull(map.put(id, new BufferLongArray(new FakeAllocatorBuffer(size * Long.BYTES))));
+        Assertions.checkNull(map.put(id, new BufferLongArray(new FakeAllocatorBuffer(nextId(), size * Long.BYTES))));
         final ILongArray instance = (ILongArray) map.get(id);
         Assertions.checkNotNull(instance);
         return instance;

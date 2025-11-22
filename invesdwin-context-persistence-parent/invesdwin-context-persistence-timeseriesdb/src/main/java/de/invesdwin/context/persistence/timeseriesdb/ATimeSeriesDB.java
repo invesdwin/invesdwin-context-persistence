@@ -1,6 +1,8 @@
 package de.invesdwin.context.persistence.timeseriesdb;
 
 import java.io.File;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -17,6 +19,8 @@ import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
+import de.invesdwin.util.collections.loadingcache.caffeine.ACaffeineLoadingCache;
+import de.invesdwin.util.concurrent.lambda.callable.AFastLazyCallable;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
@@ -28,13 +32,14 @@ import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
+import de.invesdwin.util.time.duration.Duration;
 
 @ThreadSafe
 public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V> {
 
     private final String name;
-    private final ISerde<V> valueSerde;
-    private final Integer valueFixedLength;
+    private final Supplier<ISerde<V>> valueSerde;
+    private final Supplier<Integer> valueFixedLength;
     private final ICompressionFactory compressionFactory;
     private final TimeSeriesLookupMode lookupMode;
     private final File directory;
@@ -54,30 +59,60 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     private final Object storageLock = new Object();
     @GuardedBy("storageLock")
     private TimeSeriesStorage storage;
+    private final AtomicInteger lastResetIndex = new AtomicInteger();
 
     public ATimeSeriesDB(final String name) {
         this.name = name;
-        this.valueSerde = newValueSerde();
-        this.valueFixedLength = newValueFixedLength();
+        this.valueSerde = new AFastLazyCallable<ISerde<V>>() {
+            @Override
+            protected ISerde<V> innerCall() {
+                return newValueSerde();
+            }
+        };
+        this.valueFixedLength = new AFastLazyCallable<Integer>() {
+            @Override
+            protected Integer innerCall() {
+                return newValueFixedLength();
+            }
+        };
         this.compressionFactory = newCompressionFactory();
         this.lookupMode = newLookupMode();
         final File baseDirectory = getBaseDirectory();
+        if (baseDirectory == null) {
+            throw new RetryLaterRuntimeException(
+                    "The base directory should not be null, maybe this table was already finalized?");
+        }
         if (Objects.equals(baseDirectory.getAbsolutePath(), new File(".").getAbsolutePath())) {
             throw new IllegalStateException(
                     "Should not use current working directory as base directory: " + baseDirectory);
         }
         this.directory = new File(baseDirectory, getStorageName(Files.normalizePath(getName())));
-        this.key_lookupTableCache = new ALoadingCache<K, TimeSeriesStorageCache<K, V>>() {
+        this.key_lookupTableCache = new ACaffeineLoadingCache<K, TimeSeriesStorageCache<K, V>>() {
             @Override
             protected TimeSeriesStorageCache<K, V> loadValue(final K key) {
                 final String hashKey = hashKeyToString(key);
-                return new TimeSeriesStorageCache<K, V>(getStorage(), hashKey, valueSerde, valueFixedLength,
+                return new TimeSeriesStorageCache<K, V>(getStorage(), hashKey, getValueSerde(), getValueFixedLength(),
                         input -> extractEndTime(input), getLookupMode());
             }
 
             @Override
             protected boolean isHighConcurrency() {
                 return true;
+            }
+
+            @Override
+            protected Boolean getSoftValues() {
+                return true;
+            }
+
+            @Override
+            protected Integer getInitialMaximumSize() {
+                return TimeSeriesStorageCache.MAXIMUM_SIZE;
+            }
+
+            @Override
+            protected Duration getExpireAfterAccess() {
+                return TimeSeriesProperties.STORAGE_CACHE_EVICTION_TIMEOUT;
             }
 
         };
@@ -94,13 +129,13 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     private TimeSeriesStorage corruptionHandlingNewStorage() {
         try {
-            return newStorage(directory, valueFixedLength, compressionFactory);
+            return newStorage(directory, getValueFixedLength(), compressionFactory);
         } catch (final Throwable t) {
             if (Throwables.isCausedByType(t, CorruptedStorageException.class)) {
                 Err.process(new RuntimeException("Resetting " + ATimeSeriesDB.class.getSimpleName() + " ["
                         + getDirectory() + "] because the storage has been corrupted"));
                 deleteCorruptedStorage(directory);
-                return newStorage(directory, valueFixedLength, compressionFactory);
+                return newStorage(directory, getValueFixedLength(), compressionFactory);
             } else {
                 throw Throwables.propagate(t);
             }
@@ -109,6 +144,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     protected void deleteCorruptedStorage(final File directory) {
         Files.deleteNative(directory);
+        lastResetIndex.incrementAndGet();
     }
 
     @Override
@@ -146,7 +182,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     @Override
     public Integer getValueFixedLength() {
-        return valueFixedLength;
+        return valueFixedLength.get();
     }
 
     @Override
@@ -343,6 +379,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         }
         try {
             getLookupTableCache(key).deleteAll();
+            lastResetIndex.incrementAndGet();
         } finally {
             writeLock.unlock();
         }
@@ -360,7 +397,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     @Override
     public ISerde<V> getValueSerde() {
-        return valueSerde;
+        return valueSerde.get();
     }
 
     @Override
@@ -512,6 +549,10 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
             return true;
         }
 
+    }
+
+    public int getLastResetIndex() {
+        return lastResetIndex.get();
     }
 
 }

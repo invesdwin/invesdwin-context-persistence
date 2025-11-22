@@ -8,6 +8,7 @@ import java.io.OutputStream;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.function.Function;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -21,12 +22,13 @@ import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.ArrayFileBufferCacheResult;
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftForwardUnitsLoopIntIndex;
-import de.invesdwin.context.persistence.timeseriesdb.loop.ShiftForwardUnitsLoop;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
-import de.invesdwin.util.collections.circular.CircularGenericArray;
+import de.invesdwin.util.collections.Collections;
+import de.invesdwin.util.collections.circular.CircularGenericArrayQueue;
+import de.invesdwin.util.collections.eviction.EvictionMode;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -36,6 +38,7 @@ import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.iterable.buffer.IBufferingIterator;
 import de.invesdwin.util.collections.iterable.skip.ATimeRangeSkippingIterable;
 import de.invesdwin.util.collections.list.Lists;
+import de.invesdwin.util.collections.loadingcache.historical.query.impl.ShiftForwardUnitsLoop;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.lang.Files;
@@ -52,6 +55,8 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     private static final boolean LARGE_COMPRESSOR = false;
     private static final int LAST_VALUE_HISTORY = 3;
     private static final Log LOG = new Log(FileLiveSegment.class);
+    private final Set<FDate> nextLiveStartTime_lastWarnings = Collections
+            .newSetFromMap(EvictionMode.LeastRecentlyAdded.newMap(10));
     private final String hashKey;
     private final SegmentedKey<K> segmentedKey;
     private final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable;
@@ -61,7 +66,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     private boolean needsFlush;
     private FDate firstValueKey;
     private final IBufferingIterator<V> firstValue = new BufferingIterator<>();
-    private final CircularGenericArray<LastValue<V>> lastValues = new CircularGenericArray<LastValue<V>>(
+    private final CircularGenericArrayQueue<LastValue<V>> lastValues = new CircularGenericArrayQueue<LastValue<V>>(
             LAST_VALUE_HISTORY);
     private File file;
     private WeakReference<ArrayFileBufferCacheResult<V>> inMemoryCacheHolder;
@@ -284,15 +289,17 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         LastValue<V> lastValue = lastValues.getReverse(0);
         if (!lastValue.values.isEmpty()) {
             if (lastValue.key.isAfterNotNullSafe(nextLiveStartTime)) {
-                LOG.warn("%s: nextLiveStartTime [%s] should be after or equal to lastLiveKey [%s]", segmentedKey,
-                        nextLiveStartTime, lastValue.key);
+                if (nextLiveStartTime_lastWarnings.add(nextLiveStartTime)) {
+                    LOG.warn("nextLiveStartTime [%s] should be after or equal to lastLiveKey [%s]: %s",
+                            nextLiveStartTime, lastValue.key, segmentedKey);
+                }
                 return false;
             }
         }
         if (nextLiveStartTime.isAfterNotNullSafe(nextLiveEndTimeKey)) {
             throw new IllegalArgumentException(TextDescription.format(
-                    "%s: nextLiveEndTimeKey [%s] should be after or equal to nextLiveStartTime [%s]", segmentedKey,
-                    nextLiveEndTimeKey, nextLiveStartTime));
+                    "nextLiveEndTimeKey [%s] should be after or equal to nextLiveStartTime [%s]: %s",
+                    nextLiveEndTimeKey, nextLiveStartTime, segmentedKey));
         }
         synchronized (this) {
             if (values == null) {
@@ -313,8 +320,9 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
         lastValue.values.add(nextLiveValue);
         lastValue.key = nextLiveEndTimeKey;
-        if (inMemoryCacheHolder != null) {
-            final ArrayFileBufferCacheResult<V> inMemoryCache = inMemoryCacheHolder.get();
+        final WeakReference<ArrayFileBufferCacheResult<V>> inMemoryCacheHolderCopy = inMemoryCacheHolder;
+        if (inMemoryCacheHolderCopy != null) {
+            final ArrayFileBufferCacheResult<V> inMemoryCache = inMemoryCacheHolderCopy.get();
             if (inMemoryCache != null) {
                 inMemoryCache.getList().add(nextLiveValue);
             }
@@ -488,7 +496,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
         final ASegmentedTimeSeriesStorageCache<K, V> lookupTableCache = historicalSegmentTable
                 .getSegmentedLookupTableCache(getSegmentedKey().getKey());
-        final boolean initialized = lookupTableCache.maybeInitSegment(getSegmentedKey(),
+        final boolean initialized = lookupTableCache.maybeInitSegmentSync(getSegmentedKey(),
                 new Function<SegmentedKey<K>, ICloseableIterable<? extends V>>() {
                     @Override
                     public ICloseableIterable<? extends V> apply(final SegmentedKey<K> t) {
@@ -502,8 +510,9 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     private ArrayFileBufferCacheResult<V> getFlushedValues() {
-        if (inMemoryCacheHolder != null) {
-            final ArrayFileBufferCacheResult<V> inMemoryCache = inMemoryCacheHolder.get();
+        final WeakReference<ArrayFileBufferCacheResult<V>> inMemoryCacheHolderCopy = inMemoryCacheHolder;
+        if (inMemoryCacheHolderCopy != null) {
+            final ArrayFileBufferCacheResult<V> inMemoryCache = inMemoryCacheHolderCopy.get();
             if (inMemoryCache != null) {
                 return inMemoryCache;
             } else {

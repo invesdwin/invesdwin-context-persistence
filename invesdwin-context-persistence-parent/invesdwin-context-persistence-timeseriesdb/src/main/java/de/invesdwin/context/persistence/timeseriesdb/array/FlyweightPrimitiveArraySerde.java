@@ -17,13 +17,17 @@ import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.SerdeBaseMethods;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
+import de.invesdwin.util.streams.buffer.bytes.delegate.slice.SlicedDelegateByteBuffer;
 
 @Immutable
 public class FlyweightPrimitiveArraySerde implements ISerde<IPrimitiveArray> {
 
     public static final FlyweightPrimitiveArraySerde GET = new FlyweightPrimitiveArraySerde();
 
-    private static final int TYPE_INDEX = 0;
+    private static final int ID_INDEX = 0;
+    private static final int ID_LENGTH = Integer.BYTES;
+
+    private static final int TYPE_INDEX = ID_INDEX + ID_LENGTH;
     //use integer for memory alignment instead of byte (which would suffice)
     private static final int TYPE_LENGTH = Integer.BYTES;
 
@@ -41,8 +45,9 @@ public class FlyweightPrimitiveArraySerde implements ISerde<IPrimitiveArray> {
 
     @Override
     public IPrimitiveArray fromBuffer(final IByteBuffer buffer) {
+        final int id = buffer.getInt(ID_INDEX);
         final int typeOrdinal = buffer.getInt(TYPE_INDEX);
-        final IByteBuffer arrayBuffer = buffer.sliceFrom(ARRAY_INDEX);
+        final IByteBuffer arrayBuffer = new FlyweightByteBuffer(buffer, id);
         final FlyweightPrimitiveArrayType type = FlyweightPrimitiveArrayType.values()[typeOrdinal];
         switch (type) {
         case Byte:
@@ -62,6 +67,8 @@ public class FlyweightPrimitiveArraySerde implements ISerde<IPrimitiveArray> {
 
     @Override
     public int toBuffer(final IByteBuffer buffer, final IPrimitiveArray obj) {
+        final int id = obj.getId();
+        buffer.putInt(ID_INDEX, id);
         if (obj instanceof IByteBuffer) {
             buffer.putInt(TYPE_INDEX, (byte) FlyweightPrimitiveArrayType.Byte.ordinal());
         } else if (obj instanceof IBooleanArray) {
@@ -80,6 +87,20 @@ public class FlyweightPrimitiveArraySerde implements ISerde<IPrimitiveArray> {
             return ARRAY_INDEX + length;
         } catch (final IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    private static final class FlyweightByteBuffer extends SlicedDelegateByteBuffer {
+        private final int id;
+
+        private FlyweightByteBuffer(final IByteBuffer delegate, final int id) {
+            super(delegate, ARRAY_INDEX, delegate.remaining(ARRAY_INDEX));
+            this.id = id;
+        }
+
+        @Override
+        public int getId() {
+            return id;
         }
     }
 

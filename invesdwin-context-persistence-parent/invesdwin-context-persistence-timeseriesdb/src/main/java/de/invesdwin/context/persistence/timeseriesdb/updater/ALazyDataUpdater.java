@@ -2,12 +2,15 @@ package de.invesdwin.context.persistence.timeseriesdb.updater;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.commons.lang3.BooleanUtils;
 
+import de.invesdwin.context.integration.DatabaseThreads;
+import de.invesdwin.context.integration.retry.NonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
@@ -20,6 +23,7 @@ import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.nested.ANestedExecutor;
 import de.invesdwin.util.concurrent.taskinfo.provider.TaskInfoCallable;
 import de.invesdwin.util.error.Throwables;
+import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
@@ -29,13 +33,22 @@ import io.netty.util.concurrent.FastThreadLocal;
 @ThreadSafe
 public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
 
+    public static final String REASON_DOES_NOT_EQUAL = "does not equal";
+    public static final String REASON_IS_BEFORE = "is before";
+
     private static final FastThreadLocal<Boolean> SKIP_UPDATE_ON_CURRENT_THREAD_IF_ALREADY_RUNNING = new FastThreadLocal<Boolean>();
     protected final Log log = new Log(this);
     private final K key;
     @GuardedBy("getUpdateLock()")
     private volatile FDate lastUpdateCheck = FDates.MIN_DATE;
+    @GuardedBy("getUpdateLock()")
+    private volatile int lastResetIndex = Integer.MIN_VALUE;
     @GuardedBy("this")
     private IReentrantLock updateLock;
+    @GuardedBy("this")
+    private Future<?> updateFuture;
+    @GuardedBy("none for performance")
+    private String updaterId;
 
     public ALazyDataUpdater(final K key) {
         if (key == null) {
@@ -44,14 +57,30 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
         this.key = key;
     }
 
+    public final String getUpdaterId() {
+        if (updaterId == null) {
+            updaterId = newUpdaterId();
+        }
+        return updaterId;
+    }
+
+    protected String newUpdaterId() {
+        return ALazyDataUpdater.class.getSimpleName() + "_" + getTable().getName() + "_"
+                + getTable().getDirectory().getAbsolutePath() + "_" + keyToString(key) + "_" + getElementsName();
+    }
+
+    @Override
+    public String toString() {
+        return Objects.toStringHelper(this).addValue(keyToString(key)).toString();
+    }
+
     public K getKey() {
         return key;
     }
 
     private synchronized IReentrantLock getUpdateLock() {
         if (updateLock == null) {
-            updateLock = Locks.newReentrantLock(
-                    ALazyDataUpdater.class.getSimpleName() + "_" + getTable().getName() + "_" + key + "_updateLock");
+            updateLock = Locks.newReentrantLock(getUpdaterId() + "_updateLock");
         }
         return updateLock;
     }
@@ -71,9 +100,9 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     }
 
     @Override
-    public final void maybeUpdate() {
+    public final void maybeUpdate(final boolean force) {
         final FDate newUpdateCheck = new FDate();
-        if (shouldCheckForUpdate(newUpdateCheck)) {
+        if (force || shouldCheckForUpdate(newUpdateCheck)) {
             final IReentrantLock updateLock = getUpdateLock();
             if (shouldSkipUpdateOnCurrentThreadIfAlreadyRunning()) {
                 try {
@@ -87,32 +116,52 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 updateLock.lock();
             }
             try {
-                if (!shouldCheckForUpdate(newUpdateCheck)) {
+                if (!force && !shouldCheckForUpdate(newUpdateCheck)) {
                     //some sort of double checked locking to skip if someone else came before us
                     return;
                 }
-                final Future<?> future = getNestedExecutor().getNestedExecutor().submit(new Runnable() {
-                    @Override
-                    public void run() {
-                        final ILock writeLock = getTable().getTableLock(key).writeLock();
-                        if (!writeLock.tryLock()) {
-                            //don't try to update if currently a backtest is running which is keeping iterators open
-                            return;
+                Future<?> updateFutureCopy = updateFuture;
+                final String reason;
+                if (updateFutureCopy == null
+                        || updateFutureCopy.isDone() && (force || shouldCheckForUpdate(newUpdateCheck))) {
+                    updateFutureCopy = getNestedExecutor().getNestedExecutor().submit(new Runnable() {
+                        @Override
+                        public void run() {
+                            final ILock writeLock = getTable().getTableLock(key).writeLock();
+                            if (!writeLock.tryLock()) {
+                                //don't try to update if currently a backtest is running which is keeping iterators open
+                                return;
+                            }
+                            try {
+                                innerMaybeUpdate(key);
+                                LazyDataUpdaterProperties.maybeUpdateFinished(getUpdaterId());
+                                //update timestamp only at the end if successful
+                                lastUpdateCheck = newUpdateCheck;
+                                lastResetIndex = getTable().getLastResetIndex();
+                            } finally {
+                                writeLock.unlock();
+                            }
                         }
-                        try {
-                            innerMaybeUpdate(key);
-                        } finally {
-                            //update timestamp only at the end
-                            lastUpdateCheck = newUpdateCheck;
-                            writeLock.unlock();
-                        }
+                    });
+                    updateFuture = updateFutureCopy;
+                    reason = "started";
+                } else {
+                    reason = "is in progress";
+                }
+                if (DatabaseThreads.isThreadBlockingUpdateDatabaseDisabled()) {
+                    try {
+                        Futures.waitNoInterrupt(updateFutureCopy,
+                                TimeSeriesProperties.NON_BLOCKING_ASYNC_UPDATE_WAIT_TIMEOUT);
+                        updateFuture = null;
+                    } catch (final TimeoutException e) {
+                        throw new NonBlockingRetryLaterRuntimeException(
+                                ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: async update " + reason
+                                        + " while operating in non-blocking mode for " + getElementsName() + ": " + key,
+                                e);
                     }
-
-                });
-                try {
-                    Futures.wait(future);
-                } catch (final InterruptedException e) {
-                    throw new RuntimeException(e);
+                } else {
+                    Futures.waitNoInterrupt(updateFutureCopy);
+                    updateFuture = null;
                 }
             } finally {
                 updateLock.unlock();
@@ -120,12 +169,34 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
         }
     }
 
+    protected <T> void logReload(final boolean logged, final String name, final T oldValue, final String reason,
+            final T newValue) {
+        if (!logged) {
+            logReload(name, oldValue, reason, newValue);
+        }
+    }
+
+    protected <T> void logReload(final String name, final T oldValue, final String reason, final T newValue) {
+        log.warn("Updating [%s] after reset because existing %s [%s] %s [%s]", this, name, oldValue, reason, newValue);
+    }
+
+    protected <T> void logUpdate(final boolean logged, final String name, final T oldValue, final String reason,
+            final T newValue) {
+        if (!logged) {
+            logUpdate(name, oldValue, reason, newValue);
+        }
+    }
+
+    protected <T> void logUpdate(final String name, final T oldValue, final String reason, final T newValue) {
+        log.warn("Updating [%s] because existing %s [%s] %s [%s]", this, name, oldValue, reason, newValue);
+    }
+
     protected boolean shouldSkipUpdateOnCurrentThreadIfAlreadyRunning() {
         return isSkipUpdateOnCurrentThreadIfAlreadyRunning();
     }
 
     protected boolean shouldCheckForUpdate(final FDate curTime) {
-        return !FDates.isSameJulianDay(lastUpdateCheck, curTime);
+        return !FDates.isSameJulianDay(lastUpdateCheck, curTime) || lastResetIndex != getTable().getLastResetIndex();
     }
 
     protected final FDate doUpdate(final FDate estimatedTo) throws IncompleteUpdateRetryableException {
@@ -195,7 +266,9 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
             };
             final String taskName = "Loading " + getElementsName() + " for " + keyToString(getKey());
             final Callable<Percent> progress = newProgressCallable(estimatedTo, updater);
-            return TaskInfoCallable.of(taskName, task, progress).call();
+            final FDate updatedTo = TaskInfoCallable.of(taskName, task, progress).call();
+            LazyDataUpdaterProperties.setLastUpdateTo(getUpdaterId(), FDates.max(estimatedTo, updatedTo));
+            return updatedTo;
         } catch (final IncompleteUpdateRetryableException e) {
             throw e;
         } catch (final Throwable e) {

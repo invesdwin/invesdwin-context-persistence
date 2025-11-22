@@ -4,11 +4,12 @@ import java.io.Closeable;
 
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
+import de.invesdwin.norva.beanpath.spi.IUnwrap;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.time.date.FDate;
 
-public interface ILiveSegment<K, V> extends Closeable {
+public interface ILiveSegment<K, V> extends Closeable, IUnwrap {
 
     V getFirstValue();
 
@@ -42,7 +43,5 @@ public interface ILiveSegment<K, V> extends Closeable {
 
     @Override
     void close();
-
-    <T> T unwrap(Class<T> type);
 
 }
