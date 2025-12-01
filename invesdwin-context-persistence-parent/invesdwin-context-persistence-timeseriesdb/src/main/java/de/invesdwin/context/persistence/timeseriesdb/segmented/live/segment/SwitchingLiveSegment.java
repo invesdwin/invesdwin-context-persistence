@@ -42,7 +42,6 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
     private int inProgressSize = 0;
     private final int batchFlushInterval;
 
-    @SuppressWarnings("unchecked")
     public SwitchingLiveSegment(final SegmentedKey<K> segmentedKey,
             final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable, final int batchFlushInterval) {
         this.segmentedKey = segmentedKey;
