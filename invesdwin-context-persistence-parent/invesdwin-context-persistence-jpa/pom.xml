@@ -49,6 +49,11 @@
 			<artifactId>spring-data-jpa</artifactId>
 		</dependency>
 		<dependency>
+			<!-- upperbound deps -->
+			<groupId>org.antlr</groupId>
+			<artifactId>antlr4-runtime</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>org.springframework.data</groupId>
 			<artifactId>spring-data-commons</artifactId>
 		</dependency>
@@ -71,7 +76,6 @@
 			<!-- upperbound deps for mysql-connector-java -->
 			<scope>provided</scope>
 		</dependency>
-
 
 		<dependency>
 			<!-- dependant modules need to reference this themselves if they want 

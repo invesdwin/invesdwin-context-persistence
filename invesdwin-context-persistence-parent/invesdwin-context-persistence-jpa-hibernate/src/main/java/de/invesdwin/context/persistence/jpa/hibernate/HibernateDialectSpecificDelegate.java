@@ -9,7 +9,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import javax.sql.DataSource;
 
 import org.hibernate.cfg.AvailableSettings;
-import org.hibernate.dialect.DerbyDialect;
+import org.hibernate.community.dialect.DerbyDialect;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.dialect.H2Dialect;
 import org.hibernate.dialect.HSQLDialect;
@@ -19,6 +19,7 @@ import org.hibernate.dialect.OracleDialect;
 import org.hibernate.dialect.PostgreSQLDialect;
 import org.hibernate.dialect.SQLServerDialect;
 import org.hibernate.dialect.SybaseASEDialect;
+import org.hibernate.jpa.AvailableHints;
 import org.hibernate.jpa.HibernatePersistenceProvider;
 import org.springframework.orm.jpa.JpaDialect;
 import org.springframework.orm.jpa.JpaVendorAdapter;
@@ -83,8 +84,6 @@ public class HibernateDialectSpecificDelegate implements IDialectSpecificDelegat
         props.put(AvailableSettings.STATEMENT_BATCH_SIZE, String.valueOf(context.getConnectionBatchSize()));
         //        <prop key="hibernate.default_batch_fetch_size">${de.invesdwin.context.persistence.jpa.PersistenceProperties.CONNECTION_BATCH_SIZE}</prop>
         props.put(AvailableSettings.DEFAULT_BATCH_FETCH_SIZE, String.valueOf(context.getConnectionBatchSize()));
-        //        <prop key="hibernate.jdbc.batch_versioned_data">true</prop>
-        props.put(AvailableSettings.BATCH_VERSIONED_DATA, String.valueOf(true));
         //        <prop key="hibernate.order_inserts">true</prop>
         props.put(AvailableSettings.ORDER_INSERTS, String.valueOf(true));
         //        <prop key="hibernate.order_updates">true</prop>
@@ -170,7 +169,7 @@ public class HibernateDialectSpecificDelegate implements IDialectSpecificDelegat
     @Override
     public void setCacheable(final PersistenceUnitContext context, final IConfigurableQuery query,
             final boolean cacheable) {
-        query.setHint(org.hibernate.annotations.QueryHints.CACHEABLE, cacheable);
+        query.setHint(AvailableHints.HINT_CACHEABLE, cacheable);
     }
 
     @Override

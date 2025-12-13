@@ -9,6 +9,8 @@ import java.util.Set;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.util.collections.Collections;
+import jakarta.persistence.CacheRetrieveMode;
+import jakarta.persistence.CacheStoreMode;
 import jakarta.persistence.FlushModeType;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.Parameter;
@@ -175,7 +177,42 @@ public class DummyQuery implements Query {
 
     @Override
     public <T> T unwrap(final Class<T> cls) {
-        return (T) null;
+        return null;
+    }
+
+    @Override
+    public Integer getTimeout() {
+        return null;
+    }
+
+    @Override
+    public Query setTimeout(final Integer arg0) {
+        return this;
+    }
+
+    @Override
+    public CacheRetrieveMode getCacheRetrieveMode() {
+        return null;
+    }
+
+    @Override
+    public Query setCacheRetrieveMode(final CacheRetrieveMode arg0) {
+        return this;
+    }
+
+    @Override
+    public CacheStoreMode getCacheStoreMode() {
+        return null;
+    }
+
+    @Override
+    public Query setCacheStoreMode(final CacheStoreMode arg0) {
+        return this;
+    }
+
+    @Override
+    public Object getSingleResultOrNull() {
+        return null;
     }
 
 }
