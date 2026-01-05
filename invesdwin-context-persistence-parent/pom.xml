@@ -49,7 +49,6 @@
 		<version.p6spy>3.9.1</version.p6spy>
 		<version.hibernate>7.1.11.Final</version.hibernate>
 		<version.antlr4>4.13.2</version.antlr4>
-		<version.jboss-logging>3.6.1.Final</version.jboss-logging>
 		<version.datanucleus>6.0.10</version.datanucleus>
 		<version.datanucleus-cache>6.0.0-release</version.datanucleus-cache>
 		<version.javax.jdo>3.2.1</version.javax.jdo>
@@ -219,17 +218,6 @@
 			    <groupId>org.antlr</groupId>
 			    <artifactId>antlr4-runtime</artifactId>
 			    <version>${version.antlr4}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.jboss.logging</groupId>
-				<artifactId>jboss-logging</artifactId>
-				<version>${version.jboss-logging}</version>
-				<exclusions>
-					<exclusion>
-						<groupId>org.apache.logging.log4j</groupId>
-						<artifactId>log4j-api</artifactId>
-					</exclusion>
-				</exclusions>
 			</dependency>
 			<dependency>
 				<groupId>com.zaxxer</groupId>
