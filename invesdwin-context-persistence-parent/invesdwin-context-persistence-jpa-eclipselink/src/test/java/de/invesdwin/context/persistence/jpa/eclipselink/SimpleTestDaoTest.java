@@ -15,7 +15,6 @@ import jakarta.persistence.RollbackException;
 //@ContextConfiguration(locations = { APersistenzTest.CTX_TEST_SERVER }, inheritLocations = false)
 public class SimpleTestDaoTest extends APersistenceTest {
 
-    @SuppressWarnings("JUnit4SetUpNotRun")
     @Override
     public void setUp() throws Exception {
         super.setUp();

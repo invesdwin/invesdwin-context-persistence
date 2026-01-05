@@ -23,6 +23,7 @@ public class TestDaoPerformanceTest extends APersistenceTest {
     @Override
     public void setUpOnce() throws Exception {
         super.setUpOnce();
+        clearAllTables();
         TestEntity e = new TestEntity();
         e.setName("someName");
         e = dao.save(e);
