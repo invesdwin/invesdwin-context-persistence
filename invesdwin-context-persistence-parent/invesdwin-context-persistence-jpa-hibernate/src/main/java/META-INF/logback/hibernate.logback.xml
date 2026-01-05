@@ -18,5 +18,13 @@
 		<appender-ref ref="common" />
 		<appender-ref ref="error" />
 	</logger>
+	
+	<logger name="org.hibernate.orm.jdbc"
+		additivity="false" level="ERROR">
+		<appender-ref ref="stdout" />
+		<appender-ref ref="stderr" />
+		<appender-ref ref="common" />
+		<appender-ref ref="error" />
+	</logger>
     
 </configuration>
