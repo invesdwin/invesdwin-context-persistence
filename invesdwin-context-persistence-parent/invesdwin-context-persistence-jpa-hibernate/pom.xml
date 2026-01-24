@@ -38,6 +38,10 @@
 			<artifactId>hibernate-jcache</artifactId>
 		</dependency>
 		<dependency>
+		    <groupId>org.hibernate.orm</groupId>
+		    <artifactId>hibernate-community-dialects</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>net.bytebuddy</groupId>
 			<artifactId>byte-buddy</artifactId>
 		</dependency>
@@ -70,10 +74,11 @@
 			<groupId>org.javassist</groupId>
 			<artifactId>javassist</artifactId>
 		</dependency>
+		<!-- requires jackson upgrade: https://github.com/invesdwin/invesdwin-context/issues/50
 		<dependency>
 			<groupId>com.fasterxml.jackson.datatype</groupId>
-			<artifactId>jackson-datatype-hibernate5-jakarta</artifactId>
-		</dependency>
+			<artifactId>jackson-datatype-hibernate6</artifactId>
+		</dependency>-->
 		<dependency>
 			<groupId>org.hibernate.orm</groupId>
 			<artifactId>hibernate-jpamodelgen</artifactId>
