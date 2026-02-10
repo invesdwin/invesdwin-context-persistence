@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.ezdb;
 
 import java.io.File;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -81,6 +82,22 @@ public class RangeTableProperties extends AProperties {
             @Override
             protected void addPropertyDirect(final String key, final Object value) {
                 table.put(null, key, value);
+            }
+
+            @Override
+            protected boolean containsValueInternal(final Object value) {
+                final DelegateRangeTableIterator<Void, String, Object> range = table.range(null);
+                try {
+                    while (true) {
+                        final RangeTableRow<Void, String, Object> row = range.next();
+                        if (value == row.getValue()) {
+                            return true;
+                        }
+                    }
+                } catch (final NoSuchElementException e) {
+                    //end reached
+                }
+                return false;
             }
         };
     }
