@@ -1,12 +1,12 @@
 package de.invesdwin.context.persistence.timeseriesdb.updater;
 
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.system.properties.SystemProperties;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
 import io.netty.util.concurrent.FastThreadLocal;
@@ -17,7 +17,8 @@ public final class LazyDataUpdaterProperties {
     private static final String KEY_UPDATE_LIMIT_TO = "UPDATE_LIMIT_TO";
     private static final AtomicInteger ACTIVE_BACKTEST_RUNS_COUNT = new AtomicInteger();
     private static final FastThreadLocal<FDate> UPDATE_LIMIT_TO_BEFORE = new FastThreadLocal<FDate>();
-    private static final Map<String, FDate> UPDATERID_LASTUPDATETO = new ConcurrentHashMap<>();
+    private static final Map<String, FDate> UPDATERID_LASTUPDATETO = ILockCollectionFactory.getInstance(true)
+            .newConcurrentMap();
 
     private static final SystemProperties SYSTEM_PROPERTIES;
     static {
