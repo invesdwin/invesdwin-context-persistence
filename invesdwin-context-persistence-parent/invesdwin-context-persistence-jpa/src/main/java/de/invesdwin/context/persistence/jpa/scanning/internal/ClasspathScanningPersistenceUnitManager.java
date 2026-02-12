@@ -3,7 +3,6 @@ package de.invesdwin.context.persistence.jpa.scanning.internal;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -24,6 +23,7 @@ import de.invesdwin.context.persistence.jpa.scanning.transaction.ContextDelegati
 import de.invesdwin.context.persistence.jpa.spi.delegate.IDialectSpecificDelegate;
 import de.invesdwin.context.persistence.jpa.spi.impl.PersistenceUnitAnnotationUtil;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.lang.Files;
 import jakarta.inject.Inject;
 
@@ -179,7 +179,7 @@ public final class ClasspathScanningPersistenceUnitManager extends MergingPersis
                         entitesSingularPlural += "y";
                     }
 
-                    final Set<String> entityNames = new HashSet<String>();
+                    final Set<String> entityNames = ILockCollectionFactory.getInstance(false).newSet();
                     for (final Class<?> entityClass : entityClasses) {
                         entityNames.add(entityClass.getName());
                     }

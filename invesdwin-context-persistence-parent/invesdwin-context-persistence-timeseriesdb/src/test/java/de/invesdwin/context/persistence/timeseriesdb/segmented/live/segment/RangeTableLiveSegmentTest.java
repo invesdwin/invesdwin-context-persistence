@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 
 import java.io.File;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
@@ -17,6 +16,7 @@ import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegment
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB.HistoricalSegmentTable;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
@@ -33,7 +33,7 @@ public class RangeTableLiveSegmentTest extends ATest {
 
     @Test
     public void testInverseOrder() {
-        final Map<Integer, FDate> extractTime = new HashMap<>();
+        final Map<Integer, FDate> extractTime = ILockCollectionFactory.getInstance(false).newMap();
         final SegmentedKey<FDate> segmentedKey = new SegmentedKey<FDate>(FDates.MIN_DATE,
                 new TimeRange(FDates.MIN_DATE, FDates.MAX_DATE));
         final ALiveSegmentedTimeSeriesDB<FDate, Integer> timeSeriesDB = new ALiveSegmentedTimeSeriesDB<FDate, Integer>(

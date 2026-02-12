@@ -1,6 +1,5 @@
 package de.invesdwin.context.persistence.jpa;
 
-import java.util.HashSet;
 import java.util.Set;
 
 import javax.annotation.concurrent.Immutable;
@@ -14,6 +13,7 @@ import de.invesdwin.context.persistence.jpa.spi.impl.PersistenceUnitAnnotationUt
 import de.invesdwin.context.system.properties.SystemProperties;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.Collections;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.lang.string.Strings;
 
@@ -44,8 +44,7 @@ public final class PersistenceProperties {
                 "DEFAULT_CONNECTION_AUTO_SCHEMA");
     }
 
-    private PersistenceProperties() {
-    }
+    private PersistenceProperties() {}
 
     private static PersistenceUnitContextManager getPersistenceUnitContextManager() {
         return MergedContext.getInstance()
@@ -86,7 +85,7 @@ public final class PersistenceProperties {
 
     public static Set<String> getPersistenceUnitNames() {
         final PersistenceUnitContextManager persistenceUnitContextManager = getPersistenceUnitContextManager();
-        final Set<String> validPersistenceUnitNames = new HashSet<String>();
+        final Set<String> validPersistenceUnitNames = ILockCollectionFactory.getInstance(false).newSet();
         for (final String persistenceUnitName : persistenceUnitContextManager.getPersistenceUnitNames()) {
             if (persistenceUnitContextManager.isValidPersistenceUnit(persistenceUnitName)) {
                 validPersistenceUnitNames.add(persistenceUnitName);

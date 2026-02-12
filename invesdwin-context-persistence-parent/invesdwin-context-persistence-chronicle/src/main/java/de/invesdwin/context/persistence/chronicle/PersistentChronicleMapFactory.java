@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.chronicle;
 
 import java.io.File;
+import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
@@ -71,7 +72,7 @@ public class PersistentChronicleMapFactory<K, V> implements IPersistentMapFactor
     }
 
     @Override
-    public void removeAll(final ConcurrentMap<K, V> table, final IKeyMatcher<K> matcher) {
+    public void removeAll(final Map<K, V> table, final IKeyMatcher<K> matcher) {
         final ChronicleMap<K, V> cTable = (ChronicleMap<K, V>) table;
         cTable.forEachEntry((entry) -> {
             final K key = entry.key().get();

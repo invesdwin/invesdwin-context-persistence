@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.tkrzw;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentMap;
 
@@ -49,7 +50,7 @@ public class PersistentTkrzwMapFactory<K, V> implements IPersistentMapFactory<K,
     }
 
     @Override
-    public void removeAll(final ConcurrentMap<K, V> table, final IKeyMatcher<K> matcher) {
+    public void removeAll(final Map<K, V> table, final IKeyMatcher<K> matcher) {
         for (final Entry<K, V> e : table.entrySet()) {
             final K key = e.getKey();
             if (matcher.matches(key)) {

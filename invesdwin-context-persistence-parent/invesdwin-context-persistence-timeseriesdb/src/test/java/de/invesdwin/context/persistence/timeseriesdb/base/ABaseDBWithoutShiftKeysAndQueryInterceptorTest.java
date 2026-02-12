@@ -2,7 +2,6 @@ package de.invesdwin.context.persistence.timeseriesdb.base;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 
@@ -14,6 +13,7 @@ import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableEx
 import de.invesdwin.context.persistence.timeseriesdb.base.root.ARootDBTest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.Collections;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ATransformingIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.loadingcache.historical.IHistoricalEntry;
@@ -111,11 +111,11 @@ public abstract class ABaseDBWithoutShiftKeysAndQueryInterceptorTest extends ARo
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
         //random order
-        for (final FDate entity : new HashSet<FDate>(entities)) {
+        for (final FDate entity : ILockCollectionFactory.getInstance(false).newSet(entities)) {
             Assertions.assertThat(cache.query().getValue(entity.addDays(2))).isNotNull();
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(3);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(3);
 
         //simulate cache eviction
         cache.clear();
@@ -126,8 +126,8 @@ public abstract class ABaseDBWithoutShiftKeysAndQueryInterceptorTest extends ARo
         for (final FDate entity : entities) {
             Assertions.assertThat(cache.query().getValue(entity.addDays(2))).isNotNull();
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(8);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
     }
 
     @Test
@@ -167,11 +167,11 @@ public abstract class ABaseDBWithoutShiftKeysAndQueryInterceptorTest extends ARo
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
         //random order
-        for (final FDate entity : new HashSet<FDate>(entities)) {
+        for (final FDate entity : ILockCollectionFactory.getInstance(false).newSet(entities)) {
             Assertions.assertThat(cache.query().getValue(entity.addDays(2))).isNotNull();
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(9);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(5);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(7);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
 
         //simulate cache eviction
         cache.clear();
@@ -182,8 +182,8 @@ public abstract class ABaseDBWithoutShiftKeysAndQueryInterceptorTest extends ARo
         for (final FDate entity : entities) {
             Assertions.assertThat(cache.query().getValue(entity.addDays(2))).isNotNull();
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(15);
-        Assertions.assertThat(countReadNewestValueTo).isEqualTo(9);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(13);
+        Assertions.assertThat(countReadNewestValueTo).isEqualTo(8);
     }
 
     @Test

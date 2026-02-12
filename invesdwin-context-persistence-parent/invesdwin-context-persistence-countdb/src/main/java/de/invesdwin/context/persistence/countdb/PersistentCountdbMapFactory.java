@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.countdb;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentMap;
 
@@ -38,7 +39,7 @@ public class PersistentCountdbMapFactory<V> implements IPersistentMapFactory<Lon
     }
 
     @Override
-    public void removeAll(final ConcurrentMap<Long, V> table, final IKeyMatcher<Long> matcher) {
+    public void removeAll(final Map<Long, V> table, final IKeyMatcher<Long> matcher) {
         for (final Entry<Long, V> e : table.entrySet()) {
             final Long key = e.getKey();
             if (matcher.matches(key)) {

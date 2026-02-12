@@ -1,7 +1,5 @@
 package de.invesdwin.context.persistence.jpa.scanning.internal;
 
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -18,6 +16,7 @@ import de.invesdwin.context.persistence.jpa.api.IPersistenceUnitAware;
 import de.invesdwin.context.persistence.jpa.scanning.EntityClasspathScanningHookSupport;
 import de.invesdwin.context.persistence.jpa.spi.delegate.IDialectSpecificDelegate;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 
 /**
@@ -35,15 +34,20 @@ public final class PersistenceUnitContextManager extends EntityClasspathScanning
             return new PersistenceUnitContext(persistenceUnitManager, PersistenceUnitContextManager.this, key);
         }
     };
-    private final Map<Class<?>, String> persistenceUnitAwareClass_persistenceUnitName = new HashMap<Class<?>, String>();
+    private final Map<Class<?>, String> persistenceUnitAwareClass_persistenceUnitName = ILockCollectionFactory
+            .getInstance(false)
+            .newMap();
     private final ALoadingCache<String, Set<Class<?>>> persistenceUnitName_entityClasses = new ALoadingCache<String, Set<Class<?>>>() {
         @Override
         protected Set<Class<?>> loadValue(final String key) {
-            return new HashSet<Class<?>>();
+            return ILockCollectionFactory.getInstance(false).newSet();
         }
     };
-    private final Map<Class<?>, String> entityClass_persistenceUnitName = new HashMap<Class<?>, String>();
-    private final Map<ConnectionDialect, IDialectSpecificDelegate> dialect_dialectSpecificDelegate = new HashMap<ConnectionDialect, IDialectSpecificDelegate>();
+    private final Map<Class<?>, String> entityClass_persistenceUnitName = ILockCollectionFactory.getInstance(false)
+            .newMap();
+    private final Map<ConnectionDialect, IDialectSpecificDelegate> dialect_dialectSpecificDelegate = ILockCollectionFactory
+            .getInstance(false)
+            .newMap();
     private final PersistenceUnitManager persistenceUnitManager;
 
     public PersistenceUnitContextManager(final PersistenceUnitManager persistenceUnitManager,
@@ -56,7 +60,7 @@ public final class PersistenceUnitContextManager extends EntityClasspathScanning
     private void associateDelegates(final IDialectSpecificDelegate[] dialectSpecificDelegates) {
         for (final ConnectionDialect dialect : ConnectionDialect.values()) {
             //add delegates that match this dialect
-            final Set<IDialectSpecificDelegate> delegatesFound = new HashSet<IDialectSpecificDelegate>();
+            final Set<IDialectSpecificDelegate> delegatesFound = ILockCollectionFactory.getInstance(false).newSet();
             for (final IDialectSpecificDelegate delegate : dialectSpecificDelegates) {
                 if (delegate.getSupportedDialects().contains(dialect)) {
                     delegatesFound.add(delegate);
@@ -73,15 +77,10 @@ public final class PersistenceUnitContextManager extends EntityClasspathScanning
             }
             //throw an error if multiple delegates remain or add the delegate if only one was left
             if (delegatesFound.size() > 1) {
-                throw new IllegalArgumentException(
-                        "Found multiple "
-                                + IDialectSpecificDelegate.class.getSimpleName()
-                                + "s for "
-                                + ConnectionDialect.class.getSimpleName()
-                                + " ["
-                                + dialect
-                                + "]. You may override one by specifying an appropriate parent relationship in the overriding one: "
-                                + delegatesFound);
+                throw new IllegalArgumentException("Found multiple " + IDialectSpecificDelegate.class.getSimpleName()
+                        + "s for " + ConnectionDialect.class.getSimpleName() + " [" + dialect
+                        + "]. You may override one by specifying an appropriate parent relationship in the overriding one: "
+                        + delegatesFound);
             } else if (delegatesFound.size() != 0) {
                 dialect_dialectSpecificDelegate.put(dialect, delegatesFound.iterator().next());
             }
@@ -100,16 +99,17 @@ public final class PersistenceUnitContextManager extends EntityClasspathScanning
 
     @Override
     public void finished() {
-        final Map<String, IPersistenceUnitAware> persistenceUnitAwares = MergedContext.getInstance().getBeansOfType(
-                IPersistenceUnitAware.class);
+        final Map<String, IPersistenceUnitAware> persistenceUnitAwares = MergedContext.getInstance()
+                .getBeansOfType(IPersistenceUnitAware.class);
         for (final IPersistenceUnitAware aware : persistenceUnitAwares.values()) {
             //temporarily disable transactional to be able to call getPersistenceName without a transaction that cannot be created anyway
             final String persistenceUnitName = aware.getPersistenceUnitName();
             persistenceUnitAwareClass_persistenceUnitName.put(aware.getClass(), persistenceUnitName);
         }
         //add default persistence unit to list so it aways gets an entry generated in persistence.xml
-        Assertions.assertThat(
-                persistenceUnitName_entityClasses.get(PersistenceProperties.DEFAULT_PERSISTENCE_UNIT_NAME)).isNotNull();
+        Assertions
+                .assertThat(persistenceUnitName_entityClasses.get(PersistenceProperties.DEFAULT_PERSISTENCE_UNIT_NAME))
+                .isNotNull();
     }
 
     public Set<Class<?>> getEntityClasses(final String persistenceUnitName) {

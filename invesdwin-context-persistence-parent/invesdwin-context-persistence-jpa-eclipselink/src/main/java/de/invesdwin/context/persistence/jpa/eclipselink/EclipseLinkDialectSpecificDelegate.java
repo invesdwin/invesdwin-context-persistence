@@ -1,7 +1,5 @@
 package de.invesdwin.context.persistence.jpa.eclipselink;
 
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -32,6 +30,7 @@ import de.invesdwin.context.persistence.jpa.api.query.IConfigurableQuery;
 import de.invesdwin.context.persistence.jpa.spi.delegate.IDialectSpecificDelegate;
 import de.invesdwin.context.persistence.jpa.spi.impl.ConfiguredDataSource;
 import de.invesdwin.context.persistence.jpa.spi.impl.NativeJdbcIndexCreationHandler;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.error.UnknownArgumentException;
 import jakarta.inject.Named;
 import jakarta.persistence.spi.PersistenceProvider;
@@ -59,7 +58,7 @@ public class EclipseLinkDialectSpecificDelegate implements IDialectSpecificDeleg
 
     @Override
     public Map<String, String> getPersistenceProperties(final PersistenceUnitContext context) {
-        final Map<String, String> props = new HashMap<String, String>();
+        final Map<String, String> props = ILockCollectionFactory.getInstance(false).newMap();
 
         props.put(PersistenceUnitProperties.WEAVING, String.valueOf(true));
         props.put(PersistenceUnitProperties.DDL_GENERATION, getEclipseLinkDdlGeneration(context));
@@ -128,7 +127,7 @@ public class EclipseLinkDialectSpecificDelegate implements IDialectSpecificDeleg
 
     @Override
     public Set<ConnectionDialect> getSupportedDialects() {
-        final Set<ConnectionDialect> supportedDialects = new HashSet<ConnectionDialect>();
+        final Set<ConnectionDialect> supportedDialects = ILockCollectionFactory.getInstance(false).newSet();
         for (final ConnectionDialect dialect : ConnectionDialect.values()) {
             if (dialect.isRdbms()) {
                 supportedDialects.add(dialect);

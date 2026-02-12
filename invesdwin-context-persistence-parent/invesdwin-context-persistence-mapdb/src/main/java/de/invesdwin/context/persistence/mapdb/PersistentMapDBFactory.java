@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.mapdb;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -63,7 +64,7 @@ public class PersistentMapDBFactory<K, V> implements IPersistentMapFactory<K, V>
     }
 
     @Override
-    public void removeAll(final ConcurrentMap<K, V> table, final IKeyMatcher<K> matcher) {
+    public void removeAll(final Map<K, V> table, final IKeyMatcher<K> matcher) {
         final HTreeMap<K, V> cTable = (HTreeMap<K, V>) table;
         for (final K key : cTable.keySet()) {
             if (matcher.matches(key)) {
