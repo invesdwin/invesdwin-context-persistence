@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
 
@@ -17,6 +18,10 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.SerializationException;
+
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.github.benmanes.caffeine.cache.RemovalCause;
 
 import de.invesdwin.context.integration.compression.DisabledCompressionFactory;
 import de.invesdwin.context.integration.compression.ICompressionFactory;
@@ -75,6 +80,7 @@ import de.invesdwin.util.streams.pool.buffered.BufferedFileDataInputStream;
 import de.invesdwin.util.streams.pool.buffered.PreLockedBufferedFileDataInputStream;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
+import de.invesdwin.util.time.date.FTimeUnit;
 import ezdb.table.RangeTableRow;
 
 @NotThreadSafe
@@ -228,6 +234,7 @@ public class TimeSeriesStorageCache<K, V> {
     private final Log log = new Log(this);
     @GuardedBy("this")
     private MemoryFileMetadata memoryFileMetadata;
+    private final LoadingCache<ResultCacheKey, IFileBufferCacheResult<V>> resultCache;
 
     public TimeSeriesStorageCache(final TimeSeriesStorage storage, final String hashKey, final ISerde<V> valueSerde,
             final Integer fixedLength, final Function<V, FDate> extractTime, final TimeSeriesLookupMode lookupMode) {
@@ -240,6 +247,35 @@ public class TimeSeriesStorageCache<K, V> {
         final boolean mmap = TimeSeriesProperties.FILE_BUFFER_CACHE_MMAP_ENABLED;
         this.flyweight = !compressed && mmap && fixedLength != null && fixedLength > 0;
         this.lookupMode = lookupMode;
+        this.resultCache = Caffeine.newBuilder()
+                .maximumSize(TimeSeriesProperties.FILE_BUFFER_CACHE_MIN_SEGMENTS_COUNT)
+                /*
+                 * evict more aggressively than the file buffer cache so that file buffer cache results are kept alive
+                 * longer to keep the really hot segments longer in memory
+                 */
+                .weakValues()
+                .expireAfterAccess(
+                        TimeSeriesProperties.FILE_BUFFER_CACHE_EVICTION_TIMEOUT.longValue(FTimeUnit.MILLISECONDS),
+                        TimeUnit.MILLISECONDS)
+                .removalListener(this::resultCache_onRemoval)
+                .<ResultCacheKey, IFileBufferCacheResult<V>> build(this::resultCache_load);
+    }
+
+    private IFileBufferCacheResult<V> resultCache_load(final ResultCacheKey key) throws Exception {
+        final IFileBufferCacheResult<V> result = FileBufferCache.getResult(hashKey, key.getSummary(), key.getSource());
+        if (result instanceof ArrayFileBufferCacheResult) {
+            final ArrayFileBufferCacheResult<?> cResult = (ArrayFileBufferCacheResult<?>) result;
+            cResult.getRefCount().incrementAndGet();
+        }
+        return result;
+    }
+
+    private void resultCache_onRemoval(final ResultCacheKey key, final IFileBufferCacheResult<V> value,
+            final RemovalCause cause) {
+        if (value instanceof ArrayFileBufferCacheResult) {
+            final ArrayFileBufferCacheResult<?> cValue = (ArrayFileBufferCacheResult<?>) value;
+            cValue.getRefCount().decrementAndGet();
+        }
     }
 
     public synchronized File getDataDirectory() {
@@ -605,7 +641,8 @@ public class TimeSeriesStorageCache<K, V> {
 
     private IFileBufferCacheResult<V> getResultCached(final String method, final MemoryFileSummary summary,
             final ILock readLock) {
-        return FileBufferCache.getResult(hashKey, summary, newResult(method, summary, readLock));
+        //        return FileBufferCache.getResult(hashKey, summary, newResult(method, summary, readLock));
+        return resultCache.get(new ResultCacheKey(summary, newResult(method, summary, readLock)));
     }
 
     private void preloadResultCached(final String method, final MemoryFileSummary summary, final ILock readLock) {
@@ -1258,6 +1295,43 @@ public class TimeSeriesStorageCache<K, V> {
                 mmapFile = null;
             }
         }
+    }
+
+    @SuppressWarnings("rawtypes")
+    private static final class ResultCacheKey {
+
+        private final MemoryFileSummary summary;
+        private final IFileBufferSource source;
+        private final int hashCode;
+
+        private ResultCacheKey(final MemoryFileSummary summary, final IFileBufferSource source) {
+            this.summary = summary;
+            this.source = source;
+            this.hashCode = Objects.hashCode(ResultCacheKey.class, summary);
+        }
+
+        public MemoryFileSummary getSummary() {
+            return summary;
+        }
+
+        public IFileBufferSource getSource() {
+            return source;
+        }
+
+        @Override
+        public int hashCode() {
+            return hashCode;
+        }
+
+        @Override
+        public boolean equals(final Object obj) {
+            if (obj instanceof ResultCacheKey) {
+                final ResultCacheKey cObj = (ResultCacheKey) obj;
+                return hashCode == cObj.hashCode;
+            }
+            return false;
+        }
+
     }
 
 }
