@@ -14,6 +14,7 @@ import de.invesdwin.util.collections.array.ILongArray;
 import de.invesdwin.util.collections.attributes.IAttributesMap;
 import de.invesdwin.util.collections.bitset.IBitSet;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
+import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 
 @ThreadSafe
@@ -193,5 +194,25 @@ public class SwitchingFlyweightPrimitiveArrayAllocator implements IPrimitiveArra
     @Override
     public File getDirectory() {
         return disk.getDirectory();
+    }
+
+    @Override
+    public String toString() {
+        return Objects.toStringHelper(this).addValue(heap).addValue(disk).toString();
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(SwitchingFlyweightPrimitiveArrayAllocator.class, heap, disk, getDirectory());
+    }
+
+    @Override
+    public boolean equals(final Object obj) {
+        if (obj instanceof SwitchingFlyweightPrimitiveArrayAllocator) {
+            final SwitchingFlyweightPrimitiveArrayAllocator cObj = (SwitchingFlyweightPrimitiveArrayAllocator) obj;
+            return Objects.equals(heap, cObj.heap) && Objects.equals(disk, cObj.disk);
+        } else {
+            return false;
+        }
     }
 }
