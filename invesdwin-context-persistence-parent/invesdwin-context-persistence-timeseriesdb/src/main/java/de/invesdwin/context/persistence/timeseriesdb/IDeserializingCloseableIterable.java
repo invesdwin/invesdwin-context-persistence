@@ -10,6 +10,8 @@ public interface IDeserializingCloseableIterable<E> extends IReverseCloseableIte
 
     String getName();
 
+    int size();
+
     ISerde<E> getSerde();
 
     Integer getFixedLength();

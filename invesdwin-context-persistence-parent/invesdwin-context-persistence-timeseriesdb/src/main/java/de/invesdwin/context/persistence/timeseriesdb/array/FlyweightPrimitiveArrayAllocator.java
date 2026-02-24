@@ -29,7 +29,7 @@ import de.invesdwin.util.streams.buffer.bytes.FakeAllocatorBuffer;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 
 @ThreadSafe
-public final class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Closeable {
+public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Closeable {
 
     private static final AtomicInteger NEXT_ID = new AtomicInteger(Objects.hashCode(UUIDs.newPseudoRandomUUID()));
 
@@ -45,6 +45,7 @@ public final class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAl
         return NEXT_ID.getAndIncrement();
     }
 
+    @Override
     public File getDirectory() {
         return map.getDirectory();
     }
@@ -164,6 +165,10 @@ public final class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAl
         }
     }
 
+    protected FlyweightPrimitiveArrayPersistentMap<String> getMap() {
+        return map;
+    }
+
     @Override
     public IAttributesMap getAttributes() {
         if (attributes == null) {
@@ -206,6 +211,11 @@ public final class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAl
     @Override
     public void close() {
         map.close();
+    }
+
+    @Override
+    public boolean isOnHeap(final int size) {
+        return false;
     }
 
 }
