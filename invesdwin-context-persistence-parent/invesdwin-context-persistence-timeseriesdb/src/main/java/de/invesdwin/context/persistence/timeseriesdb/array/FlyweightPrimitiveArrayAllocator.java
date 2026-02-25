@@ -27,6 +27,7 @@ import de.invesdwin.util.collections.bitset.LongArrayBitSet;
 import de.invesdwin.util.collections.bitset.LongArrayBitSetBase;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.UUIDs;
+import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.math.BitSets;
 import de.invesdwin.util.streams.buffer.bytes.FakeAllocatorBuffer;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
@@ -35,13 +36,11 @@ import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Closeable {
 
     private static final AtomicInteger NEXT_ID = new AtomicInteger(Objects.hashCode(UUIDs.newPseudoRandomUUID()));
-
-    private final FlyweightPrimitiveArrayPersistentMap<String> map;
-    private AttributesMap attributes;
-    private IProperties properties;
+    private final FlyweightPrimitiveArrayAllocatorFinalizer finalizer;
 
     public FlyweightPrimitiveArrayAllocator(final String name, final File directory) {
-        this.map = new FlyweightPrimitiveArrayPersistentMap<>(name, directory);
+        this.finalizer = new FlyweightPrimitiveArrayAllocatorFinalizer(name, directory);
+        this.finalizer.register(this);
     }
 
     private int nextId() {
@@ -50,27 +49,27 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
 
     @Override
     public File getDirectory() {
-        return map.getDirectory();
+        return finalizer.map.getDirectory();
     }
 
     @Override
     public IByteBuffer getByteBuffer(final String id) {
-        return (IByteBuffer) map.get(id);
+        return (IByteBuffer) finalizer.map.get(id);
     }
 
     @Override
     public IDoubleArray getDoubleArray(final String id) {
-        return (IDoubleArray) map.get(id);
+        return (IDoubleArray) finalizer.map.get(id);
     }
 
     @Override
     public IIntegerArray getIntegerArray(final String id) {
-        return (IIntegerArray) map.get(id);
+        return (IIntegerArray) finalizer.map.get(id);
     }
 
     @Override
     public IBooleanArray getBooleanArray(final String id) {
-        return (IBooleanArray) map.get(id);
+        return (IBooleanArray) finalizer.map.get(id);
     }
 
     @Override
@@ -85,22 +84,22 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
 
     @Override
     public ILongArray getLongArray(final String id) {
-        return (ILongArray) map.get(id);
+        return (ILongArray) finalizer.map.get(id);
     }
 
     @Override
     public IByteBuffer newByteBuffer(final String id, final int size) {
-        Assertions.checkNull(map.put(id, new FakeAllocatorBuffer(nextId(), size)));
-        final IByteBuffer instance = (IByteBuffer) map.get(id);
+        Assertions.checkNull(finalizer.map.put(id, new FakeAllocatorBuffer(nextId(), size)));
+        final IByteBuffer instance = (IByteBuffer) finalizer.map.get(id);
         Assertions.checkNotNull(instance);
         return instance;
     }
 
     @Override
     public IDoubleArray newDoubleArray(final String id, final int size) {
-        Assertions
-                .checkNull(map.put(id, new BufferDoubleArray(new FakeAllocatorBuffer(nextId(), size * Double.BYTES))));
-        final IDoubleArray array = (IDoubleArray) map.get(id);
+        Assertions.checkNull(
+                finalizer.map.put(id, new BufferDoubleArray(new FakeAllocatorBuffer(nextId(), size * Double.BYTES))));
+        final IDoubleArray array = (IDoubleArray) finalizer.map.get(id);
         Assertions.checkNotNull(array);
         clearBeforeUsage(array);
         return array;
@@ -109,8 +108,8 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
     @Override
     public IIntegerArray newIntegerArray(final String id, final int size) {
         Assertions.checkNull(
-                map.put(id, new BufferIntegerArray(new FakeAllocatorBuffer(nextId(), size * Integer.BYTES))));
-        final IIntegerArray array = (IIntegerArray) map.get(id);
+                finalizer.map.put(id, new BufferIntegerArray(new FakeAllocatorBuffer(nextId(), size * Integer.BYTES))));
+        final IIntegerArray array = (IIntegerArray) finalizer.map.get(id);
         Assertions.checkNotNull(array);
         clearBeforeUsage(array);
         return array;
@@ -118,9 +117,9 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
 
     @Override
     public IBooleanArray newBooleanArray(final String id, final int size) {
-        Assertions.checkNull(map.put(id, new BufferBooleanArray(
+        Assertions.checkNull(finalizer.map.put(id, new BufferBooleanArray(
                 new FakeAllocatorBuffer(nextId(), (BitSets.wordIndex(size - 1) + 1) * Long.BYTES), size)));
-        final IBooleanArray array = (IBooleanArray) map.get(id);
+        final IBooleanArray array = (IBooleanArray) finalizer.map.get(id);
         Assertions.checkNotNull(array);
         clearBeforeUsage(array);
         return array;
@@ -135,8 +134,9 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
 
     @Override
     public ILongArray newLongArray(final String id, final int size) {
-        Assertions.checkNull(map.put(id, new BufferLongArray(new FakeAllocatorBuffer(nextId(), size * Long.BYTES))));
-        final ILongArray array = (ILongArray) map.get(id);
+        Assertions.checkNull(
+                finalizer.map.put(id, new BufferLongArray(new FakeAllocatorBuffer(nextId(), size * Long.BYTES))));
+        final ILongArray array = (ILongArray) finalizer.map.get(id);
         Assertions.checkNotNull(array);
         clearBeforeUsage(array);
         return array;
@@ -149,19 +149,19 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
 
     @Override
     public String toString() {
-        return Objects.toStringHelper(this).addValue(map.getName()).addValue(getDirectory()).toString();
+        return Objects.toStringHelper(this).addValue(finalizer.map.getName()).addValue(getDirectory()).toString();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(FlyweightPrimitiveArrayAllocator.class, map.getName(), getDirectory());
+        return Objects.hashCode(FlyweightPrimitiveArrayAllocator.class, finalizer.map.getName(), getDirectory());
     }
 
     @Override
     public boolean equals(final Object obj) {
         if (obj instanceof FlyweightPrimitiveArrayAllocator) {
             final FlyweightPrimitiveArrayAllocator cObj = (FlyweightPrimitiveArrayAllocator) obj;
-            return Objects.equals(map.getName(), cObj.map.getDirectory())
+            return Objects.equals(finalizer.map.getName(), cObj.finalizer.map.getDirectory())
                     && Objects.equals(getDirectory(), cObj.getDirectory());
         } else {
             return false;
@@ -178,57 +178,85 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
         }
     }
 
-    protected FlyweightPrimitiveArrayPersistentMap<String> getMap() {
-        return map;
-    }
-
     @Override
     public IAttributesMap getAttributes() {
-        if (attributes == null) {
+        if (finalizer.attributes == null) {
             synchronized (this) {
-                if (attributes == null) {
-                    attributes = new AttributesMap();
+                if (finalizer.attributes == null) {
+                    finalizer.attributes = new AttributesMap();
                 }
             }
         }
-        return attributes;
+        return finalizer.attributes;
     }
 
     @Override
     public IProperties getProperties() {
-        if (properties == null) {
+        if (finalizer.properties == null) {
             synchronized (this) {
-                if (properties == null) {
-                    properties = new CachingDelegateProperties(new FileProperties(newPropertiesFile()));
+                if (finalizer.properties == null) {
+                    finalizer.properties = new CachingDelegateProperties(new FileProperties(newPropertiesFile()));
                 }
             }
         }
-        return properties;
+        return finalizer.properties;
     }
 
     private File newPropertiesFile() {
-        return new File(getDirectory(), map.getName() + ".properties");
+        return new File(getDirectory(), finalizer.map.getName() + ".properties");
     }
 
     @Override
     public void clear() {
-        map.clear();
-        final AttributesMap attributesCopy = attributes;
+        finalizer.map.clear();
+        final AttributesMap attributesCopy = finalizer.attributes;
         if (attributesCopy != null) {
             attributesCopy.clear();
-            attributes = null;
+            finalizer.attributes = null;
         }
-        properties = null;
+        finalizer.properties = null;
     }
 
     @Override
     public void close() {
-        map.close();
+        finalizer.close();
     }
 
     @Override
     public boolean isOnHeap(final int size) {
         return false;
+    }
+
+    private static final class FlyweightPrimitiveArrayAllocatorFinalizer extends AFinalizer {
+
+        private FlyweightPrimitiveArrayPersistentMap<String> map;
+        private AttributesMap attributes;
+        private IProperties properties;
+
+        private FlyweightPrimitiveArrayAllocatorFinalizer(final String name, final File directory) {
+            this.map = new FlyweightPrimitiveArrayPersistentMap<>(name, directory);
+        }
+
+        @Override
+        protected void clean() {
+            final FlyweightPrimitiveArrayPersistentMap<String> mapCopy = map;
+            if (mapCopy != null) {
+                mapCopy.close();
+                map = null;
+            }
+            attributes = null;
+            properties = null;
+        }
+
+        @Override
+        protected boolean isCleaned() {
+            return map == null;
+        }
+
+        @Override
+        public boolean isThreadLocal() {
+            return false;
+        }
     }
 
 }
