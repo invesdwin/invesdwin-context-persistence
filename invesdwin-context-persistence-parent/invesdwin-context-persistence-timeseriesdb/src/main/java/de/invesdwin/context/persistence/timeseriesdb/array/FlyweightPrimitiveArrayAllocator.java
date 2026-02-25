@@ -15,6 +15,7 @@ import de.invesdwin.util.collections.array.IBooleanArray;
 import de.invesdwin.util.collections.array.IDoubleArray;
 import de.invesdwin.util.collections.array.IIntegerArray;
 import de.invesdwin.util.collections.array.ILongArray;
+import de.invesdwin.util.collections.array.accessor.IArrayAccessor;
 import de.invesdwin.util.collections.array.buffer.BufferBooleanArray;
 import de.invesdwin.util.collections.array.buffer.BufferDoubleArray;
 import de.invesdwin.util.collections.array.buffer.BufferIntegerArray;
@@ -22,6 +23,8 @@ import de.invesdwin.util.collections.array.buffer.BufferLongArray;
 import de.invesdwin.util.collections.attributes.AttributesMap;
 import de.invesdwin.util.collections.attributes.IAttributesMap;
 import de.invesdwin.util.collections.bitset.IBitSet;
+import de.invesdwin.util.collections.bitset.LongArrayBitSet;
+import de.invesdwin.util.collections.bitset.LongArrayBitSetBase;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.UUIDs;
 import de.invesdwin.util.math.BitSets;
@@ -97,41 +100,51 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
     public IDoubleArray newDoubleArray(final String id, final int size) {
         Assertions
                 .checkNull(map.put(id, new BufferDoubleArray(new FakeAllocatorBuffer(nextId(), size * Double.BYTES))));
-        final IDoubleArray instance = (IDoubleArray) map.get(id);
-        Assertions.checkNotNull(instance);
-        return instance;
+        final IDoubleArray array = (IDoubleArray) map.get(id);
+        Assertions.checkNotNull(array);
+        clearBeforeUsage(array);
+        return array;
     }
 
     @Override
     public IIntegerArray newIntegerArray(final String id, final int size) {
         Assertions.checkNull(
                 map.put(id, new BufferIntegerArray(new FakeAllocatorBuffer(nextId(), size * Integer.BYTES))));
-        final IIntegerArray instance = (IIntegerArray) map.get(id);
-        Assertions.checkNotNull(instance);
-        return instance;
+        final IIntegerArray array = (IIntegerArray) map.get(id);
+        Assertions.checkNotNull(array);
+        clearBeforeUsage(array);
+        return array;
     }
 
     @Override
     public IBooleanArray newBooleanArray(final String id, final int size) {
         Assertions.checkNull(map.put(id, new BufferBooleanArray(
-                new FakeAllocatorBuffer(nextId(), (BitSets.wordIndex(size) + 1) * Long.BYTES), size)));
-        final IBooleanArray instance = (IBooleanArray) map.get(id);
-        Assertions.checkNotNull(instance);
-        return instance;
+                new FakeAllocatorBuffer(nextId(), (BitSets.wordIndex(size - 1) + 1) * Long.BYTES), size)));
+        final IBooleanArray array = (IBooleanArray) map.get(id);
+        Assertions.checkNotNull(array);
+        clearBeforeUsage(array);
+        return array;
     }
 
     @Override
     public IBitSet newBitSet(final String id, final int size) {
-        final BufferBooleanArray booleanArray = (BufferBooleanArray) newBooleanArray(id, size);
-        return booleanArray.getDelegate().getBitSet();
+        final LongArrayBitSet bitSet = new LongArrayBitSet(
+                new LongArrayBitSetBase(newLongArray(id, BitSets.wordIndex(size - 1) + 1), size), size);
+        return bitSet;
     }
 
     @Override
     public ILongArray newLongArray(final String id, final int size) {
         Assertions.checkNull(map.put(id, new BufferLongArray(new FakeAllocatorBuffer(nextId(), size * Long.BYTES))));
-        final ILongArray instance = (ILongArray) map.get(id);
-        Assertions.checkNotNull(instance);
-        return instance;
+        final ILongArray array = (ILongArray) map.get(id);
+        Assertions.checkNotNull(array);
+        clearBeforeUsage(array);
+        return array;
+    }
+
+    protected void clearBeforeUsage(final IArrayAccessor instance) {
+        //make sure everything is clear since usage might only sparsely fill
+        instance.clear();
     }
 
     @Override
