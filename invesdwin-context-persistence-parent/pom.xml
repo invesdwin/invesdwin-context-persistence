@@ -45,7 +45,7 @@
 		<project.version.invesdwin-context-persistence>${project.version}</project.version.invesdwin-context-persistence>
 
 		<version.hikaricp>5.0.0</version.hikaricp>
-		<version.c3p0>0.9.5.5</version.c3p0>
+		<version.c3p0>0.12.0</version.c3p0>
 		<version.p6spy>3.9.1</version.p6spy>
 		<version.hibernate>7.1.11.Final</version.hibernate>
 		<version.antlr4>4.13.2</version.antlr4>
