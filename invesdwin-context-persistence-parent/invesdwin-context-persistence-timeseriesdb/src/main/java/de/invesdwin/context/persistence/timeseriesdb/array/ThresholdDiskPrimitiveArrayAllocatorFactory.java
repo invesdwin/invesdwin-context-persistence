@@ -5,21 +5,30 @@ import java.io.Closeable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.Immutable;
 
+import org.jspecify.annotations.Nullable;
+
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.github.benmanes.caffeine.cache.RemovalCause;
+
 import de.invesdwin.context.system.array.IPrimitiveArrayAllocator;
 import de.invesdwin.context.system.array.IPrimitiveArrayAllocatorFactory;
-import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.lang.Objects;
 
 @Immutable
 public final class ThresholdDiskPrimitiveArrayAllocatorFactory implements IPrimitiveArrayAllocatorFactory, Closeable {
 
+    /*
+     * only evict factories when they are not used anymore, so we can clear everything between tests without worrying
+     * about reference leaks between tests
+     */
     @GuardedBy("this.class")
-    private static final ALoadingCache<String, ThresholdDiskPrimitiveArrayAllocatorFactory> FACTORIES = new ALoadingCache<String, ThresholdDiskPrimitiveArrayAllocatorFactory>() {
-        @Override
-        protected ThresholdDiskPrimitiveArrayAllocatorFactory loadValue(final String key) {
-            return new ThresholdDiskPrimitiveArrayAllocatorFactory(key);
-        }
-    };
+    private static final LoadingCache<String, ThresholdDiskPrimitiveArrayAllocatorFactory> FACTORIES = Caffeine
+            .newBuilder()
+            .weakValues()
+            .removalListener(ThresholdDiskPrimitiveArrayAllocatorFactory::factories_onRemoval)
+            .<String, ThresholdDiskPrimitiveArrayAllocatorFactory> build(
+                    ThresholdDiskPrimitiveArrayAllocatorFactory::factories_load);
 
     private final String name;
 
@@ -28,6 +37,15 @@ public final class ThresholdDiskPrimitiveArrayAllocatorFactory implements IPrimi
 
     private ThresholdDiskPrimitiveArrayAllocatorFactory(final String name) {
         this.name = name;
+    }
+
+    private static void factories_onRemoval(@Nullable final String key,
+            final ThresholdDiskPrimitiveArrayAllocatorFactory value, final RemovalCause removalCause) {
+        value.close();
+    }
+
+    private static ThresholdDiskPrimitiveArrayAllocatorFactory factories_load(final String key) {
+        return new ThresholdDiskPrimitiveArrayAllocatorFactory(key);
     }
 
     @Override
@@ -78,11 +96,8 @@ public final class ThresholdDiskPrimitiveArrayAllocatorFactory implements IPrimi
     }
 
     public static synchronized void clear() {
-        if (!FACTORIES.isEmpty()) {
-            for (final ThresholdDiskPrimitiveArrayAllocatorFactory factory : FACTORIES.values()) {
-                factory.close();
-            }
-            FACTORIES.clear();
+        for (final ThresholdDiskPrimitiveArrayAllocatorFactory factory : FACTORIES.asMap().values()) {
+            factory.close();
         }
     }
 
