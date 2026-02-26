@@ -211,7 +211,7 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
 
     @Override
     public void clear() {
-        finalizer.map.clear();
+        finalizer.map.deleteTable();
         final AttributesMap attributesCopy = finalizer.attributes;
         if (attributesCopy != null) {
             attributesCopy.clear();
