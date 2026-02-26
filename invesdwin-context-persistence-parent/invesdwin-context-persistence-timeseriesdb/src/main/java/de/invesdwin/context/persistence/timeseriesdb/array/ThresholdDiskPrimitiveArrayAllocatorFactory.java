@@ -11,8 +11,7 @@ import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.lang.Objects;
 
 @Immutable
-public final class ThresholdDiskPrimitiveArrayAllocatorFactory
-        implements IPrimitiveArrayAllocatorFactory, Closeable {
+public final class ThresholdDiskPrimitiveArrayAllocatorFactory implements IPrimitiveArrayAllocatorFactory, Closeable {
 
     @GuardedBy("this.class")
     private static final ALoadingCache<String, ThresholdDiskPrimitiveArrayAllocatorFactory> FACTORIES = new ALoadingCache<String, ThresholdDiskPrimitiveArrayAllocatorFactory>() {
