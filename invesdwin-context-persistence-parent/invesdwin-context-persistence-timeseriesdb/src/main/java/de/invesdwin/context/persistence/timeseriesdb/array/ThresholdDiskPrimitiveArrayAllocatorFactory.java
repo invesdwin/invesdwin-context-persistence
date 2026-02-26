@@ -41,7 +41,9 @@ public final class ThresholdDiskPrimitiveArrayAllocatorFactory implements IPrimi
 
     private static void factories_onRemoval(@Nullable final String key,
             final ThresholdDiskPrimitiveArrayAllocatorFactory value, final RemovalCause removalCause) {
-        value.close();
+        if (value != null) {
+            value.close();
+        }
     }
 
     private static ThresholdDiskPrimitiveArrayAllocatorFactory factories_load(final String key) {
