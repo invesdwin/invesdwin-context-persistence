@@ -27,16 +27,16 @@ public class TemporaryDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllo
             TemporaryDiskPrimitiveArrayAllocator.class.getSimpleName());
 
     private final TemporaryDiskPrimitiveArrayAllocatorFinalizer finalizer;
-    private final String name;
-    private final File baseDirectory;
+    private final String uniqueName;
+    private final File directory;
 
     public TemporaryDiskPrimitiveArrayAllocator(final String name) {
         this(name, DEFAULT_BASE_DIRECTORY);
     }
 
     public TemporaryDiskPrimitiveArrayAllocator(final String name, final File baseDirectory) {
-        this.name = name;
-        this.baseDirectory = baseDirectory;
+        this.uniqueName = UNIQUE_NAME_GENERATOR.get(name);
+        this.directory = new File(baseDirectory, uniqueName);
         this.finalizer = new TemporaryDiskPrimitiveArrayAllocatorFinalizer();
         this.finalizer.register(this);
     }
@@ -49,8 +49,6 @@ public class TemporaryDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllo
         if (finalizer.delegate == null) {
             synchronized (this) {
                 if (finalizer.delegate == null) {
-                    final String uniqueName = UNIQUE_NAME_GENERATOR.get(name);
-                    final File directory = new File(baseDirectory, uniqueName);
                     finalizer.delegate = newDelegate(uniqueName, directory);
                 }
             }

@@ -78,13 +78,12 @@ public final class ThresholdDiskPrimitiveArrayAllocatorFactory implements IPrimi
     }
 
     public static synchronized void clear() {
-        if (FACTORIES.isEmpty()) {
-            return;
+        if (!FACTORIES.isEmpty()) {
+            for (final ThresholdDiskPrimitiveArrayAllocatorFactory factory : FACTORIES.values()) {
+                factory.close();
+            }
+            FACTORIES.clear();
         }
-        for (final ThresholdDiskPrimitiveArrayAllocatorFactory factory : FACTORIES.values()) {
-            factory.close();
-        }
-        FACTORIES.clear();
     }
 
 }
