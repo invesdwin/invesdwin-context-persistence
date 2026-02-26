@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.timeseriesdb.array;
 
 import java.io.Closeable;
+import java.util.Map;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.Immutable;
@@ -96,8 +97,11 @@ public final class ThresholdDiskPrimitiveArrayAllocatorFactory implements IPrimi
     }
 
     public static synchronized void clear() {
-        for (final ThresholdDiskPrimitiveArrayAllocatorFactory factory : FACTORIES.asMap().values()) {
-            factory.close();
+        final Map<String, ThresholdDiskPrimitiveArrayAllocatorFactory> map = FACTORIES.asMap();
+        if (!map.isEmpty()) {
+            for (final ThresholdDiskPrimitiveArrayAllocatorFactory factory : map.values()) {
+                factory.close();
+            }
         }
     }
 
