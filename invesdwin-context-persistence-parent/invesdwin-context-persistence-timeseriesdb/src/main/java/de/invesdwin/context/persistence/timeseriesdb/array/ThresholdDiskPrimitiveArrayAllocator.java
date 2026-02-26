@@ -189,7 +189,7 @@ public class ThresholdDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllo
     @Override
     public boolean isOnHeap(final int size) {
         //System.out.println("TODO: disk not working fully");
-        return true;
+        return false;
         //        final boolean onHeap = size < diskThreshold;
         //        return onHeap;
     }

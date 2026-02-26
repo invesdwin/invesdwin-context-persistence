@@ -18,7 +18,7 @@ public class TemporaryDiskPrimitiveArrayAllocatorTest extends ATest {
     public void testBitSet() {
         final OnHeapPrimitiveArrayAllocator onHeapAllocator = new OnHeapPrimitiveArrayAllocator();
         final TemporaryDiskPrimitiveArrayAllocator offHeapAllocator = new TemporaryDiskPrimitiveArrayAllocator(
-                TemporaryFTemporaryDiskPrimitiveArrayAllocatorTestSimpleName());
+                TemporaryDiskPrimitiveArrayAllocatorTest.class.getSimpleName());
         final int size = 1000;
 
         final IBitSet onHeapBitSet = onHeapAllocator.newBitSet("onHeapBitSet", size);
@@ -70,7 +70,7 @@ public class TemporaryDiskPrimitiveArrayAllocatorTest extends ATest {
     public void testDoubleNaN() {
         final OnHeapPrimitiveArrayAllocator onHeapAllocator = new OnHeapPrimitiveArrayAllocator();
         final TemporaryDiskPrimitiveArrayAllocator offHeapAllocator = new TemporaryDiskPrimitiveArrayAllocator(
-                TemporaryFlyweightPrTemporaryDiskPrimitiveArrayAllocatorTest());
+                TemporaryDiskPrimitiveArrayAllocatorTest.class.getSimpleName());
         final int size = 1000;
 
         final IDoubleArray onHeapBooleanArray = onHeapAllocator.newDoubleArray("onHeapBooleanArray", size);
