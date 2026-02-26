@@ -17,23 +17,24 @@ import de.invesdwin.util.collections.bitset.IBitSet;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
-import de.invesdwin.util.streams.closeable.Closeables;
 
 @ThreadSafe
-public class SwitchingFlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Closeable {
+public class ThresholdDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Closeable {
 
-    //    public static final int DEFAULT_DISK_THRESHOLD = DisabledLockCollectionFactory.ROARING_BITMAP_THRESHOLD;
+    /**
+     * There might be a better optimum at which onHeap becomes slower than MemoryMappedFiles, but we currently want to
+     * minimize HEAP usage, so we set a low threshold
+     */
     public static final int DEFAULT_DISK_THRESHOLD = AHistoricalCache.DEFAULT_MAXIMUM_SIZE_LIMIT;
     private final int diskThreshold;
     private final IPrimitiveArrayAllocator heap;
     private final IPrimitiveArrayAllocator disk;
 
-    public SwitchingFlyweightPrimitiveArrayAllocator(final String name) {
+    public ThresholdDiskPrimitiveArrayAllocator(final String name) {
         this(name, DEFAULT_DISK_THRESHOLD);
     }
 
-    public SwitchingFlyweightPrimitiveArrayAllocator(final String name, final int diskThreshold) {
-        //System.out.println("TODO: find a better default threshold and maybe make it configurable");
+    public ThresholdDiskPrimitiveArrayAllocator(final String name, final int diskThreshold) {
         this.diskThreshold = diskThreshold;
         this.heap = newHeapPrimitiveArrayAllocator(name);
         this.disk = newDiskPrimitiveArrayAllocator(name);
@@ -44,7 +45,7 @@ public class SwitchingFlyweightPrimitiveArrayAllocator implements IPrimitiveArra
     }
 
     protected IPrimitiveArrayAllocator newDiskPrimitiveArrayAllocator(final String name) {
-        return new TemporaryFlyweightPrimitiveArrayAllocator(name);
+        return new TemporaryDiskPrimitiveArrayAllocator(name);
     }
 
     @Override
@@ -200,8 +201,8 @@ public class SwitchingFlyweightPrimitiveArrayAllocator implements IPrimitiveArra
 
     @Override
     public void close() {
-        Closeables.close(heap);
-        Closeables.close(disk);
+        heap.close();
+        disk.close();
     }
 
     @Override
@@ -211,13 +212,13 @@ public class SwitchingFlyweightPrimitiveArrayAllocator implements IPrimitiveArra
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(SwitchingFlyweightPrimitiveArrayAllocator.class, heap, disk, getDirectory());
+        return Objects.hashCode(ThresholdDiskPrimitiveArrayAllocator.class, heap, disk, getDirectory());
     }
 
     @Override
     public boolean equals(final Object obj) {
-        if (obj instanceof SwitchingFlyweightPrimitiveArrayAllocator) {
-            final SwitchingFlyweightPrimitiveArrayAllocator cObj = (SwitchingFlyweightPrimitiveArrayAllocator) obj;
+        if (obj instanceof ThresholdDiskPrimitiveArrayAllocator) {
+            final ThresholdDiskPrimitiveArrayAllocator cObj = (ThresholdDiskPrimitiveArrayAllocator) obj;
             return Objects.equals(heap, cObj.heap) && Objects.equals(disk, cObj.disk);
         } else {
             return false;

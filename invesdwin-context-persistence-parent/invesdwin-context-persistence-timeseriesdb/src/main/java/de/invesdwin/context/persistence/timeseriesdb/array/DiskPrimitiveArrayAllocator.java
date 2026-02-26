@@ -32,14 +32,17 @@ import de.invesdwin.util.math.BitSets;
 import de.invesdwin.util.streams.buffer.bytes.FakeAllocatorBuffer;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 
+/**
+ * Uses the flyweight pattern with memory mapped files on disk.
+ */
 @ThreadSafe
-public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Closeable {
+public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Closeable {
 
     private static final AtomicInteger NEXT_ID = new AtomicInteger(Objects.hashCode(UUIDs.newPseudoRandomUUID()));
-    private final FlyweightPrimitiveArrayAllocatorFinalizer finalizer;
+    private final DiskPrimitiveArrayAllocatorFinalizer finalizer;
 
-    public FlyweightPrimitiveArrayAllocator(final String name, final File directory) {
-        this.finalizer = new FlyweightPrimitiveArrayAllocatorFinalizer(name, directory);
+    public DiskPrimitiveArrayAllocator(final String name, final File directory) {
+        this.finalizer = new DiskPrimitiveArrayAllocatorFinalizer(name, directory);
         this.finalizer.register(this);
     }
 
@@ -154,13 +157,13 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(FlyweightPrimitiveArrayAllocator.class, finalizer.map.getName(), getDirectory());
+        return Objects.hashCode(DiskPrimitiveArrayAllocator.class, finalizer.map.getName(), getDirectory());
     }
 
     @Override
     public boolean equals(final Object obj) {
-        if (obj instanceof FlyweightPrimitiveArrayAllocator) {
-            final FlyweightPrimitiveArrayAllocator cObj = (FlyweightPrimitiveArrayAllocator) obj;
+        if (obj instanceof DiskPrimitiveArrayAllocator) {
+            final DiskPrimitiveArrayAllocator cObj = (DiskPrimitiveArrayAllocator) obj;
             return Objects.equals(finalizer.map.getName(), cObj.finalizer.map.getDirectory())
                     && Objects.equals(getDirectory(), cObj.getDirectory());
         } else {
@@ -227,19 +230,19 @@ public class FlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocato
         return false;
     }
 
-    private static final class FlyweightPrimitiveArrayAllocatorFinalizer extends AFinalizer {
+    private static final class DiskPrimitiveArrayAllocatorFinalizer extends AFinalizer {
 
-        private FlyweightPrimitiveArrayPersistentMap<String> map;
+        private DiskPrimitiveArrayPersistentMap<String> map;
         private AttributesMap attributes;
         private IProperties properties;
 
-        private FlyweightPrimitiveArrayAllocatorFinalizer(final String name, final File directory) {
-            this.map = new FlyweightPrimitiveArrayPersistentMap<>(name, directory);
+        private DiskPrimitiveArrayAllocatorFinalizer(final String name, final File directory) {
+            this.map = new DiskPrimitiveArrayPersistentMap<>(name, directory);
         }
 
         @Override
         protected void clean() {
-            final FlyweightPrimitiveArrayPersistentMap<String> mapCopy = map;
+            final DiskPrimitiveArrayPersistentMap<String> mapCopy = map;
             if (mapCopy != null) {
                 mapCopy.close();
                 map = null;

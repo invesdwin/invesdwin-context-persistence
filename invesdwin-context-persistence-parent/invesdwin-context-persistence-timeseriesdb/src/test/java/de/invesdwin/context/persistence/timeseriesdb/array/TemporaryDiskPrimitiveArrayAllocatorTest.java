@@ -12,13 +12,13 @@ import de.invesdwin.util.collections.array.IDoubleArray;
 import de.invesdwin.util.collections.bitset.IBitSet;
 
 @NotThreadSafe
-public class TemporaryFlyweightPrimitiveArrayAllocatorTest extends ATest {
+public class TemporaryDiskPrimitiveArrayAllocatorTest extends ATest {
 
     @Test
     public void testBitSet() {
         final OnHeapPrimitiveArrayAllocator onHeapAllocator = new OnHeapPrimitiveArrayAllocator();
-        final TemporaryFlyweightPrimitiveArrayAllocator offHeapAllocator = new TemporaryFlyweightPrimitiveArrayAllocator(
-                TemporaryFlyweightPrimitiveArrayAllocatorTest.class.getSimpleName());
+        final TemporaryDiskPrimitiveArrayAllocator offHeapAllocator = new TemporaryDiskPrimitiveArrayAllocator(
+                TemporaryFTemporaryDiskPrimitiveArrayAllocatorTestSimpleName());
         final int size = 1000;
 
         final IBitSet onHeapBitSet = onHeapAllocator.newBitSet("onHeapBitSet", size);
@@ -69,8 +69,8 @@ public class TemporaryFlyweightPrimitiveArrayAllocatorTest extends ATest {
     @Test
     public void testDoubleNaN() {
         final OnHeapPrimitiveArrayAllocator onHeapAllocator = new OnHeapPrimitiveArrayAllocator();
-        final TemporaryFlyweightPrimitiveArrayAllocator offHeapAllocator = new TemporaryFlyweightPrimitiveArrayAllocator(
-                TemporaryFlyweightPrimitiveArrayAllocatorTest.class.getSimpleName());
+        final TemporaryDiskPrimitiveArrayAllocator offHeapAllocator = new TemporaryDiskPrimitiveArrayAllocator(
+                TemporaryFlyweightPrTemporaryDiskPrimitiveArrayAllocatorTest());
         final int size = 1000;
 
         final IDoubleArray onHeapBooleanArray = onHeapAllocator.newDoubleArray("onHeapBooleanArray", size);

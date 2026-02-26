@@ -12,11 +12,11 @@ import de.invesdwin.util.collections.array.IPrimitiveArray;
 import de.invesdwin.util.marshallers.serde.ISerde;
 
 @ThreadSafe
-public class FlyweightPrimitiveArrayPersistentMap<K> extends APersistentMap<K, IPrimitiveArray> {
+public class DiskPrimitiveArrayPersistentMap<K> extends APersistentMap<K, IPrimitiveArray> {
 
     private final File directory;
 
-    public FlyweightPrimitiveArrayPersistentMap(final String name, final File directory) {
+    public DiskPrimitiveArrayPersistentMap(final String name, final File directory) {
         super(name);
         this.directory = directory;
     }
@@ -28,7 +28,7 @@ public class FlyweightPrimitiveArrayPersistentMap<K> extends APersistentMap<K, I
 
     @Override
     public ISerde<IPrimitiveArray> newValueSerde() {
-        return FlyweightPrimitiveArraySerde.GET;
+        return DiskPrimitiveArraySerde.GET;
     }
 
     @Override

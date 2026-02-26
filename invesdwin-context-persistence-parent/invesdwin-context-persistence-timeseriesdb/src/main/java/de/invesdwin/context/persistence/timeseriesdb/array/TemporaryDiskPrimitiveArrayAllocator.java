@@ -14,33 +14,46 @@ import de.invesdwin.util.collections.array.IIntegerArray;
 import de.invesdwin.util.collections.array.ILongArray;
 import de.invesdwin.util.collections.attributes.IAttributesMap;
 import de.invesdwin.util.collections.bitset.IBitSet;
+import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.lang.string.UniqueNameGenerator;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
-import de.invesdwin.util.streams.closeable.Closeables;
 
 @ThreadSafe
-public class TemporaryFlyweightPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Closeable {
+public class TemporaryDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Closeable {
 
     private static final UniqueNameGenerator UNIQUE_NAME_GENERATOR = new UniqueNameGenerator();
     private static final File DEFAULT_BASE_DIRECTORY = new File(ContextProperties.TEMP_DIRECTORY,
-            TemporaryFlyweightPrimitiveArrayAllocator.class.getSimpleName());
+            TemporaryDiskPrimitiveArrayAllocator.class.getSimpleName());
 
-    private final TemporaryFlyweightPrimitiveArrayAllocatorFinalizer finalizer;
+    private final TemporaryDiskPrimitiveArrayAllocatorFinalizer finalizer;
+    private final String uniqueName;
+    private final File directory;
 
-    public TemporaryFlyweightPrimitiveArrayAllocator(final String name) {
+    public TemporaryDiskPrimitiveArrayAllocator(final String name) {
         this(name, DEFAULT_BASE_DIRECTORY);
     }
 
-    public TemporaryFlyweightPrimitiveArrayAllocator(final String name, final File baseDirectory) {
-        final String uniqueName = UNIQUE_NAME_GENERATOR.get(name);
-        final File directory = new File(baseDirectory, uniqueName);
-        this.finalizer = new TemporaryFlyweightPrimitiveArrayAllocatorFinalizer(newDelegate(uniqueName, directory));
+    public TemporaryDiskPrimitiveArrayAllocator(final String name, final File baseDirectory) {
+        this.uniqueName = UNIQUE_NAME_GENERATOR.get(name);
+        this.directory = new File(baseDirectory, uniqueName);
+        this.finalizer = new TemporaryDiskPrimitiveArrayAllocatorFinalizer();
         this.finalizer.register(this);
     }
 
     protected IPrimitiveArrayAllocator newDelegate(final String name, final File directory) {
-        return new FlyweightPrimitiveArrayAllocator(name, directory);
+        return new DiskPrimitiveArrayAllocator(name, directory);
+    }
+
+    protected IPrimitiveArrayAllocator getDelegate() {
+        if (finalizer.delegate == null) {
+            synchronized (this) {
+                if (finalizer.delegate == null) {
+                    finalizer.delegate = newDelegate(uniqueName, directory);
+                }
+            }
+        }
+        return finalizer.delegate;
     }
 
     @Override
@@ -54,7 +67,11 @@ public class TemporaryFlyweightPrimitiveArrayAllocator implements IPrimitiveArra
         if (type.isAssignableFrom(getClass())) {
             return (T) this;
         } else {
-            return getDelegate().unwrap(type);
+            final IPrimitiveArrayAllocator delegateCopy = finalizer.delegate;
+            if (delegateCopy != null) {
+                delegateCopy.unwrap(type);
+            }
+            return null;
         }
     }
 
@@ -143,24 +160,38 @@ public class TemporaryFlyweightPrimitiveArrayAllocator implements IPrimitiveArra
         return getDelegate().getDirectory();
     }
 
-    private IPrimitiveArrayAllocator getDelegate() {
-        return finalizer.delegate;
+    @Override
+    public String toString() {
+        return Objects.toStringHelper(this).addValue(getDelegate()).toString();
     }
 
-    private static final class TemporaryFlyweightPrimitiveArrayAllocatorFinalizer extends AFinalizer {
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(DiskPrimitiveArrayAllocator.class, getDelegate());
+    }
+
+    @Override
+    public boolean equals(final Object obj) {
+        if (obj == this) {
+            return true;
+        }
+        if (obj instanceof TemporaryDiskPrimitiveArrayAllocator) {
+            final TemporaryDiskPrimitiveArrayAllocator cObj = (TemporaryDiskPrimitiveArrayAllocator) obj;
+            return Objects.equals(getDelegate(), cObj.finalizer.delegate);
+        }
+        return false;
+    }
+
+    private static final class TemporaryDiskPrimitiveArrayAllocatorFinalizer extends AFinalizer {
 
         private IPrimitiveArrayAllocator delegate;
-
-        private TemporaryFlyweightPrimitiveArrayAllocatorFinalizer(final IPrimitiveArrayAllocator delegate) {
-            this.delegate = delegate;
-        }
 
         @Override
         protected void clean() {
             final IPrimitiveArrayAllocator delegateCopy = delegate;
             if (delegateCopy != null) {
                 delegateCopy.clear();
-                Closeables.close(delegateCopy);
+                delegateCopy.close();
                 delegate = null;
             }
         }
