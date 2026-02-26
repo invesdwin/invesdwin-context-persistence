@@ -5,8 +5,6 @@ import java.io.Closeable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.Immutable;
 
-import org.jspecify.annotations.Nullable;
-
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.github.benmanes.caffeine.cache.RemovalCause;
@@ -39,8 +37,8 @@ public final class ThresholdDiskPrimitiveArrayAllocatorFactory implements IPrimi
         this.name = name;
     }
 
-    private static void factories_onRemoval(@Nullable final String key,
-            final ThresholdDiskPrimitiveArrayAllocatorFactory value, final RemovalCause removalCause) {
+    private static void factories_onRemoval(final String key, final ThresholdDiskPrimitiveArrayAllocatorFactory value,
+            final RemovalCause removalCause) {
         if (value != null) {
             value.close();
         }
