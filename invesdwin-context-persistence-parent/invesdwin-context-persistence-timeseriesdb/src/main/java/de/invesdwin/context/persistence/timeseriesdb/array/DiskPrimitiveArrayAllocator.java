@@ -23,8 +23,6 @@ import de.invesdwin.util.collections.array.buffer.BufferLongArray;
 import de.invesdwin.util.collections.attributes.AttributesMap;
 import de.invesdwin.util.collections.attributes.IAttributesMap;
 import de.invesdwin.util.collections.bitset.IBitSet;
-import de.invesdwin.util.collections.bitset.LongArrayBitSet;
-import de.invesdwin.util.collections.bitset.LongArrayBitSetBase;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.UUIDs;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
@@ -130,9 +128,8 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
 
     @Override
     public IBitSet newBitSet(final String id, final int size) {
-        final LongArrayBitSet bitSet = new LongArrayBitSet(
-                new LongArrayBitSetBase(newLongArray(id, BitSets.wordIndex(size - 1) + 1), size), size);
-        return bitSet;
+        final BufferBooleanArray booleanArray = (BufferBooleanArray) newBooleanArray(id, size);
+        return booleanArray.getDelegate().getBitSet();
     }
 
     @Override
