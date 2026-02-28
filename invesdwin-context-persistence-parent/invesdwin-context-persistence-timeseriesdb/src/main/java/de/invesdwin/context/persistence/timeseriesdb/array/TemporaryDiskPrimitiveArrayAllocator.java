@@ -14,6 +14,7 @@ import de.invesdwin.util.collections.array.IIntegerArray;
 import de.invesdwin.util.collections.array.ILongArray;
 import de.invesdwin.util.collections.attributes.IAttributesMap;
 import de.invesdwin.util.collections.bitset.IBitSet;
+import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.lang.string.UniqueNameGenerator;
@@ -158,6 +159,11 @@ public class TemporaryDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllo
     @Override
     public File getDirectory() {
         return getDelegate().getDirectory();
+    }
+
+    @Override
+    public ILock getLock(final String id) {
+        return getDelegate().getLock(id);
     }
 
     @Override

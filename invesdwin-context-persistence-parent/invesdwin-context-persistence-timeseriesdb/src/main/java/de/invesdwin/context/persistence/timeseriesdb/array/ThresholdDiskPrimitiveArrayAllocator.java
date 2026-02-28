@@ -15,6 +15,7 @@ import de.invesdwin.util.collections.array.ILongArray;
 import de.invesdwin.util.collections.attributes.IAttributesMap;
 import de.invesdwin.util.collections.bitset.IBitSet;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
+import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 
@@ -195,6 +196,11 @@ public class ThresholdDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllo
     @Override
     public File getDirectory() {
         return disk.getDirectory();
+    }
+
+    @Override
+    public ILock getLock(final String id) {
+        return disk.getLock(id);
     }
 
     @Override

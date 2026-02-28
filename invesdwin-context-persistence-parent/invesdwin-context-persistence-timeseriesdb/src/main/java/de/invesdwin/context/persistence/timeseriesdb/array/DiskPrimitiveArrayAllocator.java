@@ -23,6 +23,8 @@ import de.invesdwin.util.collections.array.buffer.BufferLongArray;
 import de.invesdwin.util.collections.attributes.AttributesMap;
 import de.invesdwin.util.collections.attributes.IAttributesMap;
 import de.invesdwin.util.collections.bitset.IBitSet;
+import de.invesdwin.util.concurrent.lock.ILock;
+import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.UUIDs;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
@@ -220,6 +222,15 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
     @Override
     public void close() {
         finalizer.close();
+    }
+
+    /**
+     * Could use FileChannelLock with thread lock enabled here if we want to support multiple processes accessing the
+     * same storage. Though there are a few more things that need to be changed for this to work.
+     */
+    @Override
+    public ILock getLock(final String id) {
+        return (ILock) getAttributes().computeIfAbsent(id, (k) -> Locks.newReentrantLock(k));
     }
 
     @Override
