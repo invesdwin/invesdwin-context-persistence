@@ -162,7 +162,7 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
             if (finalizer.closed) {
                 throw new IllegalStateException("false expected");
             }
-            finalizer.writeBuffer = ByteBuffers.EXPANDABLE_POOL.borrowObject();
+            finalizer.writeBuffer = ByteBuffers.DIRECT_EXPANDABLE_POOL.borrowObject();
         }
         return finalizer.writeBuffer;
     }

@@ -23,7 +23,7 @@ public final class IndeedSerializer<E> implements Serializer<E> {
 
     @Override
     public void write(final E t, final DataOutput out) throws IOException {
-        try (ICloseableByteBuffer buffer = ByteBuffers.EXPANDABLE_POOL.borrowObject()) {
+        try (ICloseableByteBuffer buffer = ByteBuffers.DIRECT_EXPANDABLE_POOL.borrowObject()) {
             final int length = serde.toBuffer(buffer, t);
             out.writeInt(length);
             buffer.getBytesTo(0, out, length);
@@ -33,7 +33,7 @@ public final class IndeedSerializer<E> implements Serializer<E> {
     @Override
     public E read(final DataInput in) throws IOException {
         final int length = in.readInt();
-        try (ICloseableByteBuffer buffer = ByteBuffers.EXPANDABLE_POOL.borrowObject()) {
+        try (ICloseableByteBuffer buffer = ByteBuffers.DIRECT_EXPANDABLE_POOL.borrowObject()) {
             buffer.putBytesTo(0, in, length);
             return serde.fromBuffer(buffer.sliceTo(length));
         }
