@@ -15,6 +15,7 @@ import de.invesdwin.util.collections.array.ILongArray;
 import de.invesdwin.util.collections.attributes.IAttributesMap;
 import de.invesdwin.util.collections.bitset.IBitSet;
 import de.invesdwin.util.concurrent.lock.ILock;
+import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.lang.string.UniqueNameGenerator;
@@ -36,7 +37,7 @@ public class TemporaryDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllo
     }
 
     public TemporaryDiskPrimitiveArrayAllocator(final String name, final File baseDirectory) {
-        this.uniqueName = UNIQUE_NAME_GENERATOR.get(name);
+        this.uniqueName = Files.normalizeFilename(UNIQUE_NAME_GENERATOR.get(name));
         this.directory = new File(baseDirectory, uniqueName);
         this.finalizer = new TemporaryDiskPrimitiveArrayAllocatorFinalizer();
         this.finalizer.register(this);
