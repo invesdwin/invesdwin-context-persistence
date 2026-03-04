@@ -15,12 +15,13 @@ import de.invesdwin.util.collections.array.buffer.BufferIntegerArray;
 import de.invesdwin.util.collections.array.buffer.BufferLongArray;
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.marshallers.serde.ISerdeLengthProvider;
 import de.invesdwin.util.marshallers.serde.SerdeBaseMethods;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 import de.invesdwin.util.streams.buffer.bytes.delegate.slice.SlicedDelegateByteBuffer;
 
 @Immutable
-public class DiskPrimitiveArraySerde implements ISerde<IPrimitiveArray> {
+public class DiskPrimitiveArraySerde implements ISerde<IPrimitiveArray>, ISerdeLengthProvider<IPrimitiveArray> {
 
     public static final DiskPrimitiveArraySerde GET = new DiskPrimitiveArraySerde();
 
@@ -102,6 +103,11 @@ public class DiskPrimitiveArraySerde implements ISerde<IPrimitiveArray> {
         public int getId() {
             return id;
         }
+    }
+
+    @Override
+    public int getLength(final IPrimitiveArray obj) {
+        return ARRAY_INDEX + obj.getBufferLength();
     }
 
 }
