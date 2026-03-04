@@ -2,8 +2,6 @@ package de.invesdwin.context.persistence.jpa.api.dao;
 
 import java.io.Serializable;
 import java.lang.reflect.Field;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
@@ -13,6 +11,8 @@ import de.invesdwin.context.persistence.jpa.api.dao.entity.IEntity;
 import de.invesdwin.context.persistence.jpa.api.query.DummyQuery;
 import de.invesdwin.context.persistence.jpa.api.query.QueryConfig;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.collections.factory.pool.map.ICloseableMap;
+import de.invesdwin.util.collections.factory.pool.map.PooledMap;
 import de.invesdwin.util.lang.reflection.Reflections;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
@@ -93,35 +93,36 @@ public class QueryByExampleHelper<E, PK extends Serializable> {
         sb.append(" FROM ");
         sb.append(extractEntityName(genericType));
         sb.append(" e WHERE 1 = 1");
-        final Map<String, Object> params = new HashMap<String, Object>();
-        final EntityType<E> et = em.getMetamodel().entity(genericType);
-        final Set<Attribute<? super E, ?>> attrs = et.getAttributes();
-        boolean firstField = true;
-        for (final Attribute<? super E, ?> attr : attrs) {
-            final String name = attr.getName();
-            final String javaName = attr.getJavaMember().getName();
-            final Field f = Reflections.findField(genericType, javaName);
-            Reflections.makeAccessible(f);
-            final Object value = Reflections.getField(f, example);
-            if (value != null) {
-                params.put(name, value);
-                if (and || firstField) {
-                    sb.append(" AND ");
-                } else {
-                    sb.append(" OR ");
+        try (ICloseableMap<String, Object> params = PooledMap.getInstance()) {
+            final EntityType<E> et = em.getMetamodel().entity(genericType);
+            final Set<Attribute<? super E, ?>> attrs = et.getAttributes();
+            boolean firstField = true;
+            for (final Attribute<? super E, ?> attr : attrs) {
+                final String name = attr.getName();
+                final String javaName = attr.getJavaMember().getName();
+                final Field f = Reflections.findField(genericType, javaName);
+                Reflections.makeAccessible(f);
+                final Object value = Reflections.getField(f, example);
+                if (value != null) {
+                    params.put(name, value);
+                    if (and || firstField) {
+                        sb.append(" AND ");
+                    } else {
+                        sb.append(" OR ");
+                    }
+                    sb.append("e.");
+                    sb.append(name);
+                    sb.append(" = :");
+                    sb.append(name);
+                    firstField = false;
                 }
-                sb.append("e.");
-                sb.append(name);
-                sb.append(" = :");
-                sb.append(name);
-                firstField = false;
             }
+            final Query query = em.createQuery(sb.toString());
+            for (final Entry<String, Object> param : params.entrySet()) {
+                query.setParameter(param.getKey(), param.getValue());
+            }
+            return query;
         }
-        final Query query = em.createQuery(sb.toString());
-        for (final Entry<String, Object> param : params.entrySet()) {
-            query.setParameter(param.getKey(), param.getValue());
-        }
-        return query;
     }
 
     protected String extractEntityName(final Class<E> genericType) {

@@ -11,7 +11,6 @@ import org.apache.commons.compress.utils.IOUtils;
 
 import de.invesdwin.context.persistence.timeseriesdb.IDeserializingCloseableIterable;
 import de.invesdwin.context.system.array.IPrimitiveArrayAllocator;
-import de.invesdwin.context.system.array.OnHeapPrimitiveArrayAllocator;
 import de.invesdwin.norva.beanpath.IntCountingOutputStream;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
@@ -47,7 +46,7 @@ public class ByteBufferFileBufferCacheResult<V> extends AByteBufferCloseableIter
             this.buffer = bufferCached;
         } else {
             final ICloseableByteBuffer pooledBuffer;
-            if (arrayAllocator.unwrap(OnHeapPrimitiveArrayAllocator.class) != null) {
+            if (arrayAllocator.isOnHeap(delegate.size())) {
                 pooledBuffer = ByteBuffers.EXPANDABLE_POOL.borrowObject();
             } else {
                 pooledBuffer = ByteBuffers.DIRECT_EXPANDABLE_POOL.borrowObject();

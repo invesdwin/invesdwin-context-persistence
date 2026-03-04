@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.ezdb.db.storage.map;
 
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.NavigableMap;
 
@@ -10,6 +9,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import de.invesdwin.context.integration.persistentmap.navigable.IPersistentNavigableMapConfig;
 import de.invesdwin.context.integration.persistentmap.navigable.IPersistentNavigableMapFactory;
 import de.invesdwin.context.persistence.ezdb.db.storage.RangeTableInternalMethods;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import ezdb.Db;
 import ezdb.comparator.LexicographicalComparator;
 import ezdb.table.Table;
@@ -26,7 +26,7 @@ public class PersistentNavigableMapDb implements Db<java.nio.ByteBuffer> {
 
     public PersistentNavigableMapDb(final RangeTableInternalMethods internalMethods,
             final IPersistentNavigableMapFactory<?, ?> factory) {
-        this.cache = new HashMap<String, Table<?, ?>>();
+        this.cache = ILockCollectionFactory.getInstance(false).newMap();
         this.internalMethods = internalMethods;
         this.factory = factory;
     }

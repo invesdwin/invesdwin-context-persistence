@@ -1,7 +1,5 @@
 package de.invesdwin.context.persistence.jpa.hibernate;
 
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -36,6 +34,7 @@ import de.invesdwin.context.persistence.jpa.spi.delegate.IDialectSpecificDelegat
 import de.invesdwin.context.persistence.jpa.spi.impl.ConfiguredDataSource;
 import de.invesdwin.context.persistence.jpa.spi.impl.NativeJdbcIndexCreationHandler;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.time.date.FTimeUnit;
@@ -69,7 +68,7 @@ public class HibernateDialectSpecificDelegate implements IDialectSpecificDelegat
     @Override
     public Map<String, String> getPersistenceProperties(final PersistenceUnitContext context) {
         //        <entry key="hibernate.dialect" value="org.hibernate.dialect.H2Dialect" />
-        final Map<String, String> props = new HashMap<String, String>();
+        final Map<String, String> props = ILockCollectionFactory.getInstance(false).newMap();
 
         //        <prop key="hibernate.dialect">${hibernate.dialect}</prop>
         props.put(AvailableSettings.DIALECT, getHibernateDialect(context).getName());
@@ -174,7 +173,7 @@ public class HibernateDialectSpecificDelegate implements IDialectSpecificDelegat
 
     @Override
     public Set<ConnectionDialect> getSupportedDialects() {
-        final Set<ConnectionDialect> supportedDialects = new HashSet<ConnectionDialect>();
+        final Set<ConnectionDialect> supportedDialects = ILockCollectionFactory.getInstance(false).newSet();
         for (final ConnectionDialect dialect : ConnectionDialect.values()) {
             if (dialect.isRdbms()) {
                 supportedDialects.add(dialect);

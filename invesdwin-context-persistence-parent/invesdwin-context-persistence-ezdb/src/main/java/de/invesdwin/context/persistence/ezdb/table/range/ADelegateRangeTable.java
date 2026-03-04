@@ -168,7 +168,9 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
     }
 
     protected IRangeTableDb newMemoryDb() {
+        //CHECKSTYLE:OFF
         return new TreeMapRangeTableDb(internalMethods);
+        //CHECKSTYLE:ON
     }
 
     protected IRangeTableDb newDiskDb() {

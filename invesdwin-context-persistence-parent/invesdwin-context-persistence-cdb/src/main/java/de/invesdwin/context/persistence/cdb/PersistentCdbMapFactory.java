@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.cdb;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentMap;
 
@@ -38,7 +39,7 @@ public class PersistentCdbMapFactory<K, V> implements IPersistentMapFactory<K, V
     }
 
     @Override
-    public void removeAll(final ConcurrentMap<K, V> table, final IKeyMatcher<K> matcher) {
+    public void removeAll(final Map<K, V> table, final IKeyMatcher<K> matcher) {
         for (final Entry<K, V> e : table.entrySet()) {
             final K key = e.getKey();
             if (matcher.matches(key)) {

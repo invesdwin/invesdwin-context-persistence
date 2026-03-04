@@ -51,11 +51,13 @@ public final class FileBufferCache {
     static {
         if (TimeSeriesProperties.FILE_BUFFER_CACHE_SEGMENTS_ENABLED
                 && TimeSeriesProperties.FILE_BUFFER_CACHE_PRELOAD_ENABLED) {
-            PRELOAD_EXECUTOR = Executors.newFixedThreadPool(FileBufferCache.class.getSimpleName() + "_PRELOAD", 1);
+            PRELOAD_EXECUTOR = Executors.newFixedThreadPool(FileBufferCache.class.getSimpleName() + "_PRELOAD", 1)
+                    .setDynamicThreadName(false);
         } else {
             PRELOAD_EXECUTOR = null;
         }
-        LOAD_EXECUTOR = Executors.newFixedThreadPool(FileBufferCache.class.getSimpleName() + "_LOAD", 1);
+        LOAD_EXECUTOR = Executors.newFixedCallerRunsThreadPool(FileBufferCache.class.getSimpleName() + "_LOAD", 1)
+                .setDynamicThreadName(false);
     }
 
     private static final AsyncLoadingCache<ResultCacheKey, SoftReference<IFileBufferCacheResult>> RESULT_CACHE;

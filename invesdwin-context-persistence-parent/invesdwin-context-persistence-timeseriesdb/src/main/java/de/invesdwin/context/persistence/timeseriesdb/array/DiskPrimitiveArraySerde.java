@@ -15,14 +15,15 @@ import de.invesdwin.util.collections.array.buffer.BufferIntegerArray;
 import de.invesdwin.util.collections.array.buffer.BufferLongArray;
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.marshallers.serde.ISerdeLengthProvider;
 import de.invesdwin.util.marshallers.serde.SerdeBaseMethods;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 import de.invesdwin.util.streams.buffer.bytes.delegate.slice.SlicedDelegateByteBuffer;
 
 @Immutable
-public class FlyweightPrimitiveArraySerde implements ISerde<IPrimitiveArray> {
+public class DiskPrimitiveArraySerde implements ISerde<IPrimitiveArray>, ISerdeLengthProvider<IPrimitiveArray> {
 
-    public static final FlyweightPrimitiveArraySerde GET = new FlyweightPrimitiveArraySerde();
+    public static final DiskPrimitiveArraySerde GET = new DiskPrimitiveArraySerde();
 
     private static final int ID_INDEX = 0;
     private static final int ID_LENGTH = Integer.BYTES;
@@ -48,7 +49,7 @@ public class FlyweightPrimitiveArraySerde implements ISerde<IPrimitiveArray> {
         final int id = buffer.getInt(ID_INDEX);
         final int typeOrdinal = buffer.getInt(TYPE_INDEX);
         final IByteBuffer arrayBuffer = new FlyweightByteBuffer(buffer, id);
-        final FlyweightPrimitiveArrayType type = FlyweightPrimitiveArrayType.values()[typeOrdinal];
+        final DiskPrimitiveArrayType type = DiskPrimitiveArrayType.values()[typeOrdinal];
         switch (type) {
         case Byte:
             return arrayBuffer;
@@ -61,7 +62,7 @@ public class FlyweightPrimitiveArraySerde implements ISerde<IPrimitiveArray> {
         case Int:
             return new BufferIntegerArray(arrayBuffer);
         default:
-            throw UnknownArgumentException.newInstance(FlyweightPrimitiveArrayType.class, type);
+            throw UnknownArgumentException.newInstance(DiskPrimitiveArrayType.class, type);
         }
     }
 
@@ -70,15 +71,15 @@ public class FlyweightPrimitiveArraySerde implements ISerde<IPrimitiveArray> {
         final int id = obj.getId();
         buffer.putInt(ID_INDEX, id);
         if (obj instanceof IByteBuffer) {
-            buffer.putInt(TYPE_INDEX, (byte) FlyweightPrimitiveArrayType.Byte.ordinal());
+            buffer.putInt(TYPE_INDEX, (byte) DiskPrimitiveArrayType.Byte.ordinal());
         } else if (obj instanceof IBooleanArray) {
-            buffer.putInt(TYPE_INDEX, (byte) FlyweightPrimitiveArrayType.Boolean.ordinal());
+            buffer.putInt(TYPE_INDEX, (byte) DiskPrimitiveArrayType.Boolean.ordinal());
         } else if (obj instanceof IDoubleArray) {
-            buffer.putInt(TYPE_INDEX, (byte) FlyweightPrimitiveArrayType.Double.ordinal());
+            buffer.putInt(TYPE_INDEX, (byte) DiskPrimitiveArrayType.Double.ordinal());
         } else if (obj instanceof IIntegerArray) {
-            buffer.putInt(TYPE_INDEX, (byte) FlyweightPrimitiveArrayType.Int.ordinal());
+            buffer.putInt(TYPE_INDEX, (byte) DiskPrimitiveArrayType.Int.ordinal());
         } else if (obj instanceof ILongArray) {
-            buffer.putInt(TYPE_INDEX, (byte) FlyweightPrimitiveArrayType.Long.ordinal());
+            buffer.putInt(TYPE_INDEX, (byte) DiskPrimitiveArrayType.Long.ordinal());
         } else {
             throw UnknownArgumentException.newInstance(Class.class, obj.getClass());
         }
@@ -102,6 +103,11 @@ public class FlyweightPrimitiveArraySerde implements ISerde<IPrimitiveArray> {
         public int getId() {
             return id;
         }
+    }
+
+    @Override
+    public int getLength(final IPrimitiveArray obj) {
+        return ARRAY_INDEX + obj.getBufferLength();
     }
 
 }
