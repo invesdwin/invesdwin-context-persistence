@@ -341,6 +341,21 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
+    public long size(final FDate from, final FDate to) {
+        if (firstValueKey == null) {
+            return 0L;
+        }
+        if (from != null && from.isAfterNotNullSafe(lastValues.getTail().key)) {
+            return 0L;
+        }
+        if (to != null && to.isBeforeNotNullSafe(firstValueKey)) {
+            return 0L;
+        }
+        final ArrayFileBufferCacheResult<V> flushedValues = getFlushedValues();
+        return flushedValues.size(historicalSegmentTable::extractEndTime, from, to);
+    }
+
+    @Override
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
         final LastValue<V> lastValue = lastValues.getReverse(0);
         if (!lastValue.values.isEmpty() && (date == null || date.isAfterOrEqualToNotNullSafe(lastValue.key))) {

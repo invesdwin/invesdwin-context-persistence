@@ -197,6 +197,11 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
+    public long size(final FDate from, final FDate to) {
+        return inProgress.size(from, to) + persistent.size(from, to);
+    }
+
+    @Override
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
         if (!lastValue.isEmpty() && (date == null || date.isAfterOrEqualToNotNullSafe(lastValueKey))) {
             //we always return the last last value

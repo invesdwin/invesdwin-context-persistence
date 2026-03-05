@@ -59,6 +59,7 @@ import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.Threads;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
 import de.invesdwin.util.concurrent.future.Futures;
+import de.invesdwin.util.concurrent.lock.ICloseableLock;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
@@ -1522,6 +1523,69 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             cachedSize = cachedSizeCopy;
         }
         return cachedSizeCopy;
+    }
+
+    public long size(final FDate from, final FDate to) {
+        switch (lookupMode) {
+        case Value:
+            return sizeByValue(from, to);
+        case ValueUntilIndexAvailable:
+            if (isLookupByIndexAvailable()) {
+                return sizeByIndex(from, to);
+            } else {
+                return sizeByValue(from, to);
+            }
+        case Index:
+            return sizeByIndex(from, to);
+        default:
+            throw UnknownArgumentException.newInstance(TimeSeriesLookupMode.class, lookupMode);
+        }
+    }
+
+    private long sizeByValue(final FDate from, final FDate to) {
+        final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
+        if (firstAvailableSegmentFrom == null) {
+            return 0L;
+        }
+        final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key, to);
+        if (lastAvailableSegmentTo == null) {
+            return 0L;
+        }
+        //adjust dates directly to prevent unnecessary segment calculations
+        final FDate adjFrom = FDates.max(from, firstAvailableSegmentFrom);
+        final FDate adjTo = FDates.min(to, lastAvailableSegmentTo);
+        final ISegmentFinder segmentFinder = getSegmentFinder(key);
+        long size = 0L;
+        try (ICloseableIterator<TimeRange> segments = getSegments(segmentFinder, segmentFinder.getDay(adjFrom),
+                segmentFinder.getDay(adjTo), lastAvailableSegmentTo).iterator()) {
+            while (true) {
+                final TimeRange rangeKey = segments.next();
+                final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, rangeKey);
+                maybeInitSegment(segmentedKey);
+                final FDate segmentAdjFrom = FDates.max(adjFrom, rangeKey.getFrom());
+                final FDate segmentAdjTo = FDates.min(adjTo, rangeKey.getTo());
+                try (ICloseableLock compositeReadLock = segmentedTable.getTableLock(segmentedKey).readLocked()) {
+                    size += segmentedTable.getLookupTableCache(segmentedKey).size(segmentAdjFrom, segmentAdjTo);
+                }
+            }
+        } catch (final NoSuchElementException e) {
+            //end reached
+        }
+        return size;
+    }
+
+    private long sizeByIndex(final FDate from, final FDate to) {
+        long fromIndex = getLatestValueIndex(from);
+        if (fromIndex < 0) {
+            return 0L;
+        }
+        final V fromValue = getLatestValue(fromIndex);
+        final FDate fromValueKey = segmentedTable.extractEndTime(fromValue);
+        if (fromValueKey.isBeforeNotNullSafe(from)) {
+            fromIndex++;
+        }
+        final long toIndex = getLatestValueIndex(to);
+        return toIndex - fromIndex + 1;
     }
 
     public boolean isEmptyOrInconsistent() {

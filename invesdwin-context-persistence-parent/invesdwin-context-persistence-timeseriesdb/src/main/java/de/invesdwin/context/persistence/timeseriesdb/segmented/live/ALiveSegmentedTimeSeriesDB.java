@@ -463,6 +463,17 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
     }
 
     @Override
+    public long size(final K key, final FDate from, final FDate to) {
+        final ILock readLock = getTableLock(key).readLock();
+        readLock.lock();
+        try {
+            return getLiveSegmentedLookupTableCache(key).size(from, to);
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    @Override
     public FDate getPreviousValueKey(final K key, final FDate date, final int shiftBackUnits) {
         final V value = getPreviousValue(key, date, shiftBackUnits);
         if (value == null) {

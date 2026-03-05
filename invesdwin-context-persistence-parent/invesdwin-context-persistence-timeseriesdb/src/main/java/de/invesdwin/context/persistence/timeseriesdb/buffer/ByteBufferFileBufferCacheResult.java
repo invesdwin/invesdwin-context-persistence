@@ -21,6 +21,7 @@ import de.invesdwin.util.collections.iterable.collection.ListCloseableIterable;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.marshallers.serde.FlyweightSerdeProviders;
 import de.invesdwin.util.marshallers.serde.ISerde;
+import de.invesdwin.util.math.Integers;
 import de.invesdwin.util.streams.buffer.bytes.ByteBuffers;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 import de.invesdwin.util.streams.buffer.bytes.ICloseableByteBuffer;
@@ -186,6 +187,21 @@ public class ByteBufferFileBufferCacheResult<V> extends AByteBufferCloseableIter
             return -1;
         }
         return highIndex;
+    }
+
+    @Override
+    public int size(final Function<V, FDate> extractEndTime, final FDate from, final FDate to) {
+        final int toIndex = getLatestValueIndex(extractEndTime, to);
+        if (toIndex < 0) {
+            return 0;
+        }
+        int fromIndex = Integers.max(0, getLatestValueIndex(extractEndTime, from));
+        final V fromValue = getLatestValue(fromIndex);
+        final FDate fromValueKey = extractEndTime.apply(fromValue);
+        if (fromValueKey.isBeforeNotNullSafe(from)) {
+            fromIndex++;
+        }
+        return toIndex - fromIndex + 1;
     }
 
     @Override

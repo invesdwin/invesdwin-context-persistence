@@ -89,6 +89,11 @@ public abstract class ADelegateTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V>
     }
 
     @Override
+    public long size(final K key, final FDate from, final FDate to) {
+        return delegate.size(key, from, to);
+    }
+
+    @Override
     public V getPreviousValue(final K key, final FDate date, final int shiftBackUnits) {
         return delegate.getPreviousValue(key, date, shiftBackUnits);
     }

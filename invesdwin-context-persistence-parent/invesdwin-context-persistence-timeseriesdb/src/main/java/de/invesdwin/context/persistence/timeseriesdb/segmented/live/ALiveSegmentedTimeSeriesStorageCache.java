@@ -277,6 +277,14 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
         }
     }
 
+    public long size(final FDate from, final FDate to) {
+        if (liveSegment == null) {
+            return historicalSegmentTable.size(key, from, to);
+        } else {
+            return historicalSegmentTable.size(key, from, to) + liveSegment.size(from, to);
+        }
+    }
+
     public V getPreviousValue(final FDate date, final int shiftBackUnits) {
         switch (lookupMode) {
         case Value:

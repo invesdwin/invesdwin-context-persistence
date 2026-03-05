@@ -36,6 +36,8 @@ public interface ITimeSeriesDB<K, V> extends Closeable {
 
     long size(K key);
 
+    long size(K key, FDate from, FDate to);
+
     /**
      * Jumps the specified shiftBackUnits to the past instead of only one unit. 0 results in current value.
      * 

@@ -302,6 +302,17 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     }
 
     @Override
+    public long size(final K key, final FDate from, final FDate to) {
+        final ILock readLock = getTableLock(key).readLock();
+        readLock.lock();
+        try {
+            return getLookupTableCache(key).size(from, to);
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    @Override
     public V getPreviousValue(final K key, final FDate date, final int shiftBackUnits) {
         final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
