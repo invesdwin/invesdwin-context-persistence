@@ -75,7 +75,7 @@ import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.math.Integers;
 import de.invesdwin.util.math.Longs;
 import de.invesdwin.util.streams.buffer.file.IMemoryMappedFile;
-import de.invesdwin.util.streams.delegate.PreLockedDelegateInputStream;
+import de.invesdwin.util.streams.delegate.SimpleDelegateInputStream;
 import de.invesdwin.util.streams.pool.PooledFastByteArrayOutputStream;
 import de.invesdwin.util.streams.pool.buffered.BufferedFileDataInputStream;
 import de.invesdwin.util.streams.pool.buffered.PreLockedBufferedFileDataInputStream;
@@ -679,7 +679,11 @@ public class TimeSeriesStorageCache<K, V> {
                     readLock.lock();
                     final IMemoryMappedFile mmapFile = FileBufferCache.getFile(hashKey, summary.getMemoryResourceUri(),
                             true);
-                    if (mmapFile.incrementRefCount()) {
+                    final boolean refCounted;
+                    synchronized (mmapFile.getRefCountLock()) {
+                        refCounted = mmapFile.incrementRefCount();
+                    }
+                    if (refCounted) {
                         return new MmapInputStream(readLock, summary.newBuffer(mmapFile).asInputStream(), mmapFile);
                     } else {
                         readLock.unlock();
@@ -1334,20 +1338,37 @@ public class TimeSeriesStorageCache<K, V> {
         }
     }
 
-    private static final class MmapInputStream extends PreLockedDelegateInputStream {
+    private static final class MmapInputStream extends SimpleDelegateInputStream {
         private IMemoryMappedFile mmapFile;
+        private Lock lock;
 
         private MmapInputStream(final Lock lock, final InputStream delegate, final IMemoryMappedFile mmapFile) {
-            super(lock, delegate);
+            super(delegate);
+            this.lock = lock;
             this.mmapFile = mmapFile;
         }
 
+        /**
+         * pattern similar to PreLockedDelegateInputStream
+         */
         @Override
         public void close() throws IOException {
-            if (mmapFile != null) {
-                super.close();
-                mmapFile.decrementRefCount();
-                mmapFile = null;
+            if (lock != null) {
+                synchronized (this) {
+                    final Lock lockCopy = lock;
+                    if (lockCopy != null) {
+                        final IMemoryMappedFile mmapFileCopy = mmapFile;
+                        if (mmapFileCopy != null) {
+                            super.close();
+                            synchronized (mmapFileCopy.getRefCountLock()) {
+                                mmapFileCopy.decrementRefCount();
+                            }
+                            mmapFile = null;
+                        }
+                        lockCopy.unlock();
+                        lock = null;
+                    }
+                }
             }
         }
     }

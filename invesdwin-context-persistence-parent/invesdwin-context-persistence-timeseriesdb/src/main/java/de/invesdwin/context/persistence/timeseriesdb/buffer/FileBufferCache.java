@@ -155,13 +155,15 @@ public final class FileBufferCache {
 
     private static void fileCache_onRemoval(final FileCacheKey key, final IMemoryMappedFile value,
             final RemovalCause cause) {
-        if (value.getRefCount() == 0) {
-            /*
-             * close directly if possible if not in use
-             * 
-             * otherwise let the garbage collector and finalizer handle it later
-             */
-            value.close();
+        synchronized (value.getRefCountLock()) {
+            if (value.getRefCount() == 0) {
+                /*
+                 * close directly if possible if not in use
+                 * 
+                 * otherwise let the garbage collector and finalizer handle it later
+                 */
+                value.close();
+            }
         }
     }
 
