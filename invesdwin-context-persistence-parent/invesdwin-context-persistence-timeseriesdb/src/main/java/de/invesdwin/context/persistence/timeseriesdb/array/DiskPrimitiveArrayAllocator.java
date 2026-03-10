@@ -141,9 +141,6 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
         final ILongArray array = (ILongArray) finalizer.map.get(id);
         Assertions.checkNotNull(array);
         clearBeforeUsage(array);
-        if (array.size() != size) {
-            throw new IllegalStateException();
-        }
         return array;
     }
 
