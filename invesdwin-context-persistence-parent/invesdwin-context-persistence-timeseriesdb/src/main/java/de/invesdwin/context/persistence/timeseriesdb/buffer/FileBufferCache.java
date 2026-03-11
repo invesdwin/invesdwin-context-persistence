@@ -157,12 +157,11 @@ public final class FileBufferCache {
             final RemovalCause cause) {
         synchronized (value.getRefCountLock()) {
             if (value.getRefCount() == 0) {
-                /*
-                 * close directly if possible if not in use
-                 * 
-                 * otherwise let the garbage collector and finalizer handle it later
-                 */
+                //close directly if possible if not in use
                 value.close();
+            } else {
+                //if possible let the last refCount decrement close it, otherwise let the garbage collector and finalizer handle it later
+                value.markForClose();
             }
         }
     }
