@@ -3,7 +3,7 @@ package de.invesdwin.context.persistence.timeseriesdb.array;
 import javax.annotation.concurrent.Immutable;
 
 @Immutable
-public enum FlyweightPrimitiveArrayType {
+public enum DiskPrimitiveArrayType {
     Byte,
     Boolean,
     Double,

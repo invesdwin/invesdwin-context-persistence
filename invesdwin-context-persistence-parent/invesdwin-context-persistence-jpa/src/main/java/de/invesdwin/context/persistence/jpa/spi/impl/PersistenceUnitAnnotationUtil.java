@@ -1,7 +1,5 @@
 package de.invesdwin.context.persistence.jpa.spi.impl;
 
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -11,6 +9,7 @@ import de.invesdwin.context.persistence.jpa.PersistenceProperties;
 import de.invesdwin.context.persistence.jpa.api.PersistenceUnitName;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.classpath.FastClassPathScanner;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.lang.string.Strings;
 import io.github.classgraph.ClassInfo;
@@ -40,7 +39,7 @@ public final class PersistenceUnitAnnotationUtil {
 
     public static synchronized Map<String, Set<Class<?>>> scanForEntities() {
         if (cachedEntities == null) {
-            final Map<String, Set<Class<?>>> entities = new HashMap<String, Set<Class<?>>>();
+            final Map<String, Set<Class<?>>> entities = ILockCollectionFactory.getInstance(false).newMap();
             final ScanResult scanner = FastClassPathScanner.getScanResult();
             /*
              * http://java.sun.com/xml/ns/persistence/persistence_2_0.xsd
@@ -60,7 +59,7 @@ public final class PersistenceUnitAnnotationUtil {
                 }
                 Set<Class<?>> set = entities.get(persistenceUnitName);
                 if (set == null) {
-                    set = new HashSet<Class<?>>();
+                    set = ILockCollectionFactory.getInstance(false).newSet();
                     entities.put(persistenceUnitName, set);
                 }
                 Assertions.assertThat(set.add(entityClass)).isTrue();

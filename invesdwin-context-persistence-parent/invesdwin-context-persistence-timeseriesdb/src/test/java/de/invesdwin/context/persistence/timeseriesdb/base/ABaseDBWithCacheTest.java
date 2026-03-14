@@ -2,7 +2,6 @@ package de.invesdwin.context.persistence.timeseriesdb.base;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -13,6 +12,7 @@ import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableEx
 import de.invesdwin.context.persistence.timeseriesdb.base.root.ARootDBTest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.Collections;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.loadingcache.historical.refresh.HistoricalCacheRefreshManager;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
@@ -103,10 +103,10 @@ public abstract class ABaseDBWithCacheTest extends ARootDBTest {
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
         //random order
-        for (final FDate entity : new HashSet<FDate>(entities)) {
+        for (final FDate entity : ILockCollectionFactory.getInstance(false).newSet(entities)) {
             Assertions.assertThat(cache.query().getValue(entity.addDays(2))).isNotNull();
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(3);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(2);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
         //simulate cache eviction
@@ -118,7 +118,7 @@ public abstract class ABaseDBWithCacheTest extends ARootDBTest {
         for (final FDate entity : entities) {
             Assertions.assertThat(cache.query().getValue(entity.addDays(2))).isNotNull();
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(4);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(6);
     }
 
@@ -159,10 +159,10 @@ public abstract class ABaseDBWithCacheTest extends ARootDBTest {
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
         //random order
-        for (final FDate entity : new HashSet<FDate>(entities)) {
+        for (final FDate entity : ILockCollectionFactory.getInstance(false).newSet(entities)) {
             Assertions.assertThat(cache.query().getValue(entity.addDays(2))).isNotNull();
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(6);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
         //simulate cache eviction
@@ -174,7 +174,7 @@ public abstract class ABaseDBWithCacheTest extends ARootDBTest {
         for (final FDate entity : entities) {
             Assertions.assertThat(cache.query().getValue(entity.addDays(2))).isNotNull();
         }
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(12);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(11);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(6);
     }
 

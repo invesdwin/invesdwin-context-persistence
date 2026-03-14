@@ -3,8 +3,6 @@ package de.invesdwin.context.persistence.jpa.scanning.internal;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -26,6 +24,7 @@ import de.invesdwin.context.persistence.jpa.spi.impl.PersistenceUnitAnnotationUt
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.classpath.FastClassPathScanner;
 import de.invesdwin.util.collections.Arrays;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.reflection.Reflections;
 import de.invesdwin.util.lang.string.Strings;
@@ -120,7 +119,9 @@ public class JpaRepositoryScanContextLocation implements IContextLocation {
     }
 
     private Map<String, Map<Class<?>, Set<Class<?>>>> scanForBasePackageJpaRepositories() {
-        final Map<String, Map<Class<?>, Set<Class<?>>>> basePackage_jpaRepositories = new HashMap<String, Map<Class<?>, Set<Class<?>>>>();
+        final Map<String, Map<Class<?>, Set<Class<?>>>> basePackage_jpaRepositories = ILockCollectionFactory
+                .getInstance(false)
+                .newMap();
         final ScanResult scanner = FastClassPathScanner.getScanResult();
 
         for (final ClassInfo ci : scanner.getClassesImplementing(JpaRepository.class.getName())) {
@@ -136,12 +137,12 @@ public class JpaRepositoryScanContextLocation implements IContextLocation {
                     if (basePackage != null) {
                         Map<Class<?>, Set<Class<?>>> jpaRepositories = basePackage_jpaRepositories.get(basePackage);
                         if (jpaRepositories == null) {
-                            jpaRepositories = new HashMap<Class<?>, Set<Class<?>>>();
+                            jpaRepositories = ILockCollectionFactory.getInstance(false).newMap();
                             basePackage_jpaRepositories.put(basePackage, jpaRepositories);
                         }
                         Set<Class<?>> set = jpaRepositories.get(entity);
                         if (set == null) {
-                            set = new HashSet<Class<?>>();
+                            set = ILockCollectionFactory.getInstance(false).newSet();
                             jpaRepositories.put(entity, set);
                         }
                         Assertions.assertThat(set.add(repositoryClass)).isTrue();

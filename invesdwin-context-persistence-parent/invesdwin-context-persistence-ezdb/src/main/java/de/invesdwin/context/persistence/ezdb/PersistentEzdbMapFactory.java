@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.ezdb;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentMap;
 
@@ -58,7 +59,7 @@ public class PersistentEzdbMapFactory<K, V> implements IPersistentMapFactory<K, 
     }
 
     @Override
-    public void removeAll(final ConcurrentMap<K, V> table, final IKeyMatcher<K> matcher) {
+    public void removeAll(final Map<K, V> table, final IKeyMatcher<K> matcher) {
         final TableConcurrentMap<K, V> cTable = (TableConcurrentMap<K, V>) table;
         final TableIterator<? extends TableRow<K, V>> range = cTable.getTable().range();
         final Batch<K, V> batch = cTable.getTable().newBatch();
