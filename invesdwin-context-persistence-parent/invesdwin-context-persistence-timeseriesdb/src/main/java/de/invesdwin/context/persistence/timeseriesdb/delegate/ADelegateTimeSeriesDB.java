@@ -9,7 +9,7 @@ import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
-import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
+import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.time.date.FDate;
 
@@ -44,7 +44,7 @@ public abstract class ADelegateTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V>
     }
 
     @Override
-    public IReadWriteLock getTableLock(final K key) {
+    public IReentrantReadWriteLock getTableLock(final K key) {
         return delegate.getTableLock(key);
     }
 

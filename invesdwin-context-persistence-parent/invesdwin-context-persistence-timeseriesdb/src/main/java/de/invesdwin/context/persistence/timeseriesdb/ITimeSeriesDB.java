@@ -5,7 +5,7 @@ import java.io.File;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
-import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
+import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.time.date.FDate;
 
@@ -15,7 +15,7 @@ public interface ITimeSeriesDB<K, V> extends Closeable {
 
     File getDirectory();
 
-    IReadWriteLock getTableLock(K key);
+    IReentrantReadWriteLock getTableLock(K key);
 
     ICloseableIterable<V> rangeValues(K key, FDate from, FDate to);
 

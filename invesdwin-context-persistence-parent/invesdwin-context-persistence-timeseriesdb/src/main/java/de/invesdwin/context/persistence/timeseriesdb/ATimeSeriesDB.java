@@ -23,7 +23,7 @@ import de.invesdwin.util.collections.loadingcache.caffeine.ACaffeineLoadingCache
 import de.invesdwin.util.concurrent.lambda.callable.AFastLazyCallable;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
-import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
+import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
@@ -44,9 +44,9 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     private final TimeSeriesLookupMode lookupMode;
     private final File directory;
     private final ALoadingCache<K, TimeSeriesStorageCache<K, V>> key_lookupTableCache;
-    private final ALoadingCache<K, IReadWriteLock> key_tableLock = new ALoadingCache<K, IReadWriteLock>() {
+    private final ALoadingCache<K, IReentrantReadWriteLock> key_tableLock = new ALoadingCache<K, IReentrantReadWriteLock>() {
         @Override
-        protected IReadWriteLock loadValue(final K key) {
+        protected IReentrantReadWriteLock loadValue(final K key) {
             return Locks.newReentrantReadWriteLock(
                     ATimeSeriesDB.class.getSimpleName() + "_" + getName() + "_" + hashKeyToString(key) + "_tableLock");
         }
@@ -186,7 +186,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     }
 
     @Override
-    public IReadWriteLock getTableLock(final K key) {
+    public IReentrantReadWriteLock getTableLock(final K key) {
         return key_tableLock.get(key);
     }
 

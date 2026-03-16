@@ -28,7 +28,7 @@ import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.concurrent.lambda.callable.AFastLazyCallable;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
-import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
+import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.lang.string.description.TextDescription;
@@ -44,9 +44,9 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
     private final ICompressionFactory compressionFactory;
     private final TimeSeriesLookupMode lookupMode;
     private final HistoricalSegmentTable historicalSegmentTable;
-    private final ALoadingCache<K, IReadWriteLock> key_tableLock = new ALoadingCache<K, IReadWriteLock>() {
+    private final ALoadingCache<K, IReentrantReadWriteLock> key_tableLock = new ALoadingCache<K, IReentrantReadWriteLock>() {
         @Override
-        protected IReadWriteLock loadValue(final K key) {
+        protected IReentrantReadWriteLock loadValue(final K key) {
             final String name = ALiveSegmentedTimeSeriesDB.class.getSimpleName() + "_" + getName() + "_"
                     + hashKeyToString(key) + "_tableLock";
             return newTableLock(name);
@@ -119,7 +119,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
         return lookupMode;
     }
 
-    protected IReadWriteLock newTableLock(final String name) {
+    protected IReentrantReadWriteLock newTableLock(final String name) {
         return Locks.newReentrantReadWriteLock(name);
     }
 
@@ -315,7 +315,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
     }
 
     @Override
-    public IReadWriteLock getTableLock(final K key) {
+    public IReentrantReadWriteLock getTableLock(final K key) {
         return key_tableLock.get(key);
     }
 
