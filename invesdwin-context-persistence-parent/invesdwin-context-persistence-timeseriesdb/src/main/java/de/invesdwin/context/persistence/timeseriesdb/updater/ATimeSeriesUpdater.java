@@ -94,46 +94,43 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             segmentReadLock.unlock();
         }
         try {
-            synchronized (segmentTableLock) {
-                final ILock segmentWriteLock = segmentTableLock.writeLock();
+            final ILock segmentWriteLock = segmentTableLock.writeLock();
+            try {
+                if (!segmentWriteLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
+                    throw Locks.getLockTrace()
+                            .handleLockException(segmentWriteLock.getName(),
+                                    new RetryLaterRuntimeException("Write lock could not be acquired for table ["
+                                            + table.getName() + "] and key [" + key
+                                            + "]. Please ensure all iterators are closed!"));
+                }
+            } catch (final InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            final File updateLockSyncFile = new File(updateLockFile.getAbsolutePath() + ".sync");
+            try (FileChannelLock updateLockSyncFileLock = new FileChannelLock(updateLockSyncFile) {
+                @Override
+                protected boolean isThreadLockEnabled() {
+                    return true;
+                }
+            }) {
+                if (!updateLockSyncFileLock.tryLock()) {
+                    throw new IncompleteUpdateRetryableException("Incomplete update found for table [" + table.getName()
+                            + "] and key [" + key + "], need to clean everything up to restore all from scratch.");
+                }
+                Files.touchQuietly(updateLockFile);
                 try {
-                    if (!segmentWriteLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
-                        throw Locks.getLockTrace()
-                                .handleLockException(segmentWriteLock.getName(),
-                                        new RetryLaterRuntimeException("Write lock could not be acquired for table ["
-                                                + table.getName() + "] and key [" + key
-                                                + "]. Please ensure all iterators are closed!"));
-                    }
-                } catch (final InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                final File updateLockSyncFile = new File(updateLockFile.getAbsolutePath() + ".sync");
-                try (FileChannelLock updateLockSyncFileLock = new FileChannelLock(updateLockSyncFile) {
-                    @Override
-                    protected boolean isThreadLockEnabled() {
-                        return true;
-                    }
-                }) {
-                    if (!updateLockSyncFileLock.tryLock()) {
-                        throw new IncompleteUpdateRetryableException(
-                                "Incomplete update found for table [" + table.getName() + "] and key [" + key
-                                        + "], need to clean everything up to restore all from scratch.");
-                    }
-                    Files.touchQuietly(updateLockFile);
-                    try {
-                        final Instant updateStart = new Instant();
-                        onUpdateStart();
-                        doUpdate();
-                        onUpdateFinished(updateStart);
-                        return true;
-                    } catch (final Throwable t) {
-                        throw propagateIncompleteUpdateException(t);
-                    } finally {
-                        Files.deleteQuietly(updateLockFile);
-                    }
+                    final Instant updateStart = new Instant();
+                    onUpdateStart();
+                    doUpdate();
+                    onUpdateFinished(updateStart);
+                    return true;
+                } catch (final Throwable t) {
+                    throw propagateIncompleteUpdateException(t);
                 } finally {
-                    segmentWriteLock.unlock();
+                    Files.deleteQuietly(updateLockFile);
                 }
+            } finally {
+                segmentWriteLock.unlock();
             }
         } finally {
             for (int i = 0; i < readHoldCount; i++) {
