@@ -151,6 +151,7 @@ public class ArrayFileBufferCacheResult<V> extends RefCountReverseCloseableItera
         return list.get(index);
     }
 
+    @Override
     public int size(final Function<V, FDate> extractEndTime, final FDate from, final FDate to) {
         final int toIndex = getLatestValueIndex(extractEndTime, to);
         if (toIndex < 0) {

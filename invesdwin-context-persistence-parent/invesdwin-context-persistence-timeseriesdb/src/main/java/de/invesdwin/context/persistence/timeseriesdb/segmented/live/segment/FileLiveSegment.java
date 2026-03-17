@@ -41,6 +41,7 @@ import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.collections.loadingcache.historical.query.impl.ShiftForwardUnitsLoop;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
+import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.string.Strings;
 import de.invesdwin.util.lang.string.description.TextDescription;
@@ -61,15 +62,16 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     private final SegmentedKey<K> segmentedKey;
     private final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable;
     private final ICompressionFactory compressionFactory;
-    private SerializingCollection<V> values;
+    private volatile SerializingCollection<V> values;
     @GuardedBy("this")
     private boolean needsFlush;
-    private FDate firstValueKey;
+    private volatile FDate firstValueKey;
     private final IBufferingIterator<V> firstValue = new BufferingIterator<>();
     private final CircularGenericArrayQueue<LastValue<V>> lastValues = new CircularGenericArrayQueue<LastValue<V>>(
             LAST_VALUE_HISTORY);
+    @GuardedBy("none for performance")
     private File file;
-    private WeakReference<ArrayFileBufferCacheResult<V>> inMemoryCacheHolder;
+    private volatile WeakReference<ArrayFileBufferCacheResult<V>> inMemoryCacheHolder;
 
     public FileLiveSegment(final SegmentedKey<K> segmentedKey,
             final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable) {
@@ -169,7 +171,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             return rangeValuesToFirstValue(to);
         }
         return new SkippingRangeValues(from, to,
-                getFlushedValues().iterable(historicalSegmentTable::extractEndTime, from, to));
+                getFlushedValues(true).iterable(historicalSegmentTable::extractEndTime, from, to));
     }
 
     private ICloseableIterable<V> rangeValuesFromLastValue(final FDate from, final LastValue<V> lastValue) {
@@ -238,7 +240,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
         }
         return new SkippingRangeReverseValues(from, to,
-                getFlushedValues().reverseIterable(historicalSegmentTable::extractEndTime, from, to));
+                getFlushedValues(true).reverseIterable(historicalSegmentTable::extractEndTime, from, to));
     }
 
     private ICloseableIterable<V> rangeReverseValuesToFirstValue(final FDate from) {
@@ -351,7 +353,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         if (to != null && to.isBeforeNotNullSafe(firstValueKey)) {
             return 0L;
         }
-        final ArrayFileBufferCacheResult<V> flushedValues = getFlushedValues();
+        final ArrayFileBufferCacheResult<V> flushedValues = getFlushedValues(true);
         return flushedValues.size(historicalSegmentTable::extractEndTime, from, to);
     }
 
@@ -404,7 +406,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     private V getNextValueFromRangeValues(final FDate date, final int shiftForwardUnits) {
-        final ArrayFileBufferCacheResult<V> flushedValues = getFlushedValues();
+        final ArrayFileBufferCacheResult<V> flushedValues = getFlushedValues(true);
         final AShiftForwardUnitsLoopIntIndex<V> shiftForwardLoop = new AShiftForwardUnitsLoopIntIndex<V>(date,
                 shiftForwardUnits) {
             @Override
@@ -466,7 +468,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         if (isEmpty()) {
             return null;
         }
-        return getFlushedValues().getLatestValue(Integers.checkedCast(index));
+        return getFlushedValues(true).getLatestValue(Integers.checkedCast(index));
     }
 
     @Override
@@ -474,7 +476,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         if (isEmpty()) {
             return -1L;
         }
-        return getFlushedValues().getLatestValueIndex(historicalSegmentTable::extractEndTime, date);
+        return getFlushedValues(true).getLatestValueIndex(historicalSegmentTable::extractEndTime, date);
     }
 
     @Override
@@ -524,7 +526,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
     }
 
-    private ArrayFileBufferCacheResult<V> getFlushedValues() {
+    private ArrayFileBufferCacheResult<V> getFlushedValues(final boolean firstTry) {
         final WeakReference<ArrayFileBufferCacheResult<V>> inMemoryCacheHolderCopy = inMemoryCacheHolder;
         if (inMemoryCacheHolderCopy != null) {
             final ArrayFileBufferCacheResult<V> inMemoryCache = inMemoryCacheHolderCopy.get();
@@ -534,22 +536,44 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
                 inMemoryCacheHolder = null;
             }
         }
-        final ArrayList<V> fromFileList = (ArrayList<V>) Lists.toListWithoutHasNext(getFlushedValuesFromFile());
-        final ArrayFileBufferCacheResult<V> inMemoryCache = new ArrayFileBufferCacheResult<V>(fromFileList);
-        inMemoryCacheHolder = new WeakReference<ArrayFileBufferCacheResult<V>>(inMemoryCache);
-        return inMemoryCache;
+        try {
+            final ArrayList<V> fromFileList = (ArrayList<V>) Lists
+                    .toListWithoutHasNext(getFlushedValuesFromFile(firstTry));
+            final ArrayFileBufferCacheResult<V> inMemoryCache = new ArrayFileBufferCacheResult<V>(fromFileList);
+            inMemoryCacheHolder = new WeakReference<ArrayFileBufferCacheResult<V>>(inMemoryCache);
+            return inMemoryCache;
+        } catch (final Throwable t) {
+            if (Throwables.isCausedByType(t, FileNotFoundException.class)) {
+                if (firstTry) {
+                    return getFlushedValues(false);
+                } else {
+                    //maybe retry because of this in the outer iterator?
+                    throw new RetryLaterRuntimeException(
+                            hashKey + ": File might have been deleted in the mean time between read locks: "
+                                    + file.getAbsolutePath(),
+                            t);
+                }
+            } else {
+                throw t;
+            }
+        }
     }
 
-    private IReverseCloseableIterable<V> getFlushedValuesFromFile() {
+    private IReverseCloseableIterable<V> getFlushedValuesFromFile(final boolean firstTry) {
+        final SerializingCollection<V> valuesCopy = values;
+        if (valuesCopy == null || valuesCopy.isEmpty()) {
+            return EmptyCloseableIterable.getInstance();
+        }
+
         synchronized (this) {
-            if (needsFlush) {
-                values.flush();
+            if (!firstTry || needsFlush) {
+                valuesCopy.flush();
                 needsFlush = false;
             }
         }
         final TextDescription name = new TextDescription("%s[%s]: getFlushedValues()",
                 FileLiveSegment.class.getSimpleName(), segmentedKey);
-        return new SerializingCollection<V>(name, values.getFile(), true) {
+        return new SerializingCollection<V>(name, valuesCopy.getFile(), true) {
             @Override
             protected ISerde<V> newSerde() {
                 return historicalSegmentTable.getValueSerde();
@@ -577,12 +601,6 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
                     final PooledFastByteArrayOutputStream bos = PooledFastByteArrayOutputStream.newInstance();
                     IOUtils.copy(fis, bos.asNonClosing());
                     return bos.asInputStream();
-                } catch (final FileNotFoundException e) {
-                    //maybe retry because of this in the outer iterator?
-                    throw new RetryLaterRuntimeException(
-                            hashKey + ": File might have been deleted in the mean time between read locks: "
-                                    + file.getAbsolutePath(),
-                            e);
                 }
             }
         };
