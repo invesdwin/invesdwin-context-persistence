@@ -545,7 +545,9 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         } catch (final Throwable t) {
             if (Throwables.isCausedByType(t, FileNotFoundException.class)) {
                 if (firstTry) {
-                    return getFlushedValues(false);
+                    synchronized (this) {
+                        return getFlushedValues(false);
+                    }
                 } else {
                     //maybe retry because of this in the outer iterator?
                     throw new RetryLaterRuntimeException(
