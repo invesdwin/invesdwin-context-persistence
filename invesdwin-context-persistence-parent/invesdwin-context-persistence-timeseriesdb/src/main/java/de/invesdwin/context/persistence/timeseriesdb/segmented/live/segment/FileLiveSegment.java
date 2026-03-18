@@ -9,6 +9,7 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -62,7 +63,8 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     private final SegmentedKey<K> segmentedKey;
     private final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable;
     private final ICompressionFactory compressionFactory;
-    private volatile SerializingCollection<V> values;
+    @GuardedBy("this")
+    private SerializingCollection<V> values;
     @GuardedBy("this")
     private boolean needsFlush;
     private volatile FDate firstValueKey;
@@ -72,6 +74,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     @GuardedBy("none for performance")
     private File file;
     private volatile WeakReference<ArrayFileBufferCacheResult<V>> inMemoryCacheHolder;
+    private final AtomicInteger size = new AtomicInteger();
 
     public FileLiveSegment(final SegmentedKey<K> segmentedKey,
             final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable) {
@@ -151,7 +154,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final ILock readLock,
             final ISkipFileFunction skipFileFunction) {
         //we expect the read lock to be already locked from the outside
-        if (values == null || from != null && to != null && from.isAfterNotNullSafe(to)) {
+        if (isEmpty() || from != null && to != null && from.isAfterNotNullSafe(to)) {
             return EmptyCloseableIterable.getInstance();
         }
         final LastValue<V> lastValue = lastValues.getReverse(0);
@@ -220,7 +223,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final ILock readLock,
             final ISkipFileFunction skipFileFunction) {
         //we expect the read lock to be already locked from the outside
-        if (values == null || from != null && to != null && from.isBeforeNotNullSafe(to)) {
+        if (isEmpty() || from != null && to != null && from.isBeforeNotNullSafe(to)) {
             return EmptyCloseableIterable.getInstance();
         }
         if (from != null && !firstValue.isEmpty() && from.isBeforeOrEqualToNotNullSafe(firstValueKey)) {
@@ -308,6 +311,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
                 values = newSerializingCollection();
             }
             values.add(nextLiveValue);
+            size.incrementAndGet();
             needsFlush = true;
         }
         if (firstValue.isEmpty() || firstValueKey.equalsNotNullSafe(nextLiveEndTimeKey)) {
@@ -334,12 +338,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public long size() {
-        final SerializingCollection<V> valuesCopy = values;
-        if (valuesCopy == null) {
-            return 0L;
-        } else {
-            return valuesCopy.size();
-        }
+        return size.get();
     }
 
     @Override
@@ -481,8 +480,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public boolean isEmpty() {
-        final SerializingCollection<V> valuesCopy = values;
-        return valuesCopy == null || valuesCopy.isEmpty();
+        return size.get() == 0;
     }
 
     @Override
@@ -490,6 +488,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         synchronized (this) {
             if (values != null) {
                 values.close();
+                size.set(0);
                 values.clear();
                 values = null;
             }
@@ -537,17 +536,21 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
         }
         try {
+            final int expectedSize = size.get();
             final ArrayList<V> fromFileList = (ArrayList<V>) Lists
                     .toListWithoutHasNext(getFlushedValuesFromFile(firstTry));
+            if (fromFileList.size() < expectedSize) {
+                throw new IllegalStateException(TextDescription.format(
+                        "Flushed values size [%s] should be at least as big as current values size [%s]: %s",
+                        fromFileList.size(), expectedSize, getFile()));
+            }
             final ArrayFileBufferCacheResult<V> inMemoryCache = new ArrayFileBufferCacheResult<V>(fromFileList);
             inMemoryCacheHolder = new WeakReference<ArrayFileBufferCacheResult<V>>(inMemoryCache);
             return inMemoryCache;
         } catch (final Throwable t) {
             if (Throwables.isCausedByType(t, FileNotFoundException.class)) {
                 if (firstTry) {
-                    synchronized (this) {
-                        return getFlushedValues(false);
-                    }
+                    return getFlushedValues(false);
                 } else {
                     //maybe retry because of this in the outer iterator?
                     throw new RetryLaterRuntimeException(
