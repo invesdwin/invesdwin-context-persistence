@@ -128,10 +128,13 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     private File getFile() {
         if (file == null) {
-            file = new File(historicalSegmentTable.getDirectory(),
-                    Files.normalizePath(
+            synchronized (this) {
+                if (file == null) {
+                    file = new File(historicalSegmentTable.getDirectory(), Files.normalizePath(
                             historicalSegmentTable.hashKeyToString(segmentedKey).replace("/", "_").replace("\\", "_")
                                     + "_" + "inProgress.data"));
+                }
+            }
         }
         return file;
     }
