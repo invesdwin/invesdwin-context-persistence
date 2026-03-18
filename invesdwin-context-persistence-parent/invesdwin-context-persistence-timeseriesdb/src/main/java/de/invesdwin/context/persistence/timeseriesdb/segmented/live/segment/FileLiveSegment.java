@@ -81,6 +81,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         this.hashKey = historicalSegmentTable.hashKeyToString(segmentedKey);
         this.segmentedKey = segmentedKey;
         this.historicalSegmentTable = historicalSegmentTable;
+        //disable compression for live files so that we are sure what we flush can also be read
         this.compressionFactory = historicalSegmentTable.getCompressionFactory();
         for (int i = 0; i < LAST_VALUE_HISTORY; i++) {
             lastValues.add(new LastValue<>());
@@ -538,11 +539,10 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         try {
             final int expectedSize = size.get();
             final ArrayList<V> fromFileList = (ArrayList<V>) Lists
-                    .toListWithoutHasNext(getFlushedValuesFromFile(firstTry));
+                    .toListWithoutHasNext(getFlushedValuesFromFile(firstTry, expectedSize));
             if (fromFileList.size() < expectedSize) {
-                throw new IllegalStateException(TextDescription.format(
-                        "Flushed values size [%s] should be at least as big as current values size [%s]: %s",
-                        fromFileList.size(), expectedSize, getFile()));
+                throw new IllegalStateException("Flushed values size [" + fromFileList.size()
+                        + "] should be at least as big as expected values size [" + expectedSize + "]: " + getFile());
             }
             final ArrayFileBufferCacheResult<V> inMemoryCache = new ArrayFileBufferCacheResult<V>(fromFileList);
             inMemoryCacheHolder = new WeakReference<ArrayFileBufferCacheResult<V>>(inMemoryCache);
@@ -564,14 +564,20 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
     }
 
-    private IReverseCloseableIterable<V> getFlushedValuesFromFile(final boolean firstTry) {
-        final SerializingCollection<V> valuesCopy = values;
-        if (valuesCopy == null || valuesCopy.isEmpty()) {
-            return EmptyCloseableIterable.getInstance();
-        }
-
+    private IReverseCloseableIterable<V> getFlushedValuesFromFile(final boolean firstTry, final int expectedSize) {
+        final SerializingCollection<V> valuesCopy;
         synchronized (this) {
+            valuesCopy = values;
+            if (valuesCopy == null || valuesCopy.isEmpty()) {
+                return EmptyCloseableIterable.getInstance();
+            }
             if (!firstTry || needsFlush) {
+                final int valuesSize = values.size();
+                if (valuesSize < expectedSize) {
+                    throw new IllegalStateException("To be flushed values size [" + valuesSize
+                            + "] should be at least as big as expected values size [" + expectedSize + "]: "
+                            + getFile());
+                }
                 valuesCopy.flush();
                 needsFlush = false;
             }
