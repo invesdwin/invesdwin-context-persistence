@@ -555,7 +555,6 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
                 if (firstTry) {
                     return getFlushedValues(false);
                 } else {
-                    //maybe retry because of this in the outer iterator?
                     throw new RetryLaterRuntimeException(
                             hashKey + ": File might have been deleted in the mean time between read locks: "
                                     + file.getAbsolutePath(),
