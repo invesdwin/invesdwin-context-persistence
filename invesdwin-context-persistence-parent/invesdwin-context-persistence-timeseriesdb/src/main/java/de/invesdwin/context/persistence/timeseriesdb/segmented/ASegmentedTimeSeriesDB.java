@@ -8,10 +8,8 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.compression.lz4.LZ4Streams;
-import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
-import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ITimeSeriesUpdater;
@@ -252,21 +250,24 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
     @Override
     public void deleteRange(final K key) {
         final ILock writeLock = getTableLock(key).writeLock();
+        ATimeSeriesDB.deleteRangeOnCloseLock(getName(), key, writeLock);
         try {
-            if (!writeLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
-                throw Locks.getLockTrace()
-                        .handleLockException(writeLock.getName(),
-                                new RetryLaterRuntimeException(
-                                        "Write lock could not be acquired for table [" + getName() + "] and key [" + key
-                                                + "]. Please ensure all iterators are closed!"));
-            }
-        } catch (final InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        try {
-            getSegmentedLookupTableCache(key).deleteAll();
+            getSegmentedLookupTableCache(key).deleteAll(false);
         } finally {
             writeLock.unlock();
+        }
+    }
+
+    @Override
+    public void deleteRangeForced(final K key) {
+        final ILock writeLock = getTableLock(key).writeLock();
+        final boolean locked = ATimeSeriesDB.deleteRangeOnCloseTryLock(getName(), key, writeLock);
+        try {
+            getSegmentedLookupTableCache(key).deleteAll(true);
+        } finally {
+            if (locked) {
+                writeLock.unlock();
+            }
         }
     }
 

@@ -108,6 +108,14 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
         historicalSegmentTable.deleteRange(key);
     }
 
+    public void deleteAllForced() {
+        if (liveSegment != null) {
+            liveSegment.close();
+        }
+        liveSegment = null;
+        historicalSegmentTable.deleteRangeForced(key);
+    }
+
     public V getFirstValue() {
         final V firstHistoricalValue = historicalSegmentTable.getLatestValue(key, FDates.MIN_DATE);
         if (firstHistoricalValue != null) {

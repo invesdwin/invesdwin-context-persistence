@@ -78,6 +78,8 @@ public interface ITimeSeriesDB<K, V> extends Closeable {
 
     void deleteRange(K key);
 
+    void deleteRangeForced(K key);
+
     String getName();
 
     String hashKeyToString(K key);

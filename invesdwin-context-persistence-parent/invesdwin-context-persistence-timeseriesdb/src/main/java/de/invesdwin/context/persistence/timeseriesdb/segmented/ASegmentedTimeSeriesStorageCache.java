@@ -844,7 +844,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         return filteredSegments;
     }
 
-    public void deleteAll() {
+    public void deleteAll(final boolean forced) {
         lookupByIndexAvailableFutureDisabled = true;
         try {
             final Future<?> future = lookupByIndexAvailableFuture;
@@ -876,9 +876,16 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 }) {
                     rangeKeys = Lists.toListWithoutHasNext(rangeKeysIterator);
                 }
-                for (int i = 0; i < rangeKeys.size(); i++) {
-                    final TimeRange rangeKey = rangeKeys.get(i);
-                    segmentedTable.deleteRange(new SegmentedKey<K>(key, rangeKey));
+                if (forced) {
+                    for (int i = 0; i < rangeKeys.size(); i++) {
+                        final TimeRange rangeKey = rangeKeys.get(i);
+                        segmentedTable.deleteRangeForced(new SegmentedKey<K>(key, rangeKey));
+                    }
+                } else {
+                    for (int i = 0; i < rangeKeys.size(); i++) {
+                        final TimeRange rangeKey = rangeKeys.get(i);
+                        segmentedTable.deleteRange(new SegmentedKey<K>(key, rangeKey));
+                    }
                 }
                 segmentStatusTable.deleteRange(hashKey);
                 storage.deleteRange_latestValueLookupTable(hashKey);

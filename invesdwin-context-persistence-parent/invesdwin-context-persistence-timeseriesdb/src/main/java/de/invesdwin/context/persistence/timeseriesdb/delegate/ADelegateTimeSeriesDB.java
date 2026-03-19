@@ -124,6 +124,11 @@ public abstract class ADelegateTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V>
     }
 
     @Override
+    public void deleteRangeForced(final K key) {
+        delegate.deleteRangeForced(key);
+    }
+
+    @Override
     public String getName() {
         return delegate.getName();
     }
