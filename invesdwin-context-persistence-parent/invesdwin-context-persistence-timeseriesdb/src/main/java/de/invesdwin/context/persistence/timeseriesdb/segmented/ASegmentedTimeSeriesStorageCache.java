@@ -473,7 +473,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                              * should not happen here because segment should not yet exist. Though if it happens we
                              * would rather like an exception instead of a deadlock!
                              */
-                            throw Locks.getLockTrace()
+                            throw segmentWriteLock.getLockTrace()
                                     .handleLockException(segmentWriteLock.getName(),
                                             new RetryLaterRuntimeException(
                                                     "Write lock could not be acquired for table ["

@@ -23,7 +23,6 @@ import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
 import de.invesdwin.util.concurrent.lock.FileChannelLock;
 import de.invesdwin.util.concurrent.lock.ILock;
-import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
@@ -97,7 +96,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             final ILock segmentWriteLock = segmentTableLock.writeLock();
             try {
                 if (!segmentWriteLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
-                    throw Locks.getLockTrace()
+                    throw segmentWriteLock.getLockTrace()
                             .handleLockException(segmentWriteLock.getName(),
                                     new RetryLaterRuntimeException("Write lock could not be acquired for table ["
                                             + table.getName() + "] and key [" + key

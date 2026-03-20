@@ -404,7 +404,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     public static void deleteRangeOnCloseLock(final String tableName, final Object key, final ILock writeLock) {
         try {
             if (!writeLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
-                throw Locks.getLockTrace()
+                throw writeLock.getLockTrace()
                         .handleLockException(writeLock.getName(),
                                 new RetryLaterRuntimeException(
                                         "Write lock could not be acquired for table [" + tableName + "] and key [" + key
@@ -417,7 +417,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     public static boolean deleteRangeOnCloseTryLock(final String tableName, final Object key, final ILock writeLock) {
         if (!writeLock.tryLock()) {
-            final RuntimeException handleLockException = Locks.getLockTrace()
+            final RuntimeException handleLockException = writeLock.getLockTrace()
                     .handleLockException(writeLock.getName(),
                             new Exception("Write lock could not be acquired for table [" + tableName + "] and key ["
                                     + key + "]. Please ensure all iterators are closed! Ignoring and forcing delete."));
