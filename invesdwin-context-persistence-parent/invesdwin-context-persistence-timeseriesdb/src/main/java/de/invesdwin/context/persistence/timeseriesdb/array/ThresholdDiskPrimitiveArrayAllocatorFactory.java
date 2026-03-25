@@ -10,8 +10,8 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.github.benmanes.caffeine.cache.RemovalCause;
 
-import de.invesdwin.context.system.array.IPrimitiveArrayAllocator;
-import de.invesdwin.context.system.array.IPrimitiveArrayAllocatorFactory;
+import de.invesdwin.context.system.array.primitive.IPrimitiveArrayAllocator;
+import de.invesdwin.context.system.array.primitive.IPrimitiveArrayAllocatorFactory;
 import de.invesdwin.util.lang.Objects;
 
 @Immutable

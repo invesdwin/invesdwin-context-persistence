@@ -28,7 +28,7 @@ import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSer
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.util.collections.Collections;
-import de.invesdwin.util.collections.circular.CircularGenericArrayQueue;
+import de.invesdwin.util.collections.array.primitive.circular.CircularGenericPrimitiveArrayQueue;
 import de.invesdwin.util.collections.eviction.EvictionMode;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
@@ -69,7 +69,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     private boolean needsFlush;
     private volatile FDate firstValueKey;
     private final IBufferingIterator<V> firstValue = new BufferingIterator<>();
-    private final CircularGenericArrayQueue<LastValue<V>> lastValues = new CircularGenericArrayQueue<LastValue<V>>(
+    private final CircularGenericPrimitiveArrayQueue<LastValue<V>> lastValues = new CircularGenericPrimitiveArrayQueue<LastValue<V>>(
             LAST_VALUE_HISTORY);
     @GuardedBy("none for performance")
     private File file;

@@ -10,7 +10,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.commons.compress.utils.IOUtils;
 
 import de.invesdwin.context.persistence.timeseriesdb.IDeserializingCloseableIterable;
-import de.invesdwin.context.system.array.IPrimitiveArrayAllocator;
+import de.invesdwin.context.system.array.primitive.IPrimitiveArrayAllocator;
 import de.invesdwin.norva.beanpath.IntCountingOutputStream;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;

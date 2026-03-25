@@ -6,23 +6,23 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.concurrent.ThreadSafe;
 
-import de.invesdwin.context.system.array.IPrimitiveArrayAllocator;
+import de.invesdwin.context.system.array.primitive.IPrimitiveArrayAllocator;
 import de.invesdwin.context.system.properties.CachingDelegateProperties;
 import de.invesdwin.context.system.properties.FileProperties;
 import de.invesdwin.context.system.properties.IProperties;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.collections.array.IBooleanArray;
-import de.invesdwin.util.collections.array.IDoubleArray;
-import de.invesdwin.util.collections.array.IIntegerArray;
-import de.invesdwin.util.collections.array.ILongArray;
-import de.invesdwin.util.collections.array.accessor.IArrayAccessor;
-import de.invesdwin.util.collections.array.buffer.BufferBooleanArray;
-import de.invesdwin.util.collections.array.buffer.BufferDoubleArray;
-import de.invesdwin.util.collections.array.buffer.BufferIntegerArray;
-import de.invesdwin.util.collections.array.buffer.BufferLongArray;
+import de.invesdwin.util.collections.array.primitive.IBooleanPrimtiveArray;
+import de.invesdwin.util.collections.array.primitive.IDoublePrimitiveArray;
+import de.invesdwin.util.collections.array.primitive.IIntegerPrimitiveArray;
+import de.invesdwin.util.collections.array.primitive.ILongPrimitiveArray;
+import de.invesdwin.util.collections.array.primitive.accessor.IPrimitiveArrayAccessor;
+import de.invesdwin.util.collections.array.primitive.bitset.IPrimitiveBitSet;
+import de.invesdwin.util.collections.array.primitive.buffer.BufferBooleanPrimitiveArray;
+import de.invesdwin.util.collections.array.primitive.buffer.BufferDoublePrimitiveArray;
+import de.invesdwin.util.collections.array.primitive.buffer.BufferIntegerPrimitiveArray;
+import de.invesdwin.util.collections.array.primitive.buffer.BufferLongPrimitiveArray;
 import de.invesdwin.util.collections.attributes.AttributesMap;
 import de.invesdwin.util.collections.attributes.IAttributesMap;
-import de.invesdwin.util.collections.bitset.IBitSet;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.lang.Objects;
@@ -61,23 +61,23 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
     }
 
     @Override
-    public IDoubleArray getDoubleArray(final String id) {
-        return (IDoubleArray) finalizer.map.get(id);
+    public IDoublePrimitiveArray getDoubleArray(final String id) {
+        return (IDoublePrimitiveArray) finalizer.map.get(id);
     }
 
     @Override
-    public IIntegerArray getIntegerArray(final String id) {
-        return (IIntegerArray) finalizer.map.get(id);
+    public IIntegerPrimitiveArray getIntegerArray(final String id) {
+        return (IIntegerPrimitiveArray) finalizer.map.get(id);
     }
 
     @Override
-    public IBooleanArray getBooleanArray(final String id) {
-        return (IBooleanArray) finalizer.map.get(id);
+    public IBooleanPrimtiveArray getBooleanArray(final String id) {
+        return (IBooleanPrimtiveArray) finalizer.map.get(id);
     }
 
     @Override
-    public IBitSet getBitSet(final String id) {
-        final BufferBooleanArray booleanArray = (BufferBooleanArray) getBooleanArray(id);
+    public IPrimitiveBitSet getBitSet(final String id) {
+        final BufferBooleanPrimitiveArray booleanArray = (BufferBooleanPrimitiveArray) getBooleanArray(id);
         if (booleanArray != null) {
             return booleanArray.getDelegate().getBitSet();
         } else {
@@ -86,8 +86,8 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
     }
 
     @Override
-    public ILongArray getLongArray(final String id) {
-        return (ILongArray) finalizer.map.get(id);
+    public ILongPrimitiveArray getLongArray(final String id) {
+        return (ILongPrimitiveArray) finalizer.map.get(id);
     }
 
     @Override
@@ -99,52 +99,52 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
     }
 
     @Override
-    public IDoubleArray newDoubleArray(final String id, final int size) {
+    public IDoublePrimitiveArray newDoubleArray(final String id, final int size) {
         Assertions.checkNull(
-                finalizer.map.put(id, new BufferDoubleArray(new FakeAllocatorBuffer(nextId(), size * Double.BYTES))));
-        final IDoubleArray array = (IDoubleArray) finalizer.map.get(id);
+                finalizer.map.put(id, new BufferDoublePrimitiveArray(new FakeAllocatorBuffer(nextId(), size * Double.BYTES))));
+        final IDoublePrimitiveArray array = (IDoublePrimitiveArray) finalizer.map.get(id);
         Assertions.checkNotNull(array);
         clearBeforeUsage(array);
         return array;
     }
 
     @Override
-    public IIntegerArray newIntegerArray(final String id, final int size) {
+    public IIntegerPrimitiveArray newIntegerArray(final String id, final int size) {
         Assertions.checkNull(
-                finalizer.map.put(id, new BufferIntegerArray(new FakeAllocatorBuffer(nextId(), size * Integer.BYTES))));
-        final IIntegerArray array = (IIntegerArray) finalizer.map.get(id);
+                finalizer.map.put(id, new BufferIntegerPrimitiveArray(new FakeAllocatorBuffer(nextId(), size * Integer.BYTES))));
+        final IIntegerPrimitiveArray array = (IIntegerPrimitiveArray) finalizer.map.get(id);
         Assertions.checkNotNull(array);
         clearBeforeUsage(array);
         return array;
     }
 
     @Override
-    public IBooleanArray newBooleanArray(final String id, final int size) {
-        Assertions.checkNull(finalizer.map.put(id, new BufferBooleanArray(
+    public IBooleanPrimtiveArray newBooleanArray(final String id, final int size) {
+        Assertions.checkNull(finalizer.map.put(id, new BufferBooleanPrimitiveArray(
                 new FakeAllocatorBuffer(nextId(), (BitSets.wordIndex(size - 1) + 1) * Long.BYTES), size)));
-        final IBooleanArray array = (IBooleanArray) finalizer.map.get(id);
+        final IBooleanPrimtiveArray array = (IBooleanPrimtiveArray) finalizer.map.get(id);
         Assertions.checkNotNull(array);
         clearBeforeUsage(array);
         return array;
     }
 
     @Override
-    public IBitSet newBitSet(final String id, final int size) {
-        final BufferBooleanArray booleanArray = (BufferBooleanArray) newBooleanArray(id, size);
+    public IPrimitiveBitSet newBitSet(final String id, final int size) {
+        final BufferBooleanPrimitiveArray booleanArray = (BufferBooleanPrimitiveArray) newBooleanArray(id, size);
         return booleanArray.getDelegate().getBitSet();
     }
 
     @Override
-    public ILongArray newLongArray(final String id, final int size) {
+    public ILongPrimitiveArray newLongArray(final String id, final int size) {
         Assertions.checkNull(
-                finalizer.map.put(id, new BufferLongArray(new FakeAllocatorBuffer(nextId(), size * Long.BYTES))));
-        final ILongArray array = (ILongArray) finalizer.map.get(id);
+                finalizer.map.put(id, new BufferLongPrimitiveArray(new FakeAllocatorBuffer(nextId(), size * Long.BYTES))));
+        final ILongPrimitiveArray array = (ILongPrimitiveArray) finalizer.map.get(id);
         Assertions.checkNotNull(array);
         clearBeforeUsage(array);
         return array;
     }
 
-    protected void clearBeforeUsage(final IArrayAccessor instance) {
+    protected void clearBeforeUsage(final IPrimitiveArrayAccessor instance) {
         //make sure everything is clear since usage might only sparsely fill
         instance.clear();
     }
