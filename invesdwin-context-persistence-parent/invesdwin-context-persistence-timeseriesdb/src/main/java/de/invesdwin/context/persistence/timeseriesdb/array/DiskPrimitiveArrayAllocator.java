@@ -11,7 +11,7 @@ import de.invesdwin.context.system.properties.CachingDelegateProperties;
 import de.invesdwin.context.system.properties.FileProperties;
 import de.invesdwin.context.system.properties.IProperties;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.collections.array.primitive.IBooleanPrimtiveArray;
+import de.invesdwin.util.collections.array.primitive.IBooleanPrimitiveArray;
 import de.invesdwin.util.collections.array.primitive.IDoublePrimitiveArray;
 import de.invesdwin.util.collections.array.primitive.IIntegerPrimitiveArray;
 import de.invesdwin.util.collections.array.primitive.ILongPrimitiveArray;
@@ -71,8 +71,8 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
     }
 
     @Override
-    public IBooleanPrimtiveArray getBooleanArray(final String id) {
-        return (IBooleanPrimtiveArray) finalizer.map.get(id);
+    public IBooleanPrimitiveArray getBooleanArray(final String id) {
+        return (IBooleanPrimitiveArray) finalizer.map.get(id);
     }
 
     @Override
@@ -93,15 +93,16 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
     @Override
     public IByteBuffer newByteBuffer(final String id, final int size) {
         Assertions.checkNull(finalizer.map.put(id, new FakeAllocatorBuffer(nextId(), size)));
-        final IByteBuffer instance = (IByteBuffer) finalizer.map.get(id);
-        Assertions.checkNotNull(instance);
-        return instance;
+        final IByteBuffer array = (IByteBuffer) finalizer.map.get(id);
+        Assertions.checkNotNull(array);
+        clearBeforeUsage(array);
+        return array;
     }
 
     @Override
     public IDoublePrimitiveArray newDoubleArray(final String id, final int size) {
-        Assertions.checkNull(
-                finalizer.map.put(id, new BufferDoublePrimitiveArray(new FakeAllocatorBuffer(nextId(), size * Double.BYTES))));
+        Assertions.checkNull(finalizer.map.put(id,
+                new BufferDoublePrimitiveArray(new FakeAllocatorBuffer(nextId(), size * Double.BYTES))));
         final IDoublePrimitiveArray array = (IDoublePrimitiveArray) finalizer.map.get(id);
         Assertions.checkNotNull(array);
         clearBeforeUsage(array);
@@ -110,8 +111,8 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
 
     @Override
     public IIntegerPrimitiveArray newIntegerArray(final String id, final int size) {
-        Assertions.checkNull(
-                finalizer.map.put(id, new BufferIntegerPrimitiveArray(new FakeAllocatorBuffer(nextId(), size * Integer.BYTES))));
+        Assertions.checkNull(finalizer.map.put(id,
+                new BufferIntegerPrimitiveArray(new FakeAllocatorBuffer(nextId(), size * Integer.BYTES))));
         final IIntegerPrimitiveArray array = (IIntegerPrimitiveArray) finalizer.map.get(id);
         Assertions.checkNotNull(array);
         clearBeforeUsage(array);
@@ -119,10 +120,11 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
     }
 
     @Override
-    public IBooleanPrimtiveArray newBooleanArray(final String id, final int size) {
-        Assertions.checkNull(finalizer.map.put(id, new BufferBooleanPrimitiveArray(
-                new FakeAllocatorBuffer(nextId(), (BitSets.wordIndex(size - 1) + 1) * Long.BYTES), size)));
-        final IBooleanPrimtiveArray array = (IBooleanPrimtiveArray) finalizer.map.get(id);
+    public IBooleanPrimitiveArray newBooleanArray(final String id, final int size) {
+        Assertions.checkNull(
+                finalizer.map.put(id, new BufferBooleanPrimitiveArray(DiskPrimitiveArraySerde.BOOLEAN_COPY_FACTORY,
+                        new FakeAllocatorBuffer(nextId(), (BitSets.wordIndex(size - 1) + 1) * Long.BYTES), size)));
+        final IBooleanPrimitiveArray array = (IBooleanPrimitiveArray) finalizer.map.get(id);
         Assertions.checkNotNull(array);
         clearBeforeUsage(array);
         return array;
@@ -136,8 +138,8 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
 
     @Override
     public ILongPrimitiveArray newLongArray(final String id, final int size) {
-        Assertions.checkNull(
-                finalizer.map.put(id, new BufferLongPrimitiveArray(new FakeAllocatorBuffer(nextId(), size * Long.BYTES))));
+        Assertions.checkNull(finalizer.map.put(id,
+                new BufferLongPrimitiveArray(new FakeAllocatorBuffer(nextId(), size * Long.BYTES))));
         final ILongPrimitiveArray array = (ILongPrimitiveArray) finalizer.map.get(id);
         Assertions.checkNotNull(array);
         clearBeforeUsage(array);

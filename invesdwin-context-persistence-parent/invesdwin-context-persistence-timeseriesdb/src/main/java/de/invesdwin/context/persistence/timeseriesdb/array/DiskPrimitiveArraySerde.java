@@ -1,14 +1,17 @@
 package de.invesdwin.context.persistence.timeseriesdb.array;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 import javax.annotation.concurrent.Immutable;
 
-import de.invesdwin.util.collections.array.primitive.IBooleanPrimtiveArray;
+import de.invesdwin.util.collections.array.primitive.IBooleanPrimitiveArray;
 import de.invesdwin.util.collections.array.primitive.IDoublePrimitiveArray;
 import de.invesdwin.util.collections.array.primitive.IIntegerPrimitiveArray;
 import de.invesdwin.util.collections.array.primitive.ILongPrimitiveArray;
 import de.invesdwin.util.collections.array.primitive.IPrimitiveArray;
+import de.invesdwin.util.collections.array.primitive.bitset.IPrimitiveBitSet;
+import de.invesdwin.util.collections.array.primitive.bitset.LongArrayPrimitiveBitSet;
 import de.invesdwin.util.collections.array.primitive.buffer.BufferBooleanPrimitiveArray;
 import de.invesdwin.util.collections.array.primitive.buffer.BufferDoublePrimitiveArray;
 import de.invesdwin.util.collections.array.primitive.buffer.BufferIntegerPrimitiveArray;
@@ -22,6 +25,8 @@ import de.invesdwin.util.streams.buffer.bytes.delegate.slice.SlicedDelegateByteB
 
 @Immutable
 public class DiskPrimitiveArraySerde implements ISerde<IPrimitiveArray>, ISerdeLengthProvider<IPrimitiveArray> {
+
+    public static final Function<LongArrayPrimitiveBitSet, IPrimitiveBitSet> BOOLEAN_COPY_FACTORY = LongArrayPrimitiveBitSet.DEFAULT_COPY_FACTORY;
 
     public static final DiskPrimitiveArraySerde GET = new DiskPrimitiveArraySerde();
 
@@ -54,7 +59,7 @@ public class DiskPrimitiveArraySerde implements ISerde<IPrimitiveArray>, ISerdeL
         case Byte:
             return arrayBuffer;
         case Boolean:
-            return new BufferBooleanPrimitiveArray(arrayBuffer);
+            return new BufferBooleanPrimitiveArray(BOOLEAN_COPY_FACTORY, arrayBuffer);
         case Double:
             return new BufferDoublePrimitiveArray(arrayBuffer);
         case Long:
@@ -72,7 +77,7 @@ public class DiskPrimitiveArraySerde implements ISerde<IPrimitiveArray>, ISerdeL
         buffer.putInt(ID_INDEX, id);
         if (obj instanceof IByteBuffer) {
             buffer.putInt(TYPE_INDEX, (byte) DiskPrimitiveArrayType.Byte.ordinal());
-        } else if (obj instanceof IBooleanPrimtiveArray) {
+        } else if (obj instanceof IBooleanPrimitiveArray) {
             buffer.putInt(TYPE_INDEX, (byte) DiskPrimitiveArrayType.Boolean.ordinal());
         } else if (obj instanceof IDoublePrimitiveArray) {
             buffer.putInt(TYPE_INDEX, (byte) DiskPrimitiveArrayType.Double.ordinal());
