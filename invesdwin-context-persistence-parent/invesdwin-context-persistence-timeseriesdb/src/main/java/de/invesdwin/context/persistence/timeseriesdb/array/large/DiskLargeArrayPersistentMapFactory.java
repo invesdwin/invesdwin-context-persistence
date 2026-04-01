@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb.array;
+package de.invesdwin.context.persistence.timeseriesdb.array.large;
 
 import java.io.File;
 
@@ -11,9 +11,9 @@ import de.invesdwin.context.persistence.timeseriesdb.PersistentMapType;
 import de.invesdwin.util.marshallers.serde.ISerde;
 
 @Immutable
-public class DiskPrimitiveArrayPersistentMapFactory<K, V> extends LargePersistentMapFactory<K, V> {
+public class DiskLargeArrayPersistentMapFactory<K, V> extends LargePersistentMapFactory<K, V> {
 
-    public DiskPrimitiveArrayPersistentMapFactory() {
+    public DiskLargeArrayPersistentMapFactory() {
         super(PersistentMapType.DISK_SAFE.newFactory(), false, false);
     }
 

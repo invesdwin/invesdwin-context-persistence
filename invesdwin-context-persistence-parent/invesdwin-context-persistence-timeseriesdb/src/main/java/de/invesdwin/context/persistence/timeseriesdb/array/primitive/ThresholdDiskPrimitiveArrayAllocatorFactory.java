@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb.array;
+package de.invesdwin.context.persistence.timeseriesdb.array.primitive;
 
 import java.io.Closeable;
 import java.util.Map;

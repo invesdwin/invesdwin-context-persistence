@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb.array;
+package de.invesdwin.context.persistence.timeseriesdb.array.primitive;
 
 import java.io.Closeable;
 import java.io.File;
@@ -29,7 +29,7 @@ import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.UUIDs;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.math.BitSets;
-import de.invesdwin.util.streams.buffer.bytes.FakeAllocatorBuffer;
+import de.invesdwin.util.streams.buffer.bytes.FakeAllocatorByteBuffer;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 
 /**
@@ -92,7 +92,7 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
 
     @Override
     public IByteBuffer newByteBuffer(final String id, final int size) {
-        Assertions.checkNull(finalizer.map.put(id, new FakeAllocatorBuffer(nextId(), size)));
+        Assertions.checkNull(finalizer.map.put(id, new FakeAllocatorByteBuffer(nextId(), size)));
         final IByteBuffer array = (IByteBuffer) finalizer.map.get(id);
         Assertions.checkNotNull(array);
         clearBeforeUsage(array);
@@ -102,7 +102,7 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
     @Override
     public IDoublePrimitiveArray newDoubleArray(final String id, final int size) {
         Assertions.checkNull(finalizer.map.put(id,
-                new BufferDoublePrimitiveArray(new FakeAllocatorBuffer(nextId(), size * Double.BYTES))));
+                new BufferDoublePrimitiveArray(new FakeAllocatorByteBuffer(nextId(), size * Double.BYTES))));
         final IDoublePrimitiveArray array = (IDoublePrimitiveArray) finalizer.map.get(id);
         Assertions.checkNotNull(array);
         clearBeforeUsage(array);
@@ -112,7 +112,7 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
     @Override
     public IIntegerPrimitiveArray newIntegerArray(final String id, final int size) {
         Assertions.checkNull(finalizer.map.put(id,
-                new BufferIntegerPrimitiveArray(new FakeAllocatorBuffer(nextId(), size * Integer.BYTES))));
+                new BufferIntegerPrimitiveArray(new FakeAllocatorByteBuffer(nextId(), size * Integer.BYTES))));
         final IIntegerPrimitiveArray array = (IIntegerPrimitiveArray) finalizer.map.get(id);
         Assertions.checkNotNull(array);
         clearBeforeUsage(array);
@@ -123,7 +123,7 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
     public IBooleanPrimitiveArray newBooleanArray(final String id, final int size) {
         Assertions.checkNull(
                 finalizer.map.put(id, new BufferBooleanPrimitiveArray(DiskPrimitiveArraySerde.BOOLEAN_COPY_FACTORY,
-                        new FakeAllocatorBuffer(nextId(), (BitSets.wordIndex(size - 1) + 1) * Long.BYTES), size)));
+                        new FakeAllocatorByteBuffer(nextId(), (BitSets.wordIndex(size - 1) + 1) * Long.BYTES), size)));
         final IBooleanPrimitiveArray array = (IBooleanPrimitiveArray) finalizer.map.get(id);
         Assertions.checkNotNull(array);
         clearBeforeUsage(array);
@@ -139,7 +139,7 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
     @Override
     public ILongPrimitiveArray newLongArray(final String id, final int size) {
         Assertions.checkNull(finalizer.map.put(id,
-                new BufferLongPrimitiveArray(new FakeAllocatorBuffer(nextId(), size * Long.BYTES))));
+                new BufferLongPrimitiveArray(new FakeAllocatorByteBuffer(nextId(), size * Long.BYTES))));
         final ILongPrimitiveArray array = (ILongPrimitiveArray) finalizer.map.get(id);
         Assertions.checkNotNull(array);
         clearBeforeUsage(array);
