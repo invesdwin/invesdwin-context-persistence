@@ -6,7 +6,6 @@ import java.util.List;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.commons.lang3.RandomUtils;
 import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
@@ -22,6 +21,8 @@ import de.invesdwin.util.collections.loadingcache.historical.IHistoricalEntry;
 import de.invesdwin.util.collections.loadingcache.historical.key.APullingHistoricalCacheAdjustKeyProvider;
 import de.invesdwin.util.collections.loadingcache.historical.key.APushingHistoricalCacheAdjustKeyProvider;
 import de.invesdwin.util.collections.loadingcache.historical.key.IHistoricalCacheAdjustKeyProvider;
+import de.invesdwin.util.math.Integers;
+import de.invesdwin.util.math.random.PseudoRandomGenerator;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
 import de.invesdwin.util.time.date.FDates;
@@ -327,10 +328,11 @@ public abstract class ARootDBTest extends ATest {
     @Test
     public final void testRandomizedPreviousValues() {
         final List<Pair<Integer, Integer>> reproduce = new ArrayList<Pair<Integer, Integer>>();
+        final PseudoRandomGenerator random = new PseudoRandomGenerator();
         try {
             for (int i = 0; i < 100000; i++) {
-                final int keyIndex = RandomUtils.nextInt(0, entities.size());
-                final int shiftBackUnits = RandomUtils.nextInt(1, Math.max(1, keyIndex));
+                final int keyIndex = random.nextInt(0, entities.size());
+                final int shiftBackUnits = random.nextInt(1, Integers.max(1, keyIndex));
                 reproduce.add(Pair.of(keyIndex, shiftBackUnits));
                 final FDate key = entities.get(keyIndex);
                 final Collection<FDate> previousValues = asList(cache.query().getPreviousValues(key, shiftBackUnits));
@@ -371,10 +373,11 @@ public abstract class ARootDBTest extends ATest {
     @Test
     public final void testRandomizedSizeTable() {
         final List<Pair<Integer, Integer>> reproduce = new ArrayList<Pair<Integer, Integer>>();
+        final PseudoRandomGenerator random = new PseudoRandomGenerator();
         try {
             for (int i = 0; i < 100000; i++) {
-                final int keyIndex = RandomUtils.nextInt(0, entities.size());
-                final int shiftBackUnits = RandomUtils.nextInt(1, Math.max(1, keyIndex));
+                final int keyIndex = random.nextInt(0, entities.size());
+                final int shiftBackUnits = random.nextInt(1, Integers.max(1, keyIndex));
                 reproduce.add(Pair.of(keyIndex, shiftBackUnits));
                 final List<FDate> expectedValues = entities.subList(keyIndex - shiftBackUnits + 1, keyIndex + 1);
                 final long size = table.size(KEY, expectedValues.get(0), expectedValues.get(expectedValues.size() - 1));
@@ -417,10 +420,11 @@ public abstract class ARootDBTest extends ATest {
     @Test
     public final void testRandomizedSize() {
         final List<Pair<Integer, Integer>> reproduce = new ArrayList<Pair<Integer, Integer>>();
+        final PseudoRandomGenerator random = new PseudoRandomGenerator();
         try {
             for (int i = 0; i < 100000; i++) {
-                final int keyIndex = RandomUtils.nextInt(0, entities.size());
-                final int shiftBackUnits = RandomUtils.nextInt(1, Math.max(1, keyIndex));
+                final int keyIndex = random.nextInt(0, entities.size());
+                final int shiftBackUnits = random.nextInt(1, Integers.max(1, keyIndex));
                 reproduce.add(Pair.of(keyIndex, shiftBackUnits));
                 final List<FDate> expectedValues = entities.subList(keyIndex - shiftBackUnits + 1, keyIndex + 1);
                 final long size = cache.query()
@@ -659,7 +663,7 @@ public abstract class ARootDBTest extends ATest {
                 result = Lists.toListWithoutHasNext(table.rangeValues(KEY, key, null));
             }
             if (returnMaxResults != null && !result.isEmpty()) {
-                result = result.subList(0, Math.min(result.size(), returnMaxResults));
+                result = result.subList(0, Integers.min(result.size(), returnMaxResults));
             }
             return new BufferingIterator<FDate>(result);
         }
