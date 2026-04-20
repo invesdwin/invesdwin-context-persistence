@@ -20,6 +20,7 @@ import de.invesdwin.util.collections.loadingcache.historical.IHistoricalEntry;
 import de.invesdwin.util.collections.loadingcache.historical.interceptor.AHistoricalCacheRangeQueryInterceptor;
 import de.invesdwin.util.collections.loadingcache.historical.interceptor.IHistoricalCacheNextQueryInterceptor;
 import de.invesdwin.util.collections.loadingcache.historical.interceptor.IHistoricalCacheRangeQueryInterceptor;
+import de.invesdwin.util.collections.loadingcache.historical.interceptor.IHistoricalCacheSizeQueryInterceptor;
 import de.invesdwin.util.collections.loadingcache.historical.interceptor.RangeHistoricalCacheNextQueryInterceptor;
 import de.invesdwin.util.collections.loadingcache.historical.refresh.HistoricalCacheRefreshManager;
 import de.invesdwin.util.time.date.FDate;
@@ -1090,6 +1091,16 @@ public abstract class ABaseDBWithoutShiftKeysAndQueryInterceptorTest extends ARo
                         final int shiftForwardUnits) {
                     final FDate nextValue = table.getNextValue(KEY, key, shiftForwardUnits);
                     return Optional.ofNullable(IHistoricalEntry.valueOf(nextValue));
+                }
+            };
+        }
+
+        @Override
+        protected IHistoricalCacheSizeQueryInterceptor newSizeQueryInterceptor() {
+            return new IHistoricalCacheSizeQueryInterceptor() {
+                @Override
+                public long size(final FDate from, final FDate to) {
+                    return table.size(KEY, from, to);
                 }
             };
         }

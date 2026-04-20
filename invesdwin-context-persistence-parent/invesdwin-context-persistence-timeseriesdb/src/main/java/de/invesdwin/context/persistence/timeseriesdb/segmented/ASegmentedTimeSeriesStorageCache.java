@@ -59,10 +59,12 @@ import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.Threads;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
 import de.invesdwin.util.concurrent.future.Futures;
+import de.invesdwin.util.concurrent.lock.ICloseableLock;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
+import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
 import de.invesdwin.util.concurrent.reference.WeakThreadLocalReference;
 import de.invesdwin.util.concurrent.taskinfo.provider.TaskInfoCallable;
 import de.invesdwin.util.error.FastNoSuchElementException;
@@ -438,49 +440,71 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             return false;
         }
         //1. check segment status in series storage
-        final IReadWriteLock segmentTableLock = segmentedTable.getTableLock(segmentedKey);
+        final IReentrantReadWriteLock segmentTableLock = segmentedTable.getTableLock(segmentedKey);
+        SegmentStatus status = getSegmentStatusWithReadLock(segmentedKey, segmentTableLock);
+        if (status != null && status != SegmentStatus.INITIALIZING) {
+            return false;
+        }
         /*
-         * We need this synchronized block so that we don't collide on the write lock not being possible to be acquired
-         * after 1 minute. The ReadWriteLock object should be safe to lock via synchronized keyword since no internal
-         * synchronization occurs on that object itself
+         * Make sure to release read locks in current thread when trying to acquire write lock
+         * (https://stackoverflow.com/a/464824/67492). Also readers should be unlocked before trying to lock the table
+         * for write lock acquisition so that everyone interested in this update unlocks to give one thread the chance
+         * to acquire the write lock.
          */
-        synchronized (segmentTableLock) {
-            final SegmentStatus status = getSegmentStatusWithReadLock(segmentedKey, segmentTableLock);
-            //2. if not existing or false, set status to false -> start segment update -> after update set status to true
-            if (status == null || status == SegmentStatus.INITIALIZING) {
-                final ILock segmentWriteLock = segmentTableLock.writeLock();
-                try {
-                    if (!segmentWriteLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
-                        /*
-                         * should not happen here because segment should not yet exist. Though if it happens we would
-                         * rather like an exception instead of a deadlock!
-                         */
-                        throw Locks.getLockTrace()
-                                .handleLockException(segmentWriteLock.getName(),
-                                        new RetryLaterRuntimeException("Write lock could not be acquired for table ["
-                                                + segmentedTable.getName() + "] and key [" + segmentedKey
-                                                + "]. Please ensure all iterators are closed!"));
+        final ILock segmentReadLock = segmentTableLock.readLock();
+        final int readHoldCount = segmentTableLock.getReadHoldCount();
+        for (int i = 0; i < readHoldCount; i++) {
+            segmentReadLock.unlock();
+        }
+        try {
+            /*
+             * We need this synchronized block so that we don't collide on the write lock not being possible to be
+             * acquired after 1 minute. The ReadWriteLock object should be safe to lock via synchronized keyword since
+             * no internal synchronization occurs on that object itself
+             */
+            synchronized (segmentTableLock) {
+                status = getSegmentStatusWithReadLock(segmentedKey, segmentTableLock);
+                //2. if not existing or false, set status to false -> start segment update -> after update set status to true
+                if (status == null || status == SegmentStatus.INITIALIZING) {
+                    final ILock segmentWriteLock = segmentTableLock.writeLock();
+                    try {
+                        if (!segmentWriteLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
+                            /*
+                             * should not happen here because segment should not yet exist. Though if it happens we
+                             * would rather like an exception instead of a deadlock!
+                             */
+                            throw segmentWriteLock.getLockTrace()
+                                    .handleLockException(segmentWriteLock.getName(),
+                                            new RetryLaterRuntimeException(
+                                                    "Write lock could not be acquired for table ["
+                                                            + segmentedTable.getName() + "] and key [" + segmentedKey
+                                                            + "]. Please ensure all iterators are closed!"));
+                        }
+                    } catch (final InterruptedException e1) {
+                        throw new RuntimeException(e1);
                     }
-                } catch (final InterruptedException e1) {
-                    throw new RuntimeException(e1);
-                }
-                try {
-                    // no double checked locking required between read and write lock here because of the outer synchronized block
-                    if (status == SegmentStatus.INITIALIZING) {
-                        //initialization got aborted, retry from a fresh state
-                        segmentedTable.deleteRange(segmentedKey);
-                        storage.getSegmentStatusTable().delete(hashKey, segmentedKey.getSegment());
+                    try {
+                        // no double checked locking required between read and write lock here because of the outer synchronized block
+                        if (status == SegmentStatus.INITIALIZING) {
+                            //initialization got aborted, retry from a fresh state
+                            segmentedTable.deleteRange(segmentedKey);
+                            storage.getSegmentStatusTable().delete(hashKey, segmentedKey.getSegment());
+                        }
+                        initSegmentWithStatusHandling(segmentedKey, source);
+                        onSegmentCompleted(segmentedKey, readRangeValues(segmentedKey.getSegment().getFrom(),
+                                segmentedKey.getSegment().getTo(), DisabledLock.INSTANCE, null));
+                        return true;
+                    } finally {
+                        segmentWriteLock.unlock();
                     }
-                    initSegmentWithStatusHandling(segmentedKey, source);
-                    onSegmentCompleted(segmentedKey, readRangeValues(segmentedKey.getSegment().getFrom(),
-                            segmentedKey.getSegment().getTo(), DisabledLock.INSTANCE, null));
-                    return true;
-                } finally {
-                    segmentWriteLock.unlock();
                 }
             }
+        } finally {
+            for (int i = 0; i < readHoldCount; i++) {
+                segmentReadLock.lock();
+            }
         }
-        //3. if true do nothing
+        //3. if already initialized or unable to acquire lock, do nothing
         return false;
     }
 
@@ -820,7 +844,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         return filteredSegments;
     }
 
-    public void deleteAll() {
+    public void deleteAll(final boolean forced) {
         lookupByIndexAvailableFutureDisabled = true;
         try {
             final Future<?> future = lookupByIndexAvailableFuture;
@@ -852,9 +876,16 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 }) {
                     rangeKeys = Lists.toListWithoutHasNext(rangeKeysIterator);
                 }
-                for (int i = 0; i < rangeKeys.size(); i++) {
-                    final TimeRange rangeKey = rangeKeys.get(i);
-                    segmentedTable.deleteRange(new SegmentedKey<K>(key, rangeKey));
+                if (forced) {
+                    for (int i = 0; i < rangeKeys.size(); i++) {
+                        final TimeRange rangeKey = rangeKeys.get(i);
+                        segmentedTable.deleteRangeForced(new SegmentedKey<K>(key, rangeKey));
+                    }
+                } else {
+                    for (int i = 0; i < rangeKeys.size(); i++) {
+                        final TimeRange rangeKey = rangeKeys.get(i);
+                        segmentedTable.deleteRange(new SegmentedKey<K>(key, rangeKey));
+                    }
                 }
                 segmentStatusTable.deleteRange(hashKey);
                 storage.deleteRange_latestValueLookupTable(hashKey);
@@ -1522,6 +1553,69 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             cachedSize = cachedSizeCopy;
         }
         return cachedSizeCopy;
+    }
+
+    public long size(final FDate from, final FDate to) {
+        switch (lookupMode) {
+        case Value:
+            return sizeByValue(from, to);
+        case ValueUntilIndexAvailable:
+            if (isLookupByIndexAvailable()) {
+                return sizeByIndex(from, to);
+            } else {
+                return sizeByValue(from, to);
+            }
+        case Index:
+            return sizeByIndex(from, to);
+        default:
+            throw UnknownArgumentException.newInstance(TimeSeriesLookupMode.class, lookupMode);
+        }
+    }
+
+    private long sizeByValue(final FDate from, final FDate to) {
+        final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
+        if (firstAvailableSegmentFrom == null) {
+            return 0L;
+        }
+        final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key, to);
+        if (lastAvailableSegmentTo == null) {
+            return 0L;
+        }
+        //adjust dates directly to prevent unnecessary segment calculations
+        final FDate adjFrom = FDates.max(from, firstAvailableSegmentFrom);
+        final FDate adjTo = FDates.min(to, lastAvailableSegmentTo);
+        final ISegmentFinder segmentFinder = getSegmentFinder(key);
+        long size = 0L;
+        try (ICloseableIterator<TimeRange> segments = getSegments(segmentFinder, segmentFinder.getDay(adjFrom),
+                segmentFinder.getDay(adjTo), lastAvailableSegmentTo).iterator()) {
+            while (true) {
+                final TimeRange rangeKey = segments.next();
+                final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, rangeKey);
+                maybeInitSegment(segmentedKey);
+                final FDate segmentAdjFrom = FDates.max(adjFrom, rangeKey.getFrom());
+                final FDate segmentAdjTo = FDates.min(adjTo, rangeKey.getTo());
+                try (ICloseableLock compositeReadLock = segmentedTable.getTableLock(segmentedKey).readLocked()) {
+                    size += segmentedTable.getLookupTableCache(segmentedKey).size(segmentAdjFrom, segmentAdjTo);
+                }
+            }
+        } catch (final NoSuchElementException e) {
+            //end reached
+        }
+        return size;
+    }
+
+    private long sizeByIndex(final FDate from, final FDate to) {
+        long fromIndex = getLatestValueIndex(from);
+        if (fromIndex < 0) {
+            return 0L;
+        }
+        final V fromValue = getLatestValue(fromIndex);
+        final FDate fromValueKey = segmentedTable.extractEndTime(fromValue);
+        if (fromValueKey.isBeforeNotNullSafe(from)) {
+            fromIndex++;
+        }
+        final long toIndex = getLatestValueIndex(to);
+        return toIndex - fromIndex + 1;
     }
 
     public boolean isEmptyOrInconsistent() {

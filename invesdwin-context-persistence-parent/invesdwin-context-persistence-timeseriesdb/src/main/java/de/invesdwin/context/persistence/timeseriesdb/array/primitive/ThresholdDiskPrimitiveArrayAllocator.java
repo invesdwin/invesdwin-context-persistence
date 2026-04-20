@@ -1,19 +1,19 @@
-package de.invesdwin.context.persistence.timeseriesdb.array;
+package de.invesdwin.context.persistence.timeseriesdb.array.primitive;
 
 import java.io.Closeable;
 import java.io.File;
 
 import javax.annotation.concurrent.ThreadSafe;
 
-import de.invesdwin.context.system.array.IPrimitiveArrayAllocator;
-import de.invesdwin.context.system.array.OnHeapPrimitiveArrayAllocator;
+import de.invesdwin.context.system.array.primitive.IPrimitiveArrayAllocator;
+import de.invesdwin.context.system.array.primitive.OnHeapPrimitiveArrayAllocator;
 import de.invesdwin.context.system.properties.IProperties;
-import de.invesdwin.util.collections.array.IBooleanArray;
-import de.invesdwin.util.collections.array.IDoubleArray;
-import de.invesdwin.util.collections.array.IIntegerArray;
-import de.invesdwin.util.collections.array.ILongArray;
+import de.invesdwin.util.collections.array.primitive.IBooleanPrimitiveArray;
+import de.invesdwin.util.collections.array.primitive.IDoublePrimitiveArray;
+import de.invesdwin.util.collections.array.primitive.IIntegerPrimitiveArray;
+import de.invesdwin.util.collections.array.primitive.ILongPrimitiveArray;
+import de.invesdwin.util.collections.array.primitive.bitset.IPrimitiveBitSet;
 import de.invesdwin.util.collections.attributes.IAttributesMap;
-import de.invesdwin.util.collections.bitset.IBitSet;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.lang.Objects;
@@ -59,8 +59,8 @@ public class ThresholdDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllo
     }
 
     @Override
-    public IDoubleArray getDoubleArray(final String id) {
-        final IDoubleArray heapArr = heap.getDoubleArray(id);
+    public IDoublePrimitiveArray getDoubleArray(final String id) {
+        final IDoublePrimitiveArray heapArr = heap.getDoubleArray(id);
         if (heapArr != null) {
             return heapArr;
         }
@@ -68,8 +68,8 @@ public class ThresholdDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllo
     }
 
     @Override
-    public IIntegerArray getIntegerArray(final String id) {
-        final IIntegerArray heapArr = heap.getIntegerArray(id);
+    public IIntegerPrimitiveArray getIntegerArray(final String id) {
+        final IIntegerPrimitiveArray heapArr = heap.getIntegerArray(id);
         if (heapArr != null) {
             return heapArr;
         }
@@ -77,8 +77,8 @@ public class ThresholdDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllo
     }
 
     @Override
-    public IBooleanArray getBooleanArray(final String id) {
-        final IBooleanArray heapArr = heap.getBooleanArray(id);
+    public IBooleanPrimitiveArray getBooleanArray(final String id) {
+        final IBooleanPrimitiveArray heapArr = heap.getBooleanArray(id);
         if (heapArr != null) {
             return heapArr;
         }
@@ -86,8 +86,8 @@ public class ThresholdDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllo
     }
 
     @Override
-    public IBitSet getBitSet(final String id) {
-        final IBitSet heapArr = heap.getBitSet(id);
+    public IPrimitiveBitSet getBitSet(final String id) {
+        final IPrimitiveBitSet heapArr = heap.getBitSet(id);
         if (heapArr != null) {
             return heapArr;
         }
@@ -95,8 +95,8 @@ public class ThresholdDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllo
     }
 
     @Override
-    public ILongArray getLongArray(final String id) {
-        final ILongArray heapArr = heap.getLongArray(id);
+    public ILongPrimitiveArray getLongArray(final String id) {
+        final ILongPrimitiveArray heapArr = heap.getLongArray(id);
         if (heapArr != null) {
             return heapArr;
         }
@@ -113,7 +113,7 @@ public class ThresholdDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllo
     }
 
     @Override
-    public IDoubleArray newDoubleArray(final String id, final int size) {
+    public IDoublePrimitiveArray newDoubleArray(final String id, final int size) {
         if (isOnHeap(size)) {
             return heap.newDoubleArray(id, size);
         } else {
@@ -122,7 +122,7 @@ public class ThresholdDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllo
     }
 
     @Override
-    public IIntegerArray newIntegerArray(final String id, final int size) {
+    public IIntegerPrimitiveArray newIntegerArray(final String id, final int size) {
         if (isOnHeap(size)) {
             return heap.newIntegerArray(id, size);
         } else {
@@ -131,7 +131,7 @@ public class ThresholdDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllo
     }
 
     @Override
-    public IBooleanArray newBooleanArray(final String id, final int size) {
+    public IBooleanPrimitiveArray newBooleanArray(final String id, final int size) {
         if (isOnHeap(size)) {
             return heap.newBooleanArray(id, size);
         } else {
@@ -140,7 +140,7 @@ public class ThresholdDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllo
     }
 
     @Override
-    public IBitSet newBitSet(final String id, final int size) {
+    public IPrimitiveBitSet newBitSet(final String id, final int size) {
         if (isOnHeap(size)) {
             return heap.newBitSet(id, size);
         } else {
@@ -149,7 +149,7 @@ public class ThresholdDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllo
     }
 
     @Override
-    public ILongArray newLongArray(final String id, final int size) {
+    public ILongPrimitiveArray newLongArray(final String id, final int size) {
         if (isOnHeap(size)) {
             return heap.newLongArray(id, size);
         } else {

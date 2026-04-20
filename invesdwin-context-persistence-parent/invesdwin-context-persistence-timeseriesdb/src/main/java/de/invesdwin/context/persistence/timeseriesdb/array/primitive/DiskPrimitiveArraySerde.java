@@ -1,18 +1,21 @@
-package de.invesdwin.context.persistence.timeseriesdb.array;
+package de.invesdwin.context.persistence.timeseriesdb.array.primitive;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 import javax.annotation.concurrent.Immutable;
 
-import de.invesdwin.util.collections.array.IBooleanArray;
-import de.invesdwin.util.collections.array.IDoubleArray;
-import de.invesdwin.util.collections.array.IIntegerArray;
-import de.invesdwin.util.collections.array.ILongArray;
-import de.invesdwin.util.collections.array.IPrimitiveArray;
-import de.invesdwin.util.collections.array.buffer.BufferBooleanArray;
-import de.invesdwin.util.collections.array.buffer.BufferDoubleArray;
-import de.invesdwin.util.collections.array.buffer.BufferIntegerArray;
-import de.invesdwin.util.collections.array.buffer.BufferLongArray;
+import de.invesdwin.util.collections.array.primitive.IBooleanPrimitiveArray;
+import de.invesdwin.util.collections.array.primitive.IDoublePrimitiveArray;
+import de.invesdwin.util.collections.array.primitive.IIntegerPrimitiveArray;
+import de.invesdwin.util.collections.array.primitive.ILongPrimitiveArray;
+import de.invesdwin.util.collections.array.primitive.IPrimitiveArray;
+import de.invesdwin.util.collections.array.primitive.bitset.IPrimitiveBitSet;
+import de.invesdwin.util.collections.array.primitive.bitset.LongArrayPrimitiveBitSet;
+import de.invesdwin.util.collections.array.primitive.buffer.BufferBooleanPrimitiveArray;
+import de.invesdwin.util.collections.array.primitive.buffer.BufferDoublePrimitiveArray;
+import de.invesdwin.util.collections.array.primitive.buffer.BufferIntegerPrimitiveArray;
+import de.invesdwin.util.collections.array.primitive.buffer.BufferLongPrimitiveArray;
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.ISerdeLengthProvider;
@@ -22,6 +25,8 @@ import de.invesdwin.util.streams.buffer.bytes.delegate.slice.SlicedDelegateByteB
 
 @Immutable
 public class DiskPrimitiveArraySerde implements ISerde<IPrimitiveArray>, ISerdeLengthProvider<IPrimitiveArray> {
+
+    public static final Function<LongArrayPrimitiveBitSet, IPrimitiveBitSet> BOOLEAN_COPY_FACTORY = LongArrayPrimitiveBitSet.DEFAULT_COPY_FACTORY;
 
     public static final DiskPrimitiveArraySerde GET = new DiskPrimitiveArraySerde();
 
@@ -54,13 +59,13 @@ public class DiskPrimitiveArraySerde implements ISerde<IPrimitiveArray>, ISerdeL
         case Byte:
             return arrayBuffer;
         case Boolean:
-            return new BufferBooleanArray(arrayBuffer);
+            return new BufferBooleanPrimitiveArray(BOOLEAN_COPY_FACTORY, arrayBuffer);
         case Double:
-            return new BufferDoubleArray(arrayBuffer);
+            return new BufferDoublePrimitiveArray(arrayBuffer);
         case Long:
-            return new BufferLongArray(arrayBuffer);
+            return new BufferLongPrimitiveArray(arrayBuffer);
         case Int:
-            return new BufferIntegerArray(arrayBuffer);
+            return new BufferIntegerPrimitiveArray(arrayBuffer);
         default:
             throw UnknownArgumentException.newInstance(DiskPrimitiveArrayType.class, type);
         }
@@ -72,13 +77,13 @@ public class DiskPrimitiveArraySerde implements ISerde<IPrimitiveArray>, ISerdeL
         buffer.putInt(ID_INDEX, id);
         if (obj instanceof IByteBuffer) {
             buffer.putInt(TYPE_INDEX, (byte) DiskPrimitiveArrayType.Byte.ordinal());
-        } else if (obj instanceof IBooleanArray) {
+        } else if (obj instanceof IBooleanPrimitiveArray) {
             buffer.putInt(TYPE_INDEX, (byte) DiskPrimitiveArrayType.Boolean.ordinal());
-        } else if (obj instanceof IDoubleArray) {
+        } else if (obj instanceof IDoublePrimitiveArray) {
             buffer.putInt(TYPE_INDEX, (byte) DiskPrimitiveArrayType.Double.ordinal());
-        } else if (obj instanceof IIntegerArray) {
+        } else if (obj instanceof IIntegerPrimitiveArray) {
             buffer.putInt(TYPE_INDEX, (byte) DiskPrimitiveArrayType.Int.ordinal());
-        } else if (obj instanceof ILongArray) {
+        } else if (obj instanceof ILongPrimitiveArray) {
             buffer.putInt(TYPE_INDEX, (byte) DiskPrimitiveArrayType.Long.ordinal());
         } else {
             throw UnknownArgumentException.newInstance(Class.class, obj.getClass());

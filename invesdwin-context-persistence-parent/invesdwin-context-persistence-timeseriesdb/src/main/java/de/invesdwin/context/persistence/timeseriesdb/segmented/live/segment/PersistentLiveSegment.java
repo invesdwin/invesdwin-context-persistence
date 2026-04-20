@@ -152,6 +152,11 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
         return table.size(segmentedKey);
     }
 
+    @Override
+    public long size(final FDate from, final FDate to) {
+        return table.size(segmentedKey, from, to);
+    }
+
     public void putNextLiveValues(final ICloseableIterable<V> memoryValues) {
         final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable = historicalSegmentTable
                 .getStorage()

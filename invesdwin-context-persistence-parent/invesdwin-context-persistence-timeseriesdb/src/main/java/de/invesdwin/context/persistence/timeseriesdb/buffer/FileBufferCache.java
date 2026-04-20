@@ -155,20 +155,21 @@ public final class FileBufferCache {
 
     private static void fileCache_onRemoval(final FileCacheKey key, final IMemoryMappedFile value,
             final RemovalCause cause) {
-        if (value.getRefCount() == 0) {
-            /*
-             * close directly if possible if not in use
-             * 
-             * otherwise let the garbage collector and finalizer handle it later
-             */
-            value.close();
+        synchronized (value.getRefCountLock()) {
+            if (value.getRefCount() == 0) {
+                //close directly if possible if not in use
+                value.close();
+            } else {
+                //if possible let the last refCount decrement close it, otherwise let the garbage collector and finalizer handle it later
+                value.markForClose();
+            }
         }
     }
 
     private static IMemoryMappedFile fileCache_load(final FileCacheKey key) {
         final File memoryFile = key.getMemoryFile();
         try {
-            return IMemoryMappedFile.map(memoryFile, 0L, memoryFile.length(), true, key.isCloseAllowed());
+            return IMemoryMappedFile.map(key.isCloseAllowed(), memoryFile, 0L, memoryFile.length(), true);
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }

@@ -23,7 +23,7 @@ public class ChronicleMarshaller<T> implements BytesReader<T>, BytesWriter<T> {
 
     @Override
     public void write(final net.openhft.chronicle.bytes.Bytes<?> out, final T value) {
-        final ChronicleDelegateByteBuffer buffer = new ChronicleDelegateByteBuffer(out);
+        final ChronicleDelegateByteBuffer buffer = new ChronicleDelegateByteBuffer(out, false);
         final int positionBefore = (int) out.writePosition();
         final int length = serde.toBuffer(buffer.newSliceFrom(positionBefore + VALUE_INDEX), value);
         buffer.putInt(positionBefore + SIZE_INDEX, length);
@@ -32,7 +32,7 @@ public class ChronicleMarshaller<T> implements BytesReader<T>, BytesWriter<T> {
 
     @Override
     public T read(final net.openhft.chronicle.bytes.Bytes<?> in, final T using) {
-        final ChronicleDelegateByteBuffer buffer = new ChronicleDelegateByteBuffer(in);
+        final ChronicleDelegateByteBuffer buffer = new ChronicleDelegateByteBuffer(in, false);
         final int positionBefore = (int) in.readPosition();
         final int length = buffer.getInt(positionBefore + SIZE_INDEX);
         in.readPosition(positionBefore + VALUE_INDEX + length);

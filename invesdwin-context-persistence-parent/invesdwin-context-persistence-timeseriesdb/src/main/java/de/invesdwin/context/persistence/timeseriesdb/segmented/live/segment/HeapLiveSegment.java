@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 
 import java.util.Map.Entry;
 import java.util.NavigableMap;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.Function;
@@ -19,6 +20,7 @@ import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ATransformingIterable;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
+import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
 import de.invesdwin.util.collections.iterable.buffer.BufferingIterator;
 import de.invesdwin.util.collections.iterable.buffer.IBufferingIterator;
@@ -214,6 +216,29 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
     @Override
     public long size() {
         return values.size();
+    }
+
+    @Override
+    public long size(final FDate from, final FDate to) {
+        if (firstValueKey == null) {
+            return 0L;
+        }
+        if (from != null && from.isAfterNotNullSafe(lastValueKey)) {
+            return 0L;
+        }
+        if (to != null && to.isBeforeNotNullSafe(firstValueKey)) {
+            return 0L;
+        }
+        long size = 0L;
+        try (ICloseableIterator<V> rangeValues = rangeValues(from, to, DisabledLock.INSTANCE, null).iterator()) {
+            while (true) {
+                rangeValues.next();
+                size++;
+            }
+        } catch (final NoSuchElementException e) {
+            //end reached
+        }
+        return size;
     }
 
     @Override

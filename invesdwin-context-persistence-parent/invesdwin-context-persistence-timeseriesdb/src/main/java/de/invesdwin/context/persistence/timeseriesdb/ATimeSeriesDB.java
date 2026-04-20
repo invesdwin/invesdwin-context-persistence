@@ -23,7 +23,7 @@ import de.invesdwin.util.collections.loadingcache.caffeine.ACaffeineLoadingCache
 import de.invesdwin.util.concurrent.lambda.callable.AFastLazyCallable;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
-import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
+import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
@@ -44,9 +44,9 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     private final TimeSeriesLookupMode lookupMode;
     private final File directory;
     private final ALoadingCache<K, TimeSeriesStorageCache<K, V>> key_lookupTableCache;
-    private final ALoadingCache<K, IReadWriteLock> key_tableLock = new ALoadingCache<K, IReadWriteLock>() {
+    private final ALoadingCache<K, IReentrantReadWriteLock> key_tableLock = new ALoadingCache<K, IReentrantReadWriteLock>() {
         @Override
-        protected IReadWriteLock loadValue(final K key) {
+        protected IReentrantReadWriteLock loadValue(final K key) {
             return Locks.newReentrantReadWriteLock(
                     ATimeSeriesDB.class.getSimpleName() + "_" + getName() + "_" + hashKeyToString(key) + "_tableLock");
         }
@@ -186,7 +186,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     }
 
     @Override
-    public IReadWriteLock getTableLock(final K key) {
+    public IReentrantReadWriteLock getTableLock(final K key) {
         return key_tableLock.get(key);
     }
 
@@ -219,10 +219,10 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
-                return getLookupTableCache(key).getFirstValue();
-            } else if (date.isAfterOrEqualTo(FDates.MAX_DATE)) {
+            if (date == null || date.isAfterOrEqualTo(FDates.MAX_DATE)) {
                 return getLookupTableCache(key).getLastValue();
+            } else if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
+                return getLookupTableCache(key).getFirstValue();
             } else {
                 return getLookupTableCache(key).getLatestValue(date);
             }
@@ -246,14 +246,14 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
+            if (date == null || date.isAfterOrEqualTo(FDates.MAX_DATE)) {
+                return getLookupTableCache(key).size() - 1;
+            } else if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
                 if (getLookupTableCache(key).size() == 0) {
                     return -1L;
                 } else {
                     return 0L;
                 }
-            } else if (date.isAfterOrEqualTo(FDates.MAX_DATE)) {
-                return getLookupTableCache(key).size() - 1;
             } else {
                 return getLookupTableCache(key).getLatestValueIndex(date);
             }
@@ -302,6 +302,17 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     }
 
     @Override
+    public long size(final K key, final FDate from, final FDate to) {
+        final ILock readLock = getTableLock(key).readLock();
+        readLock.lock();
+        try {
+            return getLookupTableCache(key).size(from, to);
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    @Override
     public V getPreviousValue(final K key, final FDate date, final int shiftBackUnits) {
         final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
@@ -344,7 +355,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            if (date.isAfterOrEqualTo(FDates.MAX_DATE)) {
+            if (date == null || date.isAfterOrEqualTo(FDates.MAX_DATE)) {
                 return getLookupTableCache(key).getLastValue();
             } else {
                 return getLookupTableCache(key).getNextValue(date, shiftForwardUnits);
@@ -367,21 +378,53 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     @Override
     public void deleteRange(final K key) {
         final ILock writeLock = getTableLock(key).writeLock();
-        try {
-            if (!writeLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
-                throw Locks.getLockTrace()
-                        .handleLockException(writeLock.getName(),
-                                new RetryLaterRuntimeException("Write lock could not be acquired for table [" + name
-                                        + "] and key [" + key + "]. Please ensure all iterators are closed!"));
-            }
-        } catch (final InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+        deleteRangeOnCloseLock(getName(), key, writeLock);
         try {
             getLookupTableCache(key).deleteAll();
             lastResetIndex.incrementAndGet();
         } finally {
             writeLock.unlock();
+        }
+    }
+
+    @Override
+    public void deleteRangeForced(final K key) {
+        final ILock writeLock = getTableLock(key).writeLock();
+        final boolean locked = deleteRangeOnCloseTryLock(getName(), key, writeLock);
+        try {
+            getLookupTableCache(key).deleteAll();
+            lastResetIndex.incrementAndGet();
+        } finally {
+            if (locked) {
+                writeLock.unlock();
+            }
+        }
+    }
+
+    public static void deleteRangeOnCloseLock(final String tableName, final Object key, final ILock writeLock) {
+        try {
+            if (!writeLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
+                throw writeLock.getLockTrace()
+                        .handleLockException(writeLock.getName(),
+                                new RetryLaterRuntimeException(
+                                        "Write lock could not be acquired for table [" + tableName + "] and key [" + key
+                                                + "]. Please ensure all iterators are closed!"));
+            }
+        } catch (final InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static boolean deleteRangeOnCloseTryLock(final String tableName, final Object key, final ILock writeLock) {
+        if (!writeLock.tryLock()) {
+            final RuntimeException handleLockException = writeLock.getLockTrace()
+                    .handleLockException(writeLock.getName(),
+                            new Exception("Write lock could not be acquired for table [" + tableName + "] and key ["
+                                    + key + "]. Please ensure all iterators are closed! Ignoring and forcing delete."));
+            Err.process(handleLockException);
+            return false;
+        } else {
+            return true;
         }
     }
 

@@ -9,7 +9,7 @@ import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
-import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
+import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.time.date.FDate;
 
@@ -44,7 +44,7 @@ public abstract class ADelegateTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V>
     }
 
     @Override
-    public IReadWriteLock getTableLock(final K key) {
+    public IReentrantReadWriteLock getTableLock(final K key) {
         return delegate.getTableLock(key);
     }
 
@@ -89,6 +89,11 @@ public abstract class ADelegateTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V>
     }
 
     @Override
+    public long size(final K key, final FDate from, final FDate to) {
+        return delegate.size(key, from, to);
+    }
+
+    @Override
     public V getPreviousValue(final K key, final FDate date, final int shiftBackUnits) {
         return delegate.getPreviousValue(key, date, shiftBackUnits);
     }
@@ -116,6 +121,11 @@ public abstract class ADelegateTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V>
     @Override
     public void deleteRange(final K key) {
         delegate.deleteRange(key);
+    }
+
+    @Override
+    public void deleteRangeForced(final K key) {
+        delegate.deleteRangeForced(key);
     }
 
     @Override

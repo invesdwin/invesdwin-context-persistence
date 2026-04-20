@@ -8,7 +8,7 @@ import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.log.Log;
-import de.invesdwin.context.system.array.IPrimitiveArrayAllocator;
+import de.invesdwin.context.system.array.primitive.IPrimitiveArrayAllocator;
 import de.invesdwin.context.system.properties.SystemProperties;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.time.duration.Duration;

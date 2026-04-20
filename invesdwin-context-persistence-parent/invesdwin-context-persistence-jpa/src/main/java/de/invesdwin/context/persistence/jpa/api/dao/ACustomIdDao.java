@@ -23,6 +23,7 @@ import de.invesdwin.context.persistence.jpa.PersistenceProperties;
 import de.invesdwin.context.persistence.jpa.api.query.QueryConfig;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.lang.reflection.Reflections;
+import de.invesdwin.util.math.random.PseudoRandomGenerators;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Query;
@@ -144,7 +145,7 @@ public abstract class ACustomIdDao<E, PK extends Serializable> extends AReposito
         if (ids.size() == 0) {
             return null;
         }
-        final int randomId = (int) ((Math.random() * ids.size()));
+        final int randomId = PseudoRandomGenerators.getThreadLocalPseudoRandom().nextInt(0, ids.size());
         return findOneById(ids.get(randomId));
     }
 

@@ -23,7 +23,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
 import de.invesdwin.util.concurrent.lock.FileChannelLock;
 import de.invesdwin.util.concurrent.lock.ILock;
-import de.invesdwin.util.concurrent.lock.Locks;
+import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.marshallers.serde.ISerde;
@@ -80,43 +80,61 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
 
     @Override
     public final boolean update() throws IncompleteUpdateRetryableException {
-        final ILock writeLock = table.getTableLock(key).writeLock();
-        try {
-            if (!writeLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
-                throw Locks.getLockTrace()
-                        .handleLockException(writeLock.getName(),
-                                new RetryLaterRuntimeException(
-                                        "Write lock could not be acquired for table [" + table.getName() + "] and key ["
-                                                + key + "]. Please ensure all iterators are closed!"));
-            }
-        } catch (final InterruptedException e) {
-            throw new RuntimeException(e);
+        final IReentrantReadWriteLock segmentTableLock = table.getTableLock(key);
+        /*
+         * Make sure to release read locks in current thread when trying to acquire write lock
+         * (https://stackoverflow.com/a/464824/67492). Also readers should be unlocked before trying to lock the table
+         * for write lock acquisition so that everyone interested in this update unlocks to give one thread the chance
+         * to acquire the write lock.
+         */
+        final ILock segmentReadLock = segmentTableLock.readLock();
+        final int readHoldCount = segmentTableLock.getReadHoldCount();
+        for (int i = 0; i < readHoldCount; i++) {
+            segmentReadLock.unlock();
         }
-        final File updateLockSyncFile = new File(updateLockFile.getAbsolutePath() + ".sync");
-        try (FileChannelLock updateLockSyncFileLock = new FileChannelLock(updateLockSyncFile) {
-            @Override
-            protected boolean isThreadLockEnabled() {
-                return true;
-            }
-        }) {
-            if (!updateLockSyncFileLock.tryLock()) {
-                throw new IncompleteUpdateRetryableException("Incomplete update found for table [" + table.getName()
-                        + "] and key [" + key + "], need to clean everything up to restore all from scratch.");
-            }
-            Files.touchQuietly(updateLockFile);
+        try {
+            final ILock segmentWriteLock = segmentTableLock.writeLock();
             try {
-                final Instant updateStart = new Instant();
-                onUpdateStart();
-                doUpdate();
-                onUpdateFinished(updateStart);
-                return true;
-            } catch (final Throwable t) {
-                throw propagateIncompleteUpdateException(t);
+                if (!segmentWriteLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
+                    throw segmentWriteLock.getLockTrace()
+                            .handleLockException(segmentWriteLock.getName(),
+                                    new RetryLaterRuntimeException("Write lock could not be acquired for table ["
+                                            + table.getName() + "] and key [" + key
+                                            + "]. Please ensure all iterators are closed!"));
+                }
+            } catch (final InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            final File updateLockSyncFile = new File(updateLockFile.getAbsolutePath() + ".sync");
+            try (FileChannelLock updateLockSyncFileLock = new FileChannelLock(updateLockSyncFile) {
+                @Override
+                protected boolean isThreadLockEnabled() {
+                    return true;
+                }
+            }) {
+                if (!updateLockSyncFileLock.tryLock()) {
+                    throw new IncompleteUpdateRetryableException("Incomplete update found for table [" + table.getName()
+                            + "] and key [" + key + "], need to clean everything up to restore all from scratch.");
+                }
+                Files.touchQuietly(updateLockFile);
+                try {
+                    final Instant updateStart = new Instant();
+                    onUpdateStart();
+                    doUpdate();
+                    onUpdateFinished(updateStart);
+                    return true;
+                } catch (final Throwable t) {
+                    throw propagateIncompleteUpdateException(t);
+                } finally {
+                    Files.deleteQuietly(updateLockFile);
+                }
             } finally {
-                Files.deleteQuietly(updateLockFile);
+                segmentWriteLock.unlock();
             }
         } finally {
-            writeLock.unlock();
+            for (int i = 0; i < readHoldCount; i++) {
+                segmentReadLock.lock();
+            }
         }
     }
 
