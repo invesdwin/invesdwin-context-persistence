@@ -296,10 +296,10 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
-                return getSegmentedLookupTableCache(key).getFirstValue();
-            } else if (date.isAfterOrEqualTo(FDates.MAX_DATE)) {
+            if (date == null || date.isAfterOrEqualTo(FDates.MAX_DATE)) {
                 return getSegmentedLookupTableCache(key).getLastValue();
+            } else if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
+                return getSegmentedLookupTableCache(key).getFirstValue();
             } else {
                 return getSegmentedLookupTableCache(key).getLatestValue(date);
             }
@@ -351,14 +351,14 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
+            if (date == null || date.isAfterOrEqualTo(FDates.MAX_DATE)) {
+                return getSegmentedLookupTableCache(key).size() - 1;
+            } else if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
                 if (getSegmentedLookupTableCache(key).size() == 0) {
                     return -1L;
                 } else {
                     return 0L;
                 }
-            } else if (date.isAfterOrEqualTo(FDates.MAX_DATE)) {
-                return getSegmentedLookupTableCache(key).size() - 1;
             } else {
                 return getSegmentedLookupTableCache(key).getLatestValueIndex(date);
             }
@@ -431,7 +431,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            if (date.isAfterOrEqualTo(FDates.MAX_DATE)) {
+            if (date == null || date.isAfterOrEqualTo(FDates.MAX_DATE)) {
                 return getSegmentedLookupTableCache(key).getLastValue();
             } else {
                 return getSegmentedLookupTableCache(key).getNextValue(date, shiftForwardUnits);

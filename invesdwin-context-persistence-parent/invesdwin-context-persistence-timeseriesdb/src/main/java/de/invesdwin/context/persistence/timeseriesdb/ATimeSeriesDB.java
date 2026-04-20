@@ -219,10 +219,10 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
-                return getLookupTableCache(key).getFirstValue();
-            } else if (date.isAfterOrEqualTo(FDates.MAX_DATE)) {
+            if (date == null || date.isAfterOrEqualTo(FDates.MAX_DATE)) {
                 return getLookupTableCache(key).getLastValue();
+            } else if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
+                return getLookupTableCache(key).getFirstValue();
             } else {
                 return getLookupTableCache(key).getLatestValue(date);
             }
@@ -246,14 +246,14 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
+            if (date == null || date.isAfterOrEqualTo(FDates.MAX_DATE)) {
+                return getLookupTableCache(key).size() - 1;
+            } else if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
                 if (getLookupTableCache(key).size() == 0) {
                     return -1L;
                 } else {
                     return 0L;
                 }
-            } else if (date.isAfterOrEqualTo(FDates.MAX_DATE)) {
-                return getLookupTableCache(key).size() - 1;
             } else {
                 return getLookupTableCache(key).getLatestValueIndex(date);
             }
@@ -355,7 +355,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            if (date.isAfterOrEqualTo(FDates.MAX_DATE)) {
+            if (date == null || date.isAfterOrEqualTo(FDates.MAX_DATE)) {
                 return getLookupTableCache(key).getLastValue();
             } else {
                 return getLookupTableCache(key).getNextValue(date, shiftForwardUnits);
