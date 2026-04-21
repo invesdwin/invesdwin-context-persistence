@@ -169,7 +169,7 @@ public final class FileBufferCache {
     private static IMemoryMappedFile fileCache_load(final FileCacheKey key) {
         final File memoryFile = key.getMemoryFile();
         try {
-            return IMemoryMappedFile.map(key.isCloseAllowed(), memoryFile, 0L, memoryFile.length(), true);
+            return IMemoryMappedFile.map(key.isCloseAllowed(), memoryFile, 0L, memoryFile.length(), true, false);
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
