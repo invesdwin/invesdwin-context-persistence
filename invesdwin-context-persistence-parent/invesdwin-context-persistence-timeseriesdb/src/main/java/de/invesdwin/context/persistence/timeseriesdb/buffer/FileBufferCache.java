@@ -39,6 +39,7 @@ import de.invesdwin.util.concurrent.pool.MemoryLimit;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 import de.invesdwin.util.streams.buffer.file.IMemoryMappedFile;
+import de.invesdwin.util.streams.buffer.file.MemoryMappedFile;
 import de.invesdwin.util.time.date.FTimeUnit;
 
 @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -169,7 +170,7 @@ public final class FileBufferCache {
     private static IMemoryMappedFile fileCache_load(final FileCacheKey key) {
         final File memoryFile = key.getMemoryFile();
         try {
-            return IMemoryMappedFile.map(key.isCloseAllowed(), memoryFile, 0L, memoryFile.length(), true, false);
+            return new MemoryMappedFile(key.isCloseAllowed(), memoryFile, 0L, memoryFile.length(), true, false);
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
