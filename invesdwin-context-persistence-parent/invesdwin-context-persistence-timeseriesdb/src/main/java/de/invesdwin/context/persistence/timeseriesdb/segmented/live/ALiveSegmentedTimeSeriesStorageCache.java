@@ -108,6 +108,14 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
         historicalSegmentTable.deleteRange(key);
     }
 
+    public void deleteAllForced() {
+        if (liveSegment != null) {
+            liveSegment.close();
+        }
+        liveSegment = null;
+        historicalSegmentTable.deleteRangeForced(key);
+    }
+
     public V getFirstValue() {
         final V firstHistoricalValue = historicalSegmentTable.getLatestValue(key, FDates.MIN_DATE);
         if (firstHistoricalValue != null) {
@@ -274,6 +282,14 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
             return historicalSegmentTable.size(key);
         } else {
             return historicalSegmentTable.size(key) + liveSegment.size();
+        }
+    }
+
+    public long size(final FDate from, final FDate to) {
+        if (liveSegment == null) {
+            return historicalSegmentTable.size(key, from, to);
+        } else {
+            return historicalSegmentTable.size(key, from, to) + liveSegment.size(from, to);
         }
     }
 

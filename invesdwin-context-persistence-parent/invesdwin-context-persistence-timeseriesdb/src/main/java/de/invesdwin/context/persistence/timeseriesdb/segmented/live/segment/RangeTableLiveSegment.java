@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 
 import java.io.File;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -196,6 +197,29 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public long size() {
+        return size;
+    }
+
+    @Override
+    public long size(final FDate from, final FDate to) {
+        if (firstValueKey == null) {
+            return 0L;
+        }
+        if (from != null && from.isAfterNotNullSafe(lastValueKey)) {
+            return 0L;
+        }
+        if (to != null && to.isBeforeNotNullSafe(firstValueKey)) {
+            return 0L;
+        }
+        long size = 0L;
+        try (ICloseableIterator<V> rangeValues = rangeValues(from, to, DisabledLock.INSTANCE, null).iterator()) {
+            while (true) {
+                rangeValues.next();
+                size++;
+            }
+        } catch (final NoSuchElementException e) {
+            //end reached
+        }
         return size;
     }
 

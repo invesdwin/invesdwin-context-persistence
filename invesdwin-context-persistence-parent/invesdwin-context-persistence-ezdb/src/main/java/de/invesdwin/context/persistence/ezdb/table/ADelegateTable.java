@@ -26,6 +26,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
+import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.lang.Files;
@@ -52,7 +53,7 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
 
     protected final RangeTableInternalMethods internalMethods;
     private final IRangeTableDb db;
-    private final IReadWriteLock tableLock;
+    private final IReentrantReadWriteLock tableLock;
 
     private final String name;
     private final File timestampFile;
@@ -242,11 +243,23 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
         if (ShutdownHookManager.isShuttingDown()) {
             throw new RuntimeException("Shutting down");
         }
-        tableLock.writeLock().lock();
+        final ILock readLock = tableLock.readLock();
+        final int readHoldCount = tableLock.getReadHoldCount();
+        for (int i = 0; i < readHoldCount; i++) {
+            readLock.unlock();
+        }
         try {
-            initializeTableLocked();
+            final ILock writeLock = tableLock.writeLock();
+            writeLock.lock();
+            try {
+                initializeTableLocked();
+            } finally {
+                writeLock.unlock();
+            }
         } finally {
-            tableLock.writeLock().unlock();
+            for (int i = 0; i < readHoldCount; i++) {
+                readLock.lock();
+            }
         }
     }
 

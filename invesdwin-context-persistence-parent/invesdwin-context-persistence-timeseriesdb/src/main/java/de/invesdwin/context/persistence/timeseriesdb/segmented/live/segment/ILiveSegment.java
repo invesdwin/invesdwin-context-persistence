@@ -41,6 +41,8 @@ public interface ILiveSegment<K, V> extends Closeable, IUnwrap {
 
     long size();
 
+    long size(FDate from, FDate to);
+
     @Override
     void close();
 

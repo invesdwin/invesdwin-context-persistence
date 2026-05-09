@@ -1,31 +1,31 @@
-package de.invesdwin.context.persistence.timeseriesdb.array;
+package de.invesdwin.context.persistence.timeseriesdb.array.large;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.junit.jupiter.api.Test;
 
-import de.invesdwin.context.system.array.OnHeapPrimitiveArrayAllocator;
+import de.invesdwin.context.system.array.large.OnHeapLargeArrayAllocator;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.collections.array.IBooleanArray;
-import de.invesdwin.util.collections.array.IDoubleArray;
-import de.invesdwin.util.collections.bitset.IBitSet;
+import de.invesdwin.util.collections.array.large.IBooleanLargeArray;
+import de.invesdwin.util.collections.array.large.IDoubleLargeArray;
+import de.invesdwin.util.collections.array.large.bitset.ILargeBitSet;
 
 @NotThreadSafe
-public class TemporaryDiskPrimitiveArrayAllocatorTest extends ATest {
+public class TemporaryDiskLargeArrayAllocatorTest extends ATest {
 
     @Test
     public void testBitSet() {
-        final OnHeapPrimitiveArrayAllocator onHeapAllocator = new OnHeapPrimitiveArrayAllocator();
-        final TemporaryDiskPrimitiveArrayAllocator offHeapAllocator = new TemporaryDiskPrimitiveArrayAllocator(
-                TemporaryDiskPrimitiveArrayAllocatorTest.class.getSimpleName());
+        final OnHeapLargeArrayAllocator onHeapAllocator = new OnHeapLargeArrayAllocator();
+        final TemporaryDiskLargeArrayAllocator offHeapAllocator = new TemporaryDiskLargeArrayAllocator(
+                TemporaryDiskLargeArrayAllocatorTest.class.getSimpleName());
         final int size = 1000;
 
-        final IBitSet onHeapBitSet = onHeapAllocator.newBitSet("onHeapBitSet", size);
-        final IBooleanArray onHeapBooleanArray = onHeapAllocator.newBooleanArray("onHeapBooleanArray", size);
+        final ILargeBitSet onHeapBitSet = onHeapAllocator.newBitSet("onHeapBitSet", size);
+        final IBooleanLargeArray onHeapBooleanArray = onHeapAllocator.newBooleanArray("onHeapBooleanArray", size);
 
-        final IBitSet offHeapBitSet = offHeapAllocator.newBitSet("offHeapBitSet", size);
-        final IBooleanArray offHeapBooleanArray = offHeapAllocator.newBooleanArray("offHeapBooleanArray", size);
+        final ILargeBitSet offHeapBitSet = offHeapAllocator.newBitSet("offHeapBitSet", size);
+        final IBooleanLargeArray offHeapBooleanArray = offHeapAllocator.newBooleanArray("offHeapBooleanArray", size);
 
         for (int i = 0; i < size; i++) {
             Assertions.checkFalse(onHeapBitSet.contains(i), "%s", i);
@@ -68,13 +68,13 @@ public class TemporaryDiskPrimitiveArrayAllocatorTest extends ATest {
 
     @Test
     public void testDoubleNaN() {
-        final OnHeapPrimitiveArrayAllocator onHeapAllocator = new OnHeapPrimitiveArrayAllocator();
-        final TemporaryDiskPrimitiveArrayAllocator offHeapAllocator = new TemporaryDiskPrimitiveArrayAllocator(
-                TemporaryDiskPrimitiveArrayAllocatorTest.class.getSimpleName());
+        final OnHeapLargeArrayAllocator onHeapAllocator = new OnHeapLargeArrayAllocator();
+        final TemporaryDiskLargeArrayAllocator offHeapAllocator = new TemporaryDiskLargeArrayAllocator(
+                TemporaryDiskLargeArrayAllocatorTest.class.getSimpleName());
         final int size = 1000;
 
-        final IDoubleArray onHeapBooleanArray = onHeapAllocator.newDoubleArray("onHeapBooleanArray", size);
-        final IDoubleArray offHeapBooleanArray = offHeapAllocator.newDoubleArray("offHeapBooleanArray", size);
+        final IDoubleLargeArray onHeapBooleanArray = onHeapAllocator.newDoubleArray("onHeapBooleanArray", size);
+        final IDoubleLargeArray offHeapBooleanArray = offHeapAllocator.newDoubleArray("offHeapBooleanArray", size);
 
         for (int i = 0; i < size; i++) {
             Assertions.checkEquals(0D, onHeapBooleanArray.get(i), "%s", i);

@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb.array;
+package de.invesdwin.context.persistence.timeseriesdb.array.primitive;
 
 import java.io.File;
 
@@ -6,7 +6,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.persistentmap.APersistentMap;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
-import de.invesdwin.util.collections.array.IPrimitiveArray;
+import de.invesdwin.util.collections.array.primitive.IPrimitiveArray;
 import de.invesdwin.util.marshallers.serde.ISerde;
 
 @ThreadSafe

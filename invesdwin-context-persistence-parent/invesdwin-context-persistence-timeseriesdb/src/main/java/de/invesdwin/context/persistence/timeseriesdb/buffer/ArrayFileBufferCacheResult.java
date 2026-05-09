@@ -13,6 +13,7 @@ import de.invesdwin.util.collections.iterable.collection.arraylist.ArrayListClos
 import de.invesdwin.util.collections.iterable.collection.arraylist.IArrayListCloseableIterable;
 import de.invesdwin.util.collections.iterable.collection.arraylist.SynchronizedArrayListCloseableIterable;
 import de.invesdwin.util.collections.iterable.refcount.RefCountReverseCloseableIterable;
+import de.invesdwin.util.math.Integers;
 import de.invesdwin.util.time.date.BisectDuplicateKeyHandling;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
@@ -148,6 +149,21 @@ public class ArrayFileBufferCacheResult<V> extends RefCountReverseCloseableItera
             return null;
         }
         return list.get(index);
+    }
+
+    @Override
+    public int size(final Function<V, FDate> extractEndTime, final FDate from, final FDate to) {
+        final int toIndex = getLatestValueIndex(extractEndTime, to);
+        if (toIndex < 0) {
+            return 0;
+        }
+        int fromIndex = Integers.max(0, getLatestValueIndex(extractEndTime, from));
+        final V fromValue = getLatestValue(fromIndex);
+        final FDate fromValueKey = extractEndTime.apply(fromValue);
+        if (fromValueKey.isBefore(from)) {
+            fromIndex++;
+        }
+        return toIndex - fromIndex + 1;
     }
 
     private int determineLowIndex(final Function<V, FDate> extractEndTime, final FDate low) {

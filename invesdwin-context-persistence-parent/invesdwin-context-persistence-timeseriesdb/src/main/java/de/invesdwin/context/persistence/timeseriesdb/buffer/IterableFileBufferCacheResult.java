@@ -165,6 +165,27 @@ public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<
     }
 
     @Override
+    public int size(final Function<V, FDate> extractEndTime, final FDate from, final FDate to) {
+        int size = 0;
+        try (ICloseableIterator<V> it = iterator()) {
+            while (true) {
+                final V newValue = it.next();
+                final FDate newValueTime = extractEndTime.apply(newValue);
+                if (newValueTime.isBeforeNotNullSafe(from)) {
+                    continue;
+                } else if (newValueTime.isAfterNotNullSafe(to)) {
+                    break;
+                } else {
+                    size++;
+                }
+            }
+        } catch (final NoSuchElementException e) {
+            //end reached
+        }
+        return size;
+    }
+
+    @Override
     public V getLatestValue(final int index) {
         if (index < 0) {
             return null;

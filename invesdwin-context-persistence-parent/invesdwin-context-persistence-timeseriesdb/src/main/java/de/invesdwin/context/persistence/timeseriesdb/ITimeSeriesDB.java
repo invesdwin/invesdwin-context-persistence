@@ -5,7 +5,7 @@ import java.io.File;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
-import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
+import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.time.date.FDate;
 
@@ -15,7 +15,7 @@ public interface ITimeSeriesDB<K, V> extends Closeable {
 
     File getDirectory();
 
-    IReadWriteLock getTableLock(K key);
+    IReentrantReadWriteLock getTableLock(K key);
 
     ICloseableIterable<V> rangeValues(K key, FDate from, FDate to);
 
@@ -35,6 +35,8 @@ public interface ITimeSeriesDB<K, V> extends Closeable {
     long getLatestValueIndex(K key, FDate date);
 
     long size(K key);
+
+    long size(K key, FDate from, FDate to);
 
     /**
      * Jumps the specified shiftBackUnits to the past instead of only one unit. 0 results in current value.
@@ -75,6 +77,8 @@ public interface ITimeSeriesDB<K, V> extends Closeable {
     FDate getNextValueKey(K key, FDate date, int shiftForwardUnits);
 
     void deleteRange(K key);
+
+    void deleteRangeForced(K key);
 
     String getName();
 

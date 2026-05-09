@@ -13,7 +13,7 @@ import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.persistentmap.APersistentMapConfig;
 import de.invesdwin.context.integration.persistentmap.large.LargePersistentMapFactory;
 import de.invesdwin.context.integration.persistentmap.large.storage.IChunkStorage;
-import de.invesdwin.context.integration.persistentmap.large.storage.MappedFileChunkStorage;
+import de.invesdwin.context.integration.persistentmap.large.storage.ListMappedFileChunkStorage;
 import de.invesdwin.context.integration.persistentmap.large.storage.ParallelFileChunkStorage;
 import de.invesdwin.context.integration.persistentmap.large.storage.SequentialFileChunkStorage;
 import de.invesdwin.context.test.ATest;
@@ -39,7 +39,7 @@ public class PersistentMapTypeTest extends ATest {
             @Override
             protected IChunkStorage<byte[]> newChunkStorage(final File directory, final ISerde<byte[]> valueSerde,
                     final boolean readOnly, final boolean closeAllowed) {
-                return new MappedFileChunkStorage<byte[]>(directory, valueSerde, readOnly, closeAllowed);
+                return new ListMappedFileChunkStorage<byte[]>(directory, valueSerde, readOnly, closeAllowed);
             }
         };
         final LargePersistentMapFactory<Integer, byte[]> factoryParallelFile = new LargePersistentMapFactory<Integer, byte[]>(

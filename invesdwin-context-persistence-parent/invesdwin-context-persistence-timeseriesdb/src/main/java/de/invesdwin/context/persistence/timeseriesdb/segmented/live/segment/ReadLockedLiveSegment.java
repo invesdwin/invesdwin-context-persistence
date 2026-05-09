@@ -91,6 +91,16 @@ public class ReadLockedLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
+    public long size(final FDate from, final FDate to) {
+        liveReadLock.lock();
+        try {
+            return delegate.size(from, to);
+        } finally {
+            liveReadLock.unlock();
+        }
+    }
+
+    @Override
     public V getNextValue(final FDate date, final int shiftForwardUnits) {
         liveReadLock.lock();
         try {
