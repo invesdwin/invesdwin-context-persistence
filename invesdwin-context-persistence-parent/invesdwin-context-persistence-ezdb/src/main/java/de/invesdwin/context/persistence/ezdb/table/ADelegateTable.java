@@ -64,6 +64,7 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
     private volatile FDate tableCreationTime;
 
     private final AtomicBoolean initializing = new AtomicBoolean();
+    private final AtomicBoolean deleteRequested = new AtomicBoolean();
 
     public ADelegateTable(final String name) {
         this.name = name;
@@ -224,13 +225,14 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
     }
 
     private void maybePurgeTable() {
-        if (!initializing.get() && shouldPurgeTable()) {
+        if (!initializing.get() && (deleteRequested.get() || shouldPurgeTable())) {
             //only purge if currently not used, might happen due to recursive computeIfAbsent with different loading functions
             if (tableLock.writeLock().tryLock()) {
                 try {
                     //condition could have changed since lock has been acquired
-                    if (!initializing.get() && shouldPurgeTable()) {
+                    if (!initializing.get() && (deleteRequested.get() || shouldPurgeTable())) {
                         innerDeleteTable();
+                        deleteRequested.set(false);
                     }
                 } finally {
                     tableLock.writeLock().unlock();
@@ -307,11 +309,14 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
 
     @Override
     public void deleteTable() {
-        tableLock.writeLock().lock();
-        try {
-            innerDeleteTable();
-        } finally {
-            tableLock.writeLock().unlock();
+        if (tableLock.writeLock().tryLock()) {
+            try {
+                innerDeleteTable();
+            } finally {
+                tableLock.writeLock().unlock();
+            }
+        } else {
+            deleteRequested.set(true);
         }
     }
 
