@@ -19,7 +19,6 @@ import de.invesdwin.util.collections.array.primitive.buffer.BufferLongPrimitiveA
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.ISerdeLengthProvider;
-import de.invesdwin.util.marshallers.serde.SerdeBaseMethods;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 import de.invesdwin.util.streams.buffer.bytes.delegate.slice.SlicedDelegateByteBuffer;
 
@@ -38,16 +37,6 @@ public class DiskPrimitiveArraySerde implements ISerde<IPrimitiveArray>, ISerdeL
     private static final int TYPE_LENGTH = Integer.BYTES;
 
     private static final int ARRAY_INDEX = TYPE_INDEX + TYPE_LENGTH;
-
-    @Override
-    public IPrimitiveArray fromBytes(final byte[] bytes) {
-        return SerdeBaseMethods.fromBytes(this, bytes);
-    }
-
-    @Override
-    public byte[] toBytes(final IPrimitiveArray obj) {
-        return SerdeBaseMethods.toBytes(this, obj);
-    }
 
     @Override
     public IPrimitiveArray fromBuffer(final IByteBuffer buffer) {

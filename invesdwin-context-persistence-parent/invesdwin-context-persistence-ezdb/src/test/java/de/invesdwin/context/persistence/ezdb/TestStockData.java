@@ -167,17 +167,17 @@ public class TestStockData extends ATest {
             curLeftIt++;
             Assertions.checkEquals(countFDates - 1000 + curLeftIt, next.getValue());
             if (prev != null) {
-                final Integer nextFromPrevPlus = table.getNext(MSFT, new FDate(prev.getRangeKey().millisValue() + 1))
-                        .getValue();
+                final Integer nextFromPrevPlus = table.getNext(MSFT, prev.getRangeKey().addPicoseconds(1)).getValue();
                 Assertions.checkEquals(next.getValue(), nextFromPrevPlus);
-                final Integer prevFromNextMinus = table.getPrev(MSFT, new FDate(next.getRangeKey().millisValue() - 1))
-                        .getValue();
+                final Integer prevFromNextMinus = table.getPrev(MSFT, next.getRangeKey().addPicoseconds(-1)).getValue();
                 Assertions.checkEquals(prev.getValue(), prevFromNextMinus);
             }
-            final Integer nextFromNextIsSame = table.getNext(MSFT, new FDate(next.getRangeKey().millisValue()))
+            final Integer nextFromNextIsSame = table
+                    .getNext(MSFT, new FDate(next.getRangeKey().millisValue(), next.getRangeKey().picosValue()))
                     .getValue();
             Assertions.checkEquals(next.getValue(), nextFromNextIsSame);
-            final Integer prevFromNextIsSame = table.getPrev(MSFT, new FDate(next.getRangeKey().millisValue()))
+            final Integer prevFromNextIsSame = table
+                    .getPrev(MSFT, new FDate(next.getRangeKey().millisValue(), next.getRangeKey().picosValue()))
                     .getValue();
             Assertions.checkEquals(next.getValue(), prevFromNextIsSame);
             prev = next;

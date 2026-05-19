@@ -3,7 +3,6 @@ package de.invesdwin.context.persistence.timeseriesdb.storage;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.util.marshallers.serde.ISerde;
-import de.invesdwin.util.marshallers.serde.SerdeBaseMethods;
 import de.invesdwin.util.streams.buffer.bytes.ByteBuffers;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 
@@ -53,16 +52,6 @@ public final class MemoryFileSummarySerde implements ISerde<MemoryFileSummary> {
             lastValueIndex = -1;
             memoryResourceUriIndex = -1;
         }
-    }
-
-    @Override
-    public MemoryFileSummary fromBytes(final byte[] bytes) {
-        return SerdeBaseMethods.fromBytes(this, bytes);
-    }
-
-    @Override
-    public byte[] toBytes(final MemoryFileSummary obj) {
-        return SerdeBaseMethods.toBytes(this, obj);
     }
 
     @Override

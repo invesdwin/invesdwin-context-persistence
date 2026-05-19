@@ -30,13 +30,13 @@ public class TestEzLevelDbJni extends ATest {
     final FDate twoFDate = now.addDays(2);
     final FDate threeFDate = now.addDays(3);
 
-    private final FDate oneFDatePlus = new FDate(oneFDate.millisValue() + 1);
-    private final FDate twoFDatePlus = new FDate(twoFDate.millisValue() + 1);
-    private final FDate threeFDatePlus = new FDate(threeFDate.millisValue() + 1);
+    private final FDate oneFDatePlus = new FDate(oneFDate.millisValue() + 1, 0);
+    private final FDate twoFDatePlus = new FDate(twoFDate.millisValue() + 1, 0);
+    private final FDate threeFDatePlus = new FDate(threeFDate.millisValue() + 1, 0);
 
-    private final FDate oneFDateMinus = new FDate(oneFDate.millisValue() - 1);
-    private final FDate twoFDateMinus = new FDate(twoFDate.millisValue() - 1);
-    private final FDate threeFDateMinus = new FDate(threeFDate.millisValue() - 1);
+    private final FDate oneFDateMinus = new FDate(oneFDate.millisValue() - 1, 0);
+    private final FDate twoFDateMinus = new FDate(twoFDate.millisValue() - 1, 0);
+    private final FDate threeFDateMinus = new FDate(threeFDate.millisValue() - 1, 0);
 
     private ADelegateRangeTable<String, FDate, Integer> reverseRangeTable;
 
