@@ -405,7 +405,7 @@ public class TimeSeriesStorageCache<K, V> {
                         if (latestFirstTime == null) {
                             delegate = EmptyCloseableIterator.getInstance();
                         } else {
-                            delegate = getRangeKeys(latestFirstTime.getRangeKey().addMilliseconds(1), to);
+                            delegate = getRangeKeys(latestFirstTime.getRangeKey().addPicoseconds(1), to);
                         }
                     }
 
@@ -526,7 +526,7 @@ public class TimeSeriesStorageCache<K, V> {
                         if (latestLastTime == null) {
                             delegate = EmptyCloseableIterator.getInstance();
                         } else {
-                            delegate = getRangeKeysReverse(latestLastTime.getRangeKey().addMilliseconds(-1), to);
+                            delegate = getRangeKeysReverse(latestLastTime.getRangeKey().addPicoseconds(-1), to);
                         }
                     }
 
@@ -1254,7 +1254,7 @@ public class TimeSeriesStorageCache<K, V> {
                     memoryOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength() + 1L;
                     precedingValueCount = latestSummary.getPrecedingValueCount() + latestSummary.getValueCount();
                     updateFrom = latestFile.getRangeKey();
-                    latestRangeKey = latestFile.getRangeKey().addMilliseconds(1);
+                    latestRangeKey = latestFile.getRangeKey().addPicoseconds(1);
                 }
             } else {
                 lastValues = Collections.emptyList();
@@ -1262,7 +1262,7 @@ public class TimeSeriesStorageCache<K, V> {
                 memoryOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength() + 1L;
                 precedingValueCount = latestSummary.getPrecedingValueCount() + latestSummary.getValueCount();
                 updateFrom = latestFile.getRangeKey();
-                latestRangeKey = latestFile.getRangeKey().addMilliseconds(1);
+                latestRangeKey = latestFile.getRangeKey().addPicoseconds(1);
             }
             storage.getFileLookupTable().deleteRange(hashKey, latestRangeKey);
             storage.deleteRange_latestValueLookupTable(hashKey, latestRangeKey);

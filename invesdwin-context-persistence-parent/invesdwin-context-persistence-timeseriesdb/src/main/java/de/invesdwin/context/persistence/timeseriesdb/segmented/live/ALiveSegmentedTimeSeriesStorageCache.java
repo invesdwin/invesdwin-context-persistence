@@ -162,7 +162,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
                             historicalSegmentTable.getTableLock(key).readLock());
                     final ICloseableIterable<V> historicalRangeValues = historicalSegmentTable
                             .getSegmentedLookupTableCache(key)
-                            .readRangeValues(from, liveSegmentFrom.addMilliseconds(-1), compositeReadLock,
+                            .readRangeValues(from, liveSegmentFrom.addPicoseconds(-1), compositeReadLock,
                                     skipFileFunction);
                     final ICloseableIterable<V> liveRangeValues = liveSegment.rangeValues(liveSegmentFrom, to, readLock,
                             skipFileFunction);
@@ -203,7 +203,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
                             historicalSegmentTable.getTableLock(key).readLock());
                     final ICloseableIterable<V> historicalRangeValues = historicalSegmentTable
                             .getSegmentedLookupTableCache(key)
-                            .readRangeValuesReverse(liveSegmentFrom.addMilliseconds(-1), to, compositeReadLock,
+                            .readRangeValuesReverse(liveSegmentFrom.addPicoseconds(-1), to, compositeReadLock,
                                     skipFileFunction);
                     return new FlatteningIterable<V>(liveRangeValues, historicalRangeValues);
                 }

@@ -686,12 +686,12 @@ public abstract class ARootDBTest extends ATest {
 
         @Override
         protected FDate innerCalculatePreviousKey(final FDate key) {
-            return table.getPreviousValueKey(KEY, key.addMilliseconds(-1), 0);
+            return table.getPreviousValueKey(KEY, key.addPicoseconds(-1), 0);
         }
 
         @Override
         protected FDate innerCalculateNextKey(final FDate key) {
-            return table.getNextValueKey(KEY, key.addMilliseconds(1), 0);
+            return table.getNextValueKey(KEY, key.addPicoseconds(1), 0);
         }
 
     }

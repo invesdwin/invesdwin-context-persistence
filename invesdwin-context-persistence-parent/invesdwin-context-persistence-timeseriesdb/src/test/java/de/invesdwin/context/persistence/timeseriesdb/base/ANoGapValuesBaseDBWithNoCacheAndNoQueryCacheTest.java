@@ -423,7 +423,7 @@ public abstract class ANoGapValuesBaseDBWithNoCacheAndNoQueryCacheTest extends A
 
     @Test
     public void testValues() {
-        final Iterable<FDate> iterable = cache.query().getValues(entities.get(0).addMilliseconds(1), FDates.MAX_DATE);
+        final Iterable<FDate> iterable = cache.query().getValues(entities.get(0).addPicoseconds(1), FDates.MAX_DATE);
         final List<FDate> previousKeys = new ArrayList<FDate>();
         for (final FDate d : iterable) {
             previousKeys.add(d);

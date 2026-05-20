@@ -114,7 +114,7 @@ public class ALiveSegmentedTimeSeriesDBWithCacheTest extends ABaseDBWithCacheTes
             if (firstSegment.getTo().isBeforeOrEqualTo(curTime)) {
                 return firstSegment.getFrom();
             } else {
-                return segmentFinder.getCacheQuery().getValue(firstSegment.getFrom().addMilliseconds(-1)).getFrom();
+                return segmentFinder.getCacheQuery().getValue(firstSegment.getFrom().addPicoseconds(-1)).getFrom();
             }
         }
 
@@ -127,7 +127,7 @@ public class ALiveSegmentedTimeSeriesDBWithCacheTest extends ABaseDBWithCacheTes
             if (lastSegment.getTo().isBeforeOrEqualTo(curTime)) {
                 return lastSegment.getTo();
             } else {
-                return segmentFinder.getCacheQuery().getValue(lastSegment.getFrom().addMilliseconds(-1)).getTo();
+                return segmentFinder.getCacheQuery().getValue(lastSegment.getFrom().addPicoseconds(-1)).getTo();
             }
         }
 
