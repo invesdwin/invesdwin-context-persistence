@@ -75,6 +75,7 @@ import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
+import de.invesdwin.util.time.date.millis.FDateNanos;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.range.TimeRange;
 import ezdb.table.RangeTableRow;
@@ -1453,7 +1454,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 if (lastAvailableSegmentTo == null) {
                     return false;
                 }
-                final long currentNanos = System.nanoTime();
+                final long currentNanos = FDateNanos.elapsedNanos();
                 if (TimeSeriesProperties.ACQUIRE_UPDATE_LOCK_TIMEOUT
                         .isGreaterThanNanos(currentNanos - lookupByIndexAvailableFutureLastRunNanos)) {
                     return false;
