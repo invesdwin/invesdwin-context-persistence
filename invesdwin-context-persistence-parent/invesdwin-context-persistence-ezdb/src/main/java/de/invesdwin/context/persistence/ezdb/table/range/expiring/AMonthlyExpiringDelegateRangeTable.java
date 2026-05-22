@@ -16,7 +16,7 @@ public abstract class AMonthlyExpiringDelegateRangeTable<H, R, V> extends ADeleg
     @Override
     protected boolean shouldPurgeTable() {
         final FDate tableCreationTime = getTableCreationTime();
-        return tableCreationTime != null && !FDates.isSameMonth(tableCreationTime, new FDate());
+        return tableCreationTime != null && !FDates.isSameMonth(tableCreationTime, FDate.now());
     }
 
 }

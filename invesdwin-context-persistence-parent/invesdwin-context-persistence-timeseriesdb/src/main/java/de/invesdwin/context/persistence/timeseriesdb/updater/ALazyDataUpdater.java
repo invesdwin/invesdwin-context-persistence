@@ -101,7 +101,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
 
     @Override
     public final void maybeUpdate(final boolean force) {
-        final FDate newUpdateCheck = new FDate();
+        final FDate newUpdateCheck = FDate.now();
         if (force || shouldCheckForUpdate(newUpdateCheck)) {
             final IReentrantLock updateLock = getUpdateLock();
             if (shouldSkipUpdateOnCurrentThreadIfAlreadyRunning()) {

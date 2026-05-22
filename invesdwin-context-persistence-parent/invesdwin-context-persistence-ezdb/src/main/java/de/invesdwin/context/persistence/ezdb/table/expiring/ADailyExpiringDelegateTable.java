@@ -16,7 +16,7 @@ public abstract class ADailyExpiringDelegateTable<H, V> extends ADelegateTable<H
     @Override
     protected boolean shouldPurgeTable() {
         final FDate tableCreationTime = getTableCreationTime();
-        return tableCreationTime != null && !FDates.isSameJulianDay(tableCreationTime, new FDate());
+        return tableCreationTime != null && !FDates.isSameJulianDay(tableCreationTime, FDate.now());
     }
 
 }

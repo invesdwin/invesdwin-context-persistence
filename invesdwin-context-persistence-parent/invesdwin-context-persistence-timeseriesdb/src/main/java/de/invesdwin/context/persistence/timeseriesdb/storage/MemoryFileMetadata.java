@@ -45,7 +45,7 @@ public class MemoryFileMetadata {
         logEntry.append("\n");
         logEntry.append(MemoryFileSummary.class.getSimpleName());
         logEntry.append("\nREAL_TIME=");
-        logEntry.append(new FDate());
+        logEntry.append(FDate.now());
         logEntry.append("\nMEMORY_RESOURCE_URI=");
         logEntry.append(memoryResourceUri);
         logEntry.append("\nPRECEDING_MEMORY_OFFSET=");

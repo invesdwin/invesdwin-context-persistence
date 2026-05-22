@@ -16,7 +16,7 @@ public abstract class AHourlyExpiringDelegateTable<H, R, V> extends ADelegateRan
     @Override
     protected boolean shouldPurgeTable() {
         final FDate tableCreationTime = getTableCreationTime();
-        return tableCreationTime != null && !FDates.isSameJulianHour(tableCreationTime, new FDate());
+        return tableCreationTime != null && !FDates.isSameJulianHour(tableCreationTime, FDate.now());
     }
 
 }

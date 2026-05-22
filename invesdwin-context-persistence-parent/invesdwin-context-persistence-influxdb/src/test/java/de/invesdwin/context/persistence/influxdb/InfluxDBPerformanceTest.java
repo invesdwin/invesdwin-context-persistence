@@ -237,7 +237,7 @@ public class InfluxDBPerformanceTest extends ATest {
     }
 
     private ICloseableIterable<FDate> newValues() {
-        final FDate reference = new FDate();
+        final FDate reference = FDate.now();
         return FDates.iterable(reference, reference.addMilliseconds(VALUES - 1), FTimeUnit.MILLISECONDS, 1);
     }
 

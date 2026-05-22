@@ -243,13 +243,13 @@ public abstract class ANoGapValuesBaseDBWithoutShiftKeysAndQueryInterceptorTest 
 
     @Test
     public void testPreviousKey() {
-        FDate previousKey = cache.query().getPreviousKey(new FDate(), entities.size());
+        FDate previousKey = cache.query().getPreviousKey(FDate.now(), entities.size());
         Assertions.assertThat(previousKey).isEqualTo(entities.get(0));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         //loading newest entity is faster than always loading all entities
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
 
-        previousKey = cache.query().getPreviousKey(new FDate(), 1);
+        previousKey = cache.query().getPreviousKey(FDate.now(), 1);
         Assertions.assertThat(previousKey).isEqualTo(entities.get(entities.size() - 2));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
@@ -271,13 +271,13 @@ public abstract class ANoGapValuesBaseDBWithoutShiftKeysAndQueryInterceptorTest 
 
     @Test
     public void testPreviousValueWithDistance() {
-        FDate previousValue = cache.query().getPreviousValue(new FDate(), entities.size());
+        FDate previousValue = cache.query().getPreviousValue(FDate.now(), entities.size());
         Assertions.assertThat(previousValue).isEqualTo(entities.get(0));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         //loading newest entity is faster than always loading all entities
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
 
-        previousValue = cache.query().getPreviousValue(new FDate(), 1);
+        previousValue = cache.query().getPreviousValue(FDate.now(), 1);
         Assertions.assertThat(previousValue).isEqualTo(entities.get(entities.size() - 2));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
@@ -322,7 +322,7 @@ public abstract class ANoGapValuesBaseDBWithoutShiftKeysAndQueryInterceptorTest 
 
     @Test
     public void testPreviousKeys() {
-        final Collection<FDate> previousKeys = asList(cache.query().getPreviousKeys(new FDate(), entities.size()));
+        final Collection<FDate> previousKeys = asList(cache.query().getPreviousKeys(FDate.now(), entities.size()));
         Assertions.assertThat(previousKeys).isEqualTo(entities);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
@@ -451,7 +451,7 @@ public abstract class ANoGapValuesBaseDBWithoutShiftKeysAndQueryInterceptorTest 
 
     @Test
     public void testPreviousValuesWithDistance() {
-        final Collection<FDate> previousValues = asList(cache.query().getPreviousValues(new FDate(), entities.size()));
+        final Collection<FDate> previousValues = asList(cache.query().getPreviousValues(FDate.now(), entities.size()));
         Assertions.assertThat(previousValues).isEqualTo(entities);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
@@ -549,13 +549,13 @@ public abstract class ANoGapValuesBaseDBWithoutShiftKeysAndQueryInterceptorTest 
     public void testPreviousKeyWithAllValues() {
         returnAllInReadAllValuesAscendingFrom = true;
 
-        FDate previousKey = cache.query().getPreviousKey(new FDate(), entities.size());
+        FDate previousKey = cache.query().getPreviousKey(FDate.now(), entities.size());
         Assertions.assertThat(previousKey).isEqualTo(entities.get(0));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         //loading newest entity is faster than always loading all entities
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
-        previousKey = cache.query().getPreviousKey(new FDate(), 1);
+        previousKey = cache.query().getPreviousKey(FDate.now(), 1);
         Assertions.assertThat(previousKey).isEqualTo(entities.get(entities.size() - 2));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
@@ -581,13 +581,13 @@ public abstract class ANoGapValuesBaseDBWithoutShiftKeysAndQueryInterceptorTest 
     public void testPreviousKeyWithReturnMaxResults() {
         returnMaxResults = testReturnMaxResultsValue;
 
-        FDate previousKey = cache.query().getPreviousKey(new FDate(), entities.size());
+        FDate previousKey = cache.query().getPreviousKey(FDate.now(), entities.size());
         Assertions.assertThat(previousKey).isEqualTo(entities.get(0));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         //loading newest entity is faster than always loading all entities
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
 
-        previousKey = cache.query().getPreviousKey(new FDate(), 1);
+        previousKey = cache.query().getPreviousKey(FDate.now(), 1);
         Assertions.assertThat(previousKey).isEqualTo(entities.get(entities.size() - 2));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
@@ -614,13 +614,13 @@ public abstract class ANoGapValuesBaseDBWithoutShiftKeysAndQueryInterceptorTest 
         returnAllInReadAllValuesAscendingFrom = true;
         returnNullInReadNewestValueTo = true;
 
-        FDate previousKey = cache.query().getPreviousKey(new FDate(), entities.size());
+        FDate previousKey = cache.query().getPreviousKey(FDate.now(), entities.size());
         Assertions.assertThat(previousKey).isEqualTo(entities.get(0));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         //loading newest entity is faster than always loading all entities
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
 
-        previousKey = cache.query().getPreviousKey(new FDate(), 1);
+        previousKey = cache.query().getPreviousKey(FDate.now(), 1);
         Assertions.assertThat(previousKey).isEqualTo(entities.get(entities.size() - 2));
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(1);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
@@ -645,10 +645,10 @@ public abstract class ANoGapValuesBaseDBWithoutShiftKeysAndQueryInterceptorTest 
 
     @Test
     public void testPreviousKeysFilterDuplicateKeys() {
-        Assertions.assertThat(asList(cache.query().getPreviousKeys(new FDate(), 100)).size()).isSameAs(6);
+        Assertions.assertThat(asList(cache.query().getPreviousKeys(FDate.now(), 100)).size()).isSameAs(6);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
-        Assertions.assertThat(asList(cache.query().getPreviousKeys(new FDate(), 100)).size())
+        Assertions.assertThat(asList(cache.query().getPreviousKeys(FDate.now(), 100)).size())
                 .isEqualTo(entities.size());
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
@@ -668,10 +668,10 @@ public abstract class ANoGapValuesBaseDBWithoutShiftKeysAndQueryInterceptorTest 
 
     @Test
     public void testPreviousValuesFilterDuplicateKeys() {
-        Assertions.assertThat(asList(cache.query().getPreviousValues(new FDate(), 100)).size()).isSameAs(6);
+        Assertions.assertThat(asList(cache.query().getPreviousValues(FDate.now(), 100)).size()).isSameAs(6);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
-        Assertions.assertThat(asList(cache.query().getPreviousValues(new FDate(), 100)).size())
+        Assertions.assertThat(asList(cache.query().getPreviousValues(FDate.now(), 100)).size())
                 .isEqualTo(entities.size());
         Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(7);
@@ -1012,7 +1012,7 @@ public abstract class ANoGapValuesBaseDBWithoutShiftKeysAndQueryInterceptorTest 
 
     @Test
     public void testSubListWhenSwitchingFromNonFilterToFilter() {
-        final FDate key = new FDate();
+        final FDate key = FDate.now();
         final FDate previousValue = cache.query().getPreviousValue(key, 4);
         final FDate expectedValue = entities.get(entities.size() - 5);
         Assertions.assertThat(previousValue).isEqualTo(expectedValue);
@@ -1032,7 +1032,7 @@ public abstract class ANoGapValuesBaseDBWithoutShiftKeysAndQueryInterceptorTest 
 
     @Test
     public void testSubListWhenSwitchingFromFilterToNonFilter() {
-        final FDate key = new FDate();
+        final FDate key = FDate.now();
         final Collection<FDate> previousValues = asList(cache.query().getPreviousValues(key, 10));
         final List<FDate> expectedValues = entities;
         Assertions.assertThat(previousValues).isEqualTo(expectedValues);
