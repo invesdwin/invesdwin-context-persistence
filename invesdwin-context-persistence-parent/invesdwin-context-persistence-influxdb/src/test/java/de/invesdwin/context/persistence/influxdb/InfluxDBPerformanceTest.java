@@ -122,7 +122,7 @@ public class InfluxDBPerformanceTest extends ATest {
                                         final FDate value = new FDate(valueDouble.longValue());
                                         final FDate prevValue = prevValueRef.get();
                                         if (prevValue != null) {
-                                            Assertions.checkTrue(prevValue.isBefore(value));
+                                            Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                                         }
                                         prevValueRef.set(value);
                                         count.incrementAndGet();

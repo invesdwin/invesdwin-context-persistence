@@ -191,10 +191,10 @@ public class FileLiveSegmentTest extends ATest {
         Assertions.assertThat(rangeTable.getLatestValue(twoDate)).isEqualTo(2);
         Assertions.assertThat(rangeTable.getLatestValue(threeDate)).isEqualTo(3);
 
-        Assertions.assertThat(rangeTable.getLatestValue(oneDate.addMilliseconds(-1))).isEqualTo(1);
-        Assertions.assertThat(rangeTable.getLatestValue(twoDate.addMilliseconds(-1))).isEqualTo(1);
-        Assertions.assertThat(rangeTable.getLatestValue(threeDate.addMilliseconds(-1))).isEqualTo(2);
-        Assertions.assertThat(rangeTable.getLatestValue(threeDate.addMilliseconds(1))).isEqualTo(3);
+        Assertions.assertThat(rangeTable.getLatestValue(oneDate.addPicoseconds(-1))).isEqualTo(1);
+        Assertions.assertThat(rangeTable.getLatestValue(twoDate.addPicoseconds(-1))).isEqualTo(1);
+        Assertions.assertThat(rangeTable.getLatestValue(threeDate.addPicoseconds(-1))).isEqualTo(2);
+        Assertions.assertThat(rangeTable.getLatestValue(threeDate.addPicoseconds(1))).isEqualTo(3);
         Assertions.assertThat(rangeTable.getLatestValue(threeDate.addDays(1))).isEqualTo(3);
 
         Assertions.assertThat(rangeTable.getLatestValue(FDates.MIN_DATE)).isEqualTo(1);

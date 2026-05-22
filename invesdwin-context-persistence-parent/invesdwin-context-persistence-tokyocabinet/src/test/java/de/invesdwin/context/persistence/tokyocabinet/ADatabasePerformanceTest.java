@@ -33,7 +33,7 @@ public abstract class ADatabasePerformanceTest extends ATest {
     }
 
     protected ICloseableIterable<FDate> newValues() {
-        return FDates.iterable(FIRST_DATE, FIRST_DATE.addMillisecondss(VALUES - 1), FTimeUnit.MILLISECONDS, 1);
+        return FDates.iterable(FIRST_DATE, FIRST_DATE.addMilliseconds(VALUES - 1), FTimeUnit.MILLISECONDS, 1);
     }
 
 }

@@ -524,7 +524,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         }
         //throw error if a segment is being updated that is beyond the lastAvailableSegmentTo
         final FDate segmentFrom = segmentedKey.getSegment().getTo();
-        if (segmentFrom.isBefore(firstAvailableSegmentFrom)) {
+        if (segmentFrom.isBeforeNotNullSafe(firstAvailableSegmentFrom)) {
             throw new IllegalStateException(segmentedKey + ": segmentFrom [" + segmentFrom
                     + "] should not be before firstAvailableSegmentFrom [" + firstAvailableSegmentFrom + "]");
         }
