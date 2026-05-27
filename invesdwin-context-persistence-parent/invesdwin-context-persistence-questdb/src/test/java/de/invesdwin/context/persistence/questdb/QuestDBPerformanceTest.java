@@ -96,7 +96,7 @@ public class QuestDBPerformanceTest extends ADatabasePerformanceTest {
                         while (cursor.hasNext()) {
                             final FDate value = new FDate(record.getLong(0));
                             if (prevValue != null) {
-                                Assertions.checkTrue(prevValue.isBefore(value));
+                                Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                             }
                             prevValue = value;
                             count++;
@@ -131,7 +131,7 @@ public class QuestDBPerformanceTest extends ADatabasePerformanceTest {
                             Assertions.checkTrue(cursor.hasNext());
                             final FDate value = new FDate(record.getLong(0));
                             if (prevValue != null) {
-                                Assertions.checkTrue(prevValue.isBefore(value));
+                                Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                             }
                             prevValue = value;
                             count++;
@@ -165,7 +165,7 @@ public class QuestDBPerformanceTest extends ADatabasePerformanceTest {
                             Assertions.checkTrue(cursor.hasNext());
                             final FDate value = new FDate(record.getLong(0));
                             if (prevValue != null) {
-                                Assertions.checkTrue(prevValue.isBefore(value));
+                                Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                             }
                             prevValue = value;
                             count++;

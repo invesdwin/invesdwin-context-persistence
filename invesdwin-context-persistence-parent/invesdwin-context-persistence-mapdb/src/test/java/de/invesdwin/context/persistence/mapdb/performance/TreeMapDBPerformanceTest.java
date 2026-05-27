@@ -93,7 +93,7 @@ public class TreeMapDBPerformanceTest extends ADatabasePerformanceTest {
                 try {
                     final FDate value = range.next();
                     if (prevValue != null) {
-                        Assertions.checkTrue(prevValue.isBefore(value));
+                        Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                     }
                     prevValue = value;
                     count++;
@@ -119,7 +119,7 @@ public class TreeMapDBPerformanceTest extends ADatabasePerformanceTest {
                 try {
                     final FDate value = table.get(values.get(i));
                     if (prevValue != null) {
-                        Assertions.checkTrue(prevValue.isBefore(value));
+                        Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                     }
                     prevValue = value;
                 } catch (final NoSuchElementException e) {
@@ -144,7 +144,7 @@ public class TreeMapDBPerformanceTest extends ADatabasePerformanceTest {
                     final Entry<FDate, FDate> entry = table.floorEntry(values.get(i));
                     final FDate value = entry.getValue();
                     if (prevValue != null) {
-                        Assertions.checkTrue(prevValue.isBefore(value));
+                        Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                     }
                     prevValue = value;
                 } catch (final NoSuchElementException e) {

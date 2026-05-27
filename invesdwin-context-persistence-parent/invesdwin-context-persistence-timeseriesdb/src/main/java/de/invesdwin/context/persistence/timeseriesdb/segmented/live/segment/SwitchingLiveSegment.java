@@ -214,7 +214,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
         if (inProgress.isEmpty()) {
             //no live segment, go with historical
             return persistent.getNextValue(date, shiftForwardUnits);
-        } else if (persistent.isEmpty() || inProgress.getFirstValueKey().isBefore(date)) {
+        } else if (persistent.isEmpty() || inProgress.getFirstValueKey().isBeforeNotNullSafe(date)) {
             //live segment is after requested range, go with live
             final V nextValue = inProgress.getNextValue(date, shiftForwardUnits);
             return nextValue;
@@ -255,7 +255,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
             final ILiveSegment<K, V> latestValueProvider = latestValueProviders.get(i);
             final V newValue = latestValueProvider.getLatestValue(date);
             final FDate newValueEndTime = historicalSegmentTable.extractEndTime(newValue);
-            if (newValueEndTime.isBeforeOrEqualTo(date)) {
+            if (newValueEndTime.isBeforeOrEqualToNotNullSafe(date)) {
                 /*
                  * even if we got the first value in this segment and it is after the desired key we just continue to
                  * the beginning to search for an earlier value until we reach the overall firstValue
@@ -330,7 +330,7 @@ public class SwitchingLiveSegment<K, V> implements ILiveSegment<K, V> {
             final long newValueIndex = latestValueProvider.getLatestValueIndex(date);
             final V newValue = latestValueProvider.getLatestValue(latestValueIndex);
             final FDate newValueTime = historicalSegmentTable.extractEndTime(newValue);
-            if (newValueTime.isBeforeOrEqualTo(date)) {
+            if (newValueTime.isBeforeOrEqualToNotNullSafe(date)) {
                 /*
                  * even if we got the first value in this segment and it is after the desired key we just continue to
                  * the beginning to search for an earlier value until we reach the overall firstValue

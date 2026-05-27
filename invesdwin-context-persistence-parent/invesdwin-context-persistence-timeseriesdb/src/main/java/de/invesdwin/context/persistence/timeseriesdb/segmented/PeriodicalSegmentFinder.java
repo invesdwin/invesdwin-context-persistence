@@ -47,9 +47,9 @@ public class PeriodicalSegmentFinder {
         protected IEvaluateGenericFDate<TimeRange> newLoadValue() {
             return pKey -> {
                 final FDate key = pKey.asFDate();
-                if (key.isBefore(DUMMY_RANGE.getFrom())) {
+                if (key.isBeforeNotNullSafe(DUMMY_RANGE.getFrom())) {
                     return BEFORE_DUMMY_RANGE;
-                } else if (key.isAfter(DUMMY_RANGE.getTo())) {
+                } else if (key.isAfterNotNullSafe(DUMMY_RANGE.getTo())) {
                     return AFTER_DUMMY_RANGE;
                 } else {
                     return DUMMY_RANGE;
@@ -121,8 +121,8 @@ public class PeriodicalSegmentFinder {
     }
 
     public synchronized TimeRange getSegment(final FDate key) {
-        if (calculationBounds == null || calculationBounds.getFrom().isAfter(key)
-                || calculationBounds.getTo().isBefore(key)) {
+        if (calculationBounds == null || calculationBounds.getFrom().isAfterNotNullSafe(key)
+                || calculationBounds.getTo().isBeforeNotNullSafe(key)) {
             calculationBounds = newCalculationBounds(key);
             curTimeRange = null;
         }
@@ -132,19 +132,19 @@ public class PeriodicalSegmentFinder {
             curTimeRange = calculateNextTimeRange(calculationBounds.getFrom());
         }
 
-        if (curTimeRange.getFrom().isAfter(key)) {
+        if (curTimeRange.getFrom().isAfterNotNullSafe(key)) {
             do {
                 //go back a few steps
                 curTimeRange = calculatePrevTimeRange(curTimeRange.getFrom());
-            } while (curTimeRange.getFrom().isAfter(key));
-        } else if (curTimeRange.getTo().isBefore(key)) {
+            } while (curTimeRange.getFrom().isAfterNotNullSafe(key));
+        } else if (curTimeRange.getTo().isBeforeNotNullSafe(key)) {
             do {
                 //go forward a few steps
                 curTimeRange = calculateNextTimeRange(curTimeRange.getFrom());
-            } while (curTimeRange.getTo().isBefore(key));
+            } while (curTimeRange.getTo().isBeforeNotNullSafe(key));
         }
 
-        if (calculationBounds.getTo().isBefore(curTimeRange.getTo())) {
+        if (calculationBounds.getTo().isBeforeNotNullSafe(curTimeRange.getTo())) {
             curTimeRange = new TimeRange(curTimeRange.getFrom(), calculationBounds.getTo());
         }
 

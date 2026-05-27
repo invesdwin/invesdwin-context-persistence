@@ -364,7 +364,7 @@ public class TimeSeriesStorageCache<K, V> {
         if (prevSummary != null) {
             final V precedingLastValue = prevSummary.getLastValue(valueSerde);
             final FDate precedingLastValueTime = extractEndTime.apply(precedingLastValue);
-            if (precedingLastValueTime.isAfter(firstValueTime)) {
+            if (precedingLastValueTime.isAfterNotNullSafe(firstValueTime)) {
                 throw new IllegalStateException("precedingLastValueTime [" + precedingLastValueTime
                         + "] should not be after firstValueTime [" + firstValueTime + "]");
             }
@@ -997,7 +997,7 @@ public class TimeSeriesStorageCache<K, V> {
             return null;
         }
         final FDate firstTime = extractEndTime.apply(firstValue);
-        if (date.isBeforeOrEqualTo(firstTime)) {
+        if (date.isBeforeOrEqualToNotNullSafe(firstTime)) {
             return firstValue;
         } else {
             final long valueIndex = previousValueIndexLookupCache.get(new RangeShiftUnitsKey(date, shiftBackUnits));
@@ -1039,7 +1039,7 @@ public class TimeSeriesStorageCache<K, V> {
             return null;
         }
         final FDate firstTime = extractEndTime.apply(firstValue);
-        if (date.isBeforeOrEqualTo(firstTime)) {
+        if (date.isBeforeOrEqualToNotNullSafe(firstTime)) {
             return firstValue;
         } else {
             final SingleValue value = storage.getOrLoad_previousValueLookupTable(hashKey, date, shiftBackUnits, () -> {
@@ -1081,7 +1081,7 @@ public class TimeSeriesStorageCache<K, V> {
             return null;
         }
         final FDate lastTime = extractEndTime.apply(lastValue);
-        if (date.isAfterOrEqualTo(lastTime)) {
+        if (date.isAfterOrEqualToNotNullSafe(lastTime)) {
             return lastValue;
         } else {
             final long valueIndex = nextValueIndexLookupCache.get(new RangeShiftUnitsKey(date, shiftForwardUnits));
@@ -1123,7 +1123,7 @@ public class TimeSeriesStorageCache<K, V> {
             return null;
         }
         final FDate lastTime = extractEndTime.apply(lastValue);
-        if (date.isAfterOrEqualTo(lastTime)) {
+        if (date.isAfterOrEqualToNotNullSafe(lastTime)) {
             return lastValue;
         } else {
             final SingleValue value = storage.getOrLoad_nextValueLookupTable(hashKey, date, shiftForwardUnits, () -> {

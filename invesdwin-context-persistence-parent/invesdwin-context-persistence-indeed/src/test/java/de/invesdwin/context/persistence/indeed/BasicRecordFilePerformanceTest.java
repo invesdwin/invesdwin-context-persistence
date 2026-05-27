@@ -66,7 +66,7 @@ public class BasicRecordFilePerformanceTest extends ADatabasePerformanceTest {
                 while (iterator.next()) {
                     final FDate value = iterator.get().getTime();
                     if (prevValue != null) {
-                        Assertions.checkTrue(prevValue.isBefore(value));
+                        Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                     }
                     prevValue = value;
                     count++;

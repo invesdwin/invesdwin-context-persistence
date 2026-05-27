@@ -104,7 +104,7 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
                 @Override
                 protected boolean skip(final Entry<FDate, V> element) {
                     if (element.getKey().isAfterNotNullSafe(to)) {
-                        throw FastNoSuchElementException.getInstance("LiveSegment rangeValues end reached");
+                        throw FastNoSuchElementException.getInstance("LiveSegment.rangeValues end reached");
                     }
                     return false;
                 }
@@ -117,7 +117,7 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
                 return value.getValue();
             }
         };
-        if (readLock == DisabledLock.INSTANCE) {
+        if (readLock.isDisabled()) {
             return transforming;
         } else {
             //we expect the read lock to be already locked from the outside
@@ -161,7 +161,7 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
                 @Override
                 protected boolean skip(final Entry<FDate, V> element) {
                     if (element.getKey().isBeforeNotNullSafe(to)) {
-                        throw FastNoSuchElementException.getInstance("LiveSegment rangeReverseValues end reached");
+                        throw FastNoSuchElementException.getInstance("LiveSegment.rangeReverseValues end reached");
                     }
                     return false;
                 }
@@ -175,7 +175,7 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
                 return value.getValue();
             }
         };
-        if (readLock == DisabledLock.INSTANCE) {
+        if (readLock.isDisabled()) {
             return transforming;
         } else {
             //we expect the read lock to be already locked from the outside

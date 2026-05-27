@@ -152,7 +152,7 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
                 try {
                     final FDate value = range.next();
                     if (prevValue != null) {
-                        Assertions.checkTrue(prevValue.isBefore(value));
+                        Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                     }
                     prevValue = value;
                     count++;
@@ -179,7 +179,7 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
                 try {
                     final FDate value = table.getLatestValue(HASH_KEY, values.get(i));
                     if (prevValue != null) {
-                        Assertions.checkTrue(prevValue.isBefore(value));
+                        Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                     }
                     prevValue = value;
                 } catch (final NoSuchElementException e) {

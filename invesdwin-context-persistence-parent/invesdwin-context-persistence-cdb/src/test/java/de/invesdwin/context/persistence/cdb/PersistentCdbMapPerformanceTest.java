@@ -116,7 +116,7 @@ public class PersistentCdbMapPerformanceTest extends ADatabasePerformanceTest {
                 try {
                     final FDate value = table.get(values.get(i));
                     if (prevValue != null) {
-                        Assertions.checkTrue(prevValue.isBefore(value));
+                        Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                     }
                     prevValue = value;
                 } catch (final NoSuchElementException e) {

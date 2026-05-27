@@ -177,8 +177,8 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         if (to != null && !firstValue.isEmpty() && to.isBeforeOrEqualToNotNullSafe(firstValueKey)) {
             return rangeValuesToFirstValue(to);
         }
-        return new SkippingRangeValues(from, to,
-                getFlushedValues(true).iterable(historicalSegmentTable::extractEndTime, from, to));
+        return new SkippingRangeValues(
+                getFlushedValues(true).iterable(historicalSegmentTable::extractEndTime, from, to), from, to);
     }
 
     private ICloseableIterable<V> rangeValuesFromLastValue(final FDate from, final LastValue<V> lastValue) {
@@ -209,9 +209,9 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
         }
         if (iterablesAscending.size() == 1) {
-            return new SkippingRangeValues(from, to, iterablesAscending.getHead());
+            return new SkippingRangeValues(iterablesAscending.getHead(), from, to);
         } else {
-            return new SkippingRangeValues(from, to, new FlatteningIterable<>(iterablesAscending));
+            return new SkippingRangeValues(new FlatteningIterable<>(iterablesAscending), from, to);
         }
     }
 
@@ -246,8 +246,8 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
                 return rangeReverseValuesToPrevLastValue(from, to, i);
             }
         }
-        return new SkippingRangeReverseValues(from, to,
-                getFlushedValues(true).reverseIterable(historicalSegmentTable::extractEndTime, from, to));
+        return new SkippingRangeReverseValues(
+                getFlushedValues(true).reverseIterable(historicalSegmentTable::extractEndTime, from, to), from, to);
     }
 
     private ICloseableIterable<V> rangeReverseValuesToFirstValue(final FDate from) {
@@ -286,9 +286,9 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
         }
         if (iterablesDescending.size() == 1) {
-            return new SkippingRangeReverseValues(from, to, iterablesDescending.getHead());
+            return new SkippingRangeReverseValues(iterablesDescending.getHead(), from, to);
         } else {
-            return new SkippingRangeReverseValues(from, to, new FlatteningIterable<>(iterablesDescending));
+            return new SkippingRangeReverseValues(new FlatteningIterable<>(iterablesDescending), from, to);
         }
     }
 
@@ -394,7 +394,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
                 historicalSegmentTable::extractEndTime);
         for (int i = fromLastValue; i >= 0 && shiftForwardLoop.getShiftForwardRemaining() >= 0; i--) {
             final LastValue<V> lastValue = lastValues.getReverse(i);
-            if (date.isAfter(lastValue.key)) {
+            if (date.isAfterNotNullSafe(lastValue.key)) {
                 //try a newer value
                 continue;
             }
@@ -630,8 +630,8 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     private final class SkippingRangeValues extends ATimeRangeSkippingIterable<V> {
-        private SkippingRangeValues(final FDate from, final FDate to, final ICloseableIterable<? extends V> delegate) {
-            super(from, to, delegate);
+        private SkippingRangeValues(final ICloseableIterable<? extends V> delegate, final FDate from, final FDate to) {
+            super(delegate, from, to);
         }
 
         @Override
@@ -640,20 +640,15 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
 
         @Override
-        protected boolean isReverse() {
-            return false;
-        }
-
-        @Override
         protected String getName() {
-            return "FileLiveSegment rangeValues";
+            return "FileLiveSegment.rangeValues";
         }
     }
 
     private final class SkippingRangeReverseValues extends ATimeRangeSkippingIterable<V> {
-        private SkippingRangeReverseValues(final FDate from, final FDate to,
-                final ICloseableIterable<? extends V> delegate) {
-            super(from, to, delegate);
+        private SkippingRangeReverseValues(final ICloseableIterable<? extends V> delegate, final FDate from,
+                final FDate to) {
+            super(delegate, from, to);
         }
 
         @Override
@@ -662,13 +657,18 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         }
 
         @Override
-        protected boolean isReverse() {
-            return true;
+        public ICloseableIterator<V> iterator() {
+            return super.reverseIterator();
+        }
+
+        @Override
+        public ICloseableIterator<V> reverseIterator() {
+            return super.iterator();
         }
 
         @Override
         protected String getName() {
-            return "FileLiveSegment rangeReverseValues";
+            return "FileLiveSegment.rangeReverseValues";
         }
     }
 
