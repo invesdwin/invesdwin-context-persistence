@@ -121,7 +121,7 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
                 return values.rangeValues(null, from, to);
             }
         };
-        if (readLock == DisabledLock.INSTANCE) {
+        if (readLock.isDisabled()) {
             return iterable;
         } else {
             //we expect the read lock to be already locked from the outside
@@ -156,7 +156,7 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
                 return values.rangeReverseValues(null, from, to);
             }
         };
-        if (readLock == DisabledLock.INSTANCE) {
+        if (readLock.isDisabled()) {
             return iterable;
         } else {
             //we expect the read lock to be already locked from the outside

@@ -3,7 +3,6 @@ package de.invesdwin.context.persistence.timeseriesdb.storage.key;
 import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.util.marshallers.serde.ISerde;
-import de.invesdwin.util.marshallers.serde.SerdeBaseMethods;
 import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 import de.invesdwin.util.time.date.FDate;
@@ -24,25 +23,15 @@ public final class RangeShiftUnitsKeySerde implements ISerde<RangeShiftUnitsKey>
     private RangeShiftUnitsKeySerde() {}
 
     @Override
-    public RangeShiftUnitsKey fromBytes(final byte[] bytes) {
-        return SerdeBaseMethods.fromBytes(this, bytes);
-    }
-
-    @Override
-    public byte[] toBytes(final RangeShiftUnitsKey obj) {
-        return SerdeBaseMethods.toBytes(this, obj);
-    }
-
-    @Override
     public RangeShiftUnitsKey fromBuffer(final IByteBuffer buffer) {
-        final FDate rangeKey = FDateSerde.getFDate(buffer, TIME_INDEX);
+        final FDate rangeKey = FDateSerde.getFDateNotNullSafe(buffer, TIME_INDEX);
         final int shiftUnits = buffer.getInt(SHIFTUNITS_INDEX);
         return new RangeShiftUnitsKey(rangeKey, shiftUnits);
     }
 
     @Override
     public int toBuffer(final IByteBuffer buffer, final RangeShiftUnitsKey obj) {
-        FDateSerde.putFDate(buffer, TIME_INDEX, obj.getRangeKey());
+        FDateSerde.putFDateNotNullSafe(buffer, TIME_INDEX, obj.getRangeKey());
         buffer.putInt(SHIFTUNITS_INDEX, obj.getShiftUnits());
         return FIXED_LENGTH;
     }

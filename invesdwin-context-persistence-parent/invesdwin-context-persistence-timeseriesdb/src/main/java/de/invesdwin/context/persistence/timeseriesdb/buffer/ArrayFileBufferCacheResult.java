@@ -160,7 +160,7 @@ public class ArrayFileBufferCacheResult<V> extends RefCountReverseCloseableItera
         int fromIndex = Integers.max(0, getLatestValueIndex(extractEndTime, from));
         final V fromValue = getLatestValue(fromIndex);
         final FDate fromValueKey = extractEndTime.apply(fromValue);
-        if (fromValueKey.isBefore(from)) {
+        if (fromValueKey.isBeforeNotNullSafe(from)) {
             fromIndex++;
         }
         return toIndex - fromIndex + 1;

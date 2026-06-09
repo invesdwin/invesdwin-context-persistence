@@ -271,7 +271,7 @@ public abstract class ADelegateTable<H, V> implements IDelegateTable<H, V> {
                 if (getPersistenceMode().isDisk()) {
                     Files.touchQuietly(timestampFile);
                 }
-                tableCreationTime = new FDate();
+                tableCreationTime = FDate.now();
             }
             try {
                 tableFinalizer.table = db.getTable(name);

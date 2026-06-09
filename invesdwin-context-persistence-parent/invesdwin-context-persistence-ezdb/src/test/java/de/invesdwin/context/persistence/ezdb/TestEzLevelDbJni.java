@@ -30,13 +30,13 @@ public class TestEzLevelDbJni extends ATest {
     final FDate twoFDate = now.addDays(2);
     final FDate threeFDate = now.addDays(3);
 
-    private final FDate oneFDatePlus = new FDate(oneFDate.millisValue() + 1);
-    private final FDate twoFDatePlus = new FDate(twoFDate.millisValue() + 1);
-    private final FDate threeFDatePlus = new FDate(threeFDate.millisValue() + 1);
+    private final FDate oneFDatePlus = new FDate(oneFDate.millisValue() + 1, 0);
+    private final FDate twoFDatePlus = new FDate(twoFDate.millisValue() + 1, 0);
+    private final FDate threeFDatePlus = new FDate(threeFDate.millisValue() + 1, 0);
 
-    private final FDate oneFDateMinus = new FDate(oneFDate.millisValue() - 1);
-    private final FDate twoFDateMinus = new FDate(twoFDate.millisValue() - 1);
-    private final FDate threeFDateMinus = new FDate(threeFDate.millisValue() - 1);
+    private final FDate oneFDateMinus = new FDate(oneFDate.millisValue() - 1, 0);
+    private final FDate twoFDateMinus = new FDate(twoFDate.millisValue() - 1, 0);
+    private final FDate threeFDateMinus = new FDate(threeFDate.millisValue() - 1, 0);
 
     private ADelegateRangeTable<String, FDate, Integer> reverseRangeTable;
 
@@ -1218,11 +1218,11 @@ public class TestEzLevelDbJni extends ATest {
         Assertions.checkEquals(1, reverseRangeTable.getLatest(HASHKEY_ONE, oneFDateMinus).getValue());
         Assertions.checkEquals(1, reverseRangeTable.getLatest(HASHKEY_ONE, twoFDateMinus).getValue());
         Assertions.checkEquals(2, reverseRangeTable.getLatest(HASHKEY_ONE, threeFDateMinus).getValue());
-        Assertions.checkEquals(3, reverseRangeTable.getLatest(HASHKEY_ONE, threeFDate.addMilliseconds(1)).getValue());
+        Assertions.checkEquals(3, reverseRangeTable.getLatest(HASHKEY_ONE, threeFDate.addPicoseconds(1)).getValue());
         Assertions.checkEquals(3, reverseRangeTable.getLatest(HASHKEY_ONE, threeFDate.addDays(1)).getValue());
-        Assertions.assertThat(reverseRangeTable.getLatest(HASHKEY_ONE, threeFDate.addMilliseconds(-1)).getValue())
+        Assertions.assertThat(reverseRangeTable.getLatest(HASHKEY_ONE, threeFDate.addPicoseconds(-1)).getValue())
                 .isEqualTo(2);
-        Assertions.assertThat(reverseRangeTable.getLatest(HASHKEY_ONE, threeFDate.addMilliseconds(1)).getValue())
+        Assertions.assertThat(reverseRangeTable.getLatest(HASHKEY_ONE, threeFDate.addPicoseconds(1)).getValue())
                 .isEqualTo(3);
         Assertions.checkEquals(1, reverseRangeTable.getLatest(HASHKEY_ONE, MIN_DATE).getValue());
         Assertions.checkEquals(3, reverseRangeTable.getLatest(HASHKEY_ONE, MAX_DATE).getValue());

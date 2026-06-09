@@ -86,7 +86,7 @@ public class MphTablePerformanceTest extends ADatabasePerformanceTest {
                 for (int i = 0; i < values.size(); i++) {
                     final FDate value = new FDate(reader.get(values.get(i).millisValue()));
                     if (prevValue != null) {
-                        Assertions.checkTrue(prevValue.isBefore(value));
+                        Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                     }
                     prevValue = value;
                 }

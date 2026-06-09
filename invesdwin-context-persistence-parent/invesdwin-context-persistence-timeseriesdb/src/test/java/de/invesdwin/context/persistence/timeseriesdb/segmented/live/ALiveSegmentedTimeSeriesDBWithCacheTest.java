@@ -14,7 +14,7 @@ import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.Historical
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
-import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
+import de.invesdwin.util.collections.iterable.skip.ATimeRangeSkippingIterable;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
@@ -93,13 +93,16 @@ public class ALiveSegmentedTimeSeriesDBWithCacheTest extends ABaseDBWithCacheTes
 
         @Override
         protected ICloseableIterable<? extends FDate> downloadSegmentElements(final SegmentedKey<String> segmentedKey) {
-            return new ASkippingIterable<FDate>(WrapperCloseableIterable.maybeWrap(entities)) {
-                private final FDate from = segmentedKey.getSegment().getFrom();
-                private final FDate to = segmentedKey.getSegment().getTo();
+            return new ATimeRangeSkippingIterable<FDate>(WrapperCloseableIterable.maybeWrap(entities),
+                    segmentedKey.getSegment()) {
+                @Override
+                protected FDate extractEndTime(final FDate element) {
+                    return element;
+                }
 
                 @Override
-                protected boolean skip(final FDate element) {
-                    return element.isBefore(from) || element.isAfter(to);
+                protected String getName() {
+                    return "ALiveSegmentedTimeSeriesDBWithCacheTest.downloadSegmentElements";
                 }
             };
         }
@@ -114,7 +117,7 @@ public class ALiveSegmentedTimeSeriesDBWithCacheTest extends ABaseDBWithCacheTes
             if (firstSegment.getTo().isBeforeOrEqualTo(curTime)) {
                 return firstSegment.getFrom();
             } else {
-                return segmentFinder.getCacheQuery().getValue(firstSegment.getFrom().addMilliseconds(-1)).getFrom();
+                return segmentFinder.getCacheQuery().getValue(firstSegment.getFrom().addPicoseconds(-1)).getFrom();
             }
         }
 
@@ -127,7 +130,7 @@ public class ALiveSegmentedTimeSeriesDBWithCacheTest extends ABaseDBWithCacheTes
             if (lastSegment.getTo().isBeforeOrEqualTo(curTime)) {
                 return lastSegment.getTo();
             } else {
-                return segmentFinder.getCacheQuery().getValue(lastSegment.getFrom().addMilliseconds(-1)).getTo();
+                return segmentFinder.getCacheQuery().getValue(lastSegment.getFrom().addPicoseconds(-1)).getTo();
             }
         }
 

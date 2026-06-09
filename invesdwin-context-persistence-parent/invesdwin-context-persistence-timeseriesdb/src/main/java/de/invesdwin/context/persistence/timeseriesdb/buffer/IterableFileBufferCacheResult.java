@@ -126,7 +126,7 @@ public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<
             while (true) {
                 final V newValue = it.next();
                 final FDate newValueTime = extractEndTime.apply(newValue);
-                if (newValueTime.isAfter(key)) {
+                if (newValueTime.isAfterNotNullSafe(key)) {
                     break;
                 } else {
                     latestValue = newValue;
@@ -147,7 +147,7 @@ public class IterableFileBufferCacheResult<V> implements IFileBufferCacheResult<
                 final V newValue = it.next();
                 curIndex++;
                 final FDate newValueTime = extractEndTime.apply(newValue);
-                if (newValueTime.isAfter(key)) {
+                if (newValueTime.isAfterNotNullSafe(key)) {
                     curIndex--;
                     break;
                 } else {

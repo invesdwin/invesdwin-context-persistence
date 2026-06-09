@@ -364,7 +364,7 @@ public class TimeSeriesStorageCache<K, V> {
         if (prevSummary != null) {
             final V precedingLastValue = prevSummary.getLastValue(valueSerde);
             final FDate precedingLastValueTime = extractEndTime.apply(precedingLastValue);
-            if (precedingLastValueTime.isAfter(firstValueTime)) {
+            if (precedingLastValueTime.isAfterNotNullSafe(firstValueTime)) {
                 throw new IllegalStateException("precedingLastValueTime [" + precedingLastValueTime
                         + "] should not be after firstValueTime [" + firstValueTime + "]");
             }
@@ -405,7 +405,7 @@ public class TimeSeriesStorageCache<K, V> {
                         if (latestFirstTime == null) {
                             delegate = EmptyCloseableIterator.getInstance();
                         } else {
-                            delegate = getRangeKeys(latestFirstTime.getRangeKey().addMilliseconds(1), to);
+                            delegate = getRangeKeys(latestFirstTime.getRangeKey().addPicoseconds(1), to);
                         }
                     }
 
@@ -526,7 +526,7 @@ public class TimeSeriesStorageCache<K, V> {
                         if (latestLastTime == null) {
                             delegate = EmptyCloseableIterator.getInstance();
                         } else {
-                            delegate = getRangeKeysReverse(latestLastTime.getRangeKey().addMilliseconds(-1), to);
+                            delegate = getRangeKeysReverse(latestLastTime.getRangeKey().addPicoseconds(-1), to);
                         }
                     }
 
@@ -997,7 +997,7 @@ public class TimeSeriesStorageCache<K, V> {
             return null;
         }
         final FDate firstTime = extractEndTime.apply(firstValue);
-        if (date.isBeforeOrEqualTo(firstTime)) {
+        if (date.isBeforeOrEqualToNotNullSafe(firstTime)) {
             return firstValue;
         } else {
             final long valueIndex = previousValueIndexLookupCache.get(new RangeShiftUnitsKey(date, shiftBackUnits));
@@ -1039,7 +1039,7 @@ public class TimeSeriesStorageCache<K, V> {
             return null;
         }
         final FDate firstTime = extractEndTime.apply(firstValue);
-        if (date.isBeforeOrEqualTo(firstTime)) {
+        if (date.isBeforeOrEqualToNotNullSafe(firstTime)) {
             return firstValue;
         } else {
             final SingleValue value = storage.getOrLoad_previousValueLookupTable(hashKey, date, shiftBackUnits, () -> {
@@ -1081,7 +1081,7 @@ public class TimeSeriesStorageCache<K, V> {
             return null;
         }
         final FDate lastTime = extractEndTime.apply(lastValue);
-        if (date.isAfterOrEqualTo(lastTime)) {
+        if (date.isAfterOrEqualToNotNullSafe(lastTime)) {
             return lastValue;
         } else {
             final long valueIndex = nextValueIndexLookupCache.get(new RangeShiftUnitsKey(date, shiftForwardUnits));
@@ -1123,7 +1123,7 @@ public class TimeSeriesStorageCache<K, V> {
             return null;
         }
         final FDate lastTime = extractEndTime.apply(lastValue);
-        if (date.isAfterOrEqualTo(lastTime)) {
+        if (date.isAfterOrEqualToNotNullSafe(lastTime)) {
             return lastValue;
         } else {
             final SingleValue value = storage.getOrLoad_nextValueLookupTable(hashKey, date, shiftForwardUnits, () -> {
@@ -1254,7 +1254,7 @@ public class TimeSeriesStorageCache<K, V> {
                     memoryOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength() + 1L;
                     precedingValueCount = latestSummary.getPrecedingValueCount() + latestSummary.getValueCount();
                     updateFrom = latestFile.getRangeKey();
-                    latestRangeKey = latestFile.getRangeKey().addMilliseconds(1);
+                    latestRangeKey = latestFile.getRangeKey().addPicoseconds(1);
                 }
             } else {
                 lastValues = Collections.emptyList();
@@ -1262,7 +1262,7 @@ public class TimeSeriesStorageCache<K, V> {
                 memoryOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength() + 1L;
                 precedingValueCount = latestSummary.getPrecedingValueCount() + latestSummary.getValueCount();
                 updateFrom = latestFile.getRangeKey();
-                latestRangeKey = latestFile.getRangeKey().addMilliseconds(1);
+                latestRangeKey = latestFile.getRangeKey().addPicoseconds(1);
             }
             storage.getFileLookupTable().deleteRange(hashKey, latestRangeKey);
             storage.deleteRange_latestValueLookupTable(hashKey, latestRangeKey);

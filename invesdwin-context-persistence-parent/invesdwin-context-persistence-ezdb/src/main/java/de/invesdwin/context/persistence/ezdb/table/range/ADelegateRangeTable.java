@@ -266,7 +266,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
                 if (getPersistenceMode().isDisk()) {
                     Files.touchQuietly(timestampFile);
                 }
-                tableCreationTime = new FDate();
+                tableCreationTime = FDate.now();
             }
             try {
                 tableFinalizer.table = db.getRangeTable(name);

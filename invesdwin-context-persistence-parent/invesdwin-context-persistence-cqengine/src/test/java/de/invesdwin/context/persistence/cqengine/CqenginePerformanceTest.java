@@ -137,7 +137,7 @@ public class CqenginePerformanceTest extends ADatabasePerformanceTest {
                     while (true) {
                         final FDate value = iterator.next().getValue();
                         if (prevValue != null) {
-                            Assertions.checkTrue(prevValue.isBefore(value));
+                            Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                         }
                         prevValue = value;
                         count++;
@@ -167,7 +167,7 @@ public class CqenginePerformanceTest extends ADatabasePerformanceTest {
                     while (it.hasNext()) {
                         final FDate value = it.next().getValue().getValue();
                         if (prevValue != null) {
-                            Assertions.checkTrue(prevValue.isBefore(value));
+                            Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                         }
                         prevValue = value;
                         count++;
@@ -196,7 +196,7 @@ public class CqenginePerformanceTest extends ADatabasePerformanceTest {
                         .retrieve(QueryFactory.equal(Content.KEY, values.get(i).millisValue()))) {
                     final FDate value = result.uniqueResult().getValue();
                     if (prevValue != null) {
-                        Assertions.checkTrue(prevValue.isBefore(value));
+                        Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                     }
                     prevValue = value;
                     count++;
@@ -226,7 +226,7 @@ public class CqenginePerformanceTest extends ADatabasePerformanceTest {
                     final Iterator<Content> iterator = result.iterator();
                     final FDate value = iterator.next().getValue();
                     if (prevValue != null) {
-                        Assertions.checkTrue(prevValue.isBefore(value));
+                        Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                     }
                     prevValue = value;
                     count++;
@@ -253,7 +253,7 @@ public class CqenginePerformanceTest extends ADatabasePerformanceTest {
                 try (CloseableIterator<KeyValue<Long, Content>> it = result.iterator()) {
                     final FDate value = it.next().getValue().getValue();
                     if (prevValue != null) {
-                        Assertions.checkTrue(prevValue.isBefore(value));
+                        Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                     }
                     prevValue = value;
                     count++;

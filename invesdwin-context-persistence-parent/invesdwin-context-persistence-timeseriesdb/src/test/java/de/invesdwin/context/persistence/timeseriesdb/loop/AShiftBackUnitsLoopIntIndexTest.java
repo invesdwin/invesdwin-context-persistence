@@ -52,7 +52,7 @@ public class AShiftBackUnitsLoopIntIndexTest extends ATest {
                 }
 
                 /////////////// minus
-                final FDate requestMinus = request.addMilliseconds(-1);
+                final FDate requestMinus = request.addPicoseconds(-1);
                 final AShiftBackUnitsLoopIntIndex<FDate> loopMinus = newLoop(requestMinus, shiftBackUnits);
                 loopMinus.loop();
                 final FDate prevValueMinus = loopMinus.getPrevValue();
@@ -75,7 +75,7 @@ public class AShiftBackUnitsLoopIntIndexTest extends ATest {
                 }
 
                 ///////// plus
-                final FDate requestPlus = request.addMilliseconds(1);
+                final FDate requestPlus = request.addPicoseconds(1);
                 final AShiftBackUnitsLoopIntIndex<FDate> loopPlus = newLoop(requestPlus, shiftBackUnits);
                 loopPlus.loop();
                 final FDate prevValuePlus = loopPlus.getPrevValue();
