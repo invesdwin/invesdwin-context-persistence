@@ -24,7 +24,8 @@ public class PeriodicalSegmentFinderTest extends ATest {
         final TimeRange segment = finder.getSegment(reference.applyTimeZoneOffset(offsetTimeZone))
                 .revertTimeZoneOffset(offsetTimeZone);
         Assertions.assertThat(segment.toString())
-                .isEqualTo("2020-12-31T22:00:00.000 -> 2021-01-01T21:59:59.999 => PT23H59M59.999S");
+                .isEqualTo(
+                        "2020-12-31T22:00:00.000.000.000.000 -> 2021-01-01T21:59:59.999.999.999.999 => PT23H59M59.999.999.999.999S");
     }
 
 }
