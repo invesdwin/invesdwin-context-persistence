@@ -52,7 +52,7 @@ public class ChronicleQueuePerformanceTest extends ADatabasePerformanceTest {
                 while (tailer.readBytes(bytes)) {
                     final FDate value = FDate.valueOf(bytes.readLong());
                     if (prevValue != null) {
-                        Assertions.checkTrue(prevValue.isBefore(value));
+                        Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                     }
                     prevValue = value;
                     count++;

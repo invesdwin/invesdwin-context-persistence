@@ -11,7 +11,7 @@ import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
-import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
+import de.invesdwin.util.collections.iterable.skip.ATimeRangeSkippingIterable;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.math.decimal.scaled.Percent;
@@ -49,10 +49,16 @@ public class ATimeSeriesDBWithCacheTest extends ABaseDBWithCacheTest {
 
         @Override
         protected ICloseableIterable<? extends FDate> getSource(final FDate updateFrom) {
-            return new ASkippingIterable<FDate>(WrapperCloseableIterable.maybeWrap(entities)) {
+            return new ATimeRangeSkippingIterable<FDate>(WrapperCloseableIterable.maybeWrap(entities), updateFrom,
+                    null) {
                 @Override
-                protected boolean skip(final FDate element) {
-                    return element.isBefore(updateFrom);
+                protected FDate extractEndTime(final FDate element) {
+                    return element;
+                }
+
+                @Override
+                protected String getName() {
+                    return "ASegmentedTimeSeriesDBWithCacheTest.downloadSegmentElements";
                 }
             };
         }

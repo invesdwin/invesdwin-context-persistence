@@ -135,10 +135,10 @@ public class LevelDBTest extends ATest {
         Assertions.assertThat(rangeTable.getLatest(HASHKEY, twoDate).getValue()).isEqualTo(2);
         Assertions.assertThat(rangeTable.getLatest(HASHKEY, threeDate).getValue()).isEqualTo(3);
 
-        Assertions.assertThat(rangeTable.getLatest(HASHKEY, oneDate.addMilliseconds(-1)).getValue()).isEqualTo(1);
-        Assertions.assertThat(rangeTable.getLatest(HASHKEY, twoDate.addMilliseconds(-1)).getValue()).isEqualTo(1);
-        Assertions.assertThat(rangeTable.getLatest(HASHKEY, threeDate.addMilliseconds(-1)).getValue()).isEqualTo(2);
-        Assertions.assertThat(rangeTable.getLatest(HASHKEY, threeDate.addMilliseconds(1)).getValue()).isEqualTo(3);
+        Assertions.assertThat(rangeTable.getLatest(HASHKEY, oneDate.addPicoseconds(-1)).getValue()).isEqualTo(1);
+        Assertions.assertThat(rangeTable.getLatest(HASHKEY, twoDate.addPicoseconds(-1)).getValue()).isEqualTo(1);
+        Assertions.assertThat(rangeTable.getLatest(HASHKEY, threeDate.addPicoseconds(-1)).getValue()).isEqualTo(2);
+        Assertions.assertThat(rangeTable.getLatest(HASHKEY, threeDate.addPicoseconds(1)).getValue()).isEqualTo(3);
         Assertions.assertThat(rangeTable.getLatest(HASHKEY, threeDate.addDays(1)).getValue()).isEqualTo(3);
 
         Assertions.assertThat(rangeTable.getLatest(HASHKEY, FDates.MIN_DATE).getValue()).isEqualTo(1);

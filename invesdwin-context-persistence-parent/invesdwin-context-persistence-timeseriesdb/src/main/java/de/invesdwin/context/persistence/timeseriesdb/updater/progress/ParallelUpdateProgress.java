@@ -22,6 +22,7 @@ import de.invesdwin.util.collections.iterable.concurrent.ProducerQueueIterable;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
 import de.invesdwin.util.lang.Files;
+import de.invesdwin.util.lang.OperatingSystem;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
@@ -50,6 +51,10 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
         this.parent = parent;
         this.name = new TextDescription("%s[%s]: write", ATimeSeriesUpdater.class.getSimpleName(), parent.getKey());
         this.tempFile = tempFile;
+    }
+
+    public File getTempFile() {
+        return tempFile;
     }
 
     public void reset() {
@@ -113,11 +118,10 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
         collection.close();
     }
 
-    public long transferToMemoryFile(final FileOutputStream memoryFileOut, final File memoryFile,
+    public void transferToMemoryFile(final FileOutputStream memoryFileOut, final File memoryFile,
             final long precedingMemoryOffset, final long memoryOffset, final int flushIndex,
-            final long precedingValueCount) {
+            final long precedingValueCount, final long tempFileLength) {
         try (FileInputStream tempIn = new FileInputStream(tempFile)) {
-            final long tempFileLength = tempFile.length();
             long remaining = tempFileLength;
             long position = 0;
             while (remaining > 0L) {
@@ -131,7 +135,6 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                             precedingMemoryOffset, memoryOffset, tempFileLength);
             Files.deleteQuietly(tempFile);
             parent.onFlush(flushIndex, this);
-            return tempFileLength;
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
@@ -290,16 +293,22 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                     final ParallelUpdateProgress<K, V> progress = batchWriterProducer.next();
                     flushIndex++;
                     long memoryOffset = memoryFileOut.getChannel().position();
-                    final long memoryLength = progress.transferToMemoryFile(memoryFileOut, memoryFile,
-                            precedingMemoryOffset, memoryOffset, flushIndex, precedingValueCount);
-                    precedingValueCount += progress.getValueCount();
-
-                    memoryOffset += memoryLength;
-                    if (IMemoryMappedFile.isSegmentSizeExceeded(memoryOffset)) {
+                    final long tempFileLength = progress.getTempFile().length();
+                    if (IMemoryMappedFile.isSegmentSizeExceeded(memoryOffset + tempFileLength)) {
+                        if (OperatingSystem.isWindows() && IMemoryMappedFile.isSegmentSizeExceeded(tempFileLength)) {
+                            throw new IllegalStateException("Cannot write temp file of length [" + tempFileLength
+                                    + "] to memory file at offset [" + memoryOffset
+                                    + "] because it would exceed the maximum segment size of ["
+                                    + IMemoryMappedFile.MAX_SEGMENT_SIZE_WINDOWS + "] on Windows");
+                        }
                         precedingMemoryOffset += memoryOffset;
                         memoryFile = TimeSeriesStorageCache.newMemoryFile(parent, precedingMemoryOffset);
                         memoryFileOut = new FileOutputStream(memoryFile, true);
+                        memoryOffset = 0;
                     }
+                    progress.transferToMemoryFile(memoryFileOut, memoryFile, precedingMemoryOffset, memoryOffset,
+                            flushIndex, precedingValueCount, tempFileLength);
+                    precedingValueCount += progress.getValueCount();
 
                     ParallelUpdateProgressPool.INSTANCE.returnObject(progress);
                 }

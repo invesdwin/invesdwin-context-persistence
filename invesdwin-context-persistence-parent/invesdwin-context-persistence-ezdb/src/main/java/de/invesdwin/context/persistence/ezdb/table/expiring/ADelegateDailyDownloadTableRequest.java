@@ -108,8 +108,7 @@ public abstract class ADelegateDailyDownloadTableRequest<K, V> implements IRefer
         }
     }
 
-    protected void afterUpdate() {
-    }
+    protected void afterUpdate() {}
 
     protected abstract K extractKey(V value);
 
@@ -122,7 +121,7 @@ public abstract class ADelegateDailyDownloadTableRequest<K, V> implements IRefer
     }
 
     protected FDate getNow() {
-        return new FDate();
+        return FDate.now();
     }
 
     protected DailyDownloadCache newDailyDownloadCache() {

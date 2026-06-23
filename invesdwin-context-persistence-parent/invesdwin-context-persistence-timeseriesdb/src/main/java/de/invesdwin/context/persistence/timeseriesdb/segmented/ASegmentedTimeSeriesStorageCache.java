@@ -75,6 +75,7 @@ import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
+import de.invesdwin.util.time.date.millis.FDateNanos;
 import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.range.TimeRange;
 import ezdb.table.RangeTableRow;
@@ -284,11 +285,11 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         if (from == null || to == null) {
             return EmptyCloseableIterable.getInstance();
         }
-        final TimeRange nextSegment = segmentFinder.getCacheQuery().getValue(to.addMilliseconds(1));
+        final TimeRange nextSegment = segmentFinder.getCacheQuery().getValue(to.addPicoseconds(1));
         final FDate adjTo;
         if (to.equalsNotNullSafe(lastAvailableSegmentTo) && nextSegment.getFrom().equalsNotNullSafe(to)) {
             //adjust for overlapping segments
-            adjTo = to.addMilliseconds(-1);
+            adjTo = to.addPicoseconds(-1);
         } else {
             adjTo = to;
         }
@@ -302,7 +303,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
                     @Override
                     public boolean hasNext() {
-                        return nextSegment != null && nextSegment.getFrom().isBeforeOrEqualTo(adjTo);
+                        return nextSegment != null && nextSegment.getFrom().isBeforeOrEqualToNotNullSafe(adjTo);
                     }
 
                     @Override
@@ -318,7 +319,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                     }
 
                     private TimeRange determineNextSegment(final TimeRange curSegment) {
-                        final FDate nextSegmentStart = nextSegment.getTo().addMilliseconds(1);
+                        final FDate nextSegmentStart = nextSegment.getTo().addPicoseconds(1);
                         final TimeRange nextSegment = segmentFinder.getCacheQueryWithFutureNull()
                                 .getValue(nextSegmentStart);
                         if (!curSegment.getTo().equalsNotNullSafe(nextSegment.getFrom())
@@ -342,12 +343,12 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             protected boolean skip(final TimeRange element) {
                 //though additionally skip ranges that exceed the available dates
                 final FDate segmentTo = element.getTo();
-                if (segmentTo.isBefore(adjFrom)) {
+                if (segmentTo.isBeforeNotNullSafe(adjFrom)) {
                     throw new IllegalStateException(
                             "segmentTo [" + segmentTo + "] should not be before adjFrom [" + adjFrom + "]");
                 }
                 final FDate segmentFrom = element.getFrom();
-                if (segmentFrom.isAfter(adjTo)) {
+                if (segmentFrom.isAfterNotNullSafe(adjTo)) {
                     //no need to continue going higher
                     throw FastNoSuchElementException
                             .getInstance("ASegmentedTimeSeriesStorageCache getSegments end reached");
@@ -524,7 +525,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         }
         //throw error if a segment is being updated that is beyond the lastAvailableSegmentTo
         final FDate segmentFrom = segmentedKey.getSegment().getTo();
-        if (segmentFrom.isBefore(firstAvailableSegmentFrom)) {
+        if (segmentFrom.isBeforeNotNullSafe(firstAvailableSegmentFrom)) {
             throw new IllegalStateException(segmentedKey + ": segmentFrom [" + segmentFrom
                     + "] should not be before firstAvailableSegmentFrom [" + firstAvailableSegmentFrom + "]");
         }
@@ -645,19 +646,20 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             if (minTime != null) {
                 final FDate segmentFrom = segmentedKey.getSegment().getFrom();
                 final TimeRange prevSegment = getSegmentFinder(segmentedKey.getKey()).getCacheQuery()
-                        .getValue(segmentFrom.addMilliseconds(-1));
-                if (prevSegment.getTo().equalsNotNullSafe(segmentFrom) && minTime.isBeforeOrEqualTo(segmentFrom)) {
+                        .getValue(segmentFrom.addPicoseconds(-1));
+                if (prevSegment.getTo().equalsNotNullSafe(segmentFrom)
+                        && minTime.isBeforeOrEqualToNotNullSafe(segmentFrom)) {
                     throw new IllegalStateException(
                             segmentedKey + ": minTime [" + minTime + "] should not be before or equal to segmentFrom ["
                                     + segmentFrom + "] when overlapping segments are used");
-                } else if (minTime.isBefore(segmentFrom)) {
+                } else if (minTime.isBeforeNotNullSafe(segmentFrom)) {
                     throw new IllegalStateException(
                             segmentedKey + ": minTime [" + minTime + "] should not be before segmentFrom ["
                                     + segmentFrom + "] when non overlapping segments are used");
                 }
                 final FDate maxTime = updater.getMaxTime();
                 final FDate segmentTo = segmentedKey.getSegment().getTo();
-                if (maxTime.isAfter(segmentTo)) {
+                if (maxTime.isAfterNotNullSafe(segmentTo)) {
                     throw new IllegalStateException(segmentedKey + ": maxTime [" + maxTime
                             + "] should not be after segmentTo [" + segmentTo + "]");
                 }
@@ -785,11 +787,11 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         if (from == null || to == null) {
             return EmptyCloseableIterable.getInstance();
         }
-        final TimeRange nextSegment = segmentFinder.getCacheQuery().getValue(from.addMilliseconds(1));
+        final TimeRange nextSegment = segmentFinder.getCacheQuery().getValue(from.addPicoseconds(1));
         final FDate adjFrom;
         if (from.equalsNotNullSafe(lastAvailableSegmentTo) && nextSegment.getFrom().equalsNotNullSafe(from)) {
             //adjust for overlapping segments
-            adjFrom = from.addMilliseconds(-1);
+            adjFrom = from.addPicoseconds(-1);
         } else {
             adjFrom = from;
         }
@@ -803,7 +805,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
                     @Override
                     public boolean hasNext() {
-                        return nextSegment != null && nextSegment.getTo().isAfter(adjTo);
+                        return nextSegment != null && nextSegment.getTo().isAfterNotNullSafe(adjTo);
                     }
 
                     @Override
@@ -815,7 +817,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                         }
                         //get one segment earlier
                         nextSegment = segmentFinder.getCacheQueryWithFutureNull()
-                                .getValue(nextSegment.getFrom().addMilliseconds(-1));
+                                .getValue(nextSegment.getFrom().addPicoseconds(-1));
                         return curSegment;
                     }
 
@@ -831,14 +833,14 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             protected boolean skip(final TimeRange element) {
                 //though additionally skip ranges that exceed the available dates
                 final FDate segmentTo = element.getTo();
-                if (segmentTo.isBefore(adjTo)) {
+                if (segmentTo.isBeforeNotNullSafe(adjTo)) {
                     //no need to continue going lower
                     throw FastNoSuchElementException
                             .getInstance("ASegmentedTimeSeriesStorageCache getSegments end reached adjTo");
                 }
                 //skip last value and continue with earlier ones
                 final FDate segmentFrom = element.getFrom();
-                return segmentFrom.isAfter(adjFrom);
+                return segmentFrom.isAfterNotNullSafe(adjFrom);
             }
         };
         return filteredSegments;
@@ -940,7 +942,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 if (newValueIndex != -1L) {
                     final V newValue = segmentedTable.getLatestValue(segmentedKey, newValueIndex);
                     final FDate newValueTime = segmentedTable.extractEndTime(newValue);
-                    if (newValueTime.isBeforeOrEqualTo(date)) {
+                    if (newValueTime.isBeforeOrEqualToNotNullSafe(date)) {
                         /*
                          * even if we got the first value in this segment and it is after the desired key we just
                          * continue to the beginning to search for an earlier value until we reach the overall
@@ -1003,7 +1005,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                     final V newValue = segmentedTable.getLatestValue(segmentedKey, date);
                     if (newValue != null) {
                         final FDate newValueTime = segmentedTable.extractEndTime(newValue);
-                        if (newValueTime.isBeforeOrEqualTo(date)) {
+                        if (newValueTime.isBeforeOrEqualToNotNullSafe(date)) {
                             /*
                              * even if we got the first value in this segment and it is after the desired key we just
                              * continue to the beginning to search for an earlier value until we reach the overall
@@ -1104,7 +1106,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             return null;
         }
         final FDate firstTime = segmentedTable.extractEndTime(firstValue);
-        if (date.isBeforeOrEqualTo(firstTime)) {
+        if (date.isBeforeOrEqualToNotNullSafe(firstTime)) {
             return firstValue;
         } else {
             final long valueIndex = previousValueIndexLookupCache.get(new RangeShiftUnitsKey(date, shiftBackUnits));
@@ -1143,7 +1145,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         assertShiftUnitsPositiveNonZero(shiftBackUnits);
         final V firstValue = getFirstValue();
         final FDate firstTime = segmentedTable.extractEndTime(firstValue);
-        if (date.isBeforeOrEqualTo(firstTime)) {
+        if (date.isBeforeOrEqualToNotNullSafe(firstTime)) {
             return firstValue;
         } else {
             final SingleValue value = storage.getOrLoad_previousValueLookupTable(hashKey, date, shiftBackUnits, () -> {
@@ -1192,7 +1194,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             return null;
         }
         final FDate lastTime = segmentedTable.extractEndTime(lastValue);
-        if (date.isAfterOrEqualTo(lastTime)) {
+        if (date.isAfterOrEqualToNotNullSafe(lastTime)) {
             return lastValue;
         } else {
             final long valueIndex = nextValueIndexLookupCache.get(new RangeShiftUnitsKey(date, shiftForwardUnits));
@@ -1234,7 +1236,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             return null;
         }
         final FDate lastTime = segmentedTable.extractEndTime(lastValue);
-        if (date.isAfterOrEqualTo(lastTime)) {
+        if (date.isAfterOrEqualToNotNullSafe(lastTime)) {
             return lastValue;
         } else {
             final SingleValue value = storage.getOrLoad_nextValueLookupTable(hashKey, date, shiftForwardUnits, () -> {
@@ -1364,7 +1366,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             return lastAvailableSegmentTo.isAfterNotNullSafe(prevLastAvailableSegmentTo);
         } else {
             return !lastAvailableSegmentTo.equals(prevLastAvailableSegmentTo)
-                    && segmentToBeInitialized.getFrom().isAfter(prevLastAvailableSegmentTo);
+                    && segmentToBeInitialized.getFrom().isAfterNotNullSafe(prevLastAvailableSegmentTo);
         }
     }
 
@@ -1387,10 +1389,10 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key, null);
                 final ISegmentFinder segmentFinder = getSegmentFinder(key);
                 final TimeRange nextSegment = segmentFinder.getCacheQuery()
-                        .getValue(lastAvailableSegmentTo.addMilliseconds(1));
+                        .getValue(lastAvailableSegmentTo.addPicoseconds(1));
                 if (nextSegment.getFrom().equals(lastAvailableSegmentTo)) {
                     //adjust for overlapping segments
-                    lastAvailableSegmentTo = lastAvailableSegmentTo.addMilliseconds(-1);
+                    lastAvailableSegmentTo = lastAvailableSegmentTo.addPicoseconds(-1);
                 }
                 final TimeRange lastSegment = segmentFinder.getCacheQuery().getValue(lastAvailableSegmentTo);
                 TimeRange segment = segmentFinder.getCacheQuery().getValue(firstAvailableSegmentFrom);
@@ -1398,13 +1400,14 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                     throw new IllegalStateException("segment.from [" + segment.getFrom()
                             + "] should be equal to firstAvailableSegmentFrom [" + firstAvailableSegmentFrom + "]");
                 }
-                while (cachedFirstValueCopy == null && segment.getFrom().isBeforeOrEqualTo(lastSegment.getFrom())) {
+                while (cachedFirstValueCopy == null
+                        && segment.getFrom().isBeforeOrEqualToNotNullSafe(lastSegment.getFrom())) {
                     final SegmentedKey<K> segmentedKey = new SegmentedKey<K>(key, segment);
                     maybeInitSegment(segmentedKey);
                     final V potentialFirstValue = segmentedTable.getLookupTableCache(segmentedKey).getFirstValue();
                     final V firstValue;
                     if (potentialFirstValue == null) {
-                        segment = segmentFinder.getCacheQuery().getValue(segment.getTo().addMilliseconds(1));
+                        segment = segmentFinder.getCacheQuery().getValue(segment.getTo().addPicoseconds(1));
                     } else {
                         firstValue = potentialFirstValue;
                         cachedFirstValueCopy = Optional.of(firstValue);
@@ -1453,7 +1456,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 if (lastAvailableSegmentTo == null) {
                     return false;
                 }
-                final long currentNanos = System.nanoTime();
+                final long currentNanos = FDateNanos.elapsedNanos();
                 if (TimeSeriesProperties.ACQUIRE_UPDATE_LOCK_TIMEOUT
                         .isGreaterThanNanos(currentNanos - lookupByIndexAvailableFutureLastRunNanos)) {
                     return false;
@@ -1465,7 +1468,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                         try {
                             final ISegmentFinder segmentFinder = getSegmentFinder(key);
                             final TimeRange lastAvailableSegment = segmentFinder.getCacheQueryWithFuture()
-                                    .getValue(lastAvailableSegmentTo.addMilliseconds(-1));
+                                    .getValue(lastAvailableSegmentTo.addPicoseconds(-1));
                             getPrecedingValueCount(new SegmentedKey<K>(key, lastAvailableSegment));
                             synchronized (precedingValueCountCache) {
                                 lookupByIndexAvailable = true;

@@ -122,7 +122,7 @@ public class InfluxDBPerformanceTest extends ATest {
                                         final FDate value = new FDate(valueDouble.longValue());
                                         final FDate prevValue = prevValueRef.get();
                                         if (prevValue != null) {
-                                            Assertions.checkTrue(prevValue.isBefore(value));
+                                            Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                                         }
                                         prevValueRef.set(value);
                                         count.incrementAndGet();
@@ -205,7 +205,7 @@ public class InfluxDBPerformanceTest extends ATest {
                 final Double valueDouble = (Double) series.get(result).get(0);
                 final FDate value = new FDate(valueDouble.longValue());
                 if (prevValue != null) {
-                    Assertions.checkTrue(prevValue.isBefore(value));
+                    Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                 }
                 prevValue = value;
                 count++;
@@ -237,7 +237,7 @@ public class InfluxDBPerformanceTest extends ATest {
     }
 
     private ICloseableIterable<FDate> newValues() {
-        final FDate reference = new FDate();
+        final FDate reference = FDate.now();
         return FDates.iterable(reference, reference.addMilliseconds(VALUES - 1), FTimeUnit.MILLISECONDS, 1);
     }
 

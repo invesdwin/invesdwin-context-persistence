@@ -43,7 +43,7 @@ public class ConfiguredHikariCPDataSource extends ADelegateDataSource implements
         config.setPassword(context.getConnectionPassword());
         config.setDriverClassName(context.getConnectionDriver());
 
-        config.setIdleTimeout(new Duration(1, FTimeUnit.MINUTES).intValue(FTimeUnit.MILLISECONDS));
+        config.setIdleTimeout(new Duration(1, FTimeUnit.MINUTES).longValue(FTimeUnit.MILLISECONDS));
         config.setMaximumPoolSize(100);
         config.setMinimumIdle(1);
 

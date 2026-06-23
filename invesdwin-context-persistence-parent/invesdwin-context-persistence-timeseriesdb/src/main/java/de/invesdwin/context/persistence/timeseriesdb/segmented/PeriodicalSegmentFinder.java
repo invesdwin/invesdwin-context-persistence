@@ -20,10 +20,10 @@ import de.invesdwin.util.time.range.TimeRange;
 public class PeriodicalSegmentFinder {
 
     public static final TimeRange DUMMY_RANGE = new TimeRange(FDates.MIN_DATE, FDates.MAX_DATE);
-    public static final TimeRange BEFORE_DUMMY_RANGE = new TimeRange(FDates.MIN_DATE.addMilliseconds(-1),
-            FDates.MIN_DATE.addMilliseconds(-1));
-    public static final TimeRange AFTER_DUMMY_RANGE = new TimeRange(FDates.MAX_DATE.addMilliseconds(1),
-            FDates.MAX_DATE.addMilliseconds(1));
+    public static final TimeRange BEFORE_DUMMY_RANGE = new TimeRange(FDates.MIN_DATE.addPicoseconds(-1),
+            FDates.MIN_DATE.addPicoseconds(-1));
+    public static final TimeRange AFTER_DUMMY_RANGE = new TimeRange(FDates.MAX_DATE.addPicoseconds(1),
+            FDates.MAX_DATE.addPicoseconds(1));
 
     public static final AHistoricalCache<TimeRange> DUMMY_CACHE = new AHistoricalCache<TimeRange>() {
 
@@ -47,9 +47,9 @@ public class PeriodicalSegmentFinder {
         protected IEvaluateGenericFDate<TimeRange> newLoadValue() {
             return pKey -> {
                 final FDate key = pKey.asFDate();
-                if (key.isBefore(DUMMY_RANGE.getFrom())) {
+                if (key.isBeforeNotNullSafe(DUMMY_RANGE.getFrom())) {
                     return BEFORE_DUMMY_RANGE;
-                } else if (key.isAfter(DUMMY_RANGE.getTo())) {
+                } else if (key.isAfterNotNullSafe(DUMMY_RANGE.getTo())) {
                     return AFTER_DUMMY_RANGE;
                 } else {
                     return DUMMY_RANGE;
@@ -121,8 +121,8 @@ public class PeriodicalSegmentFinder {
     }
 
     public synchronized TimeRange getSegment(final FDate key) {
-        if (calculationBounds == null || calculationBounds.getFrom().isAfter(key)
-                || calculationBounds.getTo().isBefore(key)) {
+        if (calculationBounds == null || calculationBounds.getFrom().isAfterNotNullSafe(key)
+                || calculationBounds.getTo().isBeforeNotNullSafe(key)) {
             calculationBounds = newCalculationBounds(key);
             curTimeRange = null;
         }
@@ -132,19 +132,19 @@ public class PeriodicalSegmentFinder {
             curTimeRange = calculateNextTimeRange(calculationBounds.getFrom());
         }
 
-        if (curTimeRange.getFrom().isAfter(key)) {
+        if (curTimeRange.getFrom().isAfterNotNullSafe(key)) {
             do {
                 //go back a few steps
                 curTimeRange = calculatePrevTimeRange(curTimeRange.getFrom());
-            } while (curTimeRange.getFrom().isAfter(key));
-        } else if (curTimeRange.getTo().isBefore(key)) {
+            } while (curTimeRange.getFrom().isAfterNotNullSafe(key));
+        } else if (curTimeRange.getTo().isBeforeNotNullSafe(key)) {
             do {
                 //go forward a few steps
                 curTimeRange = calculateNextTimeRange(curTimeRange.getFrom());
-            } while (curTimeRange.getTo().isBefore(key));
+            } while (curTimeRange.getTo().isBeforeNotNullSafe(key));
         }
 
-        if (calculationBounds.getTo().isBefore(curTimeRange.getTo())) {
+        if (calculationBounds.getTo().isBeforeNotNullSafe(curTimeRange.getTo())) {
             curTimeRange = new TimeRange(curTimeRange.getFrom(), calculationBounds.getTo());
         }
 
@@ -153,13 +153,13 @@ public class PeriodicalSegmentFinder {
 
     private TimeRange calculateNextTimeRange(final FDate curTimeRangeFrom) {
         final FDate nextTimeRangeStart = incrementFunction.apply(curTimeRangeFrom);
-        final FDate nextTimeRangeEnd = incrementFunction.apply(nextTimeRangeStart).addMilliseconds(-1);
+        final FDate nextTimeRangeEnd = incrementFunction.apply(nextTimeRangeStart).addPicoseconds(-1);
         return new TimeRange(nextTimeRangeStart, nextTimeRangeEnd);
     }
 
     private TimeRange calculatePrevTimeRange(final FDate curTimeRangeFrom) {
         final FDate prevTimeRangeStart = decrementFunction.apply(curTimeRangeFrom);
-        final FDate prevTimeRangeEnd = curTimeRangeFrom.addMilliseconds(-1);
+        final FDate prevTimeRangeEnd = curTimeRangeFrom.addPicoseconds(-1);
         return new TimeRange(prevTimeRangeStart, prevTimeRangeEnd);
     }
 
@@ -169,7 +169,7 @@ public class PeriodicalSegmentFinder {
             //weekly periods should start at the previous monday (even if it is in the previous year)
             start = start.setFWeekday(FWeekday.Monday, WeekAdjustment.PREVIOUS);
         }
-        final FDate end = start.add(boundsTimeUnit, 1).addMilliseconds(-1);
+        final FDate end = start.add(boundsTimeUnit, 1).addPicoseconds(-1);
         return new TimeRange(start, end);
     }
 
@@ -312,12 +312,12 @@ public class PeriodicalSegmentFinder {
 
             @Override
             protected FDate innerCalculateNextKey(final FDate key) {
-                return query().getValue(key).getTo().addMilliseconds(1);
+                return query().getValue(key).getTo().addPicoseconds(1);
             }
 
             @Override
             protected FDate innerCalculatePreviousKey(final FDate key) {
-                return query().getValue(key).getFrom().addMilliseconds(-1);
+                return query().getValue(key).getFrom().addPicoseconds(-1);
             }
 
             @Override

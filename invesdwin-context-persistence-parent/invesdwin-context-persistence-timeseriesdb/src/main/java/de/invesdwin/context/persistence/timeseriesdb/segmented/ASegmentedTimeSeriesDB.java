@@ -208,8 +208,8 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
     @Override
     public final String hashKeyToString(final SegmentedKey<K> key) {
         return ASegmentedTimeSeriesDB.this.hashKeyToString(key.getKey()) + "/"
-                + key.getSegment().getFrom().toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_MS) + "-"
-                + key.getSegment().getTo().toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_MS);
+                + key.getSegment().getFrom().toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_PS) + "-"
+                + key.getSegment().getTo().toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_PS);
     }
 
     public abstract FDate getFirstAvailableHistoricalSegmentFrom(K key);
@@ -296,9 +296,9 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            if (date == null || date.isAfterOrEqualTo(FDates.MAX_DATE)) {
+            if (date == null || date.isAfterOrEqualToNotNullSafe(FDates.MAX_DATE)) {
                 return getSegmentedLookupTableCache(key).getLastValue();
-            } else if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
+            } else if (date.isBeforeOrEqualToNotNullSafe(FDates.MIN_DATE)) {
                 return getSegmentedLookupTableCache(key).getFirstValue();
             } else {
                 return getSegmentedLookupTableCache(key).getLatestValue(date);
@@ -351,9 +351,9 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            if (date == null || date.isAfterOrEqualTo(FDates.MAX_DATE)) {
+            if (date == null || date.isAfterOrEqualToNotNullSafe(FDates.MAX_DATE)) {
                 return getSegmentedLookupTableCache(key).size() - 1;
-            } else if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
+            } else if (date.isBeforeOrEqualToNotNullSafe(FDates.MIN_DATE)) {
                 if (getSegmentedLookupTableCache(key).size() == 0) {
                     return -1L;
                 } else {
@@ -406,7 +406,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         try {
             if (date == null) {
                 return null;
-            } else if (date.isBeforeOrEqualTo(FDates.MIN_DATE)) {
+            } else if (date.isBeforeOrEqualToNotNullSafe(FDates.MIN_DATE)) {
                 return getSegmentedLookupTableCache(key).getFirstValue();
             } else {
                 return getSegmentedLookupTableCache(key).getPreviousValue(date, shiftBackUnits);
@@ -431,7 +431,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            if (date == null || date.isAfterOrEqualTo(FDates.MAX_DATE)) {
+            if (date == null || date.isAfterOrEqualToNotNullSafe(FDates.MAX_DATE)) {
                 return getSegmentedLookupTableCache(key).getLastValue();
             } else {
                 return getSegmentedLookupTableCache(key).getNextValue(date, shiftForwardUnits);

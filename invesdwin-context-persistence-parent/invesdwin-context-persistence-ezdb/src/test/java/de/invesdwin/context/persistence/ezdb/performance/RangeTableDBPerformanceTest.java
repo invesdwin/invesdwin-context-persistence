@@ -101,7 +101,7 @@ public class RangeTableDBPerformanceTest extends ADatabasePerformanceTest {
                 try {
                     final FDate value = range.next();
                     if (prevValue != null) {
-                        Assertions.checkTrue(prevValue.isBefore(value));
+                        Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                     }
                     prevValue = value;
                     count++;
@@ -127,7 +127,7 @@ public class RangeTableDBPerformanceTest extends ADatabasePerformanceTest {
                 try {
                     final FDate value = table.get(HASH_KEY, values.get(i));
                     if (prevValue != null) {
-                        Assertions.checkTrue(prevValue.isBefore(value));
+                        Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                     }
                     prevValue = value;
                 } catch (final NoSuchElementException e) {
@@ -151,7 +151,7 @@ public class RangeTableDBPerformanceTest extends ADatabasePerformanceTest {
                 try {
                     final FDate value = table.getLatestValue(HASH_KEY, values.get(i));
                     if (prevValue != null) {
-                        Assertions.checkTrue(prevValue.isBefore(value));
+                        Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                     }
                     prevValue = value;
                 } catch (final NoSuchElementException e) {

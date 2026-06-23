@@ -94,7 +94,7 @@ public final class LazyDataUpdaterProperties {
     }
 
     public static FDate setUpdateLimitTo() {
-        return setUpdateLimitTo(new FDate().withoutTime());
+        return setUpdateLimitTo(FDate.now().withoutTime());
     }
 
     /**

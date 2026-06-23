@@ -101,7 +101,7 @@ public class DerbyPerformanceTest extends ADatabasePerformanceTest {
                 while (results.next()) {
                     final FDate value = new FDate(results.getLong(1));
                     if (prevValue != null) {
-                        Assertions.checkTrue(prevValue.isBefore(value));
+                        Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                     }
                     prevValue = value;
                     count++;
@@ -131,7 +131,7 @@ public class DerbyPerformanceTest extends ADatabasePerformanceTest {
                         Assertions.checkTrue(results.next());
                         final FDate value = new FDate(results.getLong(1));
                         if (prevValue != null) {
-                            Assertions.checkTrue(prevValue.isBefore(value));
+                            Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                         }
                         prevValue = value;
                         count++;
@@ -162,7 +162,7 @@ public class DerbyPerformanceTest extends ADatabasePerformanceTest {
                         Assertions.checkTrue(results.next());
                         final FDate value = new FDate(results.getLong(1));
                         if (prevValue != null) {
-                            Assertions.checkTrue(prevValue.isBefore(value));
+                            Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                         }
                         prevValue = value;
                         count++;

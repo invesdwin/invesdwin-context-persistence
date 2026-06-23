@@ -67,6 +67,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
     private volatile FDate tableCreationTime;
 
     private final AtomicBoolean initializing = new AtomicBoolean();
+    private final AtomicBoolean deleteRequested = new AtomicBoolean();
 
     public ADelegateRangeTable(final String name) {
         this.name = name;
@@ -231,13 +232,14 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
     }
 
     private void maybePurgeTable() {
-        if (!initializing.get() && shouldPurgeTable()) {
+        if (!initializing.get() && (deleteRequested.get() || shouldPurgeTable())) {
             //only purge if currently not used, might happen due to recursive computeIfAbsent with different loading functions
             if (tableLock.writeLock().tryLock()) {
                 try {
                     //condition could have changed since lock has been acquired
-                    if (!initializing.get() && shouldPurgeTable()) {
+                    if (!initializing.get() && (deleteRequested.get() || shouldPurgeTable())) {
                         innerDeleteTable();
+                        deleteRequested.set(false);
                     }
                 } finally {
                     tableLock.writeLock().unlock();
@@ -264,7 +266,7 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
                 if (getPersistenceMode().isDisk()) {
                     Files.touchQuietly(timestampFile);
                 }
-                tableCreationTime = new FDate();
+                tableCreationTime = FDate.now();
             }
             try {
                 tableFinalizer.table = db.getRangeTable(name);
@@ -302,11 +304,14 @@ public abstract class ADelegateRangeTable<H, R, V> implements IDelegateRangeTabl
 
     @Override
     public void deleteTable() {
-        tableLock.writeLock().lock();
-        try {
-            innerDeleteTable();
-        } finally {
-            tableLock.writeLock().unlock();
+        if (tableLock.writeLock().tryLock()) {
+            try {
+                innerDeleteTable();
+            } finally {
+                tableLock.writeLock().unlock();
+            }
+        } else {
+            deleteRequested.set(true);
         }
     }
 

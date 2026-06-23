@@ -81,7 +81,7 @@ public class LsmTreePerformanceTest extends ADatabasePerformanceTest {
                 try {
                     final FDate value = range.next().getValue();
                     if (prevValue != null) {
-                        Assertions.checkTrue(prevValue.isBefore(value));
+                        Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                     }
                     prevValue = value;
                     count++;
@@ -107,7 +107,7 @@ public class LsmTreePerformanceTest extends ADatabasePerformanceTest {
                 try {
                     final FDate value = table.get(values.get(i));
                     if (prevValue != null) {
-                        Assertions.checkTrue(prevValue.isBefore(value));
+                        Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                     }
                     prevValue = value;
                 } catch (final NoSuchElementException e) {
@@ -132,7 +132,7 @@ public class LsmTreePerformanceTest extends ADatabasePerformanceTest {
                     final Store.Entry<FDate, FDate> entry = table.floor(values.get(i));
                     final FDate value = entry.getValue();
                     if (prevValue != null) {
-                        Assertions.checkTrue(prevValue.isBefore(value));
+                        Assertions.checkTrue(prevValue.isBeforeNotNullSafe(value));
                     }
                     prevValue = value;
                 } catch (final NoSuchElementException e) {

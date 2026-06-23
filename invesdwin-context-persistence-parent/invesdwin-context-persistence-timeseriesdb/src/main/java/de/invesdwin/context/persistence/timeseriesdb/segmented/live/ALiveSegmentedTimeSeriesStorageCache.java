@@ -162,7 +162,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
                             historicalSegmentTable.getTableLock(key).readLock());
                     final ICloseableIterable<V> historicalRangeValues = historicalSegmentTable
                             .getSegmentedLookupTableCache(key)
-                            .readRangeValues(from, liveSegmentFrom.addMilliseconds(-1), compositeReadLock,
+                            .readRangeValues(from, liveSegmentFrom.addPicoseconds(-1), compositeReadLock,
                                     skipFileFunction);
                     final ICloseableIterable<V> liveRangeValues = liveSegment.rangeValues(liveSegmentFrom, to, readLock,
                             skipFileFunction);
@@ -203,7 +203,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
                             historicalSegmentTable.getTableLock(key).readLock());
                     final ICloseableIterable<V> historicalRangeValues = historicalSegmentTable
                             .getSegmentedLookupTableCache(key)
-                            .readRangeValuesReverse(liveSegmentFrom.addMilliseconds(-1), to, compositeReadLock,
+                            .readRangeValuesReverse(liveSegmentFrom.addPicoseconds(-1), to, compositeReadLock,
                                     skipFileFunction);
                     return new FlatteningIterable<V>(liveRangeValues, historicalRangeValues);
                 }
@@ -223,7 +223,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
             final V newValue = latestValueProvider.apply(date);
             if (newValue != null) {
                 final FDate newValueTime = historicalSegmentTable.extractEndTime(newValue);
-                if (newValueTime.isBeforeOrEqualTo(date)) {
+                if (newValueTime.isBeforeOrEqualToNotNullSafe(date)) {
                     /*
                      * even if we got the first value in this segment and it is after the desired key we just continue
                      * to the beginning to search for an earlier value until we reach the overall firstValue
@@ -261,7 +261,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
             if (newValueIndex != -1L) {
                 final V newValue = getLatestValue(newValueIndex);
                 final FDate newValueTime = historicalSegmentTable.extractEndTime(newValue);
-                if (newValueTime.isBeforeOrEqualTo(date)) {
+                if (newValueTime.isBeforeOrEqualToNotNullSafe(date)) {
                     /*
                      * even if we got the first value in this segment and it is after the desired key we just continue
                      * to the beginning to search for an earlier value until we reach the overall firstValue
@@ -314,7 +314,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
         if (liveSegment == null) {
             //no live segment, go with historical
             return historicalSegmentTable.getPreviousValue(key, date, shiftBackUnits);
-        } else if (liveSegment.getSegmentedKey().getSegment().getFrom().isAfter(date)) {
+        } else if (liveSegment.getSegmentedKey().getSegment().getFrom().isAfterNotNullSafe(date)) {
             //live segment is after requested range, go with historical
             return historicalSegmentTable.getPreviousValue(key, date, shiftBackUnits);
         } else {
@@ -338,7 +338,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
         if (liveSegment == null) {
             //no live segment, go with historical
             return historicalSegmentTable.getPreviousValue(key, date, shiftBackUnits);
-        } else if (liveSegment.getSegmentedKey().getSegment().getFrom().isAfter(date)) {
+        } else if (liveSegment.getSegmentedKey().getSegment().getFrom().isAfterNotNullSafe(date)) {
             //live segment is after requested range, go with historical
             return historicalSegmentTable.getPreviousValue(key, date, shiftBackUnits);
         } else {
@@ -386,7 +386,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
         if (liveSegment == null) {
             //no live segment, go with historical
             return historicalSegmentTable.getNextValue(key, date, shiftForwardUnits);
-        } else if (liveSegment.getSegmentedKey().getSegment().getFrom().isBefore(date)) {
+        } else if (liveSegment.getSegmentedKey().getSegment().getFrom().isBeforeNotNullSafe(date)) {
             //live segment is after requested range, go with live
             final V nextValue = liveSegment.getNextValue(date, shiftForwardUnits);
             return nextValue;
@@ -411,7 +411,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
         if (liveSegment == null) {
             //no live segment, go with historical
             return historicalSegmentTable.getNextValue(key, date, shiftForwardUnits);
-        } else if (liveSegment.getSegmentedKey().getSegment().getFrom().isBefore(date)) {
+        } else if (liveSegment.getSegmentedKey().getSegment().getFrom().isBeforeNotNullSafe(date)) {
             //live segment is after requested range, go with live
             final V nextValue = liveSegment.getNextValue(date, shiftForwardUnits);
             return nextValue;

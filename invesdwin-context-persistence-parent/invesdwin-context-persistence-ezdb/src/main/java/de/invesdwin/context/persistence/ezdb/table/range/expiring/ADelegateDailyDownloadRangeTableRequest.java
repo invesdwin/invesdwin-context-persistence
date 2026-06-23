@@ -110,8 +110,7 @@ public abstract class ADelegateDailyDownloadRangeTableRequest<K, V>
         }
     }
 
-    protected void afterUpdate() {
-    }
+    protected void afterUpdate() {}
 
     protected abstract K extractKey(V value);
 
@@ -129,7 +128,7 @@ public abstract class ADelegateDailyDownloadRangeTableRequest<K, V>
     }
 
     protected FDate getNow() {
-        return new FDate();
+        return FDate.now();
     }
 
     protected DailyDownloadCache newDailyDownloadCache() {
