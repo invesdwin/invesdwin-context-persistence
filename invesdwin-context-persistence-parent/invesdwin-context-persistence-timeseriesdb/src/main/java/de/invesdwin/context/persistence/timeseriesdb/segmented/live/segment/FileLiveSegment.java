@@ -8,7 +8,6 @@ import java.io.OutputStream;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.NoSuchElementException;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
@@ -27,9 +26,7 @@ import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSer
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
-import de.invesdwin.util.collections.Collections;
 import de.invesdwin.util.collections.array.primitive.circular.CircularGenericPrimitiveArrayQueue;
-import de.invesdwin.util.collections.eviction.EvictionMode;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -57,8 +54,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     private static final boolean LARGE_COMPRESSOR = false;
     private static final int LAST_VALUE_HISTORY = 3;
     private static final Log LOG = new Log(FileLiveSegment.class);
-    private final Set<FDate> nextLiveStartTime_lastWarnings = Collections
-            .newSetFromMap(EvictionMode.LeastRecentlyAdded.newMap(10));
+    private final ThrottledLiveKeyWarning throttledLiveKeyWarning = new ThrottledLiveKeyWarning(LOG);
     private final String hashKey;
     private final SegmentedKey<K> segmentedKey;
     private final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable;
@@ -298,10 +294,7 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         LastValue<V> lastValue = lastValues.getReverse(0);
         if (!lastValue.values.isEmpty()) {
             if (lastValue.key.isAfterNotNullSafe(nextLiveStartTime)) {
-                if (nextLiveStartTime_lastWarnings.add(nextLiveStartTime)) {
-                    LOG.warn("nextLiveStartTime [%s] should be after or equal to lastLiveKey [%s]: %s",
-                            nextLiveStartTime, lastValue.key, segmentedKey);
-                }
+                throttledLiveKeyWarning.maybeWarn(nextLiveStartTime, lastValue.key, segmentedKey);
                 return false;
             }
         }
