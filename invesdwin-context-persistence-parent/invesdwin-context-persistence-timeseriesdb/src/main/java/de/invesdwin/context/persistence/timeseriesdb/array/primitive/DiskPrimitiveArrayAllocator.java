@@ -23,8 +23,12 @@ import de.invesdwin.util.collections.array.primitive.buffer.BufferIntegerPrimiti
 import de.invesdwin.util.collections.array.primitive.buffer.BufferLongPrimitiveArray;
 import de.invesdwin.util.collections.attributes.AttributesMap;
 import de.invesdwin.util.collections.attributes.IAttributesMap;
+import de.invesdwin.util.concurrent.Executors;
+import de.invesdwin.util.concurrent.WrappedExecutorService;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
+import de.invesdwin.util.concurrent.nested.ANestedExecutor;
+import de.invesdwin.util.concurrent.nested.INestedExecutor;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.UUIDs;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
@@ -236,6 +240,11 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
     }
 
     @Override
+    public INestedExecutor getExecutor() {
+        return finalizer.executor;
+    }
+
+    @Override
     public boolean isOnHeap(final int size) {
         return false;
     }
@@ -245,9 +254,16 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
         private DiskPrimitiveArrayPersistentMap<String> map;
         private AttributesMap attributes;
         private IProperties properties;
+        private INestedExecutor executor;
 
         private DiskPrimitiveArrayAllocatorFinalizer(final String name, final File directory) {
             this.map = new DiskPrimitiveArrayPersistentMap<>(name, directory);
+            this.executor = new ANestedExecutor(DiskPrimitiveArrayAllocator.class.getSimpleName() + "_" + name) {
+                @Override
+                protected WrappedExecutorService newNestedExecutor(final String nestedName) {
+                    return Executors.newFixedCallerRunsThreadPool(nestedName, Executors.getCpuThreadPoolCount());
+                }
+            };
         }
 
         @Override
@@ -256,6 +272,11 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
             if (mapCopy != null) {
                 mapCopy.close();
                 map = null;
+            }
+            final INestedExecutor executorCopy = executor;
+            if (executorCopy != null) {
+                executorCopy.close();
+                executor = null;
             }
             attributes = null;
             properties = null;

@@ -23,8 +23,12 @@ import de.invesdwin.util.collections.array.large.buffer.BufferIntegerLargeArray;
 import de.invesdwin.util.collections.array.large.buffer.BufferLongLargeArray;
 import de.invesdwin.util.collections.attributes.AttributesMap;
 import de.invesdwin.util.collections.attributes.IAttributesMap;
+import de.invesdwin.util.concurrent.Executors;
+import de.invesdwin.util.concurrent.WrappedExecutorService;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
+import de.invesdwin.util.concurrent.nested.ANestedExecutor;
+import de.invesdwin.util.concurrent.nested.INestedExecutor;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.UUIDs;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
@@ -235,6 +239,11 @@ public class DiskLargeArrayAllocator implements ILargeArrayAllocator, Closeable 
     }
 
     @Override
+    public INestedExecutor getExecutor() {
+        return finalizer.executor;
+    }
+
+    @Override
     public boolean isOnHeap(final long size) {
         return false;
     }
@@ -244,9 +253,16 @@ public class DiskLargeArrayAllocator implements ILargeArrayAllocator, Closeable 
         private DiskLargeArrayPersistentMap<String> map;
         private AttributesMap attributes;
         private IProperties properties;
+        private INestedExecutor executor;
 
         private DiskLargeArrayAllocatorFinalizer(final String name, final File directory) {
             this.map = new DiskLargeArrayPersistentMap<>(name, directory);
+            this.executor = new ANestedExecutor(DiskLargeArrayAllocator.class.getSimpleName() + "_" + name) {
+                @Override
+                protected WrappedExecutorService newNestedExecutor(final String nestedName) {
+                    return Executors.newFixedCallerRunsThreadPool(nestedName, Executors.getCpuThreadPoolCount());
+                }
+            };
         }
 
         @Override
@@ -255,6 +271,11 @@ public class DiskLargeArrayAllocator implements ILargeArrayAllocator, Closeable 
             if (mapCopy != null) {
                 mapCopy.close();
                 map = null;
+            }
+            final INestedExecutor executorCopy = executor;
+            if (executorCopy != null) {
+                executorCopy.close();
+                executor = null;
             }
             attributes = null;
             properties = null;

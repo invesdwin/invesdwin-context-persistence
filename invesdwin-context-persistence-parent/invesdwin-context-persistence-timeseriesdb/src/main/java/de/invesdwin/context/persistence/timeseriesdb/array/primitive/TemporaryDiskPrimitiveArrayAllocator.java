@@ -15,6 +15,7 @@ import de.invesdwin.util.collections.array.primitive.ILongPrimitiveArray;
 import de.invesdwin.util.collections.array.primitive.bitset.IPrimitiveBitSet;
 import de.invesdwin.util.collections.attributes.IAttributesMap;
 import de.invesdwin.util.concurrent.lock.ILock;
+import de.invesdwin.util.concurrent.nested.INestedExecutor;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
@@ -165,6 +166,11 @@ public class TemporaryDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllo
     @Override
     public ILock getLock(final String id) {
         return getDelegate().getLock(id);
+    }
+
+    @Override
+    public INestedExecutor getExecutor() {
+        return getDelegate().getExecutor();
     }
 
     @Override
