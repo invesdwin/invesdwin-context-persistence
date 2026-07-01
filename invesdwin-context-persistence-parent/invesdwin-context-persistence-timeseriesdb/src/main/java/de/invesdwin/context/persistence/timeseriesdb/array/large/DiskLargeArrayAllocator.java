@@ -6,6 +6,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import de.invesdwin.context.system.array.base.ArrayAllocators;
 import de.invesdwin.context.system.array.large.ILargeArrayAllocator;
 import de.invesdwin.context.system.properties.CachingDelegateProperties;
 import de.invesdwin.context.system.properties.FileProperties;
@@ -23,11 +24,8 @@ import de.invesdwin.util.collections.array.large.buffer.BufferIntegerLargeArray;
 import de.invesdwin.util.collections.array.large.buffer.BufferLongLargeArray;
 import de.invesdwin.util.collections.attributes.AttributesMap;
 import de.invesdwin.util.collections.attributes.IAttributesMap;
-import de.invesdwin.util.concurrent.Executors;
-import de.invesdwin.util.concurrent.WrappedExecutorService;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
-import de.invesdwin.util.concurrent.nested.ANestedExecutor;
 import de.invesdwin.util.concurrent.nested.INestedExecutor;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.UUIDs;
@@ -257,12 +255,8 @@ public class DiskLargeArrayAllocator implements ILargeArrayAllocator, Closeable 
 
         private DiskLargeArrayAllocatorFinalizer(final String name, final File directory) {
             this.map = new DiskLargeArrayPersistentMap<>(name, directory);
-            this.executor = new ANestedExecutor(DiskLargeArrayAllocator.class.getSimpleName() + "_" + name) {
-                @Override
-                protected WrappedExecutorService newNestedExecutor(final String nestedName) {
-                    return Executors.newFixedCallerRunsThreadPool(nestedName, Executors.getCpuThreadPoolCount());
-                }
-            };
+            this.executor = ArrayAllocators
+                    .newDefaultExecutor(DiskLargeArrayAllocator.class.getSimpleName() + "_" + name);
         }
 
         @Override

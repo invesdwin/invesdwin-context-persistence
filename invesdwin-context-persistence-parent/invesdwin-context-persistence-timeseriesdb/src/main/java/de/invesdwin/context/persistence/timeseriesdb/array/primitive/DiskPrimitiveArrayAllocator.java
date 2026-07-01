@@ -6,6 +6,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import de.invesdwin.context.system.array.base.ArrayAllocators;
 import de.invesdwin.context.system.array.primitive.IPrimitiveArrayAllocator;
 import de.invesdwin.context.system.properties.CachingDelegateProperties;
 import de.invesdwin.context.system.properties.FileProperties;
@@ -23,11 +24,8 @@ import de.invesdwin.util.collections.array.primitive.buffer.BufferIntegerPrimiti
 import de.invesdwin.util.collections.array.primitive.buffer.BufferLongPrimitiveArray;
 import de.invesdwin.util.collections.attributes.AttributesMap;
 import de.invesdwin.util.collections.attributes.IAttributesMap;
-import de.invesdwin.util.concurrent.Executors;
-import de.invesdwin.util.concurrent.WrappedExecutorService;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
-import de.invesdwin.util.concurrent.nested.ANestedExecutor;
 import de.invesdwin.util.concurrent.nested.INestedExecutor;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.UUIDs;
@@ -258,12 +256,8 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
 
         private DiskPrimitiveArrayAllocatorFinalizer(final String name, final File directory) {
             this.map = new DiskPrimitiveArrayPersistentMap<>(name, directory);
-            this.executor = new ANestedExecutor(DiskPrimitiveArrayAllocator.class.getSimpleName() + "_" + name) {
-                @Override
-                protected WrappedExecutorService newNestedExecutor(final String nestedName) {
-                    return Executors.newFixedCallerRunsThreadPool(nestedName, Executors.getCpuThreadPoolCount());
-                }
-            };
+            this.executor = ArrayAllocators
+                    .newDefaultExecutor(DiskPrimitiveArrayAllocator.class.getSimpleName() + "_" + name);
         }
 
         @Override
