@@ -6,10 +6,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import de.invesdwin.context.integration.persistentmap.PersistentMapProperties;
+import de.invesdwin.context.persistence.timeseriesdb.PersistentMapType;
 import de.invesdwin.context.system.array.base.ArrayAllocators;
 import de.invesdwin.context.system.array.primitive.IPrimitiveArrayAllocator;
 import de.invesdwin.context.system.properties.CachingDelegateProperties;
-import de.invesdwin.context.system.properties.FileProperties;
 import de.invesdwin.context.system.properties.IProperties;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.array.primitive.IBooleanPrimitiveArray;
@@ -201,15 +202,17 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
         if (finalizer.properties == null) {
             synchronized (this) {
                 if (finalizer.properties == null) {
-                    finalizer.properties = new CachingDelegateProperties(new FileProperties(newPropertiesFile()));
+                    finalizer.properties = new CachingDelegateProperties(new PersistentMapProperties(
+                            finalizer.map.getName() + "_properties", PersistentMapType.DISK_SAFE.newFactory()) {
+                        @Override
+                        protected File getBaseDirectory() {
+                            return DiskPrimitiveArrayAllocator.this.getDirectory();
+                        }
+                    });
                 }
             }
         }
         return finalizer.properties;
-    }
-
-    private File newPropertiesFile() {
-        return new File(getDirectory(), finalizer.map.getName() + ".properties");
     }
 
     @Override
