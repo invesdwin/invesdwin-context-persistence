@@ -2,7 +2,7 @@
 <Configuration>
 
     <Appenders>
-        <ConfiguredFileAppender name="persistence" />
+        <ConfiguredFile name="persistence" />
     </Appenders>
 
     <Loggers>
