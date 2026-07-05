@@ -1,0 +1,12 @@
+<Configuration>
+
+	<Loggers>
+		<Logger name="org.mapdb.volume.Volume" additivity="false" level="ERROR">
+			<AppenderRef ref="stdout" />
+			<AppenderRef ref="stderr" />
+			<AppenderRef ref="common" />
+			<AppenderRef ref="error" />
+		</Logger>
+	</Loggers>
+
+</Configuration>
