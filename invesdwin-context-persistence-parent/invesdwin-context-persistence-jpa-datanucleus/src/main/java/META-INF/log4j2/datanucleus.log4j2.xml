@@ -1,0 +1,20 @@
+<Configuration>
+
+    <Loggers>
+        <Logger name="DataNucleus.Datastore.Native" level="DEBUG" additivity="false">
+            <AppenderRef ref="persistence" />
+        </Logger>
+
+        <Logger name="DataNucleus.Datastore.Schema" level="DEBUG" additivity="false">
+            <AppenderRef ref="persistence" />
+        </Logger>
+        
+        <Logger name="DataNucleus.Enhancer" level="OFF" additivity="false">
+            <AppenderRef ref="stdout" />
+            <AppenderRef ref="stderr" />
+            <AppenderRef ref="common" />
+            <AppenderRef ref="error" />
+        </Logger>
+    </Loggers>
+
+</Configuration>

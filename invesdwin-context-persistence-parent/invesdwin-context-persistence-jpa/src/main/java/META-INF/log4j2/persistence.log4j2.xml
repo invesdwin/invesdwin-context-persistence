@@ -1,0 +1,24 @@
+<!-- Use the 'packages' attribute to point to the package containing your custom Appender plugin -->
+<Configuration>
+
+    <Appenders>
+        <ConfiguredFileAppender name="persistence" />
+    </Appenders>
+
+    <Loggers>
+        <Logger name="p6spy" level="INFO" additivity="false">
+            <AppenderRef ref="persistence" />
+        </Logger>
+        
+        <Logger name="de.invesdwin.SQL_ERROR" level="INFO" additivity="false">
+            <AppenderRef ref="persistence" />
+        </Logger>
+        
+        <Logger name="de.invesdwin.context.persistence.jpa.test.internal.ProdPersistenceContextLocation" level="DEBUG" additivity="false">
+            <AppenderRef ref="persistence" />
+        </Logger>
+        
+        <Logger name="de.invesdwin.context.persistence.jpa.scanning.internal.RepositoryScanContextLocation" level="OFF" additivity="false" />
+    </Loggers>
+
+</Configuration>

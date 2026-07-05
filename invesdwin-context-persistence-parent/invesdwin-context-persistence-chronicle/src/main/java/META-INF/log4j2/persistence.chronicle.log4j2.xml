@@ -1,0 +1,13 @@
+<Configuration>
+
+    <Loggers>
+        <Logger name="net.openhft.chronicle.map.ChronicleMapBuilder" 
+                level="ERROR" 
+                additivity="true" />
+        
+        <Logger name="net.openhft.affinity.impl.VanillaCpuLayout" 
+                level="ERROR" 
+                additivity="true" />
+    </Loggers>
+
+</Configuration>
