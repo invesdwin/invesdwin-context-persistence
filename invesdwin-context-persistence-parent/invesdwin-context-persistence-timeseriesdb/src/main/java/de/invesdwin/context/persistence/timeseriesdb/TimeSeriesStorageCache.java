@@ -75,6 +75,7 @@ import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.math.Integers;
 import de.invesdwin.util.math.Longs;
 import de.invesdwin.util.streams.buffer.file.IMemoryMappedFile;
+import de.invesdwin.util.streams.buffer.memory.delegate.SegmentedMemoryBuffer;
 import de.invesdwin.util.streams.delegate.SimpleDelegateInputStream;
 import de.invesdwin.util.streams.pool.PooledFastByteArrayOutputStream;
 import de.invesdwin.util.streams.pool.buffered.BufferedFileDataInputStream;
@@ -486,14 +487,19 @@ public class TimeSeriesStorageCache<K, V> {
         if (key <= 0) {
             return rows.get(0);
         }
-        for (int i = 0; i < rows.size(); i++) {
-            final RangeTableRow<String, FDate, MemoryFileSummary> row = rows.get(i);
+        final int segmentIndex = SegmentedMemoryBuffer.getSegmentIndex(key,
+                ATimeSeriesUpdater.DEFAULT_BATCH_FLUSH_INTERVAL);
+        if (segmentIndex >= rows.size()) {
+            return rows.get(rows.size() - 1);
+        } else {
+            final RangeTableRow<String, FDate, MemoryFileSummary> row = rows.get(segmentIndex);
             final MemoryFileSummary summary = row.getValue();
-            if (summary.getPrecedingValueCount() <= key && key < summary.getCombinedValueCount()) {
-                return row;
+            if (!(summary.getPrecedingValueCount() <= key && key < summary.getCombinedValueCount())) {
+                throw new IllegalStateException("key [" + key + "] should be in the key range of the returned row ["
+                        + summary.getPrecedingValueCount() + " to " + summary.getCombinedValueCount() + "]: " + row);
             }
+            return row;
         }
-        return rows.get(rows.size() - 1);
     }
 
     protected ICloseableIterable<MemoryFileSummary> readRangeFilesReverse(final FDate from, final FDate to,
@@ -913,11 +919,8 @@ public class TimeSeriesStorageCache<K, V> {
             if (list.isEmpty()) {
                 cachedSizeCopy = 0;
             } else {
-                long size = 0;
-                for (int i = 0; i < list.size(); i++) {
-                    size += list.get(i).getValue().getValueCount();
-                }
-                cachedSizeCopy = size;
+                final MemoryFileSummary lastValue = list.get(list.size() - 1).getValue();
+                cachedSizeCopy = lastValue.getCombinedValueCount();
             }
             cachedSize = cachedSizeCopy;
         }
