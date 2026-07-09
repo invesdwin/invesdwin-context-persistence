@@ -2,9 +2,8 @@ package de.invesdwin.context.persistence.jpa.api.util;
 
 import javax.annotation.concurrent.Immutable;
 
-import org.slf4j.ext.XLogger.Level;
-
 import de.invesdwin.context.log.Log;
+import de.invesdwin.util.log.LogLevel;
 
 @Immutable
 public final class SqlErr {
@@ -14,7 +13,7 @@ public final class SqlErr {
     private SqlErr() {}
 
     public static void logSqlException(final Throwable t) {
-        LOG.catching(Level.WARN, t);
+        LOG.catching(LogLevel.WARN, t);
     }
 
 }
