@@ -25,8 +25,8 @@ import ezdb.table.Table;
 @ThreadSafe
 public final class RangeTableCloseManager {
 
-    private static final org.slf4j.ext.XLogger LOG = org.slf4j.ext.XLoggerFactory
-            .getXLogger(HistoricalCacheRefreshManager.class);
+    private static final org.apache.logging.log4j.Logger LOG = org.apache.logging.log4j.LogManager
+            .getLogger(HistoricalCacheRefreshManager.class);
 
     private static final ALoadingCache<String, Set<Table<?, ?>>> REGISTERED_CACHES = new ALoadingCache<String, Set<Table<?, ?>>>() {
 
@@ -54,8 +54,7 @@ public final class RangeTableCloseManager {
         });
     }
 
-    private RangeTableCloseManager() {
-    }
+    private RangeTableCloseManager() {}
 
     public static synchronized boolean register(final Table<?, ?> cache) {
         final Set<Table<?, ?>> caches = REGISTERED_CACHES.get(cache.toString());
