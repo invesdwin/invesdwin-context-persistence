@@ -73,7 +73,7 @@
 		<version.chronicle-map>2026.1</version.chronicle-map>
 
 		<version.tkrzw-java>0.1.27</version.tkrzw-java>
-		<version.duckdb>0.3.1</version.duckdb>
+		<version.duckdb>1.5.4.0</version.duckdb>
 		<version.sqlite>3.44.1.0</version.sqlite>
 		<version.derby>10.17.1.0</version.derby>
 		<version.h2>2.2.224</version.h2>
