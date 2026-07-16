@@ -159,6 +159,11 @@ public abstract class ADelegateTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V>
     }
 
     @Override
+    public int getBatchFlushInterval() {
+        return delegate.getBatchFlushInterval();
+    }
+
+    @Override
     public FDate extractStartTime(final V value) {
         return delegate.extractStartTime(value);
     }

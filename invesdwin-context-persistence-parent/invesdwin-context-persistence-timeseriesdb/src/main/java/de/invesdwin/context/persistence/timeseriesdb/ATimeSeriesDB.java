@@ -14,6 +14,7 @@ import de.invesdwin.context.integration.persistentmap.CorruptedStorageException;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
+import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -42,6 +43,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     private final Supplier<Integer> valueFixedLength;
     private final ICompressionFactory compressionFactory;
     private final TimeSeriesLookupMode lookupMode;
+    private final int batchFlushInterval;
     private final File directory;
     private final ALoadingCache<K, TimeSeriesStorageCache<K, V>> key_lookupTableCache;
     private final ALoadingCache<K, IReentrantReadWriteLock> key_tableLock = new ALoadingCache<K, IReentrantReadWriteLock>() {
@@ -77,6 +79,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         };
         this.compressionFactory = newCompressionFactory();
         this.lookupMode = newLookupMode();
+        this.batchFlushInterval = newBatchFlushInterval();
         final File baseDirectory = getBaseDirectory();
         if (baseDirectory == null) {
             throw new RetryLaterRuntimeException(
@@ -92,7 +95,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
             protected TimeSeriesStorageCache<K, V> loadValue(final K key) {
                 final String hashKey = hashKeyToString(key);
                 return new TimeSeriesStorageCache<K, V>(getStorage(), hashKey, getValueSerde(), getValueFixedLength(),
-                        input -> extractEndTime(input), getLookupMode());
+                        input -> extractEndTime(input), getLookupMode(), getBatchFlushInterval());
             }
 
             @Override
@@ -199,6 +202,10 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     protected TimeSeriesLookupMode newLookupMode() {
         return TimeSeriesLookupMode.DEFAULT;
+    }
+
+    protected int newBatchFlushInterval() {
+        return ATimeSeriesUpdater.DEFAULT_BATCH_FLUSH_INTERVAL;
     }
 
     @Override
@@ -429,27 +436,32 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     }
 
     @Override
-    public String getName() {
+    public final String getName() {
         return name;
     }
 
     @Override
-    public TimeSeriesStorageCache<K, V> getLookupTableCache(final K key) {
+    public final TimeSeriesStorageCache<K, V> getLookupTableCache(final K key) {
         return key_lookupTableCache.get(key);
     }
 
     @Override
-    public ISerde<V> getValueSerde() {
+    public final ISerde<V> getValueSerde() {
         return valueSerde.get();
     }
 
     @Override
-    public TimeSeriesLookupMode getLookupMode() {
+    public final TimeSeriesLookupMode getLookupMode() {
         return lookupMode;
     }
 
     @Override
-    public ICompressionFactory getCompressionFactory() {
+    public final int getBatchFlushInterval() {
+        return batchFlushInterval;
+    }
+
+    @Override
+    public final ICompressionFactory getCompressionFactory() {
         return compressionFactory;
     }
 

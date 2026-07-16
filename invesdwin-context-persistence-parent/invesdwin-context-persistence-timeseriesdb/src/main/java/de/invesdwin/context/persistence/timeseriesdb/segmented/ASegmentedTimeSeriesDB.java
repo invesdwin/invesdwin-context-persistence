@@ -12,6 +12,7 @@ import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
+import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ITimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
@@ -37,6 +38,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
     private final Supplier<Integer> valueFixedLength;
     private final ICompressionFactory compressionFactory;
     private final TimeSeriesLookupMode lookupMode;
+    private final int batchFlushInterval;
     private final SegmentedTable segmentedTable;
     private final ILoadingCache<K, IReentrantReadWriteLock> key_tableLock = new ALoadingCache<K, IReentrantReadWriteLock>() {
         @Override
@@ -67,6 +69,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         };
         this.compressionFactory = newCompressionFactory();
         this.lookupMode = newLookupMode();
+        this.batchFlushInterval = newBatchFlushInterval();
         this.segmentedTable = new SegmentedTable(name);
         this.key_segmentedLookupTableCache = new ALoadingCache<K, ASegmentedTimeSeriesStorageCache<K, V>>() {
             @Override
@@ -128,23 +131,28 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
     }
 
     @Override
-    public ISerde<V> getValueSerde() {
+    public final ISerde<V> getValueSerde() {
         return valueSerde.get();
     }
 
     @Override
-    public Integer getValueFixedLength() {
+    public final Integer getValueFixedLength() {
         return valueFixedLength.get();
     }
 
     @Override
-    public ICompressionFactory getCompressionFactory() {
+    public final ICompressionFactory getCompressionFactory() {
         return compressionFactory;
     }
 
     @Override
-    public TimeSeriesLookupMode getLookupMode() {
+    public final TimeSeriesLookupMode getLookupMode() {
         return lookupMode;
+    }
+
+    @Override
+    public final int getBatchFlushInterval() {
+        return batchFlushInterval;
     }
 
     protected ITimeSeriesUpdater<SegmentedKey<K>, V> newSegmentUpdaterOverride(final SegmentedKey<K> segmentedKey,
@@ -190,6 +198,10 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
 
     protected TimeSeriesLookupMode newLookupMode() {
         return TimeSeriesLookupMode.DEFAULT;
+    }
+
+    protected int newBatchFlushInterval() {
+        return ATimeSeriesUpdater.DEFAULT_BATCH_FLUSH_INTERVAL;
     }
 
     @Override
@@ -593,6 +605,11 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         @Override
         protected TimeSeriesLookupMode newLookupMode() {
             return ASegmentedTimeSeriesDB.this.getLookupMode();
+        }
+
+        @Override
+        protected int newBatchFlushInterval() {
+            return ASegmentedTimeSeriesDB.this.getBatchFlushInterval();
         }
 
         @Override

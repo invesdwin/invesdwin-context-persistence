@@ -45,12 +45,13 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
     private FDate minTime;
     private V lastElement;
     private FDate maxTime;
-    private final Object[] batch = new Object[ATimeSeriesUpdater.DEFAULT_BATCH_FLUSH_INTERVAL];
+    private Object[] batch;
 
     public void init(final ITimeSeriesUpdaterInternalMethods<K, V> parent, final File tempFile) {
         this.parent = parent;
         this.name = new TextDescription("%s[%s]: write", ATimeSeriesUpdater.class.getSimpleName(), parent.getKey());
         this.tempFile = tempFile;
+        this.batch = new Object[parent.getLookupTable().getBatchFlushInterval()];
     }
 
     public File getTempFile() {
@@ -105,7 +106,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
         batch[valueCount] = element;
         valueCount++;
         parent.onElement(this);
-        return valueCount % ATimeSeriesUpdater.DEFAULT_BATCH_FLUSH_INTERVAL == 0;
+        return valueCount % parent.getLookupTable().getBatchFlushInterval() == 0;
     }
 
     @SuppressWarnings("unchecked")

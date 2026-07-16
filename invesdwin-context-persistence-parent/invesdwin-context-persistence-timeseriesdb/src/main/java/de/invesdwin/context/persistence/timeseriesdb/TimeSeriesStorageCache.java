@@ -220,6 +220,7 @@ public class TimeSeriesStorageCache<K, V> {
     private final Function<V, FDate> extractEndTime;
     private final boolean flyweight;
     private final TimeSeriesLookupMode lookupMode;
+    private final int batchFlushInterval;
     @GuardedBy("this")
     private File dataDirectory;
 
@@ -239,7 +240,8 @@ public class TimeSeriesStorageCache<K, V> {
     private final LoadingCache<ResultCacheKey, IFileBufferCacheResult<V>> resultCache;
 
     public TimeSeriesStorageCache(final TimeSeriesStorage storage, final String hashKey, final ISerde<V> valueSerde,
-            final Integer fixedLength, final Function<V, FDate> extractTime, final TimeSeriesLookupMode lookupMode) {
+            final Integer fixedLength, final Function<V, FDate> extractTime, final TimeSeriesLookupMode lookupMode,
+            final int batchFlushInterval) {
         this.storage = storage;
         this.hashKey = hashKey;
         this.valueSerde = valueSerde;
@@ -249,6 +251,7 @@ public class TimeSeriesStorageCache<K, V> {
         final boolean mmap = TimeSeriesProperties.FILE_BUFFER_CACHE_MMAP_ENABLED;
         this.flyweight = !compressed && mmap && fixedLength != null && fixedLength > 0;
         this.lookupMode = lookupMode;
+        this.batchFlushInterval = batchFlushInterval;
         this.resultCache = Caffeine.newBuilder()
                 .maximumSize(TimeSeriesProperties.FILE_BUFFER_CACHE_MIN_SEGMENTS_COUNT)
                 /*
@@ -261,6 +264,10 @@ public class TimeSeriesStorageCache<K, V> {
                         TimeUnit.MILLISECONDS)
                 .removalListener(this::resultCache_onRemoval)
                 .<ResultCacheKey, IFileBufferCacheResult<V>> build(this::resultCache_load);
+    }
+
+    public int getBatchFlushInterval() {
+        return batchFlushInterval;
     }
 
     private IFileBufferCacheResult<V> resultCache_load(final ResultCacheKey key) throws Exception {
@@ -487,8 +494,7 @@ public class TimeSeriesStorageCache<K, V> {
         if (key <= 0) {
             return rows.get(0);
         }
-        final int segmentIndex = SegmentedMemoryBuffer.getSegmentIndex(key,
-                ATimeSeriesUpdater.DEFAULT_BATCH_FLUSH_INTERVAL);
+        final int segmentIndex = SegmentedMemoryBuffer.getSegmentIndex(key, batchFlushInterval);
         if (segmentIndex >= rows.size()) {
             return rows.get(rows.size() - 1);
         } else {
@@ -1238,7 +1244,7 @@ public class TimeSeriesStorageCache<K, V> {
         if (latestFile != null) {
             final FDate latestRangeKey;
             final MemoryFileSummary latestSummary = latestFile.getValue();
-            if (shouldRedoLastFile && latestSummary.getValueCount() < ATimeSeriesUpdater.DEFAULT_BATCH_FLUSH_INTERVAL) {
+            if (shouldRedoLastFile && latestSummary.getValueCount() < batchFlushInterval) {
                 lastValues = new ArrayList<V>();
                 try (ICloseableIterator<V> lastColl = newIterableResult("prepareForUpdate", latestSummary,
                         DisabledLock.INSTANCE).iterator()) {

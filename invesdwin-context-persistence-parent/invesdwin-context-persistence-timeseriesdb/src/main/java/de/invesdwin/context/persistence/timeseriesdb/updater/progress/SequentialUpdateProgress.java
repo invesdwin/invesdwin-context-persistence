@@ -110,7 +110,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         collection.add(element);
         valueCount++;
         parent.onElement(this);
-        return valueCount % ATimeSeriesUpdater.DEFAULT_BATCH_FLUSH_INTERVAL == 0;
+        return valueCount % parent.getLookupTable().getBatchFlushInterval() == 0;
     }
 
     private void write(final int flushIndex) {

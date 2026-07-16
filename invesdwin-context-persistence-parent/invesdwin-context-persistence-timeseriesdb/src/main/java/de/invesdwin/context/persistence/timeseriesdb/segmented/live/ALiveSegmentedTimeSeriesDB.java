@@ -41,6 +41,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
     private final Supplier<Integer> valueFixedLength;
     private final ICompressionFactory compressionFactory;
     private final TimeSeriesLookupMode lookupMode;
+    private final int batchFlushInterval;
     private final HistoricalSegmentTable historicalSegmentTable;
     private final ALoadingCache<K, IReentrantReadWriteLock> key_tableLock = new ALoadingCache<K, IReentrantReadWriteLock>() {
         @Override
@@ -72,6 +73,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
         };
         this.compressionFactory = newCompressionFactory();
         this.lookupMode = newLookupMode();
+        this.batchFlushInterval = newBatchFlushInterval();
         this.historicalSegmentTable = new HistoricalSegmentTable(name);
         this.key_liveSegmentedLookupTableCache = new ALoadingCache<K, ALiveSegmentedTimeSeriesStorageCache<K, V>>() {
             @Override
@@ -98,30 +100,35 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
     }
 
     @Override
-    public ISerde<V> getValueSerde() {
+    public final ISerde<V> getValueSerde() {
         return valueSerde.get();
     }
 
     @Override
-    public Integer getValueFixedLength() {
+    public final Integer getValueFixedLength() {
         return valueFixedLength.get();
     }
 
     @Override
-    public ICompressionFactory getCompressionFactory() {
+    public final ICompressionFactory getCompressionFactory() {
         return compressionFactory;
     }
 
     @Override
-    public TimeSeriesLookupMode getLookupMode() {
+    public final TimeSeriesLookupMode getLookupMode() {
         return lookupMode;
+    }
+
+    @Override
+    public final int getBatchFlushInterval() {
+        return batchFlushInterval;
     }
 
     protected IReentrantReadWriteLock newTableLock(final String name) {
         return Locks.newReentrantReadWriteLock(name);
     }
 
-    protected int getBatchFlushInterval() {
+    protected int newBatchFlushInterval() {
         return ATimeSeriesUpdater.DEFAULT_BATCH_FLUSH_INTERVAL;
     }
 
@@ -197,7 +204,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
         }
 
         @Override
-        public TimeSeriesLookupMode getLookupMode() {
+        public TimeSeriesLookupMode newLookupMode() {
             return ALiveSegmentedTimeSeriesDB.this.getLookupMode();
         }
 
