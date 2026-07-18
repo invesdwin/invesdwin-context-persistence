@@ -28,6 +28,14 @@ public enum PersistenceContext {
             }
         }
     },
+    TEST_FILE("/META-INF/ctx.persistence.jpa.test.file.xml") {
+        @Override
+        protected void validateEnvironment() {
+            if (!ContextProperties.IS_TEST_ENVIRONMENT) {
+                throw new IllegalArgumentException("PersistenceTests can not run in a production environment.");
+            }
+        }
+    },
     TEST_SERVER("/META-INF/ctx.persistence.jpa.test.server.xml") {
         @Override
         protected void validateEnvironment() {
