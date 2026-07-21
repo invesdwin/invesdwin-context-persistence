@@ -209,6 +209,11 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
         }
 
         @Override
+        protected int newBatchFlushInterval() {
+            return ALiveSegmentedTimeSeriesDB.this.getBatchFlushInterval();
+        }
+
+        @Override
         public FDate extractStartTime(final V value) {
             return ALiveSegmentedTimeSeriesDB.this.extractStartTime(value);
         }
