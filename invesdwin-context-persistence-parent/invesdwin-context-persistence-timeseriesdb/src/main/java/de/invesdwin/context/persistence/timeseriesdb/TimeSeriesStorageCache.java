@@ -491,10 +491,12 @@ public class TimeSeriesStorageCache<K, V> {
         if (rows.isEmpty()) {
             return null;
         }
+        final RangeTableRow<String, FDate, MemoryFileSummary> firstRow = rows.get(0);
         if (key <= 0) {
-            return rows.get(0);
+            return firstRow;
         }
-        final int segmentIndex = SegmentedMemoryBuffer.getSegmentIndex(key, rows.get(0).getValue().getValueCount());
+        final int segmentSize = firstRow.getValue().getValueCount();
+        final int segmentIndex = SegmentedMemoryBuffer.getSegmentIndex(key, segmentSize);
         if (segmentIndex >= rows.size()) {
             return rows.get(rows.size() - 1);
         } else {
