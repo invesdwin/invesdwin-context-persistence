@@ -500,12 +500,25 @@ public class TimeSeriesStorageCache<K, V> {
         } else {
             final RangeTableRow<String, FDate, MemoryFileSummary> row = rows.get(segmentIndex);
             final MemoryFileSummary summary = row.getValue();
-            if (!(summary.getPrecedingValueCount() <= key && key < summary.getCombinedValueCount())) {
-                throw new IllegalStateException("key [" + key + "] should be in the key range of the returned row ["
-                        + summary.getPrecedingValueCount() + " to " + summary.getCombinedValueCount() + "]: " + row);
+            if (summary.getPrecedingValueCount() <= key && key < summary.getCombinedValueCount()) {
+                return row;
             }
-            return row;
+            //            throw new IllegalStateException("key [" + key + "] should be in the key range of the returned row ["
+            //                    + summary.getPrecedingValueCount() + " to " + summary.getCombinedValueCount() + "]: " + row);
+            return newLatestRangeKeyIndexFallback(key, rows);
         }
+    }
+
+    private RangeTableRow<String, FDate, MemoryFileSummary> newLatestRangeKeyIndexFallback(final long key,
+            final ArrayList<RangeTableRow<String, FDate, MemoryFileSummary>> rows) {
+        for (int i = 0; i < rows.size(); i++) {
+            final RangeTableRow<String, FDate, MemoryFileSummary> row = rows.get(i);
+            final MemoryFileSummary summary = row.getValue();
+            if (summary.getPrecedingValueCount() <= key && key < summary.getCombinedValueCount()) {
+                return row;
+            }
+        }
+        return rows.get(rows.size() - 1);
     }
 
     protected ICloseableIterable<MemoryFileSummary> readRangeFilesReverse(final FDate from, final FDate to,
