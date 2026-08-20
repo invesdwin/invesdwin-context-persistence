@@ -6,10 +6,6 @@ import java.util.Map.Entry;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.iq80.leveldb.CompressionType;
-import org.iq80.leveldb.DBIterator;
-import org.iq80.leveldb.impl.ExtendedDbImpl;
-
 import de.invesdwin.context.persistence.ezdb.EzdbSerde;
 import de.invesdwin.context.persistence.ezdb.db.IRangeTableDb;
 import de.invesdwin.util.error.Throwables;
@@ -28,15 +24,17 @@ public class LevelDBJavaRangeTableDb implements IRangeTableDb {
         this.internalMethods = internalMethods;
         this.db = new EzLevelDbJava(internalMethods.getDirectory(), new EzLevelDbJavaFactory() {
             @Override
-            public ExtendedDbImpl open(final File path, final org.iq80.leveldb.Options options,
-                    final boolean rangeTable) throws IOException {
+            public ezdb.leveldb.internal.org.iq80.leveldb.impl.ExtendedDbImpl open(final File path,
+                    final ezdb.leveldb.internal.org.iq80.leveldb.Options options, final boolean rangeTable)
+                    throws IOException {
                 options.paranoidChecks(false);
                 //make sure snappy is enabled
                 options.compressionType(newCompressionType());
-                final ExtendedDbImpl open = super.open(path, options, rangeTable);
+                final ezdb.leveldb.internal.org.iq80.leveldb.impl.ExtendedDbImpl open = super.open(path, options,
+                        rangeTable);
                 try {
                     //do some sanity checks just to be safe
-                    try (DBIterator iterator = open.iterator()) {
+                    try (ezdb.leveldb.internal.org.iq80.leveldb.DBIterator iterator = open.iterator()) {
                         iterator.seekToFirst();
                         if (iterator.hasNext()) {
                             final Entry<byte[], byte[]> next = iterator.next();
@@ -68,8 +66,8 @@ public class LevelDBJavaRangeTableDb implements IRangeTableDb {
         return true;
     }
 
-    protected CompressionType newCompressionType() {
-        return CompressionType.SNAPPY;
+    protected ezdb.leveldb.internal.org.iq80.leveldb.CompressionType newCompressionType() {
+        return ezdb.leveldb.internal.org.iq80.leveldb.CompressionType.SNAPPY;
     }
 
     @SuppressWarnings("unchecked")
