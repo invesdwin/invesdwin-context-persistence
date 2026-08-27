@@ -1,0 +1,14 @@
+<Configuration>
+
+    <Loggers>
+        <Logger name="org.hibernate.jpa.internal.EntityManagerFactoryRegistry" 
+                level="ERROR" 
+                additivity="false">
+            <AppenderRef ref="stdout" />
+            <AppenderRef ref="stderr" />
+            <AppenderRef ref="common" />
+            <AppenderRef ref="error" />
+        </Logger>
+    </Loggers>
+
+</Configuration>

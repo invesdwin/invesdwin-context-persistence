@@ -92,6 +92,8 @@ public interface ITimeSeriesDB<K, V> extends Closeable {
 
     TimeSeriesLookupMode getLookupMode();
 
+    int getBatchFlushInterval();
+
     FDate extractStartTime(V value);
 
     FDate extractEndTime(V value);

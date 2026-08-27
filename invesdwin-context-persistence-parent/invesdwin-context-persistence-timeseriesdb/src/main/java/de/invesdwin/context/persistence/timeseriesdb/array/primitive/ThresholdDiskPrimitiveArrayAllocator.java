@@ -16,6 +16,7 @@ import de.invesdwin.util.collections.array.primitive.bitset.IPrimitiveBitSet;
 import de.invesdwin.util.collections.attributes.IAttributesMap;
 import de.invesdwin.util.collections.loadingcache.historical.AHistoricalCache;
 import de.invesdwin.util.concurrent.lock.ILock;
+import de.invesdwin.util.concurrent.nested.INestedExecutor;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 
@@ -201,6 +202,11 @@ public class ThresholdDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllo
     @Override
     public ILock getLock(final String id) {
         return disk.getLock(id);
+    }
+
+    @Override
+    public INestedExecutor getExecutor() {
+        return disk.getExecutor();
     }
 
     @Override

@@ -4,7 +4,7 @@ import java.util.Stack;
 
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.slf4j.MDC;
+import org.apache.logging.log4j.ThreadContext;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionStatus;
@@ -106,7 +106,7 @@ public class P6SpyLoggingDelegateTransactionManager extends ADelegateTransaction
             info.append(": ");
             info.append(ndc);
         }
-        MDC.put(MDC_KEY, String.valueOf(ndc.size()));
+        ThreadContext.put(MDC_KEY, String.valueOf(ndc.size()));
         return Strings.asString(info);
     }
 
@@ -133,10 +133,10 @@ public class P6SpyLoggingDelegateTransactionManager extends ADelegateTransaction
     private void decrementNdc(final Stack<String> ndc) {
         ndc.pop();
         if (ndc.size() > 0) {
-            MDC.put(MDC_KEY, String.valueOf(ndc.size()));
+            ThreadContext.put(MDC_KEY, String.valueOf(ndc.size()));
         } else {
             TRANSACTIONS_NDC.remove();
-            MDC.remove(MDC_KEY);
+            ThreadContext.remove(MDC_KEY);
         }
     }
 

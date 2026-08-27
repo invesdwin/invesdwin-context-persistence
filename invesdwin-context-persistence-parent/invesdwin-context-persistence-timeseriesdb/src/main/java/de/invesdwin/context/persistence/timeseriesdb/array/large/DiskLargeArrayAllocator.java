@@ -6,9 +6,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import de.invesdwin.context.integration.persistentmap.PersistentMapProperties;
+import de.invesdwin.context.persistence.timeseriesdb.PersistentMapType;
+import de.invesdwin.context.system.array.base.ArrayAllocators;
 import de.invesdwin.context.system.array.large.ILargeArrayAllocator;
 import de.invesdwin.context.system.properties.CachingDelegateProperties;
-import de.invesdwin.context.system.properties.FileProperties;
 import de.invesdwin.context.system.properties.IProperties;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.array.large.IBooleanLargeArray;
@@ -25,6 +27,7 @@ import de.invesdwin.util.collections.attributes.AttributesMap;
 import de.invesdwin.util.collections.attributes.IAttributesMap;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
+import de.invesdwin.util.concurrent.nested.INestedExecutor;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.UUIDs;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
@@ -198,15 +201,17 @@ public class DiskLargeArrayAllocator implements ILargeArrayAllocator, Closeable 
         if (finalizer.properties == null) {
             synchronized (this) {
                 if (finalizer.properties == null) {
-                    finalizer.properties = new CachingDelegateProperties(new FileProperties(newPropertiesFile()));
+                    finalizer.properties = new CachingDelegateProperties(new PersistentMapProperties(
+                            finalizer.map.getName() + "_properties", PersistentMapType.DISK_SAFE.newFactory()) {
+                        @Override
+                        protected File getBaseDirectory() {
+                            return DiskLargeArrayAllocator.this.getDirectory();
+                        }
+                    });
                 }
             }
         }
         return finalizer.properties;
-    }
-
-    private File newPropertiesFile() {
-        return new File(getDirectory(), finalizer.map.getName() + ".properties");
     }
 
     @Override
@@ -235,6 +240,11 @@ public class DiskLargeArrayAllocator implements ILargeArrayAllocator, Closeable 
     }
 
     @Override
+    public INestedExecutor getExecutor() {
+        return finalizer.executor;
+    }
+
+    @Override
     public boolean isOnHeap(final long size) {
         return false;
     }
@@ -244,9 +254,12 @@ public class DiskLargeArrayAllocator implements ILargeArrayAllocator, Closeable 
         private DiskLargeArrayPersistentMap<String> map;
         private AttributesMap attributes;
         private IProperties properties;
+        private INestedExecutor executor;
 
         private DiskLargeArrayAllocatorFinalizer(final String name, final File directory) {
             this.map = new DiskLargeArrayPersistentMap<>(name, directory);
+            this.executor = ArrayAllocators
+                    .newDefaultExecutor(DiskLargeArrayAllocator.class.getSimpleName() + "_" + name);
         }
 
         @Override
@@ -255,6 +268,11 @@ public class DiskLargeArrayAllocator implements ILargeArrayAllocator, Closeable 
             if (mapCopy != null) {
                 mapCopy.close();
                 map = null;
+            }
+            final INestedExecutor executorCopy = executor;
+            if (executorCopy != null) {
+                executorCopy.close();
+                executor = null;
             }
             attributes = null;
             properties = null;

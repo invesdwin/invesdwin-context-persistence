@@ -3,7 +3,6 @@ package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 import java.util.Map.Entry;
 import java.util.NavigableMap;
 import java.util.NoSuchElementException;
-import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.Function;
 
@@ -14,8 +13,6 @@ import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSer
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
-import de.invesdwin.util.collections.Collections;
-import de.invesdwin.util.collections.eviction.EvictionMode;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ATransformingIterable;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
@@ -36,8 +33,7 @@ import de.invesdwin.util.time.date.FDate;
 public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     private static final Log LOG = new Log(HeapLiveSegment.class);
-    private final Set<FDate> nextLiveStartTime_lastWarnings = Collections
-            .newSetFromMap(EvictionMode.LeastRecentlyAdded.newMap(10));
+    private final ThrottledLiveKeyWarning throttledLiveKeyWarning = new ThrottledLiveKeyWarning(LOG);
     private final NavigableMap<FDate, V> values = ILockCollectionFactory.getInstance(false).newTreeMap();
     private final SegmentedKey<K> segmentedKey;
     private final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable;
@@ -188,10 +184,7 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
             final V nextLiveValue) {
         if (!lastValue.isEmpty()) {
             if (lastValueKey.isAfterNotNullSafe(nextLiveStartTime)) {
-                if (nextLiveStartTime_lastWarnings.add(nextLiveStartTime)) {
-                    LOG.warn("nextLiveStartTime [%s] should be after or equal to lastLiveKey [%s]: %s",
-                            nextLiveStartTime, lastValueKey, segmentedKey);
-                }
+                throttledLiveKeyWarning.maybeWarn(nextLiveStartTime, lastValueKey, segmentedKey);
                 return false;
             }
         }

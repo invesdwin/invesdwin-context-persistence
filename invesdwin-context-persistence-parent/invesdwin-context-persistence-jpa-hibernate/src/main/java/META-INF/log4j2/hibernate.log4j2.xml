@@ -1,0 +1,31 @@
+<Configuration>
+
+    <Loggers>
+        <Logger name="org.hibernate.tool.hbm2ddl.SchemaExport" level="WARN" additivity="false">
+            <AppenderRef ref="persistence" />
+        </Logger>
+        
+        <Logger name="org.hibernate.engine.jdbc.spi.SqlExceptionHelper" level="WARN" additivity="false">
+            <AppenderRef ref="persistence" />
+        </Logger>
+        
+        <Logger name="org.hibernate.cache.jcache.JCacheRegionFactory" level="WARN" additivity="false">
+            <AppenderRef ref="persistence" />
+        </Logger>
+        
+        <Logger name="org.hibernate.engine.jdbc.internal.JdbcCoordinatorImpl" level="ERROR" additivity="false">
+            <AppenderRef ref="stdout" />
+            <AppenderRef ref="stderr" />
+            <AppenderRef ref="common" />
+            <AppenderRef ref="error" />
+        </Logger>
+        
+        <Logger name="org.hibernate.orm.jdbc" level="ERROR" additivity="false">
+            <AppenderRef ref="stdout" />
+            <AppenderRef ref="stderr" />
+            <AppenderRef ref="common" />
+            <AppenderRef ref="error" />
+        </Logger>
+    </Loggers>
+
+</Configuration>
