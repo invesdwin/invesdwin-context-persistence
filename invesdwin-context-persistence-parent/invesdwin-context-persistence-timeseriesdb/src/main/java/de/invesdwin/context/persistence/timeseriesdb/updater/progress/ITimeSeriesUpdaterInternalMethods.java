@@ -23,4 +23,6 @@ public interface ITimeSeriesUpdaterInternalMethods<K, V> {
 
     K getKey();
 
+    boolean shouldRedoLastFile();
+
 }

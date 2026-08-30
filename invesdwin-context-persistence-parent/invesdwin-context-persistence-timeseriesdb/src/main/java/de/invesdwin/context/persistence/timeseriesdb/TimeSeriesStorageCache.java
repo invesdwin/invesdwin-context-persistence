@@ -1249,8 +1249,7 @@ public class TimeSeriesStorageCache<K, V> {
         if (latestFile != null) {
             final FDate latestRangeKey;
             final MemoryFileSummary latestSummary = latestFile.getValue();
-            if (shouldRedoLastFile && (latestSummary.getValueCount() < batchFlushInterval
-                    || MemoryFiles.isIncompleteMemoryFile(latestSummary.getMemoryResourceUri()))) {
+            if (shouldRedoLastFile && MemoryFiles.isIncompleteMemoryFile(latestSummary.getMemoryResourceUri())) {
                 lastValues = new ArrayList<V>();
                 try (ICloseableIterator<V> lastColl = newIterableResult("prepareForUpdate", latestSummary,
                         DisabledLock.INSTANCE).iterator()) {

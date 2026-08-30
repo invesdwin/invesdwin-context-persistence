@@ -226,6 +226,11 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                 ATimeSeriesUpdater.this.onElement(updateProgress);
             }
 
+            @Override
+            public boolean shouldRedoLastFile() {
+                return ATimeSeriesUpdater.this.shouldRedoLastFile();
+            }
+
         };
         final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues, skippingSource);
 

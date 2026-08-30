@@ -297,8 +297,8 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                     final ParallelUpdateProgress<K, V> progress = batchWriterProducer.next();
                     flushIndex++;
                     final long tempFileLength = progress.getTempFile().length();
-                    final boolean complete = progress.getValueCount() == batchFlushInterval
-                            && batchWriterProducer.hasNext();
+                    final boolean complete = !parent.shouldRedoLastFile()
+                            || (progress.getValueCount() == batchFlushInterval && batchWriterProducer.hasNext());
                     if (complete) {
                         long memoryOffset = memoryFileOut.getChannel().position();
                         if (IMemoryMappedFile.isSegmentSizeExceeded(memoryOffset + tempFileLength)) {

@@ -285,7 +285,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
                 progress.close();
             }
         }) {
-            flush(batchWriterProducer, parent.getLookupTable().getBatchFlushInterval());
+            flush(parent, batchWriterProducer);
             if (batchWriterProducer.hasNext()) {
                 throw new IllegalStateException(
                         "there are still elements to be processed, but the parallel producer did not feed them");
@@ -293,14 +293,15 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         }
     }
 
-    private static <K, V> void flush(final ICloseableIterator<SequentialUpdateProgress<K, V>> batchWriterProducer,
-            final int batchFlushInterval) {
+    private static <K, V> void flush(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
+            final ICloseableIterator<SequentialUpdateProgress<K, V>> batchWriterProducer) {
         int flushIndex = 0;
         try {
             while (true) {
                 final SequentialUpdateProgress<K, V> progress = batchWriterProducer.next();
-                final boolean complete = progress.getValueCount() == batchFlushInterval
-                        && batchWriterProducer.hasNext();
+                final boolean complete = !parent.shouldRedoLastFile()
+                        || (progress.getValueCount() == parent.getLookupTable().getBatchFlushInterval()
+                                && batchWriterProducer.hasNext());
                 progress.write(flushIndex++, complete);
             }
         } catch (final NoSuchElementException e) {
