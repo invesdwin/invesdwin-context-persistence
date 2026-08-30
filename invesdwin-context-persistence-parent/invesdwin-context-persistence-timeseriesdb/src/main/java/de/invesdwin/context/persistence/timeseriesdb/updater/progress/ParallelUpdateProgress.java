@@ -13,6 +13,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -289,27 +290,44 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                 memoryFileOut.getChannel().position(initialMemoryOffset);
             }
 
+            final int batchFlushInterval = parent.getLookupTable().getBatchFlushInterval();
+
             try {
                 while (true) {
                     final ParallelUpdateProgress<K, V> progress = batchWriterProducer.next();
                     flushIndex++;
-                    long memoryOffset = memoryFileOut.getChannel().position();
                     final long tempFileLength = progress.getTempFile().length();
-                    if (IMemoryMappedFile.isSegmentSizeExceeded(memoryOffset + tempFileLength)) {
-                        if (OperatingSystem.isWindows() && IMemoryMappedFile.isSegmentSizeExceeded(tempFileLength)) {
-                            throw new IllegalStateException("Cannot write temp file of length [" + tempFileLength
-                                    + "] to memory file at offset [" + memoryOffset
-                                    + "] because it would exceed the maximum segment size of ["
-                                    + IMemoryMappedFile.MAX_SEGMENT_SIZE_WINDOWS + "] on Windows");
+                    final boolean complete = progress.getValueCount() == batchFlushInterval
+                            && batchWriterProducer.hasNext();
+                    if (complete) {
+                        long memoryOffset = memoryFileOut.getChannel().position();
+                        if (IMemoryMappedFile.isSegmentSizeExceeded(memoryOffset + tempFileLength)) {
+                            if (OperatingSystem.isWindows()
+                                    && IMemoryMappedFile.isSegmentSizeExceeded(tempFileLength)) {
+                                throw new IllegalStateException("Cannot write temp file of length [" + tempFileLength
+                                        + "] to memory file at offset [" + memoryOffset
+                                        + "] because it would exceed the maximum segment size of ["
+                                        + IMemoryMappedFile.MAX_SEGMENT_SIZE_WINDOWS + "] on Windows");
+                            }
+                            precedingMemoryOffset += memoryOffset;
+                            memoryFile = TimeSeriesStorageCache.newMemoryFile(parent, precedingMemoryOffset);
+                            memoryFileOut.close();
+                            memoryFileOut = new FileOutputStream(memoryFile, true);
+                            memoryOffset = 0;
                         }
-                        precedingMemoryOffset += memoryOffset;
-                        memoryFile = TimeSeriesStorageCache.newMemoryFile(parent, precedingMemoryOffset);
-                        memoryFileOut = new FileOutputStream(memoryFile, true);
-                        memoryOffset = 0;
+                        progress.transferToMemoryFile(memoryFileOut, memoryFile, precedingMemoryOffset, memoryOffset,
+                                flushIndex, precedingValueCount, tempFileLength);
+                        precedingValueCount += progress.getValueCount();
+                    } else {
+                        // Write incomplete segment to isolated file
+                        final long currentOffset = memoryFileOut.getChannel().position();
+                        final File incompleteFile = MemoryFiles.newIncompleteMemoryFile(memoryFile, currentOffset);
+
+                        try (FileOutputStream incOut = new FileOutputStream(incompleteFile)) {
+                            progress.transferToMemoryFile(incOut, incompleteFile, precedingMemoryOffset, 0L, flushIndex,
+                                    precedingValueCount, tempFileLength);
+                        }
                     }
-                    progress.transferToMemoryFile(memoryFileOut, memoryFile, precedingMemoryOffset, memoryOffset,
-                            flushIndex, precedingValueCount, tempFileLength);
-                    precedingValueCount += progress.getValueCount();
 
                     ParallelUpdateProgressPool.INSTANCE.returnObject(progress);
                 }
@@ -317,11 +335,6 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                 //end reached
             }
 
-            /*
-             * force sync on filesystem:
-             * https://stackoverflow.com/questions/52481281/does-java-nio-file-files-copy-call-sync-on-the-file-system
-             */
-            //            memoryFileOut.getChannel().force(true);
         } catch (final IOException e) {
             throw new RuntimeException(e);
         } finally {

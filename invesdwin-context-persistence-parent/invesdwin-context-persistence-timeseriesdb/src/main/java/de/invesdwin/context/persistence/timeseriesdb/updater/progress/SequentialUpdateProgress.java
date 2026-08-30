@@ -11,6 +11,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -37,8 +38,9 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
     private FDate minTime;
     private V lastElement;
     private FDate maxTime;
-    private ConfiguredSerializingCollection collection;
     private BufferedFileDataOutputStream out;
+
+    private final Object[] batch;
 
     public SequentialUpdateProgress(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
             final long initialPrecedingMemoryOffset, final long initialMemoryOffset,
@@ -48,6 +50,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         this.precedingMemoryOffset = initialPrecedingMemoryOffset;
         this.memoryOffset = initialMemoryOffset;
         this.precedingValueCount = initialPrecedingValueCount;
+        this.batch = new Object[parent.getLookupTable().getBatchFlushInterval()];
         this.memoryFile = newMemoryFile();
         try {
             this.out = new BufferedFileDataOutputStream(memoryFile);
@@ -74,7 +77,6 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         this.minTime = null;
         this.lastElement = null;
         this.maxTime = null;
-        this.collection = null;
     }
 
     @Override
@@ -91,7 +93,6 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         if (firstElement == null) {
             firstElement = element;
             minTime = endTime;
-            collection = new ConfiguredSerializingCollection(memoryFile);
         }
         if (maxTime != null) {
             if (maxTime.isAfterNotNullSafe(startTime)) {
@@ -107,38 +108,67 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         }
         maxTime = endTime;
         lastElement = element;
-        collection.add(element);
+        batch[valueCount] = element;
         valueCount++;
         parent.onElement(this);
-        return valueCount % parent.getLookupTable().getBatchFlushInterval() == 0;
+        return valueCount == batch.length;
     }
 
-    private void write(final int flushIndex) {
+    @SuppressWarnings("unchecked")
+    private void write(final int flushIndex, final boolean complete) {
+        if (valueCount == 0) {
+            return;
+        }
         try {
-            //close first so that lz4 writes out its footer bytes (a flush is not sufficient)
-            collection.close();
-            final long memoryLength = out.position() - memoryOffset;
-            parent.getLookupTable()
-                    .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
-                            precedingMemoryOffset, memoryOffset, memoryLength);
-            memoryOffset += memoryLength;
-            precedingValueCount += valueCount;
-            parent.onFlush(flushIndex, this);
-
-            if (IMemoryMappedFile.isSegmentSizeExceeded(memoryOffset)) {
-                if (OperatingSystem.isWindows()) {
-                    throw new IllegalStateException(
-                            "Memory offset [" + memoryOffset + "] exceeds Windows segment size limit ["
-                                    + IMemoryMappedFile.MAX_SEGMENT_SIZE + "], cannot continue writing to memory file ["
-                                    + memoryFile.getAbsolutePath() + "], precedingMemoryOffset=["
-                                    + precedingMemoryOffset + "], precedingValueCount=[" + precedingValueCount + "]");
+            if (complete) {
+                final ConfiguredSerializingCollection collection = new ConfiguredSerializingCollection(memoryFile, out);
+                for (int i = 0; i < valueCount; i++) {
+                    collection.add((V) batch[i]);
+                    batch[i] = null;
                 }
-                precedingMemoryOffset += memoryOffset;
-                memoryOffset = 0;
-                memoryFile = newMemoryFile();
-                out.close();
-                out = new BufferedFileDataOutputStream(memoryFile);
-                collection = new ConfiguredSerializingCollection(memoryFile);
+                collection.close();
+
+                final long memoryLength = out.position() - memoryOffset;
+                parent.getLookupTable()
+                        .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
+                                precedingMemoryOffset, memoryOffset, memoryLength);
+                memoryOffset += memoryLength;
+                precedingValueCount += valueCount;
+                parent.onFlush(flushIndex, this);
+
+                if (IMemoryMappedFile.isSegmentSizeExceeded(memoryOffset)) {
+                    if (OperatingSystem.isWindows()) {
+                        throw new IllegalStateException("Memory offset [" + memoryOffset
+                                + "] exceeds Windows segment size limit [" + IMemoryMappedFile.MAX_SEGMENT_SIZE
+                                + "], cannot continue writing to memory file [" + memoryFile.getAbsolutePath()
+                                + "], precedingMemoryOffset=[" + precedingMemoryOffset + "], precedingValueCount=["
+                                + precedingValueCount + "]");
+                    }
+                    precedingMemoryOffset += memoryOffset;
+                    memoryOffset = 0;
+                    memoryFile = newMemoryFile();
+                    out.close();
+                    out = new BufferedFileDataOutputStream(memoryFile);
+                }
+            } else {
+                // Route incomplete segment to isolated standalone file
+                final File incompleteFile = MemoryFiles.newIncompleteMemoryFile(memoryFile, memoryOffset);
+
+                try (BufferedFileDataOutputStream incOut = new BufferedFileDataOutputStream(incompleteFile)) {
+                    final ConfiguredSerializingCollection incCollection = new ConfiguredSerializingCollection(
+                            incompleteFile, incOut);
+                    for (int i = 0; i < valueCount; i++) {
+                        incCollection.add((V) batch[i]);
+                        batch[i] = null;
+                    }
+                    incCollection.close();
+
+                    final long memoryLength = incOut.position();
+                    parent.getLookupTable()
+                            .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount,
+                                    incompleteFile, precedingMemoryOffset, 0L, memoryLength);
+                }
+                // Do not increment memoryOffset or precedingValueCount for the incomplete tail segment
             }
         } catch (final IOException e) {
             throw new RuntimeException(e);
@@ -159,8 +189,11 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
 
     private final class ConfiguredSerializingCollection extends SerializingCollection<V> {
 
-        private ConfiguredSerializingCollection(final File file) {
+        private final BufferedFileDataOutputStream targetOut;
+
+        private ConfiguredSerializingCollection(final File file, final BufferedFileDataOutputStream targetOut) {
             super(name, file, false);
+            this.targetOut = targetOut;
         }
 
         @Override
@@ -201,7 +234,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
 
         @Override
         protected OutputStream newFileOutputStream(final File file) throws IOException {
-            return out.asNonClosing();
+            return targetOut.asNonClosing();
         }
 
         @Override
@@ -252,7 +285,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
                 progress.close();
             }
         }) {
-            flush(batchWriterProducer);
+            flush(batchWriterProducer, parent.getLookupTable().getBatchFlushInterval());
             if (batchWriterProducer.hasNext()) {
                 throw new IllegalStateException(
                         "there are still elements to be processed, but the parallel producer did not feed them");
@@ -260,12 +293,15 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         }
     }
 
-    private static <K, V> void flush(final ICloseableIterator<SequentialUpdateProgress<K, V>> batchWriterProducer) {
+    private static <K, V> void flush(final ICloseableIterator<SequentialUpdateProgress<K, V>> batchWriterProducer,
+            final int batchFlushInterval) {
         int flushIndex = 0;
         try {
             while (true) {
                 final SequentialUpdateProgress<K, V> progress = batchWriterProducer.next();
-                progress.write(flushIndex++);
+                final boolean complete = progress.getValueCount() == batchFlushInterval
+                        && batchWriterProducer.hasNext();
+                progress.write(flushIndex++, complete);
             }
         } catch (final NoSuchElementException e) {
             //end reached

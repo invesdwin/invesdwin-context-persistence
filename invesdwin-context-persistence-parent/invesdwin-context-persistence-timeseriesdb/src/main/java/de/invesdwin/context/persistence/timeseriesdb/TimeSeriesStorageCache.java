@@ -39,6 +39,7 @@ import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileMetadata;
 import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummaryByteBuffer;
+import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.storage.cache.ALatestValueByIndexCache;
@@ -342,12 +343,14 @@ public class TimeSeriesStorageCache<K, V> {
                     "memoryFileSize[" + memoryFileSize + "] != expectedMemoryFileSize[" + expectedMemoryFileSize + "]");
         }
         final MemoryFileMetadata metadata = getMemoryFileMetadata();
-        final long prevMemoryFileSize = metadata.getExpectedMemoryFileSize();
-        if (prevMemoryFileSize > expectedMemoryFileSize) {
-            throw new IllegalStateException("memoryFileFize[" + memoryFileSize
-                    + "] should not be less than prevMemoryFileSize[" + prevMemoryFileSize + "]");
+        if (!MemoryFiles.isIncompleteMemoryFile(memoryFile)) {
+            final long prevMemoryFileSize = metadata.getExpectedMemoryFileSize();
+            if (prevMemoryFileSize > expectedMemoryFileSize) {
+                throw new IllegalStateException("memoryFileFize[" + memoryFileSize
+                        + "] should not be less than prevMemoryFileSize[" + prevMemoryFileSize + "]");
+            }
+            metadata.setExpectedMemoryFileSize(expectedMemoryFileSize);
         }
-        metadata.setExpectedMemoryFileSize(expectedMemoryFileSize);
         final FDate firstValueDate = extractEndTime.apply(firstValue);
         final FDate lastValueDate = extractEndTime.apply(lastValue);
         metadata.setSummary(time, firstValueDate, lastValueDate, precedingValueCount, valueCount,
@@ -1246,7 +1249,8 @@ public class TimeSeriesStorageCache<K, V> {
         if (latestFile != null) {
             final FDate latestRangeKey;
             final MemoryFileSummary latestSummary = latestFile.getValue();
-            if (shouldRedoLastFile && latestSummary.getValueCount() < batchFlushInterval) {
+            if (shouldRedoLastFile && (latestSummary.getValueCount() < batchFlushInterval
+                    || MemoryFiles.isIncompleteMemoryFile(latestSummary.getMemoryResourceUri()))) {
                 lastValues = new ArrayList<V>();
                 try (ICloseableIterator<V> lastColl = newIterableResult("prepareForUpdate", latestSummary,
                         DisabledLock.INSTANCE).iterator()) {
