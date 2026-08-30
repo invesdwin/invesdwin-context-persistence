@@ -21,6 +21,7 @@ import de.invesdwin.context.persistence.timeseriesdb.updater.progress.Sequential
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
+import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.lock.FileChannelLock;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
@@ -239,7 +240,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
 
     protected boolean shouldWriteInParallel() {
         //LZ4HC should be compressed in parallel
-        return true;
+        return Executors.getCpuThreadPoolCount() > 1;
     }
 
     protected boolean shouldRedoLastFile() {
