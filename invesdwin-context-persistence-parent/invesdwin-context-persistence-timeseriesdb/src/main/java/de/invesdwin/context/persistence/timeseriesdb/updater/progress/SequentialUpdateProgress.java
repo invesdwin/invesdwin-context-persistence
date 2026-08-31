@@ -127,7 +127,6 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
                     batch[i] = null;
                 }
                 collection.close();
-
                 final long memoryLength = out.position() - memoryOffset;
                 parent.getLookupTable()
                         .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
@@ -145,30 +144,46 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
                                 + precedingValueCount + "]");
                     }
                     precedingMemoryOffset += memoryOffset;
-                    memoryOffset = 0;
                     memoryFile = newMemoryFile();
                     out.close();
                     out = new BufferedFileDataOutputStream(memoryFile);
+                    memoryOffset = 0;
                 }
             } else {
                 // Route incomplete segment to isolated standalone file
-                final File incompleteFile = MemoryFiles.newIncompleteMemoryFile(memoryFile, memoryOffset);
+                precedingMemoryOffset += memoryOffset;
+                memoryFile = MemoryFiles.newIncompleteMemoryFile(memoryFile, memoryOffset);
+                out.close();
+                out = new BufferedFileDataOutputStream(memoryFile);
+                memoryOffset = 0;
 
-                try (BufferedFileDataOutputStream incOut = new BufferedFileDataOutputStream(incompleteFile)) {
-                    final ConfiguredSerializingCollection incCollection = new ConfiguredSerializingCollection(
-                            incompleteFile, incOut);
-                    for (int i = 0; i < valueCount; i++) {
-                        incCollection.add((V) batch[i]);
-                        batch[i] = null;
-                    }
-                    incCollection.close();
-
-                    final long memoryLength = incOut.position();
-                    parent.getLookupTable()
-                            .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount,
-                                    incompleteFile, precedingMemoryOffset, 0L, memoryLength);
+                //finish file
+                final ConfiguredSerializingCollection collection = new ConfiguredSerializingCollection(memoryFile, out);
+                for (int i = 0; i < valueCount; i++) {
+                    collection.add((V) batch[i]);
+                    batch[i] = null;
                 }
-                // Do not increment memoryOffset or precedingValueCount for the incomplete tail segment
+                collection.close();
+                final long memoryLength = out.position();
+                parent.getLookupTable()
+                        .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
+                                precedingMemoryOffset, memoryOffset, memoryLength);
+                precedingValueCount += valueCount;
+                parent.onFlush(flushIndex, this);
+
+                //close
+                precedingMemoryOffset += memoryLength;
+                close();
+
+                if (IMemoryMappedFile.isSegmentSizeExceeded(memoryLength)) {
+                    if (OperatingSystem.isWindows()) {
+                        throw new IllegalStateException("Memory length [" + memoryLength
+                                + "] exceeds Windows segment size limit [" + IMemoryMappedFile.MAX_SEGMENT_SIZE
+                                + "], cannot continue writing to memory file [" + memoryFile.getAbsolutePath()
+                                + "], precedingMemoryOffset=[" + precedingMemoryOffset + "], precedingValueCount=["
+                                + precedingValueCount + "]");
+                    }
+                }
             }
         } catch (final IOException e) {
             throw new RuntimeException(e);
@@ -181,6 +196,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
             try {
                 out.close();
                 out = null;
+                memoryOffset = Long.MIN_VALUE;
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }

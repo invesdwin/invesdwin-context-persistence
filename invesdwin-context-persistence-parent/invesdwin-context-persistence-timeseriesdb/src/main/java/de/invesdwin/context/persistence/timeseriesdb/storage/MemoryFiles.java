@@ -14,10 +14,10 @@ public final class MemoryFiles {
 
     private MemoryFiles() {}
 
-    public static File newIncompleteMemoryFile(final File memoryFile, final long currentOffset) {
+    public static File newIncompleteMemoryFile(final File memoryFile, final long memoryOffset) {
         final String timestampStr = FDate.now().toString(FDate.FORMAT_NUMBER_DATE_TIME_PS);
         final String extension = Files.getExtension(memoryFile);
-        final String incompleteFilename = Files.removeExtension(memoryFile.getName()) + "_incomplete_" + currentOffset
+        final String incompleteFilename = Files.removeExtension(memoryFile.getName()) + "_incomplete_" + memoryOffset
                 + "_" + timestampStr + extension;
         final File incompleteFile = new File(memoryFile.getParentFile(), incompleteFilename);
         cleanUpOldIncompleteFiles(memoryFile);

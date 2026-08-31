@@ -343,14 +343,12 @@ public class TimeSeriesStorageCache<K, V> {
                     "memoryFileSize[" + memoryFileSize + "] != expectedMemoryFileSize[" + expectedMemoryFileSize + "]");
         }
         final MemoryFileMetadata metadata = getMemoryFileMetadata();
-        if (!MemoryFiles.isIncompleteMemoryFile(memoryFile)) {
-            final long prevMemoryFileSize = metadata.getExpectedMemoryFileSize();
-            if (prevMemoryFileSize > expectedMemoryFileSize) {
-                throw new IllegalStateException("memoryFileFize[" + memoryFileSize
-                        + "] should not be less than prevMemoryFileSize[" + prevMemoryFileSize + "]");
-            }
-            metadata.setExpectedMemoryFileSize(expectedMemoryFileSize);
+        final long prevMemoryFileSize = metadata.getExpectedMemoryFileSize();
+        if (prevMemoryFileSize > expectedMemoryFileSize) {
+            throw new IllegalStateException("memoryFileFize[" + memoryFileSize
+                    + "] should not be less than prevMemoryFileSize[" + prevMemoryFileSize + "]");
         }
+        metadata.setExpectedMemoryFileSize(expectedMemoryFileSize);
         final FDate firstValueDate = extractEndTime.apply(firstValue);
         final FDate lastValueDate = extractEndTime.apply(lastValue);
         metadata.setSummary(time, firstValueDate, lastValueDate, precedingValueCount, valueCount,

@@ -302,16 +302,15 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                     if (complete) {
                         long memoryOffset = memoryFileOut.getChannel().position();
                         if (IMemoryMappedFile.isSegmentSizeExceeded(memoryOffset + tempFileLength)) {
-                            if (OperatingSystem.isWindows()
-                                    && IMemoryMappedFile.isSegmentSizeExceeded(tempFileLength)) {
-                                throw new IllegalStateException("Cannot write temp file of length [" + tempFileLength
-                                        + "] to memory file at offset [" + memoryOffset
-                                        + "] because it would exceed the maximum segment size of ["
-                                        + IMemoryMappedFile.MAX_SEGMENT_SIZE_WINDOWS + "] on Windows");
-                            }
                             precedingMemoryOffset += memoryOffset;
                             memoryFile = TimeSeriesStorageCache.newMemoryFile(parent, precedingMemoryOffset);
                             memoryFileOut.close();
+                            if (OperatingSystem.isWindows()
+                                    && IMemoryMappedFile.isSegmentSizeExceeded(tempFileLength)) {
+                                throw new IllegalStateException("Cannot write temp file of length [" + tempFileLength
+                                        + "] to new memory file because it would exceed the maximum segment size of ["
+                                        + IMemoryMappedFile.MAX_SEGMENT_SIZE_WINDOWS + "] on Windows");
+                            }
                             memoryFileOut = new FileOutputStream(memoryFile, true);
                             memoryOffset = 0;
                         }
@@ -319,14 +318,30 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                                 flushIndex, precedingValueCount, tempFileLength);
                         precedingValueCount += progress.getValueCount();
                     } else {
-                        // Write incomplete segment to isolated file
-                        final long currentOffset = memoryFileOut.getChannel().position();
-                        final File incompleteFile = MemoryFiles.newIncompleteMemoryFile(memoryFile, currentOffset);
-
-                        try (FileOutputStream incOut = new FileOutputStream(incompleteFile)) {
-                            progress.transferToMemoryFile(incOut, incompleteFile, precedingMemoryOffset, 0L, flushIndex,
-                                    precedingValueCount, tempFileLength);
+                        long memoryOffset = memoryFileOut.getChannel().position();
+                        //open new incomplete segment to isolated file
+                        precedingMemoryOffset += memoryOffset;
+                        memoryFile = MemoryFiles.newIncompleteMemoryFile(memoryFile, memoryOffset);
+                        memoryFileOut.close();
+                        if (OperatingSystem.isWindows() && IMemoryMappedFile.isSegmentSizeExceeded(tempFileLength)) {
+                            throw new IllegalStateException("Cannot write temp file of length [" + tempFileLength
+                                    + "] to incomplete memory file because it would exceed the maximum segment size of ["
+                                    + IMemoryMappedFile.MAX_SEGMENT_SIZE_WINDOWS + "] on Windows");
                         }
+                        memoryFileOut = new FileOutputStream(memoryFile);
+                        memoryOffset = 0;
+
+                        //finish file
+                        progress.transferToMemoryFile(memoryFileOut, memoryFile, precedingMemoryOffset, memoryOffset,
+                                flushIndex, precedingValueCount, tempFileLength);
+                        precedingValueCount += progress.getValueCount();
+
+                        //close
+                        precedingMemoryOffset += tempFileLength;
+                        memoryFile = null;
+                        memoryFileOut.close();
+                        memoryFileOut = null;
+                        memoryOffset = Long.MIN_VALUE;
                     }
 
                     ParallelUpdateProgressPool.INSTANCE.returnObject(progress);
