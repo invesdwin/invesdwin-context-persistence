@@ -43,7 +43,6 @@ public final class MemoryFiles {
             return;
         }
 
-        final FDate now = FDate.now();
         final FDate[] fileDates = new FDate[files.length];
 
         File latestFile = null;
@@ -78,7 +77,7 @@ public final class MemoryFiles {
                 if (date == null) {
                     continue;
                 }
-                if (TimeSeriesProperties.RETAIN_INCOMPLETE_SEGMENT_DURATION.isGreaterThan(date, now)) {
+                if (TimeSeriesProperties.RETAIN_INCOMPLETE_SEGMENT_DURATION.isGreaterThan(date, latestDate)) {
                     continue;
                 }
             }
