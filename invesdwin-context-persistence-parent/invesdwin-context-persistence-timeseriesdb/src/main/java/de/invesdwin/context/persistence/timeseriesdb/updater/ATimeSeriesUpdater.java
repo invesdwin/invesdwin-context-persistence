@@ -17,7 +17,8 @@ import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdaterInternalMethods;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ParallelUpdateProgress;
-import de.invesdwin.context.persistence.timeseriesdb.updater.progress.SequentialUpdateProgress;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.SequentialChunkedUpdateProgress;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.SequentialContinuousUpdateProgress;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
@@ -29,6 +30,7 @@ import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.math.decimal.scaled.Percent;
+import de.invesdwin.util.streams.buffer.file.IMemoryMappedFile;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 
@@ -238,8 +240,13 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             ParallelUpdateProgress.doUpdate(internalMethods, initialPrecedingMemoryOffset, initialMemoryOffset,
                     initialPrecedingValueCount, flatteningSources);
         } else {
-            SequentialUpdateProgress.doUpdate(internalMethods, initialPrecedingMemoryOffset, initialMemoryOffset,
-                    initialPrecedingValueCount, flatteningSources);
+            if (IMemoryMappedFile.isSegmentSizeExceeded(Long.MAX_VALUE)) {
+                SequentialChunkedUpdateProgress.doUpdate(internalMethods, initialPrecedingMemoryOffset,
+                        initialMemoryOffset, initialPrecedingValueCount, flatteningSources);
+            } else {
+                SequentialContinuousUpdateProgress.doUpdate(internalMethods, initialPrecedingMemoryOffset,
+                        initialMemoryOffset, initialPrecedingValueCount, flatteningSources);
+            }
         }
     }
 

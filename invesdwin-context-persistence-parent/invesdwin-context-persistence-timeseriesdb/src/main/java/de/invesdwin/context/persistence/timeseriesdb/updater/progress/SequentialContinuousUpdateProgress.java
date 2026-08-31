@@ -24,7 +24,7 @@ import de.invesdwin.util.streams.pool.buffered.BufferedFileDataOutputStream;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
-public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Closeable {
+public class SequentialContinuousUpdateProgress<K, V> implements IUpdateProgress<K, V>, Closeable {
 
     private final ITimeSeriesUpdaterInternalMethods<K, V> parent;
     private final TextDescription name;
@@ -42,7 +42,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
 
     private final Object[] batch;
 
-    public SequentialUpdateProgress(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
+    public SequentialContinuousUpdateProgress(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
             final long initialPrecedingMemoryOffset, final long initialMemoryOffset,
             final long initialPrecedingValueCount) {
         this.parent = parent;
@@ -263,9 +263,9 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
     public static <K, V> void doUpdate(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
             final long initialPrecedingMemoryOffset, final long initialMemoryOffset,
             final long initialPrecedingValueCount, final ICloseableIterable<? extends V> source) {
-        try (ICloseableIterator<SequentialUpdateProgress<K, V>> batchWriterProducer = new ICloseableIterator<SequentialUpdateProgress<K, V>>() {
+        try (ICloseableIterator<SequentialContinuousUpdateProgress<K, V>> batchWriterProducer = new ICloseableIterator<SequentialContinuousUpdateProgress<K, V>>() {
 
-            private final SequentialUpdateProgress<K, V> progress = new SequentialUpdateProgress<K, V>(parent,
+            private final SequentialContinuousUpdateProgress<K, V> progress = new SequentialContinuousUpdateProgress<K, V>(parent,
                     initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount);
             private final ICloseableIterator<? extends V> elements = source.iterator();
 
@@ -275,7 +275,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
             }
 
             @Override
-            public SequentialUpdateProgress<K, V> next() {
+            public SequentialContinuousUpdateProgress<K, V> next() {
                 progress.reset();
                 try {
                     while (true) {
@@ -310,11 +310,11 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
     }
 
     private static <K, V> void flush(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
-            final ICloseableIterator<SequentialUpdateProgress<K, V>> batchWriterProducer) {
+            final ICloseableIterator<SequentialContinuousUpdateProgress<K, V>> batchWriterProducer) {
         int flushIndex = 0;
         try {
             while (true) {
-                final SequentialUpdateProgress<K, V> progress = batchWriterProducer.next();
+                final SequentialContinuousUpdateProgress<K, V> progress = batchWriterProducer.next();
                 final boolean complete = !parent.shouldRedoLastFile()
                         || (progress.getValueCount() == parent.getLookupTable().getBatchFlushInterval()
                                 && batchWriterProducer.hasNext());
