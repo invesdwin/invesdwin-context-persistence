@@ -55,15 +55,11 @@ public final class MemoryFiles {
             final int lastUnderscore = noExt.lastIndexOf('_');
             if (lastUnderscore != -1) {
                 final String timestampStr = noExt.substring(lastUnderscore + 1);
-                try {
-                    final FDate date = FDate.valueOf(timestampStr, FDate.FORMAT_NUMBER_DATE_TIME_PS);
-                    fileDates[i] = date;
-                    if (date.isAfterNotNullSafe(latestDate)) {
-                        latestDate = date;
-                        latestFile = f;
-                    }
-                } catch (final Exception e) {
-                    // Ignore files with malformed timestamp suffixes
+                final FDate date = FDate.valueOf(timestampStr, FDate.FORMAT_NUMBER_DATE_TIME_PS);
+                fileDates[i] = date;
+                if (date.isAfterNotNullSafe(latestDate)) {
+                    latestDate = date;
+                    latestFile = f;
                 }
             }
         }
