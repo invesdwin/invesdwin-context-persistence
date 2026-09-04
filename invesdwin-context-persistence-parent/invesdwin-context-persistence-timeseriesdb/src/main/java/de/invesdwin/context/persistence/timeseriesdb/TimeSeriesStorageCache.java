@@ -33,6 +33,7 @@ import de.invesdwin.context.persistence.timeseriesdb.buffer.IFileBufferCacheResu
 import de.invesdwin.context.persistence.timeseriesdb.buffer.source.ByteBufferFileBufferSource;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.source.IFileBufferSource;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.source.IterableFileBufferSource;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.data.ITimeSeriesDirectoryVersionData;
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftBackUnitsLoopLongIndex;
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftForwardUnitsLoopLongIndex;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
@@ -67,7 +68,6 @@ import de.invesdwin.util.concurrent.reference.MutableSoftReference;
 import de.invesdwin.util.concurrent.reference.WeakThreadLocalReference;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.error.UnknownArgumentException;
-import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.OperatingSystem;
 import de.invesdwin.util.lang.string.description.TextDescription;
@@ -223,7 +223,7 @@ public class TimeSeriesStorageCache<K, V> {
     private final TimeSeriesLookupMode lookupMode;
     private final int batchFlushInterval;
     @GuardedBy("this")
-    private File dataDirectory;
+    private ITimeSeriesDirectoryVersionData directoryVersionData;
 
     private volatile Optional<V> cachedFirstValue;
     private volatile Optional<V> cachedLastValue;
@@ -288,29 +288,25 @@ public class TimeSeriesStorageCache<K, V> {
         }
     }
 
-    public synchronized File getDataDirectory() {
-        if (dataDirectory == null) {
-            dataDirectory = newDataDirectory();
-            try {
-                Files.forceMkdir(dataDirectory);
-            } catch (final IOException e) {
-                throw new RuntimeException(e);
-            }
+    public synchronized ITimeSeriesDirectoryVersionData getDirectoryVersionData() {
+        if (directoryVersionData == null) {
+            directoryVersionData = newDirectoryVersionData();
         }
-        return dataDirectory;
+        return directoryVersionData;
     }
 
-    public File newDataDirectory() {
-        return storage.newDataDirectory(hashKey);
+    public ITimeSeriesDirectoryVersionData newDirectoryVersionData() {
+        return storage.newDirectoryVersionData(hashKey);
     }
 
     public File getUpdateLockFile() {
-        return new File(getDataDirectory(), "updateRunning.lock");
+        return new File(getDirectoryVersionData().getDirectoryVersionDataShared(), "updateRunning.lock");
     }
 
     public static File newMemoryFile(final ITimeSeriesUpdaterInternalMethods<?, ?> parent,
             final long precedingMemoryOffset) {
-        final File memoryFile = new File(parent.getLookupTable().getDataDirectory(), "memory.data");
+        final File memoryFile = new File(
+                parent.getLookupTable().getDirectoryVersionData().getDirectoryVersionDataShared(), "memory.data");
         return newMemoryFile(memoryFile, precedingMemoryOffset);
     }
 
@@ -324,7 +320,7 @@ public class TimeSeriesStorageCache<K, V> {
 
     public synchronized MemoryFileMetadata getMemoryFileMetadata() {
         if (memoryFileMetadata == null) {
-            memoryFileMetadata = new MemoryFileMetadata(getDataDirectory());
+            memoryFileMetadata = new MemoryFileMetadata(getDirectoryVersionData().getDirectoryVersionDataShared());
         }
         return memoryFileMetadata;
     }
@@ -803,9 +799,9 @@ public class TimeSeriesStorageCache<K, V> {
         storage.deleteRange_nextValueLookupTable(hashKey);
         storage.deleteRange_previousValueLookupTable(hashKey);
         clearCaches();
-        Files.deleteNative(newDataDirectory());
+        getDirectoryVersionData().delete();
         memoryFileMetadata = null;
-        dataDirectory = null;
+        directoryVersionData = null;
     }
 
     private void clearCaches() {

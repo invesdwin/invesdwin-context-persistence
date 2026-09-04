@@ -1,6 +1,5 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented;
 
-import java.io.File;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -10,6 +9,9 @@ import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.compression.lz4.LZ4Streams;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
+import de.invesdwin.context.persistence.timeseriesdb.directory.ITimeSeriesDirectory;
+import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.ITimeSeriesDirectoryVersion;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
@@ -167,9 +169,9 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
 
     protected abstract ICloseableIterable<? extends V> downloadSegmentElements(SegmentedKey<K> segmentedKey);
 
-    protected SegmentedTimeSeriesStorage newStorage(final File directory, final Integer valueFixedLength,
-            final ICompressionFactory compressionFactory) {
-        return new SegmentedTimeSeriesStorage(directory, valueFixedLength, compressionFactory);
+    protected SegmentedTimeSeriesStorage newStorage(final ITimeSeriesDirectoryVersion directoryVersion,
+            final Integer valueFixedLength, final ICompressionFactory compressionFactory) {
+        return new SegmentedTimeSeriesStorage(directoryVersion, valueFixedLength, compressionFactory);
     }
 
     @Override
@@ -177,8 +179,8 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         return segmentedTable;
     }
 
-    protected void deleteCorruptedStorage(final File directory) {
-        directory.delete();
+    protected void deleteCorruptedStorage(final ITimeSeriesDirectoryVersion directoryVersion) {
+        directoryVersion.delete();
     }
 
     public abstract ISegmentFinder getSegmentFinder(K key);
@@ -239,7 +241,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
     }
 
     @Override
-    public File getDirectory() {
+    public ITimeSeriesDirectory getDirectory() {
         return segmentedTable.getDirectory();
     }
 
@@ -454,7 +456,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
     }
 
     @Override
-    public File getBaseDirectory() {
+    public ITimeSeriesBaseDirectory getBaseDirectory() {
         return ATimeSeriesDB.getDefaultBaseDirectory();
     }
 
@@ -633,14 +635,14 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         }
 
         @Override
-        protected TimeSeriesStorage newStorage(final File directory, final Integer valueFixedLength,
-                final ICompressionFactory compressionFactory) {
-            return ASegmentedTimeSeriesDB.this.newStorage(directory, valueFixedLength, compressionFactory);
+        protected TimeSeriesStorage newStorage(final ITimeSeriesDirectoryVersion directoryVersion,
+                final Integer valueFixedLength, final ICompressionFactory compressionFactory) {
+            return ASegmentedTimeSeriesDB.this.newStorage(directoryVersion, valueFixedLength, compressionFactory);
         }
 
         @Override
-        protected void deleteCorruptedStorage(final File directory) {
-            ASegmentedTimeSeriesDB.this.deleteCorruptedStorage(directory);
+        protected void deleteCorruptedStorage(final ITimeSeriesDirectoryVersion directoryVersion) {
+            ASegmentedTimeSeriesDB.this.deleteCorruptedStorage(directoryVersion);
         }
 
         @Override
@@ -649,7 +651,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         }
 
         @Override
-        public File getBaseDirectory() {
+        public ITimeSeriesBaseDirectory getBaseDirectory() {
             return ASegmentedTimeSeriesDB.this.getBaseDirectory();
         }
 

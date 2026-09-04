@@ -13,6 +13,12 @@ import de.invesdwin.context.integration.compression.lz4.LZ4Streams;
 import de.invesdwin.context.integration.persistentmap.CorruptedStorageException;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.error.Err;
+import de.invesdwin.context.persistence.timeseriesdb.directory.ITimeSeriesDirectory;
+import de.invesdwin.context.persistence.timeseriesdb.directory.TimeSeriesDirectory;
+import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
+import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.ITimeSeriesDirectoryVersion;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.data.ITimeSeriesDirectoryVersionData;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
@@ -27,7 +33,6 @@ import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
-import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
@@ -44,7 +49,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     private final ICompressionFactory compressionFactory;
     private final TimeSeriesLookupMode lookupMode;
     private final int batchFlushInterval;
-    private final File directory;
+    private final ITimeSeriesDirectory directory;
     private final ALoadingCache<K, TimeSeriesStorageCache<K, V>> key_lookupTableCache;
     private final ALoadingCache<K, IReentrantReadWriteLock> key_tableLock = new ALoadingCache<K, IReentrantReadWriteLock>() {
         @Override
@@ -80,16 +85,9 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         this.compressionFactory = newCompressionFactory();
         this.lookupMode = newLookupMode();
         this.batchFlushInterval = newBatchFlushInterval();
-        final File baseDirectory = getBaseDirectory();
-        if (baseDirectory == null) {
-            throw new RetryLaterRuntimeException(
-                    "The base directory should not be null, maybe this table was already finalized?");
-        }
-        if (Objects.equals(baseDirectory.getAbsolutePath(), new File(".").getAbsolutePath())) {
-            throw new IllegalStateException(
-                    "Should not use current working directory as base directory: " + baseDirectory);
-        }
-        this.directory = new File(baseDirectory, getStorageName(Files.normalizePath(getName())));
+        final ITimeSeriesBaseDirectory baseDirectory = getBaseDirectory();
+        final String storageName = getStorageName(Files.normalizePath(getName()));
+        this.directory = new TimeSeriesDirectory(baseDirectory, storageName);
         this.key_lookupTableCache = new ACaffeineLoadingCache<K, TimeSeriesStorageCache<K, V>>() {
             @Override
             protected TimeSeriesStorageCache<K, V> loadValue(final K key) {
@@ -132,40 +130,41 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     private TimeSeriesStorage corruptionHandlingNewStorage() {
         try {
-            return newStorage(directory, getValueFixedLength(), compressionFactory);
+            return newStorage(directory.getDirectoryVersion(), getValueFixedLength(), compressionFactory);
         } catch (final Throwable t) {
             if (Throwables.isCausedByType(t, CorruptedStorageException.class)) {
-                Err.process(new RuntimeException("Resetting " + ATimeSeriesDB.class.getSimpleName() + " ["
-                        + getDirectory() + "] because the storage has been corrupted"));
-                deleteCorruptedStorage(directory);
-                return newStorage(directory, getValueFixedLength(), compressionFactory);
+                Err.process(new RuntimeException("Resetting " + ATimeSeriesDB.class.getSimpleName() + " [" + directory
+                        + "] because the storage has been corrupted"));
+                deleteCorruptedStorage(directory.getDirectoryVersion());
+                return newStorage(directory.getDirectoryVersion(), getValueFixedLength(), compressionFactory);
             } else {
                 throw Throwables.propagate(t);
             }
         }
     }
 
-    protected void deleteCorruptedStorage(final File directory) {
-        Files.deleteNative(directory);
+    protected void deleteCorruptedStorage(final ITimeSeriesDirectoryVersion directoryVersion) {
+        System.out.println("TODO: create a new version and add a cleanup procedure");
+        directoryVersion.delete();
         lastResetIndex.incrementAndGet();
     }
 
     @Override
-    public File getDirectory() {
+    public ITimeSeriesDirectory getDirectory() {
         return directory;
     }
 
-    public File getDataDirectory(final K key) {
-        return getLookupTableCache(key).newDataDirectory();
+    public ITimeSeriesDirectoryVersionData getDirectoryVersionData(final K key) {
+        return getLookupTableCache(key).newDirectoryVersionData();
     }
 
-    protected TimeSeriesStorage newStorage(final File directory, final Integer valueFixedLength,
-            final ICompressionFactory compressionFactory) {
-        return new TimeSeriesStorage(directory, valueFixedLength, compressionFactory);
+    protected TimeSeriesStorage newStorage(final ITimeSeriesDirectoryVersion directoryVersion,
+            final Integer valueFixedLength, final ICompressionFactory compressionFactory) {
+        return new TimeSeriesStorage(directoryVersion, valueFixedLength, compressionFactory);
     }
 
     @Override
-    public File getBaseDirectory() {
+    public ITimeSeriesBaseDirectory getBaseDirectory() {
         return getDefaultBaseDirectory();
     }
 
@@ -177,8 +176,10 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         return ATimeSeriesDB.class.getSimpleName() + "/" + name;
     }
 
-    public static File getDefaultBaseDirectory() {
-        return ContextProperties.getHomeDataDirectory();
+    public static ITimeSeriesBaseDirectory getDefaultBaseDirectory() {
+        final File baseDirectory = ContextProperties.getHomeDataDirectory();
+        final File baseDirectoryPerNode = ContextProperties.getHomeDataDirectoryPerNode();
+        return new TimeSeriesBaseDirectory(baseDirectory, baseDirectoryPerNode);
     }
 
     protected abstract Integer newValueFixedLength();

@@ -66,7 +66,8 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
 
     protected String newUpdaterId() {
         return ALazyDataUpdater.class.getSimpleName() + "_" + getTable().getName() + "_"
-                + getTable().getDirectory().getAbsolutePath() + "_" + keyToString(key) + "_" + getElementsName();
+                + getTable().getDirectory().getDirectoryVersion().getDirectoryVersionShared().getAbsolutePath() + "_"
+                + keyToString(key) + "_" + getElementsName();
     }
 
     @Override

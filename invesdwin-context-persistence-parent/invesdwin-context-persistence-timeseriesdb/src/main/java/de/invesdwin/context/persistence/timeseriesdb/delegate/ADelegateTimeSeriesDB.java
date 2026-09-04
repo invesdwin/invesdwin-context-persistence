@@ -1,6 +1,5 @@
 package de.invesdwin.context.persistence.timeseriesdb.delegate;
 
-import java.io.File;
 import java.io.IOException;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -8,6 +7,8 @@ import javax.annotation.concurrent.ThreadSafe;
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
+import de.invesdwin.context.persistence.timeseriesdb.directory.ITimeSeriesDirectory;
+import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
 import de.invesdwin.util.marshallers.serde.ISerde;
@@ -34,12 +35,12 @@ public abstract class ADelegateTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V>
     }
 
     @Override
-    public File getBaseDirectory() {
+    public ITimeSeriesBaseDirectory getBaseDirectory() {
         return delegate.getBaseDirectory();
     }
 
     @Override
-    public File getDirectory() {
+    public ITimeSeriesDirectory getDirectory() {
         return delegate.getDirectory();
     }
 

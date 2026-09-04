@@ -8,6 +8,7 @@ import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.persistentmap.CorruptedStorageException;
 import de.invesdwin.context.persistence.ezdb.RangeTablePersistenceMode;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.ITimeSeriesDirectoryVersion;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.util.time.range.TimeRange;
 
@@ -16,9 +17,9 @@ public class SegmentedTimeSeriesStorage extends TimeSeriesStorage {
 
     private final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable;
 
-    public SegmentedTimeSeriesStorage(final File directory, final Integer valueFixedLength,
-            final ICompressionFactory compressionFactory) {
-        super(directory, valueFixedLength, compressionFactory);
+    public SegmentedTimeSeriesStorage(final ITimeSeriesDirectoryVersion directoryVersion,
+            final Integer valueFixedLength, final ICompressionFactory compressionFactory) {
+        super(directoryVersion, valueFixedLength, compressionFactory);
         segmentStatusTable = new ADelegateRangeTable<String, TimeRange, SegmentStatus>("segmentStatusTable") {
             @Override
             protected boolean allowHasNext() {
@@ -27,7 +28,8 @@ public class SegmentedTimeSeriesStorage extends TimeSeriesStorage {
 
             @Override
             protected File getDirectory() {
-                return directory;
+                System.out.println("TODO: replace this storage");
+                return directoryVersion.getDirectoryVersionShared();
             }
 
             @Override

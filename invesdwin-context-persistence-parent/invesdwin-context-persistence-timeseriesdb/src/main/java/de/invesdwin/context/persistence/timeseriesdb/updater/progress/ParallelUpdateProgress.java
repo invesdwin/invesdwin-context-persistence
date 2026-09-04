@@ -198,7 +198,8 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
     public static <K, V> void doUpdate(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
             final long initialPrecedingMemoryOffset, final long initialMemoryOffset,
             final long initialPrecedingValueCount, final ICloseableIterable<? extends V> source) {
-        final File tempDir = new File(parent.getLookupTable().getDataDirectory(),
+        final File tempDir = new File(
+                parent.getLookupTable().getDirectoryVersionData().getDirectoryVersionDataPerNode(),
                 ATimeSeriesUpdater.class.getSimpleName());
         Files.deleteQuietly(tempDir);
         try {

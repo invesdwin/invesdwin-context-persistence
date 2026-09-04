@@ -283,7 +283,8 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
             final long initialPrecedingMemoryOffset, final long initialMemoryOffset,
             final long initialPrecedingValueCount, final ICloseableIterable<? extends V> source) {
 
-        final File tempDir = new File(parent.getLookupTable().getDataDirectory(),
+        final File tempDir = new File(
+                parent.getLookupTable().getDirectoryVersionData().getDirectoryVersionDataPerNode(),
                 ATimeSeriesUpdater.class.getSimpleName());
         Files.deleteQuietly(tempDir);
         try {
