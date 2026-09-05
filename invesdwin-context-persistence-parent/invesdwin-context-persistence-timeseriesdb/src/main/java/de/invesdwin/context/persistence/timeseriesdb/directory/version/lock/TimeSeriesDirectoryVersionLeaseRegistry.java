@@ -19,13 +19,9 @@ public final class TimeSeriesDirectoryVersionLeaseRegistry {
             .getInstance(true)
             .newConcurrentMap();
 
-    private static final ScheduledExecutorService HEARTBEAT_EXECUTOR = Executors
-            .newScheduledThreadPool(TimeSeriesDirectoryVersionLeaseRegistry.class.getSimpleName(), 1);
-
-    static {
-        HEARTBEAT_EXECUTOR.scheduleAtFixedRate(TimeSeriesDirectoryVersionLeaseRegistry::updateHeartbeats, 1, 1,
-                TimeUnit.MINUTES);
-    }
+    // Use a lock object to synchronize creation and destruction of the executor
+    private static final Object EXECUTOR_LOCK = new Object();
+    private static ScheduledExecutorService heartbeatExecutor;
 
     private TimeSeriesDirectoryVersionLeaseRegistry() {}
 
@@ -39,12 +35,37 @@ public final class TimeSeriesDirectoryVersionLeaseRegistry {
             current.retain();
             return current;
         });
+
+        startHeartbeatExecutorIfNeeded();
         return lease;
     }
 
     static void remove(final String version, final TimeSeriesDirectoryVersionLease lease) {
         final String registryKey = lease.getDirectoryVersionShared().getParent() + "/" + version;
         REGISTRY.remove(registryKey, lease);
+
+        stopHeartbeatExecutorIfNeeded();
+    }
+
+    private static void startHeartbeatExecutorIfNeeded() {
+        synchronized (EXECUTOR_LOCK) {
+            if (heartbeatExecutor == null || heartbeatExecutor.isShutdown()) {
+                heartbeatExecutor = Executors
+                        .newScheduledThreadPool(TimeSeriesDirectoryVersionLeaseRegistry.class.getSimpleName(), 1);
+                heartbeatExecutor.scheduleAtFixedRate(TimeSeriesDirectoryVersionLeaseRegistry::updateHeartbeats, 1, 1,
+                        TimeUnit.MINUTES);
+            }
+        }
+    }
+
+    private static void stopHeartbeatExecutorIfNeeded() {
+        synchronized (EXECUTOR_LOCK) {
+            // Only shut down if the registry is empty and the executor is actively running
+            if (REGISTRY.isEmpty() && heartbeatExecutor != null && !heartbeatExecutor.isShutdown()) {
+                heartbeatExecutor.shutdown();
+                heartbeatExecutor = null;
+            }
+        }
     }
 
     private static void updateHeartbeats() {
@@ -56,5 +77,8 @@ public final class TimeSeriesDirectoryVersionLeaseRegistry {
                 lease.touchHeartbeat();
             }
         }
+
+        // Safety check just in case the registry emptied out during an active heartbeat sweep
+        stopHeartbeatExecutorIfNeeded();
     }
 }
