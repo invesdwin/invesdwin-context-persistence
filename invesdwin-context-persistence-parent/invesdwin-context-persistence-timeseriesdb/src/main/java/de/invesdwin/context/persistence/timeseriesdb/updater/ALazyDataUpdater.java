@@ -102,6 +102,10 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
 
     @Override
     public final void maybeUpdate(final boolean force) {
+        //        System.out.println("TODO: handle updated by concurrent processes, write heartbeats during updates."
+        //                + " Avoid collisions with other processes by using atomic move of a lock file?"
+        //                + " Handle reloads when a new version is created or when the other process finished with its update."
+        //                + " Also handle failover if heartbeat of other process takes too long, or should we generally allow concurrent updates that are idempotent?");
         final FDate newUpdateCheck = FDate.now();
         if (force || shouldCheckForUpdate(newUpdateCheck)) {
             final IReentrantLock updateLock = getUpdateLock();
