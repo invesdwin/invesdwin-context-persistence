@@ -5,10 +5,10 @@ import java.io.IOException;
 
 import javax.annotation.concurrent.Immutable;
 
+import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannelPath;
+import de.invesdwin.context.integration.filechannel.nio.atomic.properties.TransactionalFileProperties;
 import de.invesdwin.context.persistence.timeseriesdb.directory.version.ITimeSeriesDirectoryVersion;
 import de.invesdwin.context.system.properties.ICloseableProperties;
-import de.invesdwin.context.system.properties.concurrent.multiprocess.AtomicFilesHelper;
-import de.invesdwin.context.system.properties.concurrent.multiprocess.TransactionalFileProperties;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
 
@@ -19,7 +19,7 @@ public class TimeSeriesDirectoryVersionData implements ITimeSeriesDirectoryVersi
     private final String storageKey;
     private final File directoryVersionDataShared;
     private final File directoryVersionDataPerNode;
-    private AtomicFilesHelper propertiesAtomicFilesHelper;
+    private AtomicNioFileChannelPath propertiesPath;
 
     public TimeSeriesDirectoryVersionData(final ITimeSeriesDirectoryVersion parent, final String storageKey) {
         this.parent = parent;
@@ -64,19 +64,21 @@ public class TimeSeriesDirectoryVersionData implements ITimeSeriesDirectoryVersi
 
     @Override
     public ICloseableProperties getProperties() {
-        return new TransactionalFileProperties(getPropertiesAtomicFilesHelper());
+        //System.out.println(
+        //        "TODO: create a wrapper that moved to the new directory on close if delete happened inbetween? also maybe add a flush operation before switching to a new directory?");
+        return new TransactionalFileProperties(getPropertiesPath());
     }
 
-    private AtomicFilesHelper getPropertiesAtomicFilesHelper() {
-        if (propertiesAtomicFilesHelper == null) {
+    private AtomicNioFileChannelPath getPropertiesPath() {
+        if (propertiesPath == null) {
             synchronized (this) {
-                if (propertiesAtomicFilesHelper == null) {
-                    propertiesAtomicFilesHelper = new AtomicFilesHelper(
-                            TransactionalFileProperties.newDefaultFolder(directoryVersionDataShared));
+                if (propertiesPath == null) {
+                    propertiesPath = new AtomicNioFileChannelPath(
+                            TransactionalFileProperties.newDefaultFolder(directoryVersionDataShared).toURI());
                 }
             }
         }
-        return propertiesAtomicFilesHelper;
+        return propertiesPath;
     }
 
 }

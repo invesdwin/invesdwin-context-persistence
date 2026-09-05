@@ -144,7 +144,8 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     }
 
     protected void deleteCorruptedStorage(final ITimeSeriesDirectoryVersion directoryVersion) {
-        System.out.println("TODO: create a new version and add a cleanup procedure");
+        System.out.println(
+                "TODO: create a new version and add a cleanup procedure, though should also be isolated per key?");
         directoryVersion.delete();
         lastResetIndex.incrementAndGet();
     }
