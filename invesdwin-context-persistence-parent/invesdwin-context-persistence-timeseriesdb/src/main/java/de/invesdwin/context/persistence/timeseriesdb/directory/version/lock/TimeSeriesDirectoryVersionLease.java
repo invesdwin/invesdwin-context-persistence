@@ -26,7 +26,7 @@ public final class TimeSeriesDirectoryVersionLease implements ISafeCloseable {
     private final AtomicInteger refCount = new AtomicInteger(0);
 
     TimeSeriesDirectoryVersionLease(final ITimeSeriesDirectory parent, final String version) {
-        this.version = version;
+        this.version = version.intern();
         this.directoryVersionShared = new File(parent.getDirectoryShared(), this.version);
         this.directoryVersionPerNode = new File(parent.getDirectoryPerNode(), this.version);
 

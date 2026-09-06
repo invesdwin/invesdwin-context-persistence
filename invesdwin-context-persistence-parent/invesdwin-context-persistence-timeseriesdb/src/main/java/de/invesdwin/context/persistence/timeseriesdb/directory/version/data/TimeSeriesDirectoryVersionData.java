@@ -74,7 +74,7 @@ public class TimeSeriesDirectoryVersionData implements ITimeSeriesDirectoryVersi
             synchronized (this) {
                 if (propertiesPath == null) {
                     propertiesPath = new AtomicNioFileChannelPath(
-                            TransactionalFileProperties.newDefaultFolder(directoryVersionDataShared).toURI());
+                            TransactionalFileProperties.newDefaultDirectory(directoryVersionDataShared).toURI());
                 }
             }
         }

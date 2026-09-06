@@ -2,12 +2,12 @@ package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentStatus;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.status.SegmentStatusTableFolder;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
@@ -22,7 +22,6 @@ import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
-import de.invesdwin.util.time.range.TimeRange;
 
 @NotThreadSafe
 public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
@@ -40,10 +39,10 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
         this.table = historicalSegmentTable.getSegmentedTable();
         this.hashKey = historicalSegmentTable.hashKeyToString(segmentedKey.getKey());
 
-        final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable = historicalSegmentTable
-                .getStorage()
-                .getSegmentStatusTable();
-        final SegmentStatus existingStatus = segmentStatusTable.get(hashKey, segmentedKey.getSegment());
+        final SegmentStatusTableFolder segmentStatusTableFolder = historicalSegmentTable.getStorage()
+                .getSegmentStatusTable()
+                .getFolder(hashKey);
+        final SegmentStatus existingStatus = segmentStatusTableFolder.get(segmentedKey.getSegment());
         if (existingStatus == SegmentStatus.INITIALIZING) {
             //cleanup initially
             this.table.deleteRange(segmentedKey);
@@ -158,12 +157,12 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     public void putNextLiveValues(final ICloseableIterable<V> memoryValues) {
-        final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable = historicalSegmentTable
-                .getStorage()
-                .getSegmentStatusTable();
-        final SegmentStatus existingStatus = segmentStatusTable.get(hashKey, segmentedKey.getSegment());
+        final SegmentStatusTableFolder segmentStatusTableFolder = historicalSegmentTable.getStorage()
+                .getSegmentStatusTable()
+                .getFolder(hashKey);
+        final SegmentStatus existingStatus = segmentStatusTableFolder.get(segmentedKey.getSegment());
         if (existingStatus == null) {
-            segmentStatusTable.put(hashKey, segmentedKey.getSegment(), SegmentStatus.INITIALIZING);
+            segmentStatusTableFolder.put(segmentedKey.getSegment(), SegmentStatus.INITIALIZING);
         } else if (existingStatus != SegmentStatus.INITIALIZING) {
             throw UnknownArgumentException.newInstance(SegmentStatus.class, existingStatus);
         }
@@ -216,12 +215,12 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     public void finish() {
         if (!isEmpty()) {
-            final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable = historicalSegmentTable
-                    .getStorage()
-                    .getSegmentStatusTable();
-            final SegmentStatus existingStatus = segmentStatusTable.get(hashKey, segmentedKey.getSegment());
+            final SegmentStatusTableFolder segmentStatusTableFolder = historicalSegmentTable.getStorage()
+                    .getSegmentStatusTable()
+                    .getFolder(hashKey);
+            final SegmentStatus existingStatus = segmentStatusTableFolder.get(segmentedKey.getSegment());
             if (existingStatus == SegmentStatus.INITIALIZING) {
-                segmentStatusTable.put(hashKey, segmentedKey.getSegment(), SegmentStatus.COMPLETE);
+                segmentStatusTableFolder.put(segmentedKey.getSegment(), SegmentStatus.COMPLETE);
                 final ICloseableIterable<V> rangeValues = rangeValues(segmentedKey.getSegment().getFrom(),
                         segmentedKey.getSegment().getTo(), DisabledLock.INSTANCE, null);
                 historicalSegmentTable.getSegmentedLookupTableCache(segmentedKey.getKey())
