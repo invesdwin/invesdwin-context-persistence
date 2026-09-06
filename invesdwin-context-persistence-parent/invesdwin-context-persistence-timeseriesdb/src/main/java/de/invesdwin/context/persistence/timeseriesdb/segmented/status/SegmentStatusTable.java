@@ -45,7 +45,6 @@ public class SegmentStatusTable implements ISafeCloseable {
     public SegmentStatusTable(final ITimeSeriesDirectoryVersion directoryVersion) {
         this.directoryVersion = directoryVersion;
         this.version = directoryVersion.getVersion();
-        directoryVersion.getDirectoryVersionShared();
         this.directory = newDirectory(directoryVersion.getDirectoryVersionShared());
     }
 
