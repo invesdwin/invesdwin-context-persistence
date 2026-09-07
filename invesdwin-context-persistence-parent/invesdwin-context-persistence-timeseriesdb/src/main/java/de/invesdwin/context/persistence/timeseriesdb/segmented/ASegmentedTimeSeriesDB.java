@@ -54,7 +54,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
             return true;
         }
     };
-    private final ILoadingCache<K, ASegmentedTimeSeriesStorageCache<K, V>> key_segmentedLookupTableCache;
+    private final ILoadingCache<K, ASegmentedTimeSeriesLookupStorageCache<K, V>> key_segmentedLookupTableCache;
 
     public ASegmentedTimeSeriesDB(final String name) {
         this.valueSerde = new AFastLazyCallable<ISerde<V>>() {
@@ -73,11 +73,11 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         this.lookupMode = newLookupMode();
         this.batchFlushInterval = newBatchFlushInterval();
         this.segmentedTable = new SegmentedTable(name);
-        this.key_segmentedLookupTableCache = new ALoadingCache<K, ASegmentedTimeSeriesStorageCache<K, V>>() {
+        this.key_segmentedLookupTableCache = new ALoadingCache<K, ASegmentedTimeSeriesLookupStorageCache<K, V>>() {
             @Override
-            protected ASegmentedTimeSeriesStorageCache<K, V> loadValue(final K key) {
+            protected ASegmentedTimeSeriesLookupStorageCache<K, V> loadValue(final K key) {
                 final String hashKey = hashKeyToString(key);
-                return new ASegmentedTimeSeriesStorageCache<K, V>(segmentedTable, getStorage(), key, hashKey) {
+                return new ASegmentedTimeSeriesLookupStorageCache<K, V>(segmentedTable, getStorage(), key, hashKey) {
 
                     @Override
                     protected FDate getLastAvailableSegmentTo(final K key, final FDate updateTo) {
@@ -232,7 +232,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
 
     @Override
     public synchronized void close() {
-        for (final ASegmentedTimeSeriesStorageCache<?, ?> cache : key_segmentedLookupTableCache.values()) {
+        for (final ASegmentedTimeSeriesLookupStorageCache<?, ?> cache : key_segmentedLookupTableCache.values()) {
             cache.close();
         }
         key_segmentedLookupTableCache.clear();
@@ -291,7 +291,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
     }
 
     @Override
-    public ASegmentedTimeSeriesStorageCache<K, V> getSegmentedLookupTableCache(final K key) {
+    public ASegmentedTimeSeriesLookupStorageCache<K, V> getSegmentedLookupTableCache(final K key) {
         return key_segmentedLookupTableCache.get(key);
     }
 
@@ -337,7 +337,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            final ASegmentedTimeSeriesStorageCache<K, V> lookupTableCache = getSegmentedLookupTableCache(key);
+            final ASegmentedTimeSeriesLookupStorageCache<K, V> lookupTableCache = getSegmentedLookupTableCache(key);
             if (index <= 0) {
                 return lookupTableCache.getFirstValue();
             } else if (index >= lookupTableCache.size()) {

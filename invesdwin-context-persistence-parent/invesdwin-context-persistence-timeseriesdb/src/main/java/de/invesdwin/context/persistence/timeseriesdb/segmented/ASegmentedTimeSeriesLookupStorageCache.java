@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented;
 
 import java.io.Closeable;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
@@ -28,13 +27,17 @@ import de.invesdwin.context.log.Log;
 import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
-import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.FileBufferCache;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.ITimeSeriesDirectoryVersionHashKey;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.TimeSeriesDirectoryVersionHashKey;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.data.TimeSeriesDirectoryVersionHashKeyData;
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftBackUnitsLoopLongIndex;
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftForwardUnitsLoopLongIndex;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.status.SegmentStatusTableFolder;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.status.ISegmentStatusTable;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.status.RefreshingSegmentStatusTable;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
 import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
@@ -45,13 +48,11 @@ import de.invesdwin.context.persistence.timeseriesdb.updater.ITimeSeriesUpdater;
 import de.invesdwin.util.collections.eviction.EvictionMode;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ATransformingIterable;
-import de.invesdwin.util.collections.iterable.ATransformingIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
-import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.collections.loadingcache.ALoadingCache;
 import de.invesdwin.util.collections.loadingcache.ILoadingCache;
 import de.invesdwin.util.collections.loadingcache.historical.query.impl.ShiftBackUnitsLoop;
@@ -81,19 +82,19 @@ import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.range.TimeRange;
 
 @NotThreadSafe
-public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeable {
-    public static final Integer MAXIMUM_SIZE = TimeSeriesStorageCache.MAXIMUM_SIZE;
-    public static final EvictionMode EVICTION_MODE = TimeSeriesStorageCache.EVICTION_MODE;
-    public static final boolean HIGH_CONCURRENCY = TimeSeriesStorageCache.HIGH_CONCURRENCY;
+public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Closeable {
+    public static final Integer MAXIMUM_SIZE = TimeSeriesLookupStorageCache.MAXIMUM_SIZE;
+    public static final EvictionMode EVICTION_MODE = TimeSeriesLookupStorageCache.EVICTION_MODE;
+    public static final boolean HIGH_CONCURRENCY = TimeSeriesLookupStorageCache.HIGH_CONCURRENCY;
 
     private static final WrappedExecutorService LOAD_INDEX_EXECUTOR;
     private static final WrappedExecutorService MAYBE_INIT_SEGMENT_ASYNC_EXECUTOR;
 
     static {
         LOAD_INDEX_EXECUTOR = Executors
-                .newFixedThreadPool(ASegmentedTimeSeriesStorageCache.class.getSimpleName() + "_LOAD_INDEX", 1);
+                .newFixedThreadPool(ASegmentedTimeSeriesLookupStorageCache.class.getSimpleName() + "_LOAD_INDEX", 1);
         MAYBE_INIT_SEGMENT_ASYNC_EXECUTOR = Executors.newFixedThreadPool(
-                ASegmentedTimeSeriesStorageCache.class.getSimpleName() + "_MAYBE_INIT_SEGMENT_ASYNC_EXECUTOR",
+                ASegmentedTimeSeriesLookupStorageCache.class.getSimpleName() + "_MAYBE_INIT_SEGMENT_ASYNC_EXECUTOR",
                 Executors.getCpuThreadPoolCount());
     }
 
@@ -106,6 +107,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     private final Log log = new Log(this);
 
     private final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable;
+    private final ITimeSeriesDirectoryVersionHashKey directoryVersionHashKey;
+    private final ISegmentStatusTable segmentStatusTable;
     private final TimeSeriesLookupMode lookupMode;
     private final SegmentedTimeSeriesStorage storage;
     private final K key;
@@ -223,10 +226,13 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             .newConcurrentMap();
     private volatile int lastResetIndex = 0;
 
-    public ASegmentedTimeSeriesStorageCache(final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable,
+    public ASegmentedTimeSeriesLookupStorageCache(final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable,
             final SegmentedTimeSeriesStorage storage, final K key, final String hashKey) {
         this.storage = storage;
         this.segmentedTable = segmentedTable;
+        this.directoryVersionHashKey = new TimeSeriesDirectoryVersionHashKey(storage.getDirectoryVersion(), hashKey);
+        this.segmentStatusTable = new RefreshingSegmentStatusTable(
+                new TimeSeriesDirectoryVersionHashKeyData(directoryVersionHashKey, "segmentStatus"));
         this.lookupMode = segmentedTable.getLookupMode();
         this.key = key;
         this.hashKey = hashKey;
@@ -237,8 +243,12 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 return downloadSegmentElements(t);
             }
         };
-        this.deleteLock = Locks.newReentrantLock(ASegmentedTimeSeriesStorageCache.class.getSimpleName() + "_"
+        this.deleteLock = Locks.newReentrantLock(ASegmentedTimeSeriesLookupStorageCache.class.getSimpleName() + "_"
                 + segmentedTable.getName() + "_" + hashKey + "_deleteLock");
+    }
+
+    public ISegmentStatusTable getSegmentStatusTable() {
+        return segmentStatusTable;
     }
 
     public ICloseableIterable<V> readRangeValues(final FDate from, final FDate to, final ILock readLock,
@@ -377,13 +387,13 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         final IReadWriteLock segmentTableLock = segmentedTable.getTableLock(segmentedKey);
         final ILock segmentReadLock = segmentTableLock.readLock();
         if (!segmentReadLock.tryLockNoInterrupt(TimeSeriesProperties.NON_BLOCKING_ASYNC_UPDATE_WAIT_TIMEOUT)) {
-            throw new NonBlockingRetryLaterRuntimeException(ASegmentedTimeSeriesStorageCache.class.getSimpleName()
+            throw new NonBlockingRetryLaterRuntimeException(ASegmentedTimeSeriesLookupStorageCache.class.getSimpleName()
                     + ".maybeInitSegmentAsync: readlock could not be acquired for async update check while operating in non-blocking mode for segment "
                     + getElementsName() + ": " + segmentedKey);
         }
         final SegmentStatus status;
         try {
-            status = storage.getSegmentStatusTable().getFolder(hashKey).get(segmentedKey.getSegment());
+            status = segmentStatusTable.get(segmentedKey.getSegment());
         } finally {
             segmentReadLock.unlock();
         }
@@ -426,9 +436,10 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 segmentedKey_maybeInitSegmentAsyncFuture.remove(segmentedKey);
             } catch (final TimeoutException e) {
                 throw new NonBlockingRetryLaterRuntimeException(
-                        ASegmentedTimeSeriesStorageCache.class.getSimpleName() + ".maybeInitSegmentAsync: async update "
-                                + reason + " while operating in non-blocking mode for segment " + getElementsName()
-                                + ": " + segmentedKey);
+                        ASegmentedTimeSeriesLookupStorageCache.class.getSimpleName()
+                                + ".maybeInitSegmentAsync: async update " + reason
+                                + " while operating in non-blocking mode for segment " + getElementsName() + ": "
+                                + segmentedKey);
             }
         }
         //3. if true do nothing
@@ -489,7 +500,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                         if (status == SegmentStatus.INITIALIZING) {
                             //initialization got aborted, retry from a fresh state
                             segmentedTable.deleteRange(segmentedKey);
-                            storage.getSegmentStatusTable().getFolder(hashKey).delete(segmentedKey.getSegment());
+                            segmentStatusTable.delete(segmentedKey.getSegment());
                         }
                         initSegmentWithStatusHandling(segmentedKey, source);
                         onSegmentCompleted(segmentedKey, readRangeValues(segmentedKey.getSegment().getFrom(),
@@ -566,15 +577,13 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
     private void initSegmentWithStatusHandling(final SegmentedKey<K> segmentedKey,
             final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
-        storage.getSegmentStatusTable().getFolder(hashKey).put(segmentedKey.getSegment(), SegmentStatus.INITIALIZING);
+        segmentStatusTable.put(segmentedKey.getSegment(), SegmentStatus.INITIALIZING);
         maybePrepareForUpdate(segmentedKey.getSegment());
         initSegmentRetry(segmentedKey, source);
         if (segmentedTable.isEmptyOrInconsistent(segmentedKey)) {
-            storage.getSegmentStatusTable()
-                    .getFolder(hashKey)
-                    .put(segmentedKey.getSegment(), SegmentStatus.COMPLETE_EMPTY);
+            segmentStatusTable.put(segmentedKey.getSegment(), SegmentStatus.COMPLETE_EMPTY);
         } else {
-            storage.getSegmentStatusTable().getFolder(hashKey).put(segmentedKey.getSegment(), SegmentStatus.COMPLETE);
+            segmentStatusTable.put(segmentedKey.getSegment(), SegmentStatus.COMPLETE);
         }
     }
 
@@ -583,7 +592,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         final ILock segmentReadLock = segmentTableLock.readLock();
         segmentReadLock.lock();
         try {
-            return storage.getSegmentStatusTable().getFolder(hashKey).get(segmentedKey.getSegment());
+            return segmentStatusTable.get(segmentedKey.getSegment());
         } finally {
             segmentReadLock.unlock();
         }
@@ -597,8 +606,9 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             protected Throwable callRetry() throws Exception {
                 try {
                     if (closed) {
-                        return new RetryLaterRuntimeException(ASegmentedTimeSeriesStorageCache.class.getSimpleName()
-                                + " for [" + hashKey + "] is already closed.");
+                        return new RetryLaterRuntimeException(
+                                ASegmentedTimeSeriesLookupStorageCache.class.getSimpleName() + " for [" + hashKey
+                                        + "] is already closed.");
                     } else {
                         initSegment(segmentedKey, source);
                     }
@@ -708,7 +718,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
                 @Override
                 protected String getElementsName() {
-                    return "segment " + ASegmentedTimeSeriesStorageCache.this.getElementsName();
+                    return "segment " + ASegmentedTimeSeriesLookupStorageCache.this.getElementsName();
                 }
 
                 @Override
@@ -867,31 +877,26 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
             deleteLock.lock();
             try {
-                final SegmentStatusTableFolder segmentStatusTableFolder = storage.getSegmentStatusTable()
-                        .getFolder(hashKey);
-                final List<TimeRange> rangeKeys;
-                try (ICloseableIterator<TimeRange> rangeKeysIterator = new ATransformingIterator<Entry<TimeRange, SegmentStatus>, TimeRange>(
-                        segmentStatusTableFolder.range()) {
-
-                    @Override
-                    protected TimeRange transform(final Entry<TimeRange, SegmentStatus> value) {
-                        return value.getKey();
-                    }
-                }) {
-                    rangeKeys = Lists.toListWithoutHasNext(rangeKeysIterator);
-                }
                 if (forced) {
-                    for (int i = 0; i < rangeKeys.size(); i++) {
-                        final TimeRange rangeKey = rangeKeys.get(i);
-                        segmentedTable.deleteRangeForced(new SegmentedKey<K>(key, rangeKey));
+                    try (ICloseableIterator<TimeRange> iterator = segmentStatusTable.rangeKeys()) {
+                        while (true) {
+                            final TimeRange rangeKey = iterator.next();
+                            segmentedTable.deleteRangeForced(new SegmentedKey<K>(key, rangeKey));
+                        }
+                    } catch (final NoSuchElementException e) {
+                        //end reached
                     }
                 } else {
-                    for (int i = 0; i < rangeKeys.size(); i++) {
-                        final TimeRange rangeKey = rangeKeys.get(i);
-                        segmentedTable.deleteRange(new SegmentedKey<K>(key, rangeKey));
+                    try (ICloseableIterator<TimeRange> iterator = segmentStatusTable.rangeKeys()) {
+                        while (true) {
+                            final TimeRange rangeKey = iterator.next();
+                            segmentedTable.deleteRange(new SegmentedKey<K>(key, rangeKey));
+                        }
+                    } catch (final NoSuchElementException e) {
+                        //end reached
                     }
                 }
-                segmentStatusTableFolder.deleteRange();
+                segmentStatusTable.deleteRange();
                 storage.deleteRange_latestValueLookupTable(hashKey);
                 storage.deleteRange_nextValueLookupTable(hashKey);
                 storage.deleteRange_previousValueLookupTable(hashKey);
@@ -989,7 +994,8 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
     private V getLatestValueByValue(final FDate pDate) {
         final FDate date = FDates.min(pDate, getLastAvailableSegmentTo(key, pDate));
-        final SingleValue value = storage.getOrLoad_latestValueLookupTable(hashKey, date, () -> {
+        final int version = directoryVersionHashKey.getParent().getVersion();
+        final SingleValue value = storage.getOrLoad_latestValueLookupTable(hashKey, version, date, () -> {
             final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
             //already adjusted on the outside
             final FDate adjFrom = date;
@@ -1061,9 +1067,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
     private IndexedSegmentedKey<K> newLatestSegmentedKeyFromIndex(final long index) {
         long precedingValueCount = 0;
-        try (ICloseableIterator<Entry<TimeRange, SegmentStatus>> rangeValues = storage.getSegmentStatusTable()
-                .getFolder(hashKey)
-                .range()) {
+        try (ICloseableIterator<Entry<TimeRange, SegmentStatus>> rangeValues = segmentStatusTable.range()) {
             while (true) {
                 final Entry<TimeRange, SegmentStatus> row = rangeValues.next();
                 final SegmentStatus status = row.getValue();
@@ -1121,12 +1125,12 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 shiftBackUnits) {
             @Override
             protected V getLatestValue(final long index) {
-                return ASegmentedTimeSeriesStorageCache.this.getLatestValue(index);
+                return ASegmentedTimeSeriesLookupStorageCache.this.getLatestValue(index);
             }
 
             @Override
             protected long getLatestValueIndex(final FDate date) {
-                return ASegmentedTimeSeriesStorageCache.this.getLatestValueIndex(date);
+                return ASegmentedTimeSeriesLookupStorageCache.this.getLatestValueIndex(date);
             }
 
             @Override
@@ -1136,7 +1140,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
             @Override
             protected long size() {
-                return ASegmentedTimeSeriesStorageCache.this.size();
+                return ASegmentedTimeSeriesLookupStorageCache.this.size();
             }
         };
         shiftBackLoop.loop();
@@ -1150,24 +1154,26 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         if (date.isBeforeOrEqualToNotNullSafe(firstTime)) {
             return firstValue;
         } else {
-            final SingleValue value = storage.getOrLoad_previousValueLookupTable(hashKey, date, shiftBackUnits, () -> {
-                final ShiftBackUnitsLoop<V> shiftBackLoop = new ShiftBackUnitsLoop<>(date, shiftBackUnits,
-                        segmentedTable::extractEndTime);
-                final ICloseableIterable<V> rangeValuesReverse = readRangeValuesReverse(date, null,
-                        DisabledLock.INSTANCE, new ISkipFileFunction() {
-                            @Override
-                            public boolean skipFile(final MemoryFileSummary file) {
-                                final boolean skip = shiftBackLoop.getPrevValue() != null
-                                        && file.getValueCount() < shiftBackLoop.getShiftBackRemaining();
-                                if (skip) {
-                                    shiftBackLoop.skip(file.getValueCount());
-                                }
-                                return skip;
-                            }
-                        });
-                shiftBackLoop.loop(rangeValuesReverse);
-                return new SingleValue(valueSerde, shiftBackLoop.getPrevValue());
-            });
+            final int version = directoryVersionHashKey.getParent().getVersion();
+            final SingleValue value = storage.getOrLoad_previousValueLookupTable(hashKey, version, date, shiftBackUnits,
+                    () -> {
+                        final ShiftBackUnitsLoop<V> shiftBackLoop = new ShiftBackUnitsLoop<>(date, shiftBackUnits,
+                                segmentedTable::extractEndTime);
+                        final ICloseableIterable<V> rangeValuesReverse = readRangeValuesReverse(date, null,
+                                DisabledLock.INSTANCE, new ISkipFileFunction() {
+                                    @Override
+                                    public boolean skipFile(final MemoryFileSummary file) {
+                                        final boolean skip = shiftBackLoop.getPrevValue() != null
+                                                && file.getValueCount() < shiftBackLoop.getShiftBackRemaining();
+                                        if (skip) {
+                                            shiftBackLoop.skip(file.getValueCount());
+                                        }
+                                        return skip;
+                                    }
+                                });
+                        shiftBackLoop.loop(rangeValuesReverse);
+                        return new SingleValue(valueSerde, shiftBackLoop.getPrevValue());
+                    });
             return value.getValue(valueSerde);
         }
     }
@@ -1209,12 +1215,12 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
                 shiftForwardUnits) {
             @Override
             protected V getLatestValue(final long index) {
-                return ASegmentedTimeSeriesStorageCache.this.getLatestValue(index);
+                return ASegmentedTimeSeriesLookupStorageCache.this.getLatestValue(index);
             }
 
             @Override
             protected long getLatestValueIndex(final FDate date) {
-                return ASegmentedTimeSeriesStorageCache.this.getLatestValueIndex(date);
+                return ASegmentedTimeSeriesLookupStorageCache.this.getLatestValueIndex(date);
             }
 
             @Override
@@ -1224,7 +1230,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
 
             @Override
             protected long size() {
-                return ASegmentedTimeSeriesStorageCache.this.size();
+                return ASegmentedTimeSeriesLookupStorageCache.this.size();
             }
         };
         shiftForwardLoop.loop();
@@ -1241,24 +1247,26 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         if (date.isAfterOrEqualToNotNullSafe(lastTime)) {
             return lastValue;
         } else {
-            final SingleValue value = storage.getOrLoad_nextValueLookupTable(hashKey, date, shiftForwardUnits, () -> {
-                final ShiftForwardUnitsLoop<V> shiftForwardLoop = new ShiftForwardUnitsLoop<>(date, shiftForwardUnits,
-                        segmentedTable::extractEndTime);
-                final ICloseableIterable<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,
-                        new ISkipFileFunction() {
-                            @Override
-                            public boolean skipFile(final MemoryFileSummary file) {
-                                final boolean skip = shiftForwardLoop.getNextValue() != null
-                                        && file.getValueCount() < shiftForwardLoop.getShiftForwardRemaining();
-                                if (skip) {
-                                    shiftForwardLoop.skip(file.getValueCount());
-                                }
-                                return skip;
-                            }
-                        });
-                shiftForwardLoop.loop(rangeValues);
-                return new SingleValue(valueSerde, shiftForwardLoop.getNextValue());
-            });
+            final int version = directoryVersionHashKey.getParent().getVersion();
+            final SingleValue value = storage.getOrLoad_nextValueLookupTable(hashKey, version, date, shiftForwardUnits,
+                    () -> {
+                        final ShiftForwardUnitsLoop<V> shiftForwardLoop = new ShiftForwardUnitsLoop<>(date,
+                                shiftForwardUnits, segmentedTable::extractEndTime);
+                        final ICloseableIterable<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,
+                                new ISkipFileFunction() {
+                                    @Override
+                                    public boolean skipFile(final MemoryFileSummary file) {
+                                        final boolean skip = shiftForwardLoop.getNextValue() != null
+                                                && file.getValueCount() < shiftForwardLoop.getShiftForwardRemaining();
+                                        if (skip) {
+                                            shiftForwardLoop.skip(file.getValueCount());
+                                        }
+                                        return skip;
+                                    }
+                                });
+                        shiftForwardLoop.loop(rangeValues);
+                        return new SingleValue(valueSerde, shiftForwardLoop.getNextValue());
+                    });
             return value.getValue(valueSerde);
         }
     }
@@ -1303,13 +1311,12 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     private FDate getPrevLastAvailableSegmentToWithoutLive(final FDate maxLastAvailableSegmentToWithoutLive) {
         Optional<FDate> cachedPrevLastAvailableSegmentToWithoutLiveCopy = cachedPrevLastAvailableSegmentToWithoutLive;
         if (cachedPrevLastAvailableSegmentToWithoutLiveCopy == null) {
-            Entry<TimeRange, SegmentStatus> latestRow = storage.getSegmentStatusTable().getFolder(hashKey).getLatest();
+            Entry<TimeRange, SegmentStatus> latestRow = segmentStatusTable.getLatest();
             if (latestRow != null) {
                 while (latestRow.getValue() == SegmentStatus.INITIALIZING
                         && maxLastAvailableSegmentToWithoutLive.isBeforeNotNullSafe(latestRow.getKey().getTo())) {
                     //this must be a live segment which we are not interested in here
-                    final Entry<TimeRange, SegmentStatus> prevRow = storage.getSegmentStatusTable()
-                            .getFolder(hashKey)
+                    final Entry<TimeRange, SegmentStatus> prevRow = segmentStatusTable
                             .getLatest(latestRow.getKey().subtractDuration(Duration.ONE_MILLISECOND));
                     if (prevRow == null) {
                         //no earlier segment available
@@ -1333,9 +1340,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     private FDate getPrevLastAvailableSegmentToWithLive() {
         Optional<FDate> cachedPrevLastAvailableSegmentToWithLiveCopy = cachedPrevLastAvailableSegmentToWithLive;
         if (cachedPrevLastAvailableSegmentToWithLiveCopy == null) {
-            final Entry<TimeRange, SegmentStatus> latestRow = storage.getSegmentStatusTable()
-                    .getFolder(hashKey)
-                    .getLatest();
+            final Entry<TimeRange, SegmentStatus> latestRow = segmentStatusTable.getLatest();
             if (latestRow != null) {
                 cachedPrevLastAvailableSegmentToWithLiveCopy = Optional.of(latestRow.getKey().getTo());
             } else {
@@ -1541,9 +1546,7 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
         long cachedSizeCopy = cachedSize;
         if (cachedSizeCopy == -1L) {
             long size = 0;
-            try (ICloseableIterator<Entry<TimeRange, SegmentStatus>> rangeValues = storage.getSegmentStatusTable()
-                    .getFolder(hashKey)
-                    .range()) {
+            try (ICloseableIterator<Entry<TimeRange, SegmentStatus>> rangeValues = segmentStatusTable.range()) {
                 while (true) {
                     final Entry<TimeRange, SegmentStatus> row = rangeValues.next();
                     final SegmentStatus status = row.getValue();
@@ -1640,20 +1643,19 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
             }
         }
         boolean empty = true;
-        final SegmentStatusTableFolder segmentStatusTableFolder = storage.getSegmentStatusTable().getFolder(hashKey);
-        final List<Entry<TimeRange, SegmentStatus>> rows;
-        try (ICloseableIterator<Entry<TimeRange, SegmentStatus>> rangeKeysIterator = segmentStatusTableFolder.range()) {
-            rows = Lists.toListWithoutHasNext(rangeKeysIterator);
-        }
-        for (int i = 0; i < rows.size(); i++) {
-            final Entry<TimeRange, SegmentStatus> row = rows.get(i);
-            final SegmentStatus status = row.getValue();
-            if (status == SegmentStatus.COMPLETE) {
-                if (segmentedTable.isEmptyOrInconsistent(new SegmentedKey<K>(key, row.getKey()))) {
-                    return true;
+        try (ICloseableIterator<Entry<TimeRange, SegmentStatus>> iterator = segmentStatusTable.range()) {
+            while (true) {
+                final Entry<TimeRange, SegmentStatus> row = iterator.next();
+                final SegmentStatus status = row.getValue();
+                if (status == SegmentStatus.COMPLETE) {
+                    if (segmentedTable.isEmptyOrInconsistent(new SegmentedKey<K>(key, row.getKey()))) {
+                        return true;
+                    }
                 }
+                empty = false;
             }
-            empty = false;
+        } catch (final NoSuchElementException e) {
+            //end reached
         }
         return empty;
     }
@@ -1672,12 +1674,12 @@ public abstract class ASegmentedTimeSeriesStorageCache<K, V> implements Closeabl
     private final class LatestValueByIndexCache extends ALatestValueByIndexCache<V> {
         @Override
         protected long getLatestValueIndex(final FDate key) {
-            return ASegmentedTimeSeriesStorageCache.this.getLatestValueIndex(key);
+            return ASegmentedTimeSeriesLookupStorageCache.this.getLatestValueIndex(key);
         }
 
         @Override
         protected V getLatestValue(final long index) {
-            return ASegmentedTimeSeriesStorageCache.this.getLatestValue(index);
+            return ASegmentedTimeSeriesLookupStorageCache.this.getLatestValue(index);
         }
 
         @Override

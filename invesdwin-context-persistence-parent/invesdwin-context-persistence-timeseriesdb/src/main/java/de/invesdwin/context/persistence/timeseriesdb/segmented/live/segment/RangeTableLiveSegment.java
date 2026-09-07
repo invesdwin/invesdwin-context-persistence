@@ -8,7 +8,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
@@ -278,7 +278,7 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public void convertLiveSegmentToHistorical() {
-        final ASegmentedTimeSeriesStorageCache<K, V> lookupTableCache = historicalSegmentTable
+        final ASegmentedTimeSeriesLookupStorageCache<K, V> lookupTableCache = historicalSegmentTable
                 .getSegmentedLookupTableCache(getSegmentedKey().getKey());
         final boolean initialized = lookupTableCache.maybeInitSegmentSync(getSegmentedKey(),
                 new Function<SegmentedKey<K>, ICloseableIterable<? extends V>>() {

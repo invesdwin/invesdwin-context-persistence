@@ -12,7 +12,10 @@ public final class HashRangeShiftUnitsKeySerde implements ISerde<HashRangeShiftU
 
     public static final HashRangeShiftUnitsKeySerde GET = new HashRangeShiftUnitsKeySerde();
 
-    private static final int RANGEKEY_INDEX = 0;
+    private static final int VERSION_INDEX = 0;
+    private static final int VERSION_SIZE = Integer.BYTES;
+
+    private static final int RANGEKEY_INDEX = VERSION_INDEX + VERSION_SIZE;
     private static final int RANGEKEY_SIZE = FDate.BYTES;
 
     public static final int SHIFTUNITS_INDEX = RANGEKEY_INDEX + RANGEKEY_SIZE;
@@ -24,14 +27,16 @@ public final class HashRangeShiftUnitsKeySerde implements ISerde<HashRangeShiftU
 
     @Override
     public HashRangeShiftUnitsKey fromBuffer(final IByteBuffer buffer) {
+        final int version = buffer.getInt(VERSION_INDEX);
         final FDate rangeKey = FDateSerde.getFDateNotNullSafe(buffer, RANGEKEY_INDEX);
         final int shiftUnits = buffer.getInt(SHIFTUNITS_INDEX);
         final String hashKey = buffer.getStringUtf8(HASHKEY_INDEX, buffer.capacity() - HASHKEY_INDEX);
-        return new HashRangeShiftUnitsKey(hashKey, rangeKey, shiftUnits);
+        return new HashRangeShiftUnitsKey(hashKey, version, rangeKey, shiftUnits);
     }
 
     @Override
     public int toBuffer(final IByteBuffer buffer, final HashRangeShiftUnitsKey obj) {
+        buffer.putInt(VERSION_INDEX, obj.getVersion());
         FDateSerde.putFDateNotNullSafe(buffer, RANGEKEY_INDEX, obj.getRangeKey());
         buffer.putInt(SHIFTUNITS_INDEX, obj.getShiftUnits());
         final int length = buffer.putStringUtf8(HASHKEY_INDEX, obj.getHashKey());

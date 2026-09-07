@@ -15,8 +15,6 @@ import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.IPersistentMapType;
 import de.invesdwin.context.persistence.timeseriesdb.PersistentMapType;
 import de.invesdwin.context.persistence.timeseriesdb.directory.version.ITimeSeriesDirectoryVersion;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.data.ITimeSeriesDirectoryVersionData;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.data.TimeSeriesDirectoryVersionData;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeKey;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeKeySerde;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeShiftUnitsKey;
@@ -184,10 +182,6 @@ public class TimeSeriesStorage {
         nextValueLookupTable.close();
     }
 
-    public ITimeSeriesDirectoryVersionData newDirectoryVersionData(final String hashKey) {
-        return new TimeSeriesDirectoryVersionData(getDirectoryVersion(), "storage/" + hashKey);
-    }
-
     public void deleteRange_latestValueLookupTable(final String hashKey) {
         if (getMapType().isRemoveFullySupported()) {
             latestValueLookupTable.removeAll((key) -> {
@@ -261,19 +255,21 @@ public class TimeSeriesStorage {
         }
     }
 
-    public SingleValue getOrLoad_latestValueLookupTable(final String hashKey, final FDate key,
+    public SingleValue getOrLoad_latestValueLookupTable(final String hashKey, final int version, final FDate key,
             final Supplier<SingleValue> loadable) {
-        return latestValueLookupTable.getOrLoad(new HashRangeKey(hashKey, key), loadable);
+        return latestValueLookupTable.getOrLoad(new HashRangeKey(hashKey, version, key), loadable);
     }
 
-    public SingleValue getOrLoad_nextValueLookupTable(final String hashKey, final FDate date,
+    public SingleValue getOrLoad_nextValueLookupTable(final String hashKey, final int version, final FDate date,
             final int shiftForwardUnits, final Supplier<SingleValue> loadable) {
-        return nextValueLookupTable.getOrLoad(new HashRangeShiftUnitsKey(hashKey, date, shiftForwardUnits), loadable);
+        return nextValueLookupTable.getOrLoad(new HashRangeShiftUnitsKey(hashKey, version, date, shiftForwardUnits),
+                loadable);
     }
 
-    public SingleValue getOrLoad_previousValueLookupTable(final String hashKey, final FDate date,
+    public SingleValue getOrLoad_previousValueLookupTable(final String hashKey, final int version, final FDate date,
             final int shiftBackUnits, final Supplier<SingleValue> loadable) {
-        return previousValueLookupTable.getOrLoad(new HashRangeShiftUnitsKey(hashKey, date, shiftBackUnits), loadable);
+        return previousValueLookupTable.getOrLoad(new HashRangeShiftUnitsKey(hashKey, version, date, shiftBackUnits),
+                loadable);
     }
 
 }

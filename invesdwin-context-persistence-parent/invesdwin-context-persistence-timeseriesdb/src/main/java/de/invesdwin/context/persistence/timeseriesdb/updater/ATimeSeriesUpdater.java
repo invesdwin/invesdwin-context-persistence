@@ -13,7 +13,7 @@ import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateAbortedExce
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.PrepareForUpdateResult;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
-import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdaterInternalMethods;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ParallelUpdateProgress;
@@ -43,7 +43,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
 
     private final ISerde<V> valueSerde;
     private final ITimeSeriesDBInternals<K, V> table;
-    private final TimeSeriesStorageCache<K, V> lookupTable;
+    private final TimeSeriesLookupStorageCache<K, V> lookupTable;
     private final File updateLockFile;
 
     private final K key;
@@ -194,7 +194,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             }
 
             @Override
-            public TimeSeriesStorageCache<K, V> getLookupTable() {
+            public TimeSeriesLookupStorageCache<K, V> getLookupTable() {
                 return lookupTable;
             }
 

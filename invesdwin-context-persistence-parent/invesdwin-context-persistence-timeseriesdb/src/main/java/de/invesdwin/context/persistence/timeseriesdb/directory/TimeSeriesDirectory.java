@@ -22,7 +22,7 @@ public class TimeSeriesDirectory implements ITimeSeriesDirectory {
         this.storageName = storageName;
         this.directoryShared = new File(parent.getBaseDirectoryShared(), storageName);
         this.directoryPerNode = new File(parent.getBaseDirectoryPerNode(), storageName);
-        this.directoryVersion = new TimeSeriesDirectoryVersion(this, null);
+        this.directoryVersion = new TimeSeriesDirectoryVersion(this);
     }
 
     @Override

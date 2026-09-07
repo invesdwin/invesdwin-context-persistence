@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented.status;
 
 import java.io.File;
+import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.NavigableMap;
 import java.util.NavigableSet;
@@ -17,19 +18,21 @@ import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChan
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentStatus;
 import de.invesdwin.util.bean.tuple.ImmutableEntry;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
+import de.invesdwin.util.collections.iterable.ATransformingIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
-import de.invesdwin.util.error.FastNoSuchElementException;
+import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
 import de.invesdwin.util.lang.string.Strings;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.range.TimeRange;
 
 @ThreadSafe
-public class SegmentStatusTableFolder {
+public class VersionedSegmentStatusTable implements ISegmentStatusTable {
 
     private static final String DATE_FORMAT = FDate.FORMAT_NUMBER_DATE_TIME_PS;
     private static final String STATUS_EXTENSION = ".status";
 
     private final AtomicNioFileChannel baseChannel;
+    private final int version;
 
     // Naturally sorted caches for high-performance iteration
     private final NavigableMap<TimeRange, SegmentStatus> terminalStatusCache = new ConcurrentSkipListMap<>(
@@ -39,17 +42,24 @@ public class SegmentStatusTableFolder {
 
     private volatile FDate lastDirectoryScan = null;
 
-    public SegmentStatusTableFolder(final File directory) {
+    public VersionedSegmentStatusTable(final File directory, final int version) {
         //CHECKSTYLE:OFF
         this(new AtomicNioFileChannel(
-                FileChannelPath.valueOfDirectory(directory.toURI(), AtomicNioFileChannel.DEFAULT_SERVER_URI_F)));
+                FileChannelPath.valueOfDirectory(directory.toURI(), AtomicNioFileChannel.DEFAULT_SERVER_URI_F)),
+                version);
         //CHECKSTYLE:ON
     }
 
-    public SegmentStatusTableFolder(final AtomicNioFileChannel baseChannel) {
+    public VersionedSegmentStatusTable(final AtomicNioFileChannel baseChannel, final int version) {
         this.baseChannel = baseChannel;
+        this.version = version;
     }
 
+    public int getVersion() {
+        return version;
+    }
+
+    @Override
     public SegmentStatus get(final TimeRange timeRange) {
         // 1. Fast path: terminal status already cached
         final SegmentStatus cached = terminalStatusCache.get(timeRange);
@@ -78,6 +88,7 @@ public class SegmentStatusTableFolder {
         }
     }
 
+    @Override
     public void put(final TimeRange timeRange, final SegmentStatus status) {
         final AtomicNioFileChannel fileChannel = getChannelForRange(timeRange);
         final String name = status.name();
@@ -97,12 +108,15 @@ public class SegmentStatusTableFolder {
         final FDate currentModTime = baseChannel.lastModified();
 
         // If the directory hasn't been modified since our last scan, we can safely skip the heavy filesystem list operation
-        if (lastDirectoryScan != null && currentModTime != null && currentModTime.equals(lastDirectoryScan)) {
+        FDate lastDirectoryScanCopy = lastDirectoryScan;
+        if (lastDirectoryScanCopy != null && currentModTime != null && currentModTime.equals(lastDirectoryScanCopy)) {
             return;
         }
 
         synchronized (this) {
-            if (lastDirectoryScan != null && currentModTime != null && currentModTime.equals(lastDirectoryScan)) {
+            lastDirectoryScanCopy = lastDirectoryScan;
+            if (lastDirectoryScanCopy != null && currentModTime != null
+                    && currentModTime.equals(lastDirectoryScanCopy)) {
                 return;
             }
             if (!currentDiskRanges.isEmpty()) {
@@ -128,74 +142,24 @@ public class SegmentStatusTableFolder {
         }
     }
 
-    public ICloseableIterator<Entry<TimeRange, SegmentStatus>> range() {
-        return range(null, null);
+    @Override
+    public ICloseableIterator<TimeRange> rangeKeys() {
+        syncCacheWithDirectory();
+        return WrapperCloseableIterable.maybeWrap(knownRanges).iterator();
     }
 
-    public ICloseableIterator<Entry<TimeRange, SegmentStatus>> range(final FDate from, final FDate to) {
-        // 1. Ensure our list of known TimeRanges is up-to-date (almost instantly skips if unmodified)
-        syncCacheWithDirectory();
-
-        NavigableSet<TimeRange> searchSpace = knownRanges;
-
-        // 2. O(log N) Upper Bound Optimization:
-        // We can safely drop anything that starts strictly after 'to'.
-        if (to != null) {
-            searchSpace = searchSpace.headSet(new TimeRange(to, to), true);
-        }
-
-        // Note: We CANNOT use tailSet(from) because a valid segment might have a
-        // getFrom() < from but a getTo() >= from.
-
-        // 3. Iterate directly over the naturally sorted memory set
-        final java.util.Iterator<TimeRange> iterator = searchSpace.iterator();
-
-        return new ICloseableIterator<Entry<TimeRange, SegmentStatus>>() {
-            private Entry<TimeRange, SegmentStatus> nextElement = null;
-
-            private void advance() {
-                while (nextElement == null && iterator.hasNext()) {
-                    final TimeRange timeRange = iterator.next();
-
-                    // Apply Date bounds filtering only for the lower bound.
-                    // The upper bound is now natively handled by the headSet view.
-                    if (from != null && timeRange.getTo().compareTo(from) < 0) {
-                        continue;
-                    }
-
-                    // Calling get() uses the cache for final states and only reads disk for INITIALIZING
-                    final SegmentStatus status = get(timeRange);
-                    if (status != null) {
-                        nextElement = ImmutableEntry.of(timeRange, status);
-                    }
-                }
-            }
-
+    @Override
+    public ICloseableIterator<Entry<TimeRange, SegmentStatus>> range() {
+        return new ATransformingIterator<TimeRange, Entry<TimeRange, SegmentStatus>>(rangeKeys()) {
             @Override
-            public boolean hasNext() {
-                if (nextElement == null) {
-                    advance();
-                }
-                return nextElement != null;
-            }
-
-            @Override
-            public Entry<TimeRange, SegmentStatus> next() {
-                if (!hasNext()) {
-                    throw FastNoSuchElementException.getInstance("SegmentStatusTableFolder.range.next end reached");
-                }
-                final Entry<TimeRange, SegmentStatus> result = nextElement;
-                nextElement = null;
-                return result;
-            }
-
-            @Override
-            public void close() {
-                // In-memory cache iterator doesn't require closing
+            protected Entry<TimeRange, SegmentStatus> transform(final TimeRange value) {
+                final SegmentStatus status = get(value);
+                return ImmutableEntry.of(value, status);
             }
         };
     }
 
+    @Override
     public void delete(final TimeRange segment) {
         if (segment == null) {
             return;
@@ -223,6 +187,7 @@ public class SegmentStatusTableFolder {
         }
     }
 
+    @Override
     public void deleteRange() {
         try (ICloseableIterator<NioFileInfo> iterator = baseChannel.listIterator()) {
             while (true) {
@@ -235,53 +200,21 @@ public class SegmentStatusTableFolder {
         } catch (final NoSuchElementException e) {
             // End of iterator reached, nothing to do
         }
-        terminalStatusCache.clear();
-        knownRanges.clear();
+        if (!terminalStatusCache.isEmpty()) {
+            terminalStatusCache.clear();
+        }
+        if (!knownRanges.isEmpty()) {
+            knownRanges.clear();
+        }
         lastDirectoryScan = null;
     }
 
-    public void deleteRange(final FDate from, final FDate to) {
-        // Fast path for clearing everything: clear caches and delete all status files directly
-        if (from == null && to == null) {
-            deleteRange();
-            return;
-        }
-
-        // Bounded range deletion
-        syncCacheWithDirectory();
-
-        if (knownRanges.isEmpty()) {
-            return;
-        }
-
-        NavigableSet<TimeRange> targetRange = knownRanges;
-
-        if (to != null) {
-            targetRange = targetRange.headSet(new TimeRange(to, to), true);
-        }
-
-        final java.util.List<TimeRange> toDelete = new java.util.ArrayList<>();
-        for (final TimeRange range : targetRange) {
-            if (from != null && range.getTo().compareTo(from) < 0) {
-                continue;
-            }
-            if (to != null && range.getFrom().compareTo(to) > 0) {
-                break;
-            }
-            toDelete.add(range);
-        }
-
-        for (final TimeRange segment : toDelete) {
-            terminalStatusCache.remove(segment);
-            knownRanges.remove(segment);
-            getChannelForRange(segment).delete();
-        }
-    }
-
+    @Override
     public Entry<TimeRange, SegmentStatus> getLatest() {
         return getLatest(null);
     }
 
+    @Override
     public Entry<TimeRange, SegmentStatus> getLatest(final TimeRange timeRange) {
         // 1. Ensure our list of known TimeRanges is up-to-date
         syncCacheWithDirectory();
@@ -295,22 +228,16 @@ public class SegmentStatusTableFolder {
         }
 
         // 3. Iterate backwards from our optimized subset
-        for (final TimeRange range : searchSpace.descendingSet()) {
-
-            // 4. O(1) exit: Since we are iterating newest-to-oldest, once we hit
-            // a range that ends before our 'from' date, all older segments will
-            // also fall out of bounds. We can instantly stop.
-            if (timeRange != null && timeRange.getFrom() != null && range.getTo().compareTo(timeRange.getFrom()) < 0) {
-                break;
-            }
-
-            // Verify file state and resolve cache
+        final Iterator<TimeRange> it = searchSpace.descendingIterator();
+        try {
+            final TimeRange range = it.next();
             final SegmentStatus status = get(range);
             if (status != null) {
                 return ImmutableEntry.of(range, status);
             }
+        } catch (final NoSuchElementException e) {
+            //end reached
         }
-
         return null;
     }
 }

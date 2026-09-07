@@ -15,13 +15,19 @@ public class TimeSeriesDirectoryVersion implements ITimeSeriesDirectoryVersion {
     private final ITimeSeriesDirectory parent;
     private final TimeSeriesDirectoryVersionFinalizer finalizer;
 
-    public TimeSeriesDirectoryVersion(final ITimeSeriesDirectory parent, final String version) {
+    public TimeSeriesDirectoryVersion(final ITimeSeriesDirectory parent) {
         this.parent = parent;
         this.finalizer = new TimeSeriesDirectoryVersionFinalizer();
-        if (version != null) {
-            finalizer.lease = TimeSeriesDirectoryVersionLeaseRegistry.getOrCreate(parent, version);
-            this.finalizer.register(this);
-        }
+    }
+
+    public TimeSeriesDirectoryVersion(final ITimeSeriesDirectory parent, final int version) {
+        this(parent);
+        finalizer.lease = TimeSeriesDirectoryVersionLeaseRegistry.getOrCreate(parent, version);
+        this.finalizer.register(this);
+        //        System.out.println(
+        //                "TODO: maybe we also need a registry which hashKey uses which version, so that perNode data can be deleted on a version change? or maybe store the version in perNodeData and clear data when any version changes?");
+        // or store all leased versions of a node in a single heartbeat file; the overall storage stores the version inside of the per-node lookup caches; the lookup caches are deleted on any version change (deleteRange vs deleteAll differentiation)
+        // versions are only differentiated in the hashKey folder
     }
 
     @Override
@@ -30,7 +36,7 @@ public class TimeSeriesDirectoryVersion implements ITimeSeriesDirectoryVersion {
     }
 
     @Override
-    public String getVersion() {
+    public int getVersion() {
         return getLease().getVersion();
     }
 
@@ -46,6 +52,7 @@ public class TimeSeriesDirectoryVersion implements ITimeSeriesDirectoryVersion {
 
     @Override
     public void delete() {
+        //System.out.println("TODO: rework this");
         final TimeSeriesDirectoryVersionLease leaseCopy = finalizer.lease;
         if (leaseCopy != null) {
             leaseCopy.delete();
@@ -56,7 +63,7 @@ public class TimeSeriesDirectoryVersion implements ITimeSeriesDirectoryVersion {
         if (finalizer.lease == null) {
             synchronized (this) {
                 if (finalizer.lease == null) {
-                    final String resolvedVersion = resolveCurrentVersionString(parent);
+                    final int resolvedVersion = resolveCurrentVersion(parent);
                     // Use the registry to prevent duplicate locks across instances
                     finalizer.lease = TimeSeriesDirectoryVersionLeaseRegistry.getOrCreate(parent, resolvedVersion);
                     finalizer.register(this);
@@ -72,8 +79,8 @@ public class TimeSeriesDirectoryVersion implements ITimeSeriesDirectoryVersion {
     public void incrementVersion() {
         synchronized (this) {
             final TimeSeriesDirectoryVersionLease prevLease = finalizer.lease;
-            final String nextVersionStr = electNextVersionString(parent.getDirectoryShared());
-            finalizer.lease = TimeSeriesDirectoryVersionLeaseRegistry.getOrCreate(parent, nextVersionStr);
+            final int nextVersion = electNextVersion(parent.getDirectoryShared());
+            finalizer.lease = TimeSeriesDirectoryVersionLeaseRegistry.getOrCreate(parent, nextVersion);
             if (prevLease != null) {
                 prevLease.close();
             }
@@ -83,41 +90,40 @@ public class TimeSeriesDirectoryVersion implements ITimeSeriesDirectoryVersion {
     /**
      * Resolves the active directory version string or atomically creates the next incremental version if none exists.
      */
-    private static String resolveCurrentVersionString(final ITimeSeriesDirectory parent) {
+    private static int resolveCurrentVersion(final ITimeSeriesDirectory parent) {
         final File sharedDir = parent.getDirectoryShared();
         if (!sharedDir.exists()) {
             sharedDir.mkdirs();
         }
 
-        final long maxVersion = findMaxExistingVersion(sharedDir);
+        final int maxVersion = findMaxExistingVersion(sharedDir);
 
         // If a version already exists, attach to the latest established version
         if (maxVersion > 0) {
-            return String.valueOf(maxVersion);
+            return maxVersion;
         }
 
         // If no version exists yet, race atomically to initialize version 1
-        return electNextVersionString(sharedDir);
+        return electNextVersion(sharedDir);
     }
 
     /**
      * Shared atomic election loop that guarantees only one JVM creates a given directory version number.
      */
-    private static String electNextVersionString(final File sharedDir) {
+    private static int electNextVersion(final File sharedDir) {
         if (!sharedDir.exists()) {
             sharedDir.mkdirs();
         }
 
-        long maxVersion = findMaxExistingVersion(sharedDir);
+        int maxVersion = findMaxExistingVersion(sharedDir);
 
         while (true) {
-            final long candidateVersion = maxVersion + 1;
-            final String candidateStr = String.valueOf(candidateVersion);
-            final File candidateDir = new File(sharedDir, candidateStr);
+            final int candidateVersion = maxVersion + 1;
+            final File candidateDir = new File(sharedDir, String.valueOf(candidateVersion));
 
             // Atomic filesystem operation across cluster nodes
             if (candidateDir.mkdir()) {
-                return candidateStr; // This JVM won the election
+                return candidateVersion; // This JVM won the election
             }
 
             // Lost the race; re-scan to adopt the version established by the winning node
@@ -128,13 +134,13 @@ public class TimeSeriesDirectoryVersion implements ITimeSeriesDirectoryVersion {
         }
     }
 
-    private static long findMaxExistingVersion(final File sharedDir) {
+    private static int findMaxExistingVersion(final File sharedDir) {
         final File[] files = sharedDir.listFiles(File::isDirectory);
-        long max = 0;
+        int max = 0;
         if (files != null) {
             for (final File file : files) {
                 try {
-                    final long v = Long.parseLong(file.getName());
+                    final int v = Integer.parseInt(file.getName());
                     if (v > max) {
                         max = v;
                     }
@@ -151,7 +157,7 @@ public class TimeSeriesDirectoryVersion implements ITimeSeriesDirectoryVersion {
      * atomically to initialize version 1.
      */
     public static TimeSeriesDirectoryVersion createCurrentVersion(final ITimeSeriesDirectory parent) {
-        final String currentVersionStr = resolveCurrentVersionString(parent);
+        final int currentVersionStr = resolveCurrentVersion(parent);
         return new TimeSeriesDirectoryVersion(parent, currentVersionStr);
     }
 
@@ -159,7 +165,7 @@ public class TimeSeriesDirectoryVersion implements ITimeSeriesDirectoryVersion {
      * Atomically creates and returns a brand-new directory version object for backadjustments/rewrites.
      */
     public static TimeSeriesDirectoryVersion createNextVersion(final ITimeSeriesDirectory parent) {
-        final String nextVersionStr = electNextVersionString(parent.getDirectoryShared());
+        final int nextVersionStr = electNextVersion(parent.getDirectoryShared());
         return new TimeSeriesDirectoryVersion(parent, nextVersionStr);
     }
 

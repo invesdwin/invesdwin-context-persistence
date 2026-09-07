@@ -12,7 +12,10 @@ public final class HashRangeKeySerde implements ISerde<HashRangeKey> {
 
     public static final HashRangeKeySerde GET = new HashRangeKeySerde();
 
-    private static final int RANGEKEY_INDEX = 0;
+    private static final int VERSION_INDEX = 0;
+    private static final int VERSION_SIZE = Integer.BYTES;
+
+    private static final int RANGEKEY_INDEX = VERSION_INDEX + VERSION_SIZE;
     private static final int RANGEKEY_SIZE = FDate.BYTES;
 
     private static final int HASHKEY_INDEX = RANGEKEY_INDEX + RANGEKEY_SIZE;
@@ -21,13 +24,15 @@ public final class HashRangeKeySerde implements ISerde<HashRangeKey> {
 
     @Override
     public HashRangeKey fromBuffer(final IByteBuffer buffer) {
+        final int version = buffer.getInt(VERSION_INDEX);
         final FDate rangeKey = FDateSerde.getFDateNotNullSafe(buffer, RANGEKEY_INDEX);
         final String hashKey = buffer.getStringUtf8(HASHKEY_INDEX, buffer.capacity() - HASHKEY_INDEX);
-        return new HashRangeKey(hashKey, rangeKey);
+        return new HashRangeKey(hashKey, version, rangeKey);
     }
 
     @Override
     public int toBuffer(final IByteBuffer buffer, final HashRangeKey obj) {
+        buffer.putInt(VERSION_INDEX, obj.getVersion());
         FDateSerde.putFDateNotNullSafe(buffer, RANGEKEY_INDEX, obj.getRangeKey());
         final int length = buffer.putStringUtf8(HASHKEY_INDEX, obj.getHashKey());
         return HASHKEY_INDEX + length;

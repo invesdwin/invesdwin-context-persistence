@@ -10,7 +10,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
-import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -67,7 +67,7 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
     }
 
     private File newMemoryFile() {
-        return TimeSeriesStorageCache.newMemoryFile(parent, precedingMemoryOffset);
+        return TimeSeriesLookupStorageCache.newMemoryFile(parent, precedingMemoryOffset);
     }
 
     @Override
@@ -284,7 +284,7 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
             final long initialPrecedingValueCount, final ICloseableIterable<? extends V> source) {
 
         final File tempDir = new File(
-                parent.getLookupTable().getDirectoryVersionData().getDirectoryVersionDataPerNode(),
+                parent.getLookupTable().getDirectoryVersionHashKeyMemory().getDirectoryVersionHashKeyDataPerNode(),
                 ATimeSeriesUpdater.class.getSimpleName());
         Files.deleteQuietly(tempDir);
         try {

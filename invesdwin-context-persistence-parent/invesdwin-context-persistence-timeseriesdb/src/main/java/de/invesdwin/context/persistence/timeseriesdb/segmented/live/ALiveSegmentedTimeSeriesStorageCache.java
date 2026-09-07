@@ -11,7 +11,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.commons.lang3.mutable.MutableInt;
 
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
@@ -40,7 +40,7 @@ import de.invesdwin.util.time.range.TimeRange;
 public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
 
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
-    private final ASegmentedTimeSeriesStorageCache<K, V> historicalSegmentLookupTableCache;
+    private final ASegmentedTimeSeriesLookupStorageCache<K, V> historicalSegmentLookupTableCache;
     private final TimeSeriesLookupMode lookupMode;
     private final K key;
     private final IReadWriteLock liveSegmentLock;

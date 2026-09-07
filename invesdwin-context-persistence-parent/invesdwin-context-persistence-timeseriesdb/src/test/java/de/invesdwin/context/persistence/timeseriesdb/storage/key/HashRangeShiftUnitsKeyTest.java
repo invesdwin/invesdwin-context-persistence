@@ -18,10 +18,10 @@ public class HashRangeShiftUnitsKeyTest extends ATest {
     @Test
     public void testCompare() {
         final List<HashRangeShiftUnitsKey> sortedKeys = new ArrayList<>();
-        sortedKeys.add(new HashRangeShiftUnitsKey("1", FDateBuilder.newDate(1900), Integer.MAX_VALUE)); //0
-        sortedKeys.add(new HashRangeShiftUnitsKey("1", FDateBuilder.newDate(2000), 1)); //1
-        sortedKeys.add(new HashRangeShiftUnitsKey("1", FDateBuilder.newDate(2000), 2)); //2
-        sortedKeys.add(new HashRangeShiftUnitsKey("1", FDateBuilder.newDate(2001), 2)); //3
+        sortedKeys.add(new HashRangeShiftUnitsKey("1", 0, FDateBuilder.newDate(1900), Integer.MAX_VALUE)); //0
+        sortedKeys.add(new HashRangeShiftUnitsKey("1", 0, FDateBuilder.newDate(2000), 1)); //1
+        sortedKeys.add(new HashRangeShiftUnitsKey("1", 0, FDateBuilder.newDate(2000), 2)); //2
+        sortedKeys.add(new HashRangeShiftUnitsKey("1", 0, FDateBuilder.newDate(2001), 2)); //3
 
         final List<HashRangeShiftUnitsKey> randomKeys = new ArrayList<>();
         randomKeys.add(sortedKeys.get(2));

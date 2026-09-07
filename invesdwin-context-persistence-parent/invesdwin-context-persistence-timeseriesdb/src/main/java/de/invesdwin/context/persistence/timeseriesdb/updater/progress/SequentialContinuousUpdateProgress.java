@@ -10,7 +10,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
-import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -63,7 +63,7 @@ public class SequentialContinuousUpdateProgress<K, V> implements IUpdateProgress
     }
 
     private File newMemoryFile() {
-        return TimeSeriesStorageCache.newMemoryFile(parent, precedingMemoryOffset);
+        return TimeSeriesLookupStorageCache.newMemoryFile(parent, precedingMemoryOffset);
     }
 
     @Override

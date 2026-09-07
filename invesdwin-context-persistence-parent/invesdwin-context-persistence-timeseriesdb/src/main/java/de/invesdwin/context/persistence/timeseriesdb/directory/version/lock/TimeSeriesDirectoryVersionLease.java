@@ -10,6 +10,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import de.invesdwin.context.integration.IntegrationProperties;
 import de.invesdwin.context.persistence.timeseriesdb.directory.ITimeSeriesDirectory;
 import de.invesdwin.instrument.DynamicInstrumentationProperties;
+import de.invesdwin.util.error.RuntimeIOException;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.string.Charsets;
@@ -19,19 +20,23 @@ import de.invesdwin.util.time.date.millis.FDateMillis;
 
 @ThreadSafe
 public final class TimeSeriesDirectoryVersionLease implements ISafeCloseable {
-    private final String version;
+    private final int version;
     private final File directoryVersionShared;
     private final File directoryVersionPerNode;
     private final File heartbeatFile;
     private final AtomicInteger refCount = new AtomicInteger(0);
 
-    TimeSeriesDirectoryVersionLease(final ITimeSeriesDirectory parent, final String version) {
-        this.version = version.intern();
-        this.directoryVersionShared = new File(parent.getDirectoryShared(), this.version);
-        this.directoryVersionPerNode = new File(parent.getDirectoryPerNode(), this.version);
+    TimeSeriesDirectoryVersionLease(final ITimeSeriesDirectory parent, final int version) {
+        this.version = version;
+        this.directoryVersionShared = new File(parent.getDirectoryShared(), String.valueOf(version));
+        this.directoryVersionPerNode = new File(parent.getDirectoryPerNode(), String.valueOf(version));
 
-        this.directoryVersionShared.mkdirs();
-        this.directoryVersionPerNode.mkdirs();
+        try {
+            Files.forceMkdir(directoryVersionShared);
+            Files.forceMkdir(directoryVersionPerNode);
+        } catch (final IOException e) {
+            throw new RuntimeIOException(e);
+        }
 
         this.heartbeatFile = new File(this.directoryVersionShared,
                 "lease_" + UUID.randomUUID().toString() + ".heartbeat");
@@ -44,7 +49,7 @@ public final class TimeSeriesDirectoryVersionLease implements ISafeCloseable {
                     .append(DynamicInstrumentationProperties.getProcessName())
                     .append("\n");
             heartbeatContent.append("Created: ").append(FDate.now());
-            Files.writeStringToFile(heartbeatFile, version, Charsets.defaultCharset());
+            Files.writeStringToFile(heartbeatFile, heartbeatContent.toString(), Charsets.defaultCharset());
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
@@ -55,7 +60,7 @@ public final class TimeSeriesDirectoryVersionLease implements ISafeCloseable {
         refCount.incrementAndGet();
     }
 
-    public String getVersion() {
+    public int getVersion() {
         return version;
     }
 

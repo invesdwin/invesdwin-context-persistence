@@ -25,7 +25,7 @@ public final class TimeSeriesDirectoryVersionLeaseRegistry {
 
     private TimeSeriesDirectoryVersionLeaseRegistry() {}
 
-    public static TimeSeriesDirectoryVersionLease getOrCreate(final ITimeSeriesDirectory parent, final String version) {
+    public static TimeSeriesDirectoryVersionLease getOrCreate(final ITimeSeriesDirectory parent, final int version) {
         final String registryKey = parent.getDirectoryShared().getAbsolutePath() + "/" + version;
         final TimeSeriesDirectoryVersionLease lease = REGISTRY.compute(registryKey, (key, existingLease) -> {
             TimeSeriesDirectoryVersionLease current = existingLease;
@@ -40,7 +40,7 @@ public final class TimeSeriesDirectoryVersionLeaseRegistry {
         return lease;
     }
 
-    static void remove(final String version, final TimeSeriesDirectoryVersionLease lease) {
+    static void remove(final int version, final TimeSeriesDirectoryVersionLease lease) {
         final String registryKey = lease.getDirectoryVersionShared().getParent() + "/" + version;
         REGISTRY.remove(registryKey, lease);
 

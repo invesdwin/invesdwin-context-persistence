@@ -18,7 +18,8 @@ import de.invesdwin.context.persistence.timeseriesdb.directory.TimeSeriesDirecto
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.version.ITimeSeriesDirectoryVersion;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.data.ITimeSeriesDirectoryVersionData;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.ITimeSeriesDirectoryVersionHashKey;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.data.ITimeSeriesDirectoryVersionHashKeyData;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
@@ -50,7 +51,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     private final TimeSeriesLookupMode lookupMode;
     private final int batchFlushInterval;
     private final ITimeSeriesDirectory directory;
-    private final ALoadingCache<K, TimeSeriesStorageCache<K, V>> key_lookupTableCache;
+    private final ALoadingCache<K, TimeSeriesLookupStorageCache<K, V>> key_lookupTableCache;
     private final ALoadingCache<K, IReentrantReadWriteLock> key_tableLock = new ALoadingCache<K, IReentrantReadWriteLock>() {
         @Override
         protected IReentrantReadWriteLock loadValue(final K key) {
@@ -88,11 +89,11 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         final ITimeSeriesBaseDirectory baseDirectory = getBaseDirectory();
         final String storageName = getStorageName(Files.normalizePath(getName()));
         this.directory = new TimeSeriesDirectory(baseDirectory, storageName);
-        this.key_lookupTableCache = new ACaffeineLoadingCache<K, TimeSeriesStorageCache<K, V>>() {
+        this.key_lookupTableCache = new ACaffeineLoadingCache<K, TimeSeriesLookupStorageCache<K, V>>() {
             @Override
-            protected TimeSeriesStorageCache<K, V> loadValue(final K key) {
+            protected TimeSeriesLookupStorageCache<K, V> loadValue(final K key) {
                 final String hashKey = hashKeyToString(key);
-                return new TimeSeriesStorageCache<K, V>(getStorage(), hashKey, getValueSerde(), getValueFixedLength(),
+                return new TimeSeriesLookupStorageCache<K, V>(getStorage(), hashKey, getValueSerde(), getValueFixedLength(),
                         input -> extractEndTime(input), getLookupMode(), getBatchFlushInterval());
             }
 
@@ -108,7 +109,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
             @Override
             protected Integer getInitialMaximumSize() {
-                return TimeSeriesStorageCache.MAXIMUM_SIZE;
+                return TimeSeriesLookupStorageCache.MAXIMUM_SIZE;
             }
 
             @Override
@@ -155,8 +156,12 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         return directory;
     }
 
-    public ITimeSeriesDirectoryVersionData getDirectoryVersionData(final K key) {
-        return getLookupTableCache(key).newDirectoryVersionData();
+    public ITimeSeriesDirectoryVersionHashKey getDirectoryVersionHashKey(final K key) {
+        return getLookupTableCache(key).getDirectoryVersionHashKey();
+    }
+
+    public ITimeSeriesDirectoryVersionHashKeyData getDirectoryVersionHashKeyMemory(final K key) {
+        return getLookupTableCache(key).getDirectoryVersionHashKeyMemory();
     }
 
     protected TimeSeriesStorage newStorage(final ITimeSeriesDirectoryVersion directoryVersion,
@@ -276,7 +281,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            final TimeSeriesStorageCache<K, V> lookupTableCache = getLookupTableCache(key);
+            final TimeSeriesLookupStorageCache<K, V> lookupTableCache = getLookupTableCache(key);
             if (index <= 0) {
                 return lookupTableCache.getFirstValue();
             } else if (index >= lookupTableCache.size()) {
@@ -443,7 +448,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     }
 
     @Override
-    public final TimeSeriesStorageCache<K, V> getLookupTableCache(final K key) {
+    public final TimeSeriesLookupStorageCache<K, V> getLookupTableCache(final K key) {
         return key_lookupTableCache.get(key);
     }
 

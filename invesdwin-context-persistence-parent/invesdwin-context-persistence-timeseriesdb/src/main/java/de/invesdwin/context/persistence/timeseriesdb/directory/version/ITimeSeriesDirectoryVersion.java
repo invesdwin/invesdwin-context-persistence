@@ -8,10 +8,7 @@ public interface ITimeSeriesDirectoryVersion {
 
     ITimeSeriesDirectory getParent();
 
-    /**
-     * This is an interned string so that == comparisons can be made.
-     */
-    String getVersion();
+    int getVersion();
 
     File getDirectoryVersionShared();
 
