@@ -49,7 +49,10 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
             @Override
             protected File getDirectory() {
                 return new File(
-                        historicalSegmentTable.getDirectory().getDirectoryVersion().getDirectoryVersionPerNode(),
+                        historicalSegmentTable.getSegmentedLookupTableCache(segmentedKey.getKey())
+                                .getDirectoryHashKey()
+                                .getDirectoryHashKeyVersion()
+                                .getDirectoryHashKeyVersionPerNode(),
                         historicalSegmentTable.hashKeyToString(segmentedKey));
             }
 

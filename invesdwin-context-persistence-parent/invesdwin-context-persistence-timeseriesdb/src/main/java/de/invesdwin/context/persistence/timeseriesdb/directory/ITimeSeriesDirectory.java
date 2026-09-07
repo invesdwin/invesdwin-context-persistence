@@ -3,7 +3,6 @@ package de.invesdwin.context.persistence.timeseriesdb.directory;
 import java.io.File;
 
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.ITimeSeriesDirectoryVersion;
 
 public interface ITimeSeriesDirectory {
 
@@ -15,6 +14,8 @@ public interface ITimeSeriesDirectory {
 
     File getDirectoryPerNode();
 
-    ITimeSeriesDirectoryVersion getDirectoryVersion();
+    File getHeartbeatDirectory();
+
+    void delete();
 
 }

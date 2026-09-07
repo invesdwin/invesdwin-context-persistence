@@ -284,7 +284,7 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
             final long initialPrecedingValueCount, final ICloseableIterable<? extends V> source) {
 
         final File tempDir = new File(
-                parent.getLookupTable().getDirectoryVersionHashKeyMemory().getDirectoryVersionHashKeyDataPerNode(),
+                parent.getLookupTable().getDirectoryVersionHashKeyMemory().getDirectoryHashKeyVersionDataPerNode(),
                 ATimeSeriesUpdater.class.getSimpleName());
         Files.deleteQuietly(tempDir);
         try {

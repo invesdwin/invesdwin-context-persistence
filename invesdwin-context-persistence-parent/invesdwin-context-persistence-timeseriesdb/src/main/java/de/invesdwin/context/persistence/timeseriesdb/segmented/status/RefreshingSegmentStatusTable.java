@@ -4,8 +4,8 @@ import java.util.Map.Entry;
 
 import javax.annotation.concurrent.ThreadSafe;
 
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.ITimeSeriesDirectoryVersion;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.data.ITimeSeriesDirectoryVersionHashKeyData;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version.ITimeSeriesDirectoryHashKeyVersion;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version.data.ITimeSeriesDirectoryHashKeyVersionData;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentStatus;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.time.range.TimeRange;
@@ -13,14 +13,14 @@ import de.invesdwin.util.time.range.TimeRange;
 @ThreadSafe
 public class RefreshingSegmentStatusTable implements ISegmentStatusTable {
 
-    private final ITimeSeriesDirectoryVersionHashKeyData directoryVersionHashKeySegmentStatus;
-    private final ITimeSeriesDirectoryVersion directoryVersion;
+    private final ITimeSeriesDirectoryHashKeyVersionData directoryHashKeyVersionSegmentStatus;
+    private final ITimeSeriesDirectoryHashKeyVersion directoryVersion;
     private VersionedSegmentStatusTable delegate;
 
     public RefreshingSegmentStatusTable(
-            final ITimeSeriesDirectoryVersionHashKeyData directoryVersionHashKeySegmentStatus) {
-        this.directoryVersionHashKeySegmentStatus = directoryVersionHashKeySegmentStatus;
-        this.directoryVersion = directoryVersionHashKeySegmentStatus.getParent().getParent();
+            final ITimeSeriesDirectoryHashKeyVersionData directoryVersionHashKeySegmentStatus) {
+        this.directoryHashKeyVersionSegmentStatus = directoryVersionHashKeySegmentStatus;
+        this.directoryVersion = directoryVersionHashKeySegmentStatus.getParent();
     }
 
     private ISegmentStatusTable getDelegate() {
@@ -28,7 +28,7 @@ public class RefreshingSegmentStatusTable implements ISegmentStatusTable {
             synchronized (this) {
                 if (delegate == null || delegate.getVersion() != directoryVersion.getVersion()) {
                     delegate = new VersionedSegmentStatusTable(
-                            directoryVersionHashKeySegmentStatus.getDirectoryVersionHashKeyDataShared(),
+                            directoryHashKeyVersionSegmentStatus.getDirectoryHashKeyVersionDataShared(),
                             directoryVersion.getVersion());
                 }
             }

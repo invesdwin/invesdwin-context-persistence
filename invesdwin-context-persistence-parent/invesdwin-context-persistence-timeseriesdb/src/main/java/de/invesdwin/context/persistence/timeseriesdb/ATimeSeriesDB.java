@@ -17,9 +17,8 @@ import de.invesdwin.context.persistence.timeseriesdb.directory.ITimeSeriesDirect
 import de.invesdwin.context.persistence.timeseriesdb.directory.TimeSeriesDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.ITimeSeriesDirectoryVersion;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.ITimeSeriesDirectoryVersionHashKey;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.data.ITimeSeriesDirectoryVersionHashKeyData;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.ITimeSeriesDirectoryHashKey;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version.data.ITimeSeriesDirectoryHashKeyVersionData;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
@@ -93,8 +92,9 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
             @Override
             protected TimeSeriesLookupStorageCache<K, V> loadValue(final K key) {
                 final String hashKey = hashKeyToString(key);
-                return new TimeSeriesLookupStorageCache<K, V>(getStorage(), hashKey, getValueSerde(), getValueFixedLength(),
-                        input -> extractEndTime(input), getLookupMode(), getBatchFlushInterval());
+                return new TimeSeriesLookupStorageCache<K, V>(getStorage(), hashKey, getValueSerde(),
+                        getValueFixedLength(), input -> extractEndTime(input), getLookupMode(),
+                        getBatchFlushInterval());
             }
 
             @Override
@@ -131,23 +131,21 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     private TimeSeriesStorage corruptionHandlingNewStorage() {
         try {
-            return newStorage(directory.getDirectoryVersion(), getValueFixedLength(), compressionFactory);
+            return newStorage(directory, getValueFixedLength(), compressionFactory);
         } catch (final Throwable t) {
             if (Throwables.isCausedByType(t, CorruptedStorageException.class)) {
                 Err.process(new RuntimeException("Resetting " + ATimeSeriesDB.class.getSimpleName() + " [" + directory
                         + "] because the storage has been corrupted"));
-                deleteCorruptedStorage(directory.getDirectoryVersion());
-                return newStorage(directory.getDirectoryVersion(), getValueFixedLength(), compressionFactory);
+                deleteCorruptedStorage(directory);
+                return newStorage(directory, getValueFixedLength(), compressionFactory);
             } else {
                 throw Throwables.propagate(t);
             }
         }
     }
 
-    protected void deleteCorruptedStorage(final ITimeSeriesDirectoryVersion directoryVersion) {
-        System.out.println(
-                "TODO: create a new version and add a cleanup procedure, though should also be isolated per key?");
-        directoryVersion.delete();
+    protected void deleteCorruptedStorage(final ITimeSeriesDirectory directory) {
+        directory.delete();
         lastResetIndex.incrementAndGet();
     }
 
@@ -156,17 +154,17 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         return directory;
     }
 
-    public ITimeSeriesDirectoryVersionHashKey getDirectoryVersionHashKey(final K key) {
-        return getLookupTableCache(key).getDirectoryVersionHashKey();
+    public ITimeSeriesDirectoryHashKey getDirectoryVersionHashKey(final K key) {
+        return getLookupTableCache(key).getDirectoryHashKey();
     }
 
-    public ITimeSeriesDirectoryVersionHashKeyData getDirectoryVersionHashKeyMemory(final K key) {
+    public ITimeSeriesDirectoryHashKeyVersionData getDirectoryVersionHashKeyMemory(final K key) {
         return getLookupTableCache(key).getDirectoryVersionHashKeyMemory();
     }
 
-    protected TimeSeriesStorage newStorage(final ITimeSeriesDirectoryVersion directoryVersion,
-            final Integer valueFixedLength, final ICompressionFactory compressionFactory) {
-        return new TimeSeriesStorage(directoryVersion, valueFixedLength, compressionFactory);
+    protected TimeSeriesStorage newStorage(final ITimeSeriesDirectory directory, final Integer valueFixedLength,
+            final ICompressionFactory compressionFactory) {
+        return new TimeSeriesStorage(directory, valueFixedLength, compressionFactory);
     }
 
     @Override

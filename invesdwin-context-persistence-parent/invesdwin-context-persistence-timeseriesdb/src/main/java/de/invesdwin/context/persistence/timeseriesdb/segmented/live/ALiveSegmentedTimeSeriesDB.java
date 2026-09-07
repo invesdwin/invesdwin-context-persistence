@@ -11,7 +11,6 @@ import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
 import de.invesdwin.context.persistence.timeseriesdb.directory.ITimeSeriesDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.ITimeSeriesDirectoryVersion;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
@@ -136,13 +135,13 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
 
     protected abstract ICloseableIterable<? extends V> downloadSegmentElements(SegmentedKey<K> segmentedKey);
 
-    protected SegmentedTimeSeriesStorage newStorage(final ITimeSeriesDirectoryVersion directoryVersion,
+    protected SegmentedTimeSeriesStorage newStorage(final ITimeSeriesDirectory directory,
             final Integer valueFixedLength, final ICompressionFactory compressionFactory) {
-        return new SegmentedTimeSeriesStorage(directoryVersion, valueFixedLength, compressionFactory);
+        return new SegmentedTimeSeriesStorage(directory, valueFixedLength, compressionFactory);
     }
 
-    protected void deleteCorruptedStorage(final ITimeSeriesDirectoryVersion directoryVersion) {
-        directoryVersion.delete();
+    protected void deleteCorruptedStorage(final ITimeSeriesDirectory directory) {
+        directory.delete();
     }
 
     public abstract ISegmentFinder getSegmentFinder(K key);
@@ -231,14 +230,14 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
         }
 
         @Override
-        protected SegmentedTimeSeriesStorage newStorage(final ITimeSeriesDirectoryVersion directoryVersion,
+        protected SegmentedTimeSeriesStorage newStorage(final ITimeSeriesDirectory directory,
                 final Integer valueFixedLength, final ICompressionFactory compressionFactory) {
-            return ALiveSegmentedTimeSeriesDB.this.newStorage(directoryVersion, valueFixedLength, compressionFactory);
+            return ALiveSegmentedTimeSeriesDB.this.newStorage(directory, valueFixedLength, compressionFactory);
         }
 
         @Override
-        protected void deleteCorruptedStorage(final ITimeSeriesDirectoryVersion directoryVersion) {
-            ALiveSegmentedTimeSeriesDB.this.deleteCorruptedStorage(directoryVersion);
+        protected void deleteCorruptedStorage(final ITimeSeriesDirectory directory) {
+            ALiveSegmentedTimeSeriesDB.this.deleteCorruptedStorage(directory);
         }
 
         @Override

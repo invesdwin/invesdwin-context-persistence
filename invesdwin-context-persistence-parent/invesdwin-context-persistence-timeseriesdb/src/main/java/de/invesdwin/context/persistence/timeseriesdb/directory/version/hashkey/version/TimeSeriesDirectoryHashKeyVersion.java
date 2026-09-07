@@ -1,28 +1,32 @@
-package de.invesdwin.context.persistence.timeseriesdb.directory.version;
+package de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version;
 
 import java.io.File;
 
 import javax.annotation.concurrent.ThreadSafe;
 
-import de.invesdwin.context.persistence.timeseriesdb.directory.ITimeSeriesDirectory;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.lock.TimeSeriesDirectoryVersionLease;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.lock.TimeSeriesDirectoryVersionLeaseRegistry;
+import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannelPath;
+import de.invesdwin.context.integration.filechannel.nio.atomic.properties.TransactionalFileProperties;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.ITimeSeriesDirectoryHashKey;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version.lease.TimeSeriesDirectoryHashKeyVersionLease;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version.lease.TimeSeriesDirectoryHashKeyVersionLeaseRegistry;
+import de.invesdwin.context.system.properties.ICloseableProperties;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 
 @ThreadSafe
-public class TimeSeriesDirectoryVersion implements ITimeSeriesDirectoryVersion {
+public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHashKeyVersion {
 
-    private final ITimeSeriesDirectory parent;
+    private final ITimeSeriesDirectoryHashKey parent;
     private final TimeSeriesDirectoryVersionFinalizer finalizer;
+    private AtomicNioFileChannelPath propertiesPath;
 
-    public TimeSeriesDirectoryVersion(final ITimeSeriesDirectory parent) {
+    public TimeSeriesDirectoryHashKeyVersion(final ITimeSeriesDirectoryHashKey parent) {
         this.parent = parent;
         this.finalizer = new TimeSeriesDirectoryVersionFinalizer();
     }
 
-    public TimeSeriesDirectoryVersion(final ITimeSeriesDirectory parent, final int version) {
+    public TimeSeriesDirectoryHashKeyVersion(final ITimeSeriesDirectoryHashKey parent, final int version) {
         this(parent);
-        finalizer.lease = TimeSeriesDirectoryVersionLeaseRegistry.getOrCreate(parent, version);
+        finalizer.lease = TimeSeriesDirectoryHashKeyVersionLeaseRegistry.getOrCreate(parent, version);
         this.finalizer.register(this);
         //        System.out.println(
         //                "TODO: maybe we also need a registry which hashKey uses which version, so that perNode data can be deleted on a version change? or maybe store the version in perNodeData and clear data when any version changes?");
@@ -31,7 +35,7 @@ public class TimeSeriesDirectoryVersion implements ITimeSeriesDirectoryVersion {
     }
 
     @Override
-    public ITimeSeriesDirectory getParent() {
+    public ITimeSeriesDirectoryHashKey getParent() {
         return parent;
     }
 
@@ -41,31 +45,52 @@ public class TimeSeriesDirectoryVersion implements ITimeSeriesDirectoryVersion {
     }
 
     @Override
-    public File getDirectoryVersionShared() {
-        return getLease().getDirectoryVersionShared();
+    public File getDirectoryHashKeyVersionShared() {
+        return getLease().getDirectoryHashKeyVersionShared();
     }
 
     @Override
-    public File getDirectoryVersionPerNode() {
-        return getLease().getDirectoryVersionPerNode();
+    public File getDirectoryHashKeyVersionPerNode() {
+        return getLease().getDirectoryHashKeyVersionPerNode();
     }
 
     @Override
     public void delete() {
         //System.out.println("TODO: rework this");
-        final TimeSeriesDirectoryVersionLease leaseCopy = finalizer.lease;
+        final TimeSeriesDirectoryHashKeyVersionLease leaseCopy = finalizer.lease;
         if (leaseCopy != null) {
             leaseCopy.delete();
         }
     }
 
-    private TimeSeriesDirectoryVersionLease getLease() {
+    @Override
+    public ICloseableProperties getProperties() {
+        //System.out.println(
+        //        "TODO: create a wrapper that moved to the new directory on close if delete happened inbetween? also maybe add a flush operation before switching to a new directory?");
+        return new TransactionalFileProperties(getPropertiesPath());
+    }
+
+    private AtomicNioFileChannelPath getPropertiesPath() {
+        if (propertiesPath == null) {
+            synchronized (this) {
+                if (propertiesPath == null) {
+                    propertiesPath = new AtomicNioFileChannelPath(
+                            TransactionalFileProperties.newDefaultDirectory(getDirectoryHashKeyVersionShared())
+                                    .toURI());
+                }
+            }
+        }
+        return propertiesPath;
+    }
+
+    private TimeSeriesDirectoryHashKeyVersionLease getLease() {
         if (finalizer.lease == null) {
             synchronized (this) {
                 if (finalizer.lease == null) {
                     final int resolvedVersion = resolveCurrentVersion(parent);
                     // Use the registry to prevent duplicate locks across instances
-                    finalizer.lease = TimeSeriesDirectoryVersionLeaseRegistry.getOrCreate(parent, resolvedVersion);
+                    finalizer.lease = TimeSeriesDirectoryHashKeyVersionLeaseRegistry.getOrCreate(parent,
+                            resolvedVersion);
                     finalizer.register(this);
                 }
             }
@@ -78,9 +103,9 @@ public class TimeSeriesDirectoryVersion implements ITimeSeriesDirectoryVersion {
      */
     public void incrementVersion() {
         synchronized (this) {
-            final TimeSeriesDirectoryVersionLease prevLease = finalizer.lease;
-            final int nextVersion = electNextVersion(parent.getDirectoryShared());
-            finalizer.lease = TimeSeriesDirectoryVersionLeaseRegistry.getOrCreate(parent, nextVersion);
+            final TimeSeriesDirectoryHashKeyVersionLease prevLease = finalizer.lease;
+            final int nextVersion = electNextVersion(parent.getDirectoryHashKeyShared());
+            finalizer.lease = TimeSeriesDirectoryHashKeyVersionLeaseRegistry.getOrCreate(parent, nextVersion);
             if (prevLease != null) {
                 prevLease.close();
             }
@@ -90,8 +115,8 @@ public class TimeSeriesDirectoryVersion implements ITimeSeriesDirectoryVersion {
     /**
      * Resolves the active directory version string or atomically creates the next incremental version if none exists.
      */
-    private static int resolveCurrentVersion(final ITimeSeriesDirectory parent) {
-        final File sharedDir = parent.getDirectoryShared();
+    private static int resolveCurrentVersion(final ITimeSeriesDirectoryHashKey parent) {
+        final File sharedDir = parent.getDirectoryHashKeyShared();
         if (!sharedDir.exists()) {
             sharedDir.mkdirs();
         }
@@ -156,26 +181,26 @@ public class TimeSeriesDirectoryVersion implements ITimeSeriesDirectoryVersion {
      * Returns a directory version object pointing to the current highest version. If no version exists yet, it races
      * atomically to initialize version 1.
      */
-    public static TimeSeriesDirectoryVersion createCurrentVersion(final ITimeSeriesDirectory parent) {
+    public static TimeSeriesDirectoryHashKeyVersion createCurrentVersion(final ITimeSeriesDirectoryHashKey parent) {
         final int currentVersionStr = resolveCurrentVersion(parent);
-        return new TimeSeriesDirectoryVersion(parent, currentVersionStr);
+        return new TimeSeriesDirectoryHashKeyVersion(parent, currentVersionStr);
     }
 
     /**
      * Atomically creates and returns a brand-new directory version object for backadjustments/rewrites.
      */
-    public static TimeSeriesDirectoryVersion createNextVersion(final ITimeSeriesDirectory parent) {
-        final int nextVersionStr = electNextVersion(parent.getDirectoryShared());
-        return new TimeSeriesDirectoryVersion(parent, nextVersionStr);
+    public static TimeSeriesDirectoryHashKeyVersion createNextVersion(final ITimeSeriesDirectoryHashKey parent) {
+        final int nextVersionStr = electNextVersion(parent.getDirectoryHashKeyShared());
+        return new TimeSeriesDirectoryHashKeyVersion(parent, nextVersionStr);
     }
 
     private static final class TimeSeriesDirectoryVersionFinalizer extends AFinalizer {
 
-        private volatile TimeSeriesDirectoryVersionLease lease;
+        private volatile TimeSeriesDirectoryHashKeyVersionLease lease;
 
         @Override
         protected void clean() {
-            final TimeSeriesDirectoryVersionLease leaseCopy = lease;
+            final TimeSeriesDirectoryHashKeyVersionLease leaseCopy = lease;
             if (leaseCopy != null) {
                 leaseCopy.close();
                 lease = null;

@@ -33,10 +33,10 @@ import de.invesdwin.context.persistence.timeseriesdb.buffer.IFileBufferCacheResu
 import de.invesdwin.context.persistence.timeseriesdb.buffer.source.ByteBufferFileBufferSource;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.source.IFileBufferSource;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.source.IterableFileBufferSource;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.ITimeSeriesDirectoryVersionHashKey;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.TimeSeriesDirectoryVersionHashKey;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.data.ITimeSeriesDirectoryVersionHashKeyData;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.data.TimeSeriesDirectoryVersionHashKeyData;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.ITimeSeriesDirectoryHashKey;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.TimeSeriesDirectoryHashKey;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version.data.ITimeSeriesDirectoryHashKeyVersionData;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version.data.TimeSeriesDirectoryHashKeyVersionData;
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftBackUnitsLoopLongIndex;
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftForwardUnitsLoopLongIndex;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
@@ -226,7 +226,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
     private final TimeSeriesLookupMode lookupMode;
     private final int batchFlushInterval;
     @GuardedBy("this")
-    private ITimeSeriesDirectoryVersionHashKeyData directoryVersionHashKeyMemory;
+    private ITimeSeriesDirectoryHashKeyVersionData directoryVersionHashKeyMemory;
 
     private volatile Optional<V> cachedFirstValue;
     private volatile Optional<V> cachedLastValue;
@@ -242,7 +242,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
     @GuardedBy("this")
     private MemoryFileMetadata memoryFileMetadata;
     private final LoadingCache<ResultCacheKey, IFileBufferCacheResult<V>> resultCache;
-    private ITimeSeriesDirectoryVersionHashKey directoryVersionHashKey;
+    private ITimeSeriesDirectoryHashKey directoryHashKey;
 
     public TimeSeriesLookupStorageCache(final TimeSeriesStorage storage, final String hashKey,
             final ISerde<V> valueSerde, final Integer fixedLength, final Function<V, FDate> extractTime,
@@ -292,24 +292,23 @@ public class TimeSeriesLookupStorageCache<K, V> {
         }
     }
 
-    public ITimeSeriesDirectoryVersionHashKey getDirectoryVersionHashKey() {
-        if (directoryVersionHashKey == null) {
+    public ITimeSeriesDirectoryHashKey getDirectoryHashKey() {
+        if (directoryHashKey == null) {
             synchronized (this) {
-                if (directoryVersionHashKey == null) {
-                    directoryVersionHashKey = new TimeSeriesDirectoryVersionHashKey(storage.getDirectoryVersion(),
-                            hashKey);
+                if (directoryHashKey == null) {
+                    directoryHashKey = new TimeSeriesDirectoryHashKey(storage.getDirectory(), hashKey);
                 }
             }
         }
-        return directoryVersionHashKey;
+        return directoryHashKey;
     }
 
-    public ITimeSeriesDirectoryVersionHashKeyData getDirectoryVersionHashKeyMemory() {
+    public ITimeSeriesDirectoryHashKeyVersionData getDirectoryVersionHashKeyMemory() {
         if (directoryVersionHashKeyMemory == null) {
             synchronized (this) {
                 if (directoryVersionHashKeyMemory == null) {
-                    directoryVersionHashKeyMemory = new TimeSeriesDirectoryVersionHashKeyData(
-                            getDirectoryVersionHashKey(), "memory");
+                    directoryVersionHashKeyMemory = new TimeSeriesDirectoryHashKeyVersionData(
+                            directoryHashKey.getDirectoryHashKeyVersion(), "memory");
                 }
             }
         }
@@ -317,14 +316,14 @@ public class TimeSeriesLookupStorageCache<K, V> {
     }
 
     public File getUpdateLockFile() {
-        return new File(getDirectoryVersionHashKeyMemory().getDirectoryVersionHashKeyDataShared(),
+        return new File(getDirectoryVersionHashKeyMemory().getDirectoryHashKeyVersionDataShared(),
                 "updateRunning.lock");
     }
 
     public static File newMemoryFile(final ITimeSeriesUpdaterInternalMethods<?, ?> parent,
             final long precedingMemoryOffset) {
         final File memoryFile = new File(
-                parent.getLookupTable().getDirectoryVersionHashKeyMemory().getDirectoryVersionHashKeyDataShared(),
+                parent.getLookupTable().getDirectoryVersionHashKeyMemory().getDirectoryHashKeyVersionDataShared(),
                 "memory.data");
         return newMemoryFile(memoryFile, precedingMemoryOffset);
     }
@@ -340,7 +339,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
     public synchronized MemoryFileMetadata getMemoryFileMetadata() {
         if (memoryFileMetadata == null) {
             memoryFileMetadata = new MemoryFileMetadata(
-                    getDirectoryVersionHashKeyMemory().getDirectoryVersionHashKeyDataShared());
+                    getDirectoryVersionHashKeyMemory().getDirectoryHashKeyVersionDataShared());
         }
         return memoryFileMetadata;
     }
@@ -909,7 +908,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
     }
 
     private V getLatestValueByValue(final FDate date) {
-        final int version = directoryVersionHashKey.getParent().getVersion();
+        final int version = directoryHashKey.getDirectoryHashKeyVersion().getVersion();
         final SingleValue value = storage.getOrLoad_latestValueLookupTable(hashKey, version, date, () -> {
             final RangeTableRow<String, FDate, MemoryFileSummary> row = fileLookupTable_latestRangeKeyCache.get(date);
             if (row == null) {
@@ -1071,7 +1070,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
         if (date.isBeforeOrEqualToNotNullSafe(firstTime)) {
             return firstValue;
         } else {
-            final int version = directoryVersionHashKey.getParent().getVersion();
+            final int version = directoryHashKey.getDirectoryHashKeyVersion().getVersion();
             final SingleValue value = storage.getOrLoad_previousValueLookupTable(hashKey, version, date, shiftBackUnits,
                     () -> {
                         final ShiftBackUnitsLoop<V> shiftBackLoop = new ShiftBackUnitsLoop<>(date, shiftBackUnits,
@@ -1157,7 +1156,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
         if (date.isAfterOrEqualToNotNullSafe(lastTime)) {
             return lastValue;
         } else {
-            final int version = directoryVersionHashKey.getParent().getVersion();
+            final int version = directoryHashKey.getDirectoryHashKeyVersion().getVersion();
             final SingleValue value = storage.getOrLoad_nextValueLookupTable(hashKey, version, date, shiftForwardUnits,
                     () -> {
                         final ShiftForwardUnitsLoop<V> shiftForwardLoop = new ShiftForwardUnitsLoop<>(date,

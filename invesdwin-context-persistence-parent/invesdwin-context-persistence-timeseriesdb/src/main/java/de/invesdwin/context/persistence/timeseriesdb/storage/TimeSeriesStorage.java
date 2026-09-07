@@ -14,7 +14,7 @@ import de.invesdwin.context.persistence.ezdb.RangeTablePersistenceMode;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.IPersistentMapType;
 import de.invesdwin.context.persistence.timeseriesdb.PersistentMapType;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.ITimeSeriesDirectoryVersion;
+import de.invesdwin.context.persistence.timeseriesdb.directory.ITimeSeriesDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeKey;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeKeySerde;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeShiftUnitsKey;
@@ -31,16 +31,16 @@ public class TimeSeriesStorage {
      * threshold of removals and it slows down significantly when above 1.5gb in size.
      */
     public static final PersistentMapType DEFAULT_MAP_TYPE = PersistentMapType.DISK_FAST;
-    private final ITimeSeriesDirectoryVersion directoryVersion;
+    private final ITimeSeriesDirectory directory;
     private final ICompressionFactory compressionFactory;
     private final ADelegateRangeTable<String, FDate, MemoryFileSummary> fileLookupTable;
     private final APersistentMap<HashRangeKey, SingleValue> latestValueLookupTable;
     private final APersistentMap<HashRangeShiftUnitsKey, SingleValue> previousValueLookupTable;
     private final APersistentMap<HashRangeShiftUnitsKey, SingleValue> nextValueLookupTable;
 
-    public TimeSeriesStorage(final ITimeSeriesDirectoryVersion directoryVersion, final Integer valueFixedLength,
+    public TimeSeriesStorage(final ITimeSeriesDirectory directory, final Integer valueFixedLength,
             final ICompressionFactory compressionFactory) {
-        this.directoryVersion = directoryVersion;
+        this.directory = directory;
         this.compressionFactory = compressionFactory;
         this.fileLookupTable = new ADelegateRangeTable<String, FDate, MemoryFileSummary>("fileLookupTable") {
 
@@ -52,7 +52,7 @@ public class TimeSeriesStorage {
             @Override
             protected File getDirectory() {
                 System.out.println("TODO: replace this storage");
-                return directoryVersion.getDirectoryVersionShared();
+                return directory.getDirectoryShared();
             }
 
             @Override
@@ -75,7 +75,7 @@ public class TimeSeriesStorage {
 
             @Override
             public File getDirectory() {
-                return directoryVersion.getDirectoryVersionPerNode();
+                return directory.getDirectoryPerNode();
             }
 
             @Override
@@ -103,7 +103,7 @@ public class TimeSeriesStorage {
 
             @Override
             public File getDirectory() {
-                return directoryVersion.getDirectoryVersionPerNode();
+                return directory.getDirectoryPerNode();
             }
 
             @Override
@@ -131,7 +131,7 @@ public class TimeSeriesStorage {
 
             @Override
             public File getDirectory() {
-                return directoryVersion.getDirectoryVersionPerNode();
+                return directory.getDirectoryPerNode();
             }
 
             @Override
@@ -163,8 +163,8 @@ public class TimeSeriesStorage {
         return DEFAULT_MAP_TYPE;
     }
 
-    public ITimeSeriesDirectoryVersion getDirectoryVersion() {
-        return directoryVersion;
+    public ITimeSeriesDirectory getDirectory() {
+        return directory;
     }
 
     public ICompressionFactory getCompressionFactory() {

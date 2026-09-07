@@ -5,8 +5,6 @@ import java.io.File;
 import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.ITimeSeriesDirectoryVersion;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.TimeSeriesDirectoryVersion;
 
 @Immutable
 public class TimeSeriesDirectory implements ITimeSeriesDirectory {
@@ -15,14 +13,14 @@ public class TimeSeriesDirectory implements ITimeSeriesDirectory {
     private final String storageName;
     private final File directoryShared;
     private final File directoryPerNode;
-    private final ITimeSeriesDirectoryVersion directoryVersion;
+    private final File heartbeatDirectory;
 
     public TimeSeriesDirectory(final ITimeSeriesBaseDirectory parent, final String storageName) {
         this.parent = parent;
         this.storageName = storageName;
         this.directoryShared = new File(parent.getBaseDirectoryShared(), storageName);
         this.directoryPerNode = new File(parent.getBaseDirectoryPerNode(), storageName);
-        this.directoryVersion = new TimeSeriesDirectoryVersion(this);
+        this.heartbeatDirectory = new File(directoryShared, "heartbeat");
     }
 
     @Override
@@ -46,7 +44,16 @@ public class TimeSeriesDirectory implements ITimeSeriesDirectory {
     }
 
     @Override
-    public ITimeSeriesDirectoryVersion getDirectoryVersion() {
-        return directoryVersion;
+    public File getHeartbeatDirectory() {
+        return heartbeatDirectory;
     }
+
+    @Override
+    public void delete() {
+        //        System.out.println(
+        //                "TODO: create a new version and add a cleanup procedure, though should also be isolated per key?");
+        //maybe atomic rename the folder to _deleted and delete async if this process succeeded in delete? or should we add another version layer?
+        //or should we just reset/delete the perNode data? though I guess we need to handle data format changes with a complete reset?
+    }
+
 }

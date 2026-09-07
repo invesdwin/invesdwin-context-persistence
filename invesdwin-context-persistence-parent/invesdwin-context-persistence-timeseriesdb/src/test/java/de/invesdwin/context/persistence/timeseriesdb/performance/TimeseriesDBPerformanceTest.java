@@ -14,9 +14,9 @@ import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.IPersistentMapType;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.PersistentMapType;
+import de.invesdwin.context.persistence.timeseriesdb.directory.ITimeSeriesDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.ITimeSeriesDirectoryVersion;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
@@ -41,9 +41,9 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
         final ATimeSeriesDB<String, FDate> table = new ATimeSeriesDB<String, FDate>("testTimeSeriesDbPerformance") {
 
             @Override
-            protected TimeSeriesStorage newStorage(final ITimeSeriesDirectoryVersion directoryVersion,
-                    final Integer valueFixedLength, final ICompressionFactory compressionFactory) {
-                return new TimeSeriesStorage(directoryVersion, valueFixedLength, compressionFactory) {
+            protected TimeSeriesStorage newStorage(final ITimeSeriesDirectory directory, final Integer valueFixedLength,
+                    final ICompressionFactory compressionFactory) {
+                return new TimeSeriesStorage(directory, valueFixedLength, compressionFactory) {
                     @Override
                     protected IPersistentMapType getMapType() {
                         return PersistentMapType.DISK_FAST;

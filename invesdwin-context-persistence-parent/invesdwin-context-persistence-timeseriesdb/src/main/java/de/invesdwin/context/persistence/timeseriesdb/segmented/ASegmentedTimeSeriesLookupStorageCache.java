@@ -30,9 +30,9 @@ import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.FileBufferCache;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.ITimeSeriesDirectoryVersionHashKey;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.TimeSeriesDirectoryVersionHashKey;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.data.TimeSeriesDirectoryVersionHashKeyData;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.ITimeSeriesDirectoryHashKey;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.TimeSeriesDirectoryHashKey;
+import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version.data.TimeSeriesDirectoryHashKeyVersionData;
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftBackUnitsLoopLongIndex;
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftForwardUnitsLoopLongIndex;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
@@ -107,7 +107,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
     private final Log log = new Log(this);
 
     private final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable;
-    private final ITimeSeriesDirectoryVersionHashKey directoryVersionHashKey;
+    private final ITimeSeriesDirectoryHashKey directoryHashKey;
     private final ISegmentStatusTable segmentStatusTable;
     private final TimeSeriesLookupMode lookupMode;
     private final SegmentedTimeSeriesStorage storage;
@@ -230,9 +230,9 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
             final SegmentedTimeSeriesStorage storage, final K key, final String hashKey) {
         this.storage = storage;
         this.segmentedTable = segmentedTable;
-        this.directoryVersionHashKey = new TimeSeriesDirectoryVersionHashKey(storage.getDirectoryVersion(), hashKey);
-        this.segmentStatusTable = new RefreshingSegmentStatusTable(
-                new TimeSeriesDirectoryVersionHashKeyData(directoryVersionHashKey, "segmentStatus"));
+        this.directoryHashKey = new TimeSeriesDirectoryHashKey(storage.getDirectory(), hashKey);
+        this.segmentStatusTable = new RefreshingSegmentStatusTable(new TimeSeriesDirectoryHashKeyVersionData(
+                directoryHashKey.getDirectoryHashKeyVersion(), "segmentStatus"));
         this.lookupMode = segmentedTable.getLookupMode();
         this.key = key;
         this.hashKey = hashKey;
@@ -245,6 +245,10 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         };
         this.deleteLock = Locks.newReentrantLock(ASegmentedTimeSeriesLookupStorageCache.class.getSimpleName() + "_"
                 + segmentedTable.getName() + "_" + hashKey + "_deleteLock");
+    }
+
+    public ITimeSeriesDirectoryHashKey getDirectoryHashKey() {
+        return directoryHashKey;
     }
 
     public ISegmentStatusTable getSegmentStatusTable() {
@@ -994,7 +998,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
 
     private V getLatestValueByValue(final FDate pDate) {
         final FDate date = FDates.min(pDate, getLastAvailableSegmentTo(key, pDate));
-        final int version = directoryVersionHashKey.getParent().getVersion();
+        final int version = directoryHashKey.getDirectoryHashKeyVersion().getVersion();
         final SingleValue value = storage.getOrLoad_latestValueLookupTable(hashKey, version, date, () -> {
             final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
             //already adjusted on the outside
@@ -1154,7 +1158,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         if (date.isBeforeOrEqualToNotNullSafe(firstTime)) {
             return firstValue;
         } else {
-            final int version = directoryVersionHashKey.getParent().getVersion();
+            final int version = directoryHashKey.getDirectoryHashKeyVersion().getVersion();
             final SingleValue value = storage.getOrLoad_previousValueLookupTable(hashKey, version, date, shiftBackUnits,
                     () -> {
                         final ShiftBackUnitsLoop<V> shiftBackLoop = new ShiftBackUnitsLoop<>(date, shiftBackUnits,
@@ -1247,7 +1251,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         if (date.isAfterOrEqualToNotNullSafe(lastTime)) {
             return lastValue;
         } else {
-            final int version = directoryVersionHashKey.getParent().getVersion();
+            final int version = directoryHashKey.getDirectoryHashKeyVersion().getVersion();
             final SingleValue value = storage.getOrLoad_nextValueLookupTable(hashKey, version, date, shiftForwardUnits,
                     () -> {
                         final ShiftForwardUnitsLoop<V> shiftForwardLoop = new ShiftForwardUnitsLoop<>(date,
