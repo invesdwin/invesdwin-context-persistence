@@ -158,6 +158,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     private void doUpdate() {
         //System.out.println("TODO: turn this into a transaction which collects the updated index and properties which both are saved at the end only");
         //TODO: we should also version the index files so that other updaters in other processes can switch to that correctly?
+        //TODO: maybe also make metadata update versioned or atomic via move?
         final PrepareForUpdateResult<V> prepareForUpdateResult = lookupTable.prepareForUpdate(shouldRedoLastFile());
         final FDate updateFrom = prepareForUpdateResult.getUpdateFrom();
         final List<V> lastValues = prepareForUpdateResult.getLastValues();
