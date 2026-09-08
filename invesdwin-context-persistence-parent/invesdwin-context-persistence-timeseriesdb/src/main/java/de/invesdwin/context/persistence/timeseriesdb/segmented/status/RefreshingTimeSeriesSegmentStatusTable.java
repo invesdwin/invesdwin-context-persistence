@@ -8,32 +8,36 @@ import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.I
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.data.ITimeSeriesDirectoryHashKeyVersionData;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentStatus;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.concurrent.reference.MutableSoftReference;
 import de.invesdwin.util.time.range.TimeRange;
 
 @ThreadSafe
-public class RefreshingSegmentStatusTable implements ISegmentStatusTable {
+public class RefreshingTimeSeriesSegmentStatusTable implements ITimeSeriesSegmentStatusTable {
 
     private final ITimeSeriesDirectoryHashKeyVersionData directoryHashKeyVersionSegmentStatus;
     private final ITimeSeriesDirectoryHashKeyVersion directoryVersion;
-    private VersionedSegmentStatusTable delegate;
+    private final MutableSoftReference<VersionedTimeSeriesSegmentStatusTable> delegateRef = new MutableSoftReference<VersionedTimeSeriesSegmentStatusTable>(
+            null);
 
-    public RefreshingSegmentStatusTable(
-            final ITimeSeriesDirectoryHashKeyVersionData directoryVersionHashKeySegmentStatus) {
-        this.directoryHashKeyVersionSegmentStatus = directoryVersionHashKeySegmentStatus;
-        this.directoryVersion = directoryVersionHashKeySegmentStatus.getParent();
+    public RefreshingTimeSeriesSegmentStatusTable(
+            final ITimeSeriesDirectoryHashKeyVersionData directoryHashKeyVersionSegmentStatus) {
+        this.directoryHashKeyVersionSegmentStatus = directoryHashKeyVersionSegmentStatus;
+        this.directoryVersion = directoryHashKeyVersionSegmentStatus.getParent();
     }
 
-    private ISegmentStatusTable getDelegate() {
-        if (delegate == null || delegate.getVersion() != directoryVersion.getVersion()) {
+    private ITimeSeriesSegmentStatusTable getDelegate() {
+        VersionedTimeSeriesSegmentStatusTable delegateCopy = delegateRef.get();
+        if (delegateCopy == null || delegateCopy.getVersion() != directoryVersion.getVersion()) {
             synchronized (this) {
-                if (delegate == null || delegate.getVersion() != directoryVersion.getVersion()) {
-                    delegate = new VersionedSegmentStatusTable(
+                if (delegateCopy == null || delegateCopy.getVersion() != directoryVersion.getVersion()) {
+                    delegateCopy = new VersionedTimeSeriesSegmentStatusTable(
                             directoryHashKeyVersionSegmentStatus.getDirectoryHashKeyVersionDataShared(),
                             directoryVersion.getVersion());
+                    delegateRef.set(delegateCopy);
                 }
             }
         }
-        return delegate;
+        return delegateCopy;
     }
 
     @Override
@@ -74,6 +78,15 @@ public class RefreshingSegmentStatusTable implements ISegmentStatusTable {
     @Override
     public Entry<TimeRange, SegmentStatus> getLatest(final TimeRange timeRange) {
         return getDelegate().getLatest(timeRange);
+    }
+
+    @Override
+    public void close() {
+        final VersionedTimeSeriesSegmentStatusTable delegateCopy = delegateRef.get();
+        if (delegateCopy != null) {
+            delegateCopy.close();
+            delegateRef.set(null);
+        }
     }
 
 }

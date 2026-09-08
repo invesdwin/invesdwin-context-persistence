@@ -36,13 +36,13 @@ import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.d
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftBackUnitsLoopLongIndex;
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftForwardUnitsLoopLongIndex;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.status.ISegmentStatusTable;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.status.RefreshingSegmentStatusTable;
-import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
-import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.status.ITimeSeriesSegmentStatusTable;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.status.RefreshingTimeSeriesSegmentStatusTable;
 import de.invesdwin.context.persistence.timeseriesdb.storage.SingleValue;
 import de.invesdwin.context.persistence.timeseriesdb.storage.cache.ALatestValueByIndexCache;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.RangeShiftUnitsKey;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.ISkipMemoryFileSummaryFunction;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ALoggingTimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ITimeSeriesUpdater;
 import de.invesdwin.util.collections.eviction.EvictionMode;
@@ -108,7 +108,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
 
     private final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable;
     private final ITimeSeriesDirectoryHashKey directoryHashKey;
-    private final ISegmentStatusTable segmentStatusTable;
+    private final ITimeSeriesSegmentStatusTable segmentStatusTable;
     private final TimeSeriesLookupMode lookupMode;
     private final SegmentedTimeSeriesStorage storage;
     private final K key;
@@ -231,7 +231,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         this.storage = storage;
         this.segmentedTable = segmentedTable;
         this.directoryHashKey = new TimeSeriesDirectoryHashKey(storage.getDirectory(), hashKey);
-        this.segmentStatusTable = new RefreshingSegmentStatusTable(new TimeSeriesDirectoryHashKeyVersionData(
+        this.segmentStatusTable = new RefreshingTimeSeriesSegmentStatusTable(new TimeSeriesDirectoryHashKeyVersionData(
                 directoryHashKey.getDirectoryHashKeyVersion(), "segmentStatus"));
         this.lookupMode = segmentedTable.getLookupMode();
         this.key = key;
@@ -251,12 +251,12 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         return directoryHashKey;
     }
 
-    public ISegmentStatusTable getSegmentStatusTable() {
+    public ITimeSeriesSegmentStatusTable getSegmentStatusTable() {
         return segmentStatusTable;
     }
 
     public ICloseableIterable<V> readRangeValues(final FDate from, final FDate to, final ILock readLock,
-            final ISkipFileFunction skipFileFunction) {
+            final ISkipMemoryFileSummaryFunction skipFileFunction) {
         final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
         if (firstAvailableSegmentFrom == null) {
             return EmptyCloseableIterable.getInstance();
@@ -765,7 +765,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
     protected abstract FDate getFirstAvailableSegmentFrom(K key);
 
     public ICloseableIterable<V> readRangeValuesReverse(final FDate from, final FDate to, final ILock readLock,
-            final ISkipFileFunction skipFileFunction) {
+            final ISkipMemoryFileSummaryFunction skipFileFunction) {
         final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
         final FDate lastAvailableSegmentTo = getLastAvailableSegmentTo(key, to);
         //adjust dates directly to prevent unnecessary segment calculations
@@ -1164,7 +1164,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
                         final ShiftBackUnitsLoop<V> shiftBackLoop = new ShiftBackUnitsLoop<>(date, shiftBackUnits,
                                 segmentedTable::extractEndTime);
                         final ICloseableIterable<V> rangeValuesReverse = readRangeValuesReverse(date, null,
-                                DisabledLock.INSTANCE, new ISkipFileFunction() {
+                                DisabledLock.INSTANCE, new ISkipMemoryFileSummaryFunction() {
                                     @Override
                                     public boolean skipFile(final MemoryFileSummary file) {
                                         final boolean skip = shiftBackLoop.getPrevValue() != null
@@ -1257,7 +1257,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
                         final ShiftForwardUnitsLoop<V> shiftForwardLoop = new ShiftForwardUnitsLoop<>(date,
                                 shiftForwardUnits, segmentedTable::extractEndTime);
                         final ICloseableIterable<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,
-                                new ISkipFileFunction() {
+                                new ISkipMemoryFileSummaryFunction() {
                                     @Override
                                     public boolean skipFile(final MemoryFileSummary file) {
                                         final boolean skip = shiftForwardLoop.getNextValue() != null
@@ -1672,6 +1672,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
             future.cancel(true);
         }
         clearCaches();
+        segmentStatusTable.close();
         closed = true;
     }
 

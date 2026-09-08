@@ -75,7 +75,7 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
             synchronized (this) {
                 if (propertiesPath == null) {
                     propertiesPath = new AtomicNioFileChannelPath(
-                            TransactionalFileProperties.newDefaultDirectory(getDirectoryHashKeyVersionShared())
+                            new File(new File(getDirectoryHashKeyVersionShared(), "properties"), "version.properties")
                                     .toURI());
                 }
             }

@@ -26,7 +26,7 @@ import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.range.TimeRange;
 
 @ThreadSafe
-public class VersionedSegmentStatusTable implements ISegmentStatusTable {
+public class VersionedTimeSeriesSegmentStatusTable implements ITimeSeriesSegmentStatusTable {
 
     private static final String DATE_FORMAT = FDate.FORMAT_NUMBER_DATE_TIME_PS;
     private static final String STATUS_EXTENSION = ".status";
@@ -42,7 +42,7 @@ public class VersionedSegmentStatusTable implements ISegmentStatusTable {
 
     private volatile FDate lastDirectoryScan = null;
 
-    public VersionedSegmentStatusTable(final File directory, final int version) {
+    public VersionedTimeSeriesSegmentStatusTable(final File directory, final int version) {
         //CHECKSTYLE:OFF
         this(new AtomicNioFileChannel(
                 FileChannelPath.valueOfDirectory(directory.toURI(), AtomicNioFileChannel.DEFAULT_SERVER_URI_F)),
@@ -50,7 +50,7 @@ public class VersionedSegmentStatusTable implements ISegmentStatusTable {
         //CHECKSTYLE:ON
     }
 
-    public VersionedSegmentStatusTable(final AtomicNioFileChannel baseChannel, final int version) {
+    public VersionedTimeSeriesSegmentStatusTable(final AtomicNioFileChannel baseChannel, final int version) {
         this.baseChannel = baseChannel;
         this.version = version;
     }
@@ -239,5 +239,21 @@ public class VersionedSegmentStatusTable implements ISegmentStatusTable {
             //end reached
         }
         return null;
+    }
+
+    @Override
+    public void close() {
+        if (!terminalStatusCache.isEmpty()) {
+            terminalStatusCache.clear();
+        }
+        if (!knownRanges.isEmpty()) {
+            knownRanges.clear();
+        }
+        synchronized (this) {
+            if (!currentDiskRanges.isEmpty()) {
+                currentDiskRanges.clear();
+            }
+            lastDirectoryScan = null;
+        }
     }
 }

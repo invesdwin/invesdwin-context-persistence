@@ -8,10 +8,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.compression.lz4.FastLZ4CompressionFactory;
 import de.invesdwin.context.integration.persistentmap.APersistentMap;
-import de.invesdwin.context.integration.persistentmap.CorruptedStorageException;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
-import de.invesdwin.context.persistence.ezdb.RangeTablePersistenceMode;
-import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.IPersistentMapType;
 import de.invesdwin.context.persistence.timeseriesdb.PersistentMapType;
 import de.invesdwin.context.persistence.timeseriesdb.directory.ITimeSeriesDirectory;
@@ -33,7 +30,6 @@ public class TimeSeriesStorage {
     public static final PersistentMapType DEFAULT_MAP_TYPE = PersistentMapType.DISK_FAST;
     private final ITimeSeriesDirectory directory;
     private final ICompressionFactory compressionFactory;
-    private final ADelegateRangeTable<String, FDate, MemoryFileSummary> fileLookupTable;
     private final APersistentMap<HashRangeKey, SingleValue> latestValueLookupTable;
     private final APersistentMap<HashRangeShiftUnitsKey, SingleValue> previousValueLookupTable;
     private final APersistentMap<HashRangeShiftUnitsKey, SingleValue> nextValueLookupTable;
@@ -42,35 +38,6 @@ public class TimeSeriesStorage {
             final ICompressionFactory compressionFactory) {
         this.directory = directory;
         this.compressionFactory = compressionFactory;
-        this.fileLookupTable = new ADelegateRangeTable<String, FDate, MemoryFileSummary>("fileLookupTable") {
-
-            @Override
-            protected boolean allowHasNext() {
-                return true;
-            }
-
-            @Override
-            protected File getDirectory() {
-                System.out.println("TODO: replace this storage");
-                return directory.getDirectoryShared();
-            }
-
-            @Override
-            protected void onDeleteTableFinished() {
-                throw new CorruptedStorageException(getName());
-            }
-
-            @Override
-            protected ISerde<MemoryFileSummary> newValueSerde() {
-                return new MemoryFileSummarySerde(valueFixedLength);
-            }
-
-            @Override
-            protected RangeTablePersistenceMode getPersistenceMode() {
-                return RangeTablePersistenceMode.MEMORY_WRITE_THROUGH_DISK;
-            }
-
-        };
         this.latestValueLookupTable = new APersistentMap<HashRangeKey, SingleValue>("latestValueLookupTable") {
 
             @Override
@@ -171,12 +138,7 @@ public class TimeSeriesStorage {
         return compressionFactory;
     }
 
-    public ADelegateRangeTable<String, FDate, MemoryFileSummary> getFileLookupTable() {
-        return fileLookupTable;
-    }
-
     public void close() {
-        fileLookupTable.close();
         latestValueLookupTable.close();
         previousValueLookupTable.close();
         nextValueLookupTable.close();

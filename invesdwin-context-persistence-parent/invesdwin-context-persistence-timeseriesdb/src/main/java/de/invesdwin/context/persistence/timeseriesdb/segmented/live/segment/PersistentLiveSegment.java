@@ -7,8 +7,8 @@ import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableEx
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentStatus;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.status.ISegmentStatusTable;
-import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.status.ITimeSeriesSegmentStatusTable;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.ISkipMemoryFileSummaryFunction;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
 import de.invesdwin.util.assertions.Assertions;
@@ -29,7 +29,7 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
     private final SegmentedKey<K> segmentedKey;
     private final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable;
     private final ITimeSeriesDBInternals<SegmentedKey<K>, V> table;
-    private final ISegmentStatusTable segmentStatusTable;
+    private final ITimeSeriesSegmentStatusTable segmentStatusTable;
     private boolean empty = true;
 
     public PersistentLiveSegment(final SegmentedKey<K> segmentedKey,
@@ -76,7 +76,7 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final ILock readLock,
-            final ISkipFileFunction skipFileFunction) {
+            final ISkipMemoryFileSummaryFunction skipFileFunction) {
         return new ICloseableIterable<V>() {
             @Override
             public ICloseableIterator<V> iterator() {
@@ -90,7 +90,7 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final ILock readLock,
-            final ISkipFileFunction skipFileFunction) {
+            final ISkipMemoryFileSummaryFunction skipFileFunction) {
         return new ICloseableIterable<V>() {
             @Override
             public ICloseableIterator<V> iterator() {

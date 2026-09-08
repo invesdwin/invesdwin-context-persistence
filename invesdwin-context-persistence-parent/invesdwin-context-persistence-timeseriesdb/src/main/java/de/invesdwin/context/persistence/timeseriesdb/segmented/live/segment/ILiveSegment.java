@@ -3,7 +3,7 @@ package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 import java.io.Closeable;
 
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
-import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.ISkipMemoryFileSummaryFunction;
 import de.invesdwin.norva.beanpath.spi.IUnwrap;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.concurrent.lock.ILock;
@@ -17,9 +17,9 @@ public interface ILiveSegment<K, V> extends Closeable, IUnwrap {
 
     SegmentedKey<K> getSegmentedKey();
 
-    ICloseableIterable<V> rangeValues(FDate from, FDate to, ILock readLock, ISkipFileFunction skipFileFunction);
+    ICloseableIterable<V> rangeValues(FDate from, FDate to, ILock readLock, ISkipMemoryFileSummaryFunction skipFileFunction);
 
-    ICloseableIterable<V> rangeReverseValues(FDate from, FDate to, ILock readLock, ISkipFileFunction skipFileFunction);
+    ICloseableIterable<V> rangeReverseValues(FDate from, FDate to, ILock readLock, ISkipMemoryFileSummaryFunction skipFileFunction);
 
     boolean putNextLiveValue(FDate nextLiveStartTime, FDate nextLiveEndTimeKey, V nextLiveValue);
 

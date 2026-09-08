@@ -158,8 +158,8 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         return getLookupTableCache(key).getDirectoryHashKey();
     }
 
-    public ITimeSeriesDirectoryHashKeyVersionData getDirectoryVersionHashKeyMemory(final K key) {
-        return getLookupTableCache(key).getDirectoryVersionHashKeyMemory();
+    public ITimeSeriesDirectoryHashKeyVersionData getDirectoryHashKeyVersionMemory(final K key) {
+        return getLookupTableCache(key).getDirectoryHashKeyVersionMemory();
     }
 
     protected TimeSeriesStorage newStorage(final ITimeSeriesDirectory directory, final Integer valueFixedLength,

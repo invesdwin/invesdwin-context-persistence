@@ -10,8 +10,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
-import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
-import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFiles;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -63,7 +62,7 @@ public class SequentialContinuousUpdateProgress<K, V> implements IUpdateProgress
     }
 
     private File newMemoryFile() {
-        return TimeSeriesLookupStorageCache.newMemoryFile(parent, precedingMemoryOffset);
+        return MemoryFiles.newMemoryFile(parent, precedingMemoryOffset);
     }
 
     @Override
@@ -129,7 +128,7 @@ public class SequentialContinuousUpdateProgress<K, V> implements IUpdateProgress
                 collection.close();
                 final long memoryLength = out.position() - memoryOffset;
                 parent.getLookupTable()
-                        .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
+                        .finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
                                 precedingMemoryOffset, memoryOffset, memoryLength);
                 memoryOffset += memoryLength;
                 precedingValueCount += valueCount;
@@ -166,7 +165,7 @@ public class SequentialContinuousUpdateProgress<K, V> implements IUpdateProgress
                 collection.close();
                 final long memoryLength = out.position();
                 parent.getLookupTable()
-                        .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
+                        .finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
                                 precedingMemoryOffset, memoryOffset, memoryLength);
                 precedingValueCount += valueCount;
                 parent.onFlush(flushIndex, this);
@@ -265,8 +264,8 @@ public class SequentialContinuousUpdateProgress<K, V> implements IUpdateProgress
             final long initialPrecedingValueCount, final ICloseableIterable<? extends V> source) {
         try (ICloseableIterator<SequentialContinuousUpdateProgress<K, V>> batchWriterProducer = new ICloseableIterator<SequentialContinuousUpdateProgress<K, V>>() {
 
-            private final SequentialContinuousUpdateProgress<K, V> progress = new SequentialContinuousUpdateProgress<K, V>(parent,
-                    initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount);
+            private final SequentialContinuousUpdateProgress<K, V> progress = new SequentialContinuousUpdateProgress<K, V>(
+                    parent, initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount);
             private final ICloseableIterator<? extends V> elements = source.iterator();
 
             @Override

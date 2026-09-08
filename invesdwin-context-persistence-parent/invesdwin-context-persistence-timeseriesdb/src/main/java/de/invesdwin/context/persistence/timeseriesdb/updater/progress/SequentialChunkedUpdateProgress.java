@@ -10,8 +10,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
-import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
-import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFiles;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -67,7 +66,7 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
     }
 
     private File newMemoryFile() {
-        return TimeSeriesLookupStorageCache.newMemoryFile(parent, precedingMemoryOffset);
+        return MemoryFiles.newMemoryFile(parent, precedingMemoryOffset);
     }
 
     @Override
@@ -153,7 +152,7 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
                 transferToMemoryFile(tempFileLength);
 
                 parent.getLookupTable()
-                        .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
+                        .finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
                                 precedingMemoryOffset, memoryOffset, tempFileLength);
                 memoryOffset += tempFileLength;
                 precedingValueCount += valueCount;
@@ -176,7 +175,7 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
                 transferToMemoryFile(tempFileLength);
 
                 parent.getLookupTable()
-                        .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
+                        .finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
                                 precedingMemoryOffset, memoryOffset, tempFileLength);
                 precedingValueCount += valueCount;
                 parent.onFlush(flushIndex, this);
@@ -284,7 +283,7 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
             final long initialPrecedingValueCount, final ICloseableIterable<? extends V> source) {
 
         final File tempDir = new File(
-                parent.getLookupTable().getDirectoryVersionHashKeyMemory().getDirectoryHashKeyVersionDataPerNode(),
+                parent.getLookupTable().getDirectoryHashKeyVersionMemory().getDirectoryHashKeyVersionDataPerNode(),
                 ATimeSeriesUpdater.class.getSimpleName());
         Files.deleteQuietly(tempDir);
         try {

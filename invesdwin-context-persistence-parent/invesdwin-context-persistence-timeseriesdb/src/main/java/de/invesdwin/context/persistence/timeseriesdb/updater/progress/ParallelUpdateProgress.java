@@ -12,8 +12,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
-import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
-import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFiles;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -133,7 +132,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
             }
             //close first so that lz4 writes out its footer bytes (a flush is not sufficient)
             parent.getLookupTable()
-                    .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
+                    .finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
                             precedingMemoryOffset, memoryOffset, tempFileLength);
             Files.deleteQuietly(tempFile);
             parent.onFlush(flushIndex, this);
@@ -199,7 +198,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
             final long initialPrecedingMemoryOffset, final long initialMemoryOffset,
             final long initialPrecedingValueCount, final ICloseableIterable<? extends V> source) {
         final File tempDir = new File(
-                parent.getLookupTable().getDirectoryVersionHashKeyMemory().getDirectoryHashKeyVersionDataPerNode(),
+                parent.getLookupTable().getDirectoryHashKeyVersionMemory().getDirectoryHashKeyVersionDataPerNode(),
                 ATimeSeriesUpdater.class.getSimpleName());
         Files.deleteQuietly(tempDir);
         try {
@@ -282,7 +281,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
         long precedingMemoryOffset = initialPrecedingMemoryOffset;
         long precedingValueCount = initialPrecedingValueCount;
 
-        File memoryFile = TimeSeriesLookupStorageCache.newMemoryFile(parent, precedingMemoryOffset);
+        File memoryFile = MemoryFiles.newMemoryFile(parent, precedingMemoryOffset);
 
         FileOutputStream memoryFileOut = null;
         try {
@@ -304,7 +303,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                         long memoryOffset = memoryFileOut.getChannel().position();
                         if (IMemoryMappedFile.isSegmentSizeExceeded(memoryOffset + tempFileLength)) {
                             precedingMemoryOffset += memoryOffset;
-                            memoryFile = TimeSeriesLookupStorageCache.newMemoryFile(parent, precedingMemoryOffset);
+                            memoryFile = MemoryFiles.newMemoryFile(parent, precedingMemoryOffset);
                             memoryFileOut.close();
                             if (OperatingSystem.isWindows()
                                     && IMemoryMappedFile.isSegmentSizeExceeded(tempFileLength)) {

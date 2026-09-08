@@ -1,11 +1,13 @@
-package de.invesdwin.context.persistence.timeseriesdb.storage;
+package de.invesdwin.context.persistence.timeseriesdb.storage.memory;
 
 import java.io.File;
 
 import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdaterInternalMethods;
 import de.invesdwin.util.lang.Files;
+import de.invesdwin.util.lang.OperatingSystem;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
 
@@ -78,6 +80,22 @@ public final class MemoryFiles {
                 }
             }
             Files.deleteQuietly(f);
+        }
+    }
+
+    public static File newMemoryFile(final ITimeSeriesUpdaterInternalMethods<?, ?> parent,
+            final long precedingMemoryOffset) {
+        final File memoryFile = new File(
+                parent.getLookupTable().getDirectoryHashKeyVersionMemory().getDirectoryHashKeyVersionDataShared(),
+                "memory.data");
+        return newMemoryFile(memoryFile, precedingMemoryOffset);
+    }
+
+    public static File newMemoryFile(final File memoryFile, final long precedingMemoryOffset) {
+        if (OperatingSystem.isWindows()) {
+            return new File(memoryFile.getAbsolutePath() + "." + precedingMemoryOffset);
+        } else {
+            return memoryFile;
         }
     }
 

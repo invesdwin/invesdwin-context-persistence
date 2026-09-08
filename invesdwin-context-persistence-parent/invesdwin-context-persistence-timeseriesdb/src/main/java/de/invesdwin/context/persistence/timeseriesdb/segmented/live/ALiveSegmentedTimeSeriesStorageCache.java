@@ -19,7 +19,7 @@ import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFi
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment.ILiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment.ReadLockedLiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment.SwitchingLiveSegment;
-import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.ISkipMemoryFileSummaryFunction;
 import de.invesdwin.util.collections.Arrays;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -137,7 +137,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
     }
 
     public ICloseableIterable<V> readRangeValues(final FDate from, final FDate to, final ILock readLock,
-            final ISkipFileFunction skipFileFunction) {
+            final ISkipMemoryFileSummaryFunction skipFileFunction) {
         readLock.lock();
         try {
             if (liveSegment == null) {
@@ -175,7 +175,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
     }
 
     public ICloseableIterable<V> readRangeValuesReverse(final FDate from, final FDate to, final ILock readLock,
-            final ISkipFileFunction skipFileFunction) {
+            final ISkipMemoryFileSummaryFunction skipFileFunction) {
         readLock.lock();
         try {
             if (liveSegment == null) {
