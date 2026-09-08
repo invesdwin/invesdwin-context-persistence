@@ -7,6 +7,8 @@ import java.io.IOException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import de.invesdwin.context.integration.filechannel.info.path.FileChannelPath;
+import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannel;
 import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannelPath;
 import de.invesdwin.context.integration.filechannel.nio.atomic.properties.TransactionalFileProperties;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
@@ -37,8 +39,9 @@ public class MemoryFileMetadata {
         if (propertiesPath == null) {
             synchronized (this) {
                 if (propertiesPath == null) {
-                    propertiesPath = new AtomicNioFileChannelPath(
-                            new File(new File(dataDirectory, "properties"), "memory.properties").toURI());
+                    propertiesPath = new AtomicNioFileChannelPath(FileChannelPath.valueOfFile(
+                            new File(new File(dataDirectory, "properties"), "memory.properties").toURI(),
+                            AtomicNioFileChannel.DEFAULT_SERVER_URI_F));
                 }
             }
         }

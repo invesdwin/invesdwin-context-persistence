@@ -8,6 +8,7 @@ import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.I
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.data.ITimeSeriesDirectoryHashKeyVersionData;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.time.date.FDate;
 
 @ThreadSafe
 public class RefreshingTimeSeriesMemoryFileLookupTable implements ITimeSeriesMemoryFileLookupTable {
@@ -57,6 +58,11 @@ public class RefreshingTimeSeriesMemoryFileLookupTable implements ITimeSeriesMem
     @Override
     public MemoryFileMetadata getMetadata() {
         return getDelegate().getMetadata();
+    }
+
+    @Override
+    public void deleteRange(final FDate latestRangeKey) {
+        getDelegate().deleteRange(latestRangeKey);
     }
 
 }

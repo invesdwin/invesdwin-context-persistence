@@ -8,6 +8,7 @@ import de.invesdwin.context.integration.filechannel.info.path.FileChannelPath;
 import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannel;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.time.date.FDate;
 
 @ThreadSafe
 public class VersionedTimeSeriesMemoryFileLookupTable implements ITimeSeriesMemoryFileLookupTable {
@@ -36,13 +37,16 @@ public class VersionedTimeSeriesMemoryFileLookupTable implements ITimeSeriesMemo
     }
 
     @Override
-    public void put(final MemoryFileSummary summary) {}
+    public void put(final MemoryFileSummary summary) {
+        // System.out.println("TODO: move this into the transaction for update");
+    }
 
     @Override
     public void deleteRange() {}
 
     @Override
     public ICloseableIterator<MemoryFileSummary> range() {
+        //  System.out.println("TODO: read index via serializing collection");
         return null;
     }
 
@@ -54,6 +58,11 @@ public class VersionedTimeSeriesMemoryFileLookupTable implements ITimeSeriesMemo
             }
         }
         return memoryFileMetadata;
+    }
+
+    @Override
+    public void deleteRange(final FDate latestRangeKey) {
+        // System.out.println("TODO: should not be needed with transactions? but maybe keep it for safety within the transaction, but delete only in memory before writing to files");
     }
 
 }
