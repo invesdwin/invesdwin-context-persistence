@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version.lease;
+package de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.lease;
 
 import java.io.File;
 import java.io.IOException;
@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.concurrent.ThreadSafe;
 
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.ITimeSeriesDirectoryHashKey;
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.ITimeSeriesDirectoryHashKey;
 import de.invesdwin.util.error.RuntimeIOException;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;

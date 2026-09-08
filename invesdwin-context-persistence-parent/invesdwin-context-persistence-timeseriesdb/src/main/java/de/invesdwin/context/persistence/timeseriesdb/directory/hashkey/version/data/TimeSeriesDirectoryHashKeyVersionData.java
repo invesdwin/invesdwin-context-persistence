@@ -1,11 +1,11 @@
-package de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version.data;
+package de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.data;
 
 import java.io.File;
 import java.io.IOException;
 
 import javax.annotation.concurrent.Immutable;
 
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version.ITimeSeriesDirectoryHashKeyVersion;
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.ITimeSeriesDirectoryHashKeyVersion;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
 

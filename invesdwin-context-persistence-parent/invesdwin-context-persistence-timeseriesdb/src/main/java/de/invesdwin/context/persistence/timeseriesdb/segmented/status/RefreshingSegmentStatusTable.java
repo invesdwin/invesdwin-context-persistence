@@ -4,8 +4,8 @@ import java.util.Map.Entry;
 
 import javax.annotation.concurrent.ThreadSafe;
 
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version.ITimeSeriesDirectoryHashKeyVersion;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version.data.ITimeSeriesDirectoryHashKeyVersionData;
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.ITimeSeriesDirectoryHashKeyVersion;
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.data.ITimeSeriesDirectoryHashKeyVersionData;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentStatus;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.time.range.TimeRange;

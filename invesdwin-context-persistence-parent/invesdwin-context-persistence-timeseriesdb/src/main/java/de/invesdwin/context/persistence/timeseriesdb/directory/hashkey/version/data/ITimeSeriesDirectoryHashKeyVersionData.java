@@ -1,8 +1,8 @@
-package de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version.data;
+package de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.data;
 
 import java.io.File;
 
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version.ITimeSeriesDirectoryHashKeyVersion;
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.ITimeSeriesDirectoryHashKeyVersion;
 
 public interface ITimeSeriesDirectoryHashKeyVersionData {
 

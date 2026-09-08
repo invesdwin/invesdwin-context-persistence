@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version;
+package de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version;
 
 import java.io.File;
 
@@ -6,9 +6,9 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannelPath;
 import de.invesdwin.context.integration.filechannel.nio.atomic.properties.TransactionalFileProperties;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.ITimeSeriesDirectoryHashKey;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version.lease.TimeSeriesDirectoryHashKeyVersionLease;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version.lease.TimeSeriesDirectoryHashKeyVersionLeaseRegistry;
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.ITimeSeriesDirectoryHashKey;
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.lease.TimeSeriesDirectoryHashKeyVersionLease;
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.lease.TimeSeriesDirectoryHashKeyVersionLeaseRegistry;
 import de.invesdwin.context.system.properties.ICloseableProperties;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 

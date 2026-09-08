@@ -17,8 +17,8 @@ import de.invesdwin.context.persistence.timeseriesdb.directory.ITimeSeriesDirect
 import de.invesdwin.context.persistence.timeseriesdb.directory.TimeSeriesDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.ITimeSeriesDirectoryHashKey;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version.data.ITimeSeriesDirectoryHashKeyVersionData;
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.ITimeSeriesDirectoryHashKey;
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.data.ITimeSeriesDirectoryHashKeyVersionData;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;

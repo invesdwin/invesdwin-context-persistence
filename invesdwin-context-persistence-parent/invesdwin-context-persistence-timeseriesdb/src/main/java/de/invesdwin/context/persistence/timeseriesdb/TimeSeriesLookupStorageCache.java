@@ -33,10 +33,10 @@ import de.invesdwin.context.persistence.timeseriesdb.buffer.IFileBufferCacheResu
 import de.invesdwin.context.persistence.timeseriesdb.buffer.source.ByteBufferFileBufferSource;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.source.IFileBufferSource;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.source.IterableFileBufferSource;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.ITimeSeriesDirectoryHashKey;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.TimeSeriesDirectoryHashKey;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version.data.ITimeSeriesDirectoryHashKeyVersionData;
-import de.invesdwin.context.persistence.timeseriesdb.directory.version.hashkey.version.data.TimeSeriesDirectoryHashKeyVersionData;
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.ITimeSeriesDirectoryHashKey;
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.TimeSeriesDirectoryHashKey;
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.data.ITimeSeriesDirectoryHashKeyVersionData;
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.data.TimeSeriesDirectoryHashKeyVersionData;
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftBackUnitsLoopLongIndex;
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftForwardUnitsLoopLongIndex;
 import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
