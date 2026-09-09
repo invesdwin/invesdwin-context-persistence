@@ -195,17 +195,18 @@ public class TimeSeriesLookupStorageCache<K, V> {
     private final TimeSeriesDirectoryHashKeyVersionData directoryHashKeyVersionMemory;
 
     public TimeSeriesLookupStorageCache(final TimeSeriesStorage storage, final String hashKey,
-            final ISerde<V> valueSerde, final Integer fixedLength, final Function<V, FDate> extractTime,
+            final ISerde<V> valueSerde, final Integer fixedLength, final Function<V, FDate> extractEndTime,
             final TimeSeriesLookupMode lookupMode, final int batchFlushInterval) {
         this.storage = storage;
         this.hashKey = hashKey;
         this.directoryHashKey = new TimeSeriesDirectoryHashKey(storage.getDirectory(), hashKey);
         this.directoryHashKeyVersionMemory = new TimeSeriesDirectoryHashKeyVersionData(
                 directoryHashKey.getDirectoryHashKeyVersion(), "memory");
-        this.memoryFileLookupTable = new RefreshingTimeSeriesMemoryFileLookupTable(directoryHashKeyVersionMemory);
+        this.memoryFileLookupTable = new RefreshingTimeSeriesMemoryFileLookupTable<V>(this,
+                directoryHashKeyVersionMemory);
         this.valueSerde = valueSerde;
         this.fixedLength = fixedLength;
-        this.extractEndTime = extractTime;
+        this.extractEndTime = extractEndTime;
         final boolean compressed = storage.getCompressionFactory() != DisabledCompressionFactory.INSTANCE;
         final boolean mmap = TimeSeriesProperties.FILE_BUFFER_CACHE_MMAP_ENABLED;
         this.flyweight = !compressed && mmap && fixedLength != null && fixedLength > 0;
@@ -246,6 +247,14 @@ public class TimeSeriesLookupStorageCache<K, V> {
         }
     }
 
+    public ISerde<V> getValueSerde() {
+        return valueSerde;
+    }
+
+    public FDate extractEndTime(final V value) {
+        return extractEndTime.apply(value);
+    }
+
     public ITimeSeriesDirectoryHashKey getDirectoryHashKey() {
         return directoryHashKey;
     }
@@ -262,47 +271,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
         return new File(directoryHashKeyVersionMemory.getDirectoryHashKeyVersionDataShared(), "updateRunning.lock");
     }
 
-    public void finishFile(final V firstValue, final V lastValue, final long precedingValueCount, final int valueCount,
-            final File memoryFile, final long precedingMemoryOffset, final long memoryOffset, final long memoryLength) {
-        final FDate firstValueEndTime = extractEndTime.apply(firstValue);
-        final MemoryFileSummary summary = new MemoryFileSummary(firstValueEndTime, valueSerde, firstValue, lastValue,
-                precedingValueCount, valueCount, memoryFile.getAbsolutePath(), precedingMemoryOffset, memoryOffset,
-                memoryLength);
-        assertSummary(summary);
-        memoryFileLookupTable.put(summary);
-        final long memoryFileSize = precedingMemoryOffset + memoryFile.length();
-        final long expectedMemoryFileSize = precedingMemoryOffset + memoryOffset + memoryLength;
-        if (memoryFileSize != expectedMemoryFileSize) {
-            throw new IllegalStateException(
-                    "memoryFileSize[" + memoryFileSize + "] != expectedMemoryFileSize[" + expectedMemoryFileSize + "]");
-        }
-        final MemoryFileMetadata metadata = memoryFileLookupTable.getMetadata();
-        try (ICloseableProperties properties = metadata.getProperties()) {
-            final long prevMemoryFileSize = metadata.getExpectedMemoryFileSize(properties);
-            if (prevMemoryFileSize > expectedMemoryFileSize) {
-                throw new IllegalStateException("memoryFileFize[" + memoryFileSize
-                        + "] should not be less than prevMemoryFileSize[" + prevMemoryFileSize + "]");
-            }
-            metadata.setExpectedMemoryFileSize(properties, expectedMemoryFileSize);
-        }
-        final FDate lastValueEndTime = extractEndTime.apply(lastValue);
-        metadata.setSummary(firstValueEndTime, lastValueEndTime, precedingValueCount, valueCount,
-                memoryFile.getAbsolutePath(), precedingMemoryOffset, memoryOffset, memoryLength);
-        clearCaches();
-    }
-
-    public void finishFile(final MemoryFileSummary summary) {
-        assertSummary(summary);
-        memoryFileLookupTable.put(summary);
-        clearCaches();
-    }
-
-    private void assertSummary(final MemoryFileSummary summary) {
-        final MemoryFileSummary lastSummary = getLastRangeKey();
-        assertSummary(lastSummary, summary);
-    }
-
-    private MemoryFileSummary getLastRangeKey() {
+    public MemoryFileSummary getLastRangeKey() {
         final List<MemoryFileSummary> list = getAllRangeKeys(DisabledLock.INSTANCE).getList();
         final MemoryFileSummary prevSummary;
         if (list.isEmpty()) {
@@ -311,25 +280,6 @@ public class TimeSeriesLookupStorageCache<K, V> {
             prevSummary = list.get(list.size() - 1);
         }
         return prevSummary;
-    }
-
-    private void assertSummary(final MemoryFileSummary prevSummary, final MemoryFileSummary summary) {
-        final V firstValue = summary.getFirstValue(valueSerde);
-        final FDate firstValueTime = extractEndTime.apply(firstValue);
-        if (prevSummary != null) {
-            final V precedingLastValue = prevSummary.getLastValue(valueSerde);
-            final FDate precedingLastValueTime = extractEndTime.apply(precedingLastValue);
-            if (precedingLastValueTime.isAfterNotNullSafe(firstValueTime)) {
-                throw new IllegalStateException("precedingLastValueTime [" + precedingLastValueTime
-                        + "] should not be after firstValueTime [" + firstValueTime + "]");
-            }
-        }
-        final V lastValue = summary.getLastValue(valueSerde);
-        final FDate lastValueTime = extractEndTime.apply(lastValue);
-        if (firstValueTime.isAfterNotNullSafe(lastValueTime)) {
-            throw new IllegalStateException("firstValueTime [" + firstValueTime
-                    + "] should not be after lastValueTime [" + lastValueTime + "]");
-        }
     }
 
     protected ICloseableIterable<MemoryFileSummary> readRangeFiles(final FDate from, final FDate to,
@@ -344,7 +294,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
                     if (firstValue == null) {
                         return EmptyCloseableIterator.getInstance();
                     }
-                    usedFrom = extractEndTime.apply(firstValue);
+                    usedFrom = extractEndTime(firstValue);
                 } else {
                     usedFrom = from;
                 }
@@ -459,7 +409,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
                     if (lastValue == null) {
                         return EmptyCloseableIterator.getInstance();
                     }
-                    usedFrom = extractEndTime.apply(lastValue);
+                    usedFrom = extractEndTime(lastValue);
                 } else {
                     usedFrom = from;
                 }
@@ -736,7 +686,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
         directoryHashKeyVersionMemory.delete();
     }
 
-    private void clearCaches() {
+    public void clearCaches() {
         FileBufferCache.remove(hashKey);
         cachedAllRangeKeys.set(null);
         cachedFirstValue = null;
@@ -897,7 +847,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
         }
         long fromIndex = Longs.max(0, getLatestValueIndex(from));
         final V fromValue = getLatestValue(fromIndex);
-        final FDate fromValueKey = extractEndTime.apply(fromValue);
+        final FDate fromValueKey = extractEndTime(fromValue);
         if (fromValueKey.isBeforeNotNullSafe(from)) {
             fromIndex++;
         }
@@ -922,7 +872,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
         if (firstValue == null) {
             return null;
         }
-        final FDate firstTime = extractEndTime.apply(firstValue);
+        final FDate firstTime = extractEndTime(firstValue);
         if (date.isBeforeOrEqualToNotNullSafe(firstTime)) {
             return firstValue;
         } else {
@@ -946,7 +896,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
 
             @Override
             protected FDate extractEndTime(final V value) {
-                return extractEndTime.apply(value);
+                return TimeSeriesLookupStorageCache.this.extractEndTime(value);
             }
 
             @Override
@@ -964,7 +914,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
         if (firstValue == null) {
             return null;
         }
-        final FDate firstTime = extractEndTime.apply(firstValue);
+        final FDate firstTime = extractEndTime(firstValue);
         if (date.isBeforeOrEqualToNotNullSafe(firstTime)) {
             return firstValue;
         } else {
@@ -1008,7 +958,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
         if (lastValue == null) {
             return null;
         }
-        final FDate lastTime = extractEndTime.apply(lastValue);
+        final FDate lastTime = extractEndTime(lastValue);
         if (date.isAfterOrEqualToNotNullSafe(lastTime)) {
             return lastValue;
         } else {
@@ -1032,7 +982,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
 
             @Override
             protected FDate extractEndTime(final V value) {
-                return extractEndTime.apply(value);
+                return TimeSeriesLookupStorageCache.this.extractEndTime(value);
             }
 
             @Override
@@ -1050,7 +1000,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
         if (lastValue == null) {
             return null;
         }
-        final FDate lastTime = extractEndTime.apply(lastValue);
+        final FDate lastTime = extractEndTime(lastValue);
         if (date.isAfterOrEqualToNotNullSafe(lastTime)) {
             return lastValue;
         } else {
@@ -1153,11 +1103,30 @@ public class TimeSeriesLookupStorageCache<K, V> {
         }
     }
 
+    public void assertSummary(final MemoryFileSummary prevSummary, final MemoryFileSummary summary) {
+        final V firstValue = summary.getFirstValue(valueSerde);
+        final FDate firstValueTime = extractEndTime(firstValue);
+        if (prevSummary != null) {
+            final V precedingLastValue = prevSummary.getLastValue(valueSerde);
+            final FDate precedingLastValueTime = extractEndTime(precedingLastValue);
+            if (precedingLastValueTime.isAfterNotNullSafe(firstValueTime)) {
+                throw new IllegalStateException("precedingLastValueTime [" + precedingLastValueTime
+                        + "] should not be after firstValueTime [" + firstValueTime + "]");
+            }
+        }
+        final V lastValue = summary.getLastValue(valueSerde);
+        final FDate lastValueTime = extractEndTime(lastValue);
+        if (firstValueTime.isAfterNotNullSafe(lastValueTime)) {
+            throw new IllegalStateException("firstValueTime [" + firstValueTime
+                    + "] should not be after lastValueTime [" + lastValueTime + "]");
+        }
+    }
+
     /**
      * When shouldRedoLastFile=true this deletes the last file in order to create a new updated one (so the files do not
      * get fragmented too much between updates
      */
-    public synchronized PrepareForUpdateResult<V> prepareForUpdate(final boolean shouldRedoLastFile) {
+    public synchronized TimeSeriesUpdateTransaction<V> newUpdateTransaction(final boolean shouldRedoLastFile) {
         final MemoryFileSummary latestSummary = getLastRangeKey();
         final FDate updateFrom;
         final List<V> lastValues;
@@ -1178,7 +1147,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
                     precedingMemoryOffset = latestSummary.getPrecedingMemoryOffset();
                     memoryOffset = latestSummary.getMemoryOffset();
                     precedingValueCount = latestSummary.getPrecedingValueCount();
-                    updateFrom = extractEndTime.apply(lastValue);
+                    updateFrom = extractEndTime(lastValue);
                     latestRangeKey = latestSummary.getFirstValueEndTime();
                 } else {
                     precedingMemoryOffset = latestSummary.getPrecedingMemoryOffset();
@@ -1195,7 +1164,6 @@ public class TimeSeriesLookupStorageCache<K, V> {
                 updateFrom = latestSummary.getFirstValueEndTime();
                 latestRangeKey = latestSummary.getFirstValueEndTime().addPicoseconds(1);
             }
-            memoryFileLookupTable.deleteRange(latestRangeKey);
             storage.deleteRange_latestValueLookupTable(hashKey, latestRangeKey);
             storage.deleteRange_nextValueLookupTable(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
             storage.deleteRange_previousValueLookupTable(hashKey, latestRangeKey);
@@ -1211,7 +1179,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
             precedingValueCount = 0L;
         }
         clearCaches();
-        return new PrepareForUpdateResult<>(updateFrom, lastValues, precedingMemoryOffset, memoryOffset,
+        return new TimeSeriesUpdateTransaction<>(this, updateFrom, lastValues, precedingMemoryOffset, memoryOffset,
                 precedingValueCount);
     }
 
@@ -1255,7 +1223,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
 
         @Override
         protected FDate extractEndTime(final V value) {
-            return extractEndTime.apply(value);
+            return TimeSeriesLookupStorageCache.this.extractEndTime(value);
         }
 
         @Override

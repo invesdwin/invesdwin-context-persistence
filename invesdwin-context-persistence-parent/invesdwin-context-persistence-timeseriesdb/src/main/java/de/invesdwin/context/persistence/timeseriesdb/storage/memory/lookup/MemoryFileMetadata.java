@@ -56,7 +56,7 @@ public class MemoryFileMetadata {
         return properties.getLongOptional(KEY_EXPECTED_MEMORY_FILE_SIZE, MISSING_EXPECTED_MEMORY_FILE_SIZE);
     }
 
-    public void setSummary(final FDate fistValueEndTime, final FDate lastValueEndTime, final long precedingValueCount,
+    public void logSummary(final FDate fistValueEndTime, final FDate lastValueEndTime, final long precedingValueCount,
             final int valueCount, final String memoryResourceUri, final long precedingMemoryOffset,
             final long memoryOffset, final long memoryLength) {
         final StringBuilder logEntry = new StringBuilder();

@@ -12,6 +12,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesUpdateTransaction;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
@@ -119,9 +120,9 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
         collection.close();
     }
 
-    public void transferToMemoryFile(final FileOutputStream memoryFileOut, final File memoryFile,
-            final long precedingMemoryOffset, final long memoryOffset, final int flushIndex,
-            final long precedingValueCount, final long tempFileLength) {
+    public void transferToMemoryFile(final TimeSeriesUpdateTransaction<V> updateTransaction,
+            final FileOutputStream memoryFileOut, final File memoryFile, final long precedingMemoryOffset,
+            final long memoryOffset, final int flushIndex, final long precedingValueCount, final long tempFileLength) {
         try (FileInputStream tempIn = new FileInputStream(tempFile)) {
             long remaining = tempFileLength;
             long position = 0;
@@ -131,9 +132,8 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                 position += copied;
             }
             //close first so that lz4 writes out its footer bytes (a flush is not sufficient)
-            parent.getLookupTable()
-                    .finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
-                            precedingMemoryOffset, memoryOffset, tempFileLength);
+            updateTransaction.finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
+                    precedingMemoryOffset, memoryOffset, tempFileLength);
             Files.deleteQuietly(tempFile);
             parent.onFlush(flushIndex, this);
         } catch (final IOException e) {
@@ -194,9 +194,10 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
         return firstElement;
     }
 
-    public static <K, V> void doUpdate(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
-            final long initialPrecedingMemoryOffset, final long initialMemoryOffset,
-            final long initialPrecedingValueCount, final ICloseableIterable<? extends V> source) {
+    public static <K, V> void doUpdate(final TimeSeriesUpdateTransaction<V> updateTransaction,
+            final ITimeSeriesUpdaterInternalMethods<K, V> parent, final long initialPrecedingMemoryOffset,
+            final long initialMemoryOffset, final long initialPrecedingValueCount,
+            final ICloseableIterable<? extends V> source) {
         final File tempDir = new File(
                 parent.getLookupTable().getDirectoryHashKeyVersionMemory().getDirectoryHashKeyVersionDataPerNode(),
                 ATimeSeriesUpdater.class.getSimpleName());
@@ -260,8 +261,8 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                         return request;
                     }
                 }) {
-                    flush(parent, initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount,
-                            parallelConsumer);
+                    flush(updateTransaction, parent, initialPrecedingMemoryOffset, initialMemoryOffset,
+                            initialPrecedingValueCount, parallelConsumer);
                 }
             }
             if (batchWriterProducer.hasNext()) {
@@ -273,9 +274,9 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
         Files.deleteQuietly(tempDir);
     }
 
-    private static <K, V> void flush(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
-            final long initialPrecedingMemoryOffset, final long initialMemoryOffset,
-            final long initialPrecedingValueCount,
+    private static <K, V> void flush(final TimeSeriesUpdateTransaction<V> updateTransaction,
+            final ITimeSeriesUpdaterInternalMethods<K, V> parent, final long initialPrecedingMemoryOffset,
+            final long initialMemoryOffset, final long initialPrecedingValueCount,
             final ICloseableIterator<ParallelUpdateProgress<K, V>> batchWriterProducer) {
         int flushIndex = 0;
         long precedingMemoryOffset = initialPrecedingMemoryOffset;
@@ -314,8 +315,8 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                             memoryFileOut = new FileOutputStream(memoryFile, true);
                             memoryOffset = 0;
                         }
-                        progress.transferToMemoryFile(memoryFileOut, memoryFile, precedingMemoryOffset, memoryOffset,
-                                flushIndex, precedingValueCount, tempFileLength);
+                        progress.transferToMemoryFile(updateTransaction, memoryFileOut, memoryFile,
+                                precedingMemoryOffset, memoryOffset, flushIndex, precedingValueCount, tempFileLength);
                         precedingValueCount += progress.getValueCount();
                     } else {
                         long memoryOffset = memoryFileOut.getChannel().position();
@@ -332,8 +333,8 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                         memoryOffset = 0;
 
                         //finish file
-                        progress.transferToMemoryFile(memoryFileOut, memoryFile, precedingMemoryOffset, memoryOffset,
-                                flushIndex, precedingValueCount, tempFileLength);
+                        progress.transferToMemoryFile(updateTransaction, memoryFileOut, memoryFile,
+                                precedingMemoryOffset, memoryOffset, flushIndex, precedingValueCount, tempFileLength);
                         precedingValueCount += progress.getValueCount();
 
                         //close

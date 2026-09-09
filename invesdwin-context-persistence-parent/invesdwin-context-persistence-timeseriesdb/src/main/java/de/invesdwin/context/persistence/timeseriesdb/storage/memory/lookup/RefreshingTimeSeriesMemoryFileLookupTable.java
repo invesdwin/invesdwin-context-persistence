@@ -1,35 +1,42 @@
 package de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup;
 
 import java.io.File;
+import java.util.List;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.ITimeSeriesDirectoryHashKeyVersion;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.data.ITimeSeriesDirectoryHashKeyVersionData;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
-import de.invesdwin.util.time.date.FDate;
 
 @ThreadSafe
-public class RefreshingTimeSeriesMemoryFileLookupTable implements ITimeSeriesMemoryFileLookupTable {
+public class RefreshingTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesMemoryFileLookupTable {
 
+    private final TimeSeriesLookupStorageCache<?, V> parent;
     private final ITimeSeriesDirectoryHashKeyVersionData directoryHashKeyVersionSegmentStatus;
     private final ITimeSeriesDirectoryHashKeyVersion directoryVersion;
-    private volatile VersionedTimeSeriesMemoryFileLookupTable delegate;
+    private volatile VersionedTimeSeriesMemoryFileLookupTable<V> delegate;
 
-    public RefreshingTimeSeriesMemoryFileLookupTable(
+    public RefreshingTimeSeriesMemoryFileLookupTable(final TimeSeriesLookupStorageCache<?, V> parent,
             final ITimeSeriesDirectoryHashKeyVersionData directoryHashKeyVersionSegmentStatus) {
+        this.parent = parent;
         this.directoryHashKeyVersionSegmentStatus = directoryHashKeyVersionSegmentStatus;
         this.directoryVersion = directoryHashKeyVersionSegmentStatus.getParent();
+        /*
+         * System.out.println(TODO for later: also implement a refresh with which the newest index file is determined
+         * again. Otherwise the index file from the startup is used throughout until a refresh happens.
+         */
     }
 
     private ITimeSeriesMemoryFileLookupTable getDelegate() {
-        VersionedTimeSeriesMemoryFileLookupTable delegateCopy = delegate;
+        VersionedTimeSeriesMemoryFileLookupTable<V> delegateCopy = delegate;
         if (delegateCopy == null || delegateCopy.getVersion() != directoryVersion.getVersion()) {
             synchronized (this) {
                 delegateCopy = delegate;
                 if (delegateCopy == null || delegateCopy.getVersion() != directoryVersion.getVersion()) {
-                    delegateCopy = new VersionedTimeSeriesMemoryFileLookupTable(
+                    delegateCopy = new VersionedTimeSeriesMemoryFileLookupTable<V>(parent,
                             new File(directoryHashKeyVersionSegmentStatus.getDirectoryHashKeyVersionDataShared(),
                                     AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME),
                             directoryVersion.getVersion());
@@ -41,8 +48,8 @@ public class RefreshingTimeSeriesMemoryFileLookupTable implements ITimeSeriesMem
     }
 
     @Override
-    public void put(final MemoryFileSummary summary) {
-        getDelegate().put(summary);
+    public void put(final List<MemoryFileSummary> summaries) {
+        getDelegate().put(summaries);
     }
 
     @Override
@@ -58,11 +65,6 @@ public class RefreshingTimeSeriesMemoryFileLookupTable implements ITimeSeriesMem
     @Override
     public MemoryFileMetadata getMetadata() {
         return getDelegate().getMetadata();
-    }
-
-    @Override
-    public void deleteRange(final FDate latestRangeKey) {
-        getDelegate().deleteRange(latestRangeKey);
     }
 
 }

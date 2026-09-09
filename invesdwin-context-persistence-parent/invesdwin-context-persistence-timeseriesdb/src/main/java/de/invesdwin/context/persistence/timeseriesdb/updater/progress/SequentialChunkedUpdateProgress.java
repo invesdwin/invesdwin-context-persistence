@@ -10,6 +10,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesUpdateTransaction;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -118,7 +119,8 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
     }
 
     @SuppressWarnings("unchecked")
-    private void write(final int flushIndex, final boolean complete) {
+    private void write(final TimeSeriesUpdateTransaction<V> updateTransaction, final int flushIndex,
+            final boolean complete) {
         if (valueCount == 0) {
             return;
         }
@@ -151,9 +153,8 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
 
                 transferToMemoryFile(tempFileLength);
 
-                parent.getLookupTable()
-                        .finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
-                                precedingMemoryOffset, memoryOffset, tempFileLength);
+                updateTransaction.finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
+                        precedingMemoryOffset, memoryOffset, tempFileLength);
                 memoryOffset += tempFileLength;
                 precedingValueCount += valueCount;
                 parent.onFlush(flushIndex, this);
@@ -174,9 +175,8 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
                 // finish file
                 transferToMemoryFile(tempFileLength);
 
-                parent.getLookupTable()
-                        .finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
-                                precedingMemoryOffset, memoryOffset, tempFileLength);
+                updateTransaction.finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
+                        precedingMemoryOffset, memoryOffset, tempFileLength);
                 precedingValueCount += valueCount;
                 parent.onFlush(flushIndex, this);
 
@@ -278,9 +278,10 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
 
     }
 
-    public static <K, V> void doUpdate(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
-            final long initialPrecedingMemoryOffset, final long initialMemoryOffset,
-            final long initialPrecedingValueCount, final ICloseableIterable<? extends V> source) {
+    public static <K, V> void doUpdate(final TimeSeriesUpdateTransaction<V> updateTransaction,
+            final ITimeSeriesUpdaterInternalMethods<K, V> parent, final long initialPrecedingMemoryOffset,
+            final long initialMemoryOffset, final long initialPrecedingValueCount,
+            final ICloseableIterable<? extends V> source) {
 
         final File tempDir = new File(
                 parent.getLookupTable().getDirectoryHashKeyVersionMemory().getDirectoryHashKeyVersionDataPerNode(),
@@ -330,7 +331,7 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
                 progress.close();
             }
         }) {
-            flush(parent, batchWriterProducer);
+            flush(updateTransaction, parent, batchWriterProducer);
             if (batchWriterProducer.hasNext()) {
                 throw new IllegalStateException(
                         "there are still elements to be processed, but the parallel producer did not feed them");
@@ -340,7 +341,8 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
         Files.deleteQuietly(tempDir);
     }
 
-    private static <K, V> void flush(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
+    private static <K, V> void flush(final TimeSeriesUpdateTransaction<V> updateTransaction,
+            final ITimeSeriesUpdaterInternalMethods<K, V> parent,
             final ICloseableIterator<SequentialChunkedUpdateProgress<K, V>> batchWriterProducer) {
         int flushIndex = 0;
         try {
@@ -349,7 +351,7 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
                 final boolean complete = !parent.shouldRedoLastFile()
                         || (progress.getValueCount() == parent.getLookupTable().getBatchFlushInterval()
                                 && batchWriterProducer.hasNext());
-                progress.write(flushIndex++, complete);
+                progress.write(updateTransaction, flushIndex++, complete);
             }
         } catch (final NoSuchElementException e) {
             //end reached

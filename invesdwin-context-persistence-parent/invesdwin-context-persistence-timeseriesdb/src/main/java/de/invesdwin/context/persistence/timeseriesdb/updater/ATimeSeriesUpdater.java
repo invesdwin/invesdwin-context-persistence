@@ -11,9 +11,9 @@ import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateAbortedException;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
-import de.invesdwin.context.persistence.timeseriesdb.PrepareForUpdateResult;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesUpdateTransaction;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdaterInternalMethods;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ParallelUpdateProgress;
@@ -159,96 +159,101 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         //System.out.println("TODO: turn this into a transaction which collects the updated index and properties which both are saved at the end only");
         //TODO: we should also version the index files so that other updaters in other processes can switch to that correctly?
         //TODO: maybe also make metadata update versioned or atomic via move?
-        final PrepareForUpdateResult<V> prepareForUpdateResult = lookupTable.prepareForUpdate(shouldRedoLastFile());
-        final FDate updateFrom = prepareForUpdateResult.getUpdateFrom();
-        final List<V> lastValues = prepareForUpdateResult.getLastValues();
-        final long initialPrecedingMemoryOffset = prepareForUpdateResult.getPrecedingMemorOffset();
-        final long initialMemoryOffset = prepareForUpdateResult.getMemoryOffset();
-        final long initialPrecedingValueCount = prepareForUpdateResult.getPrecedingValueCount();
+        try (TimeSeriesUpdateTransaction<V> updateTransaction = lookupTable
+                .newUpdateTransaction(shouldRedoLastFile())) {
+            final FDate updateFrom = updateTransaction.getUpdateFrom();
+            final List<V> lastValues = updateTransaction.getLastValues();
+            final long initialPrecedingMemoryOffset = updateTransaction.getPrecedingMemorOffset();
+            final long initialMemoryOffset = updateTransaction.getMemoryOffset();
+            final long initialPrecedingValueCount = updateTransaction.getPrecedingValueCount();
 
-        final ICloseableIterable<? extends V> source = getSource(updateFrom);
-        if (source == null) {
-            throw new NullPointerException("source is null");
-        }
-        final ICloseableIterable<? extends V> skippingSource;
-        if (updateFrom != null) {
-            skippingSource = new ASkippingIterable<V>(source) {
+            final ICloseableIterable<? extends V> source = getSource(updateFrom);
+            if (source == null) {
+                throw new NullPointerException("source is null");
+            }
+            final ICloseableIterable<? extends V> skippingSource;
+            if (updateFrom != null) {
+                skippingSource = new ASkippingIterable<V>(source) {
+                    @Override
+                    protected boolean skip(final V element) {
+                        final FDate endTime = extractEndTime(element);
+                        //ensure we add no duplicate values
+                        return endTime.isBeforeNotNullSafe(updateFrom);
+                    }
+                };
+            } else {
+                skippingSource = source;
+            }
+
+            final ITimeSeriesUpdaterInternalMethods<K, V> internalMethods = new ITimeSeriesUpdaterInternalMethods<K, V>() {
+
                 @Override
-                protected boolean skip(final V element) {
-                    final FDate endTime = extractEndTime(element);
-                    //ensure we add no duplicate values
-                    return endTime.isBeforeNotNullSafe(updateFrom);
+                public K getKey() {
+                    return key;
                 }
+
+                @Override
+                public ISerde<V> getValueSerde() {
+                    return valueSerde;
+                }
+
+                @Override
+                public TimeSeriesLookupStorageCache<K, V> getLookupTable() {
+                    return lookupTable;
+                }
+
+                @Override
+                public ITimeSeriesDB<K, V> getTable() {
+                    return table;
+                }
+
+                @Override
+                public FDate extractStartTime(final V element) {
+                    return ATimeSeriesUpdater.this.extractStartTime(element);
+                }
+
+                @Override
+                public FDate extractEndTime(final V element) {
+                    return ATimeSeriesUpdater.this.extractEndTime(element);
+                }
+
+                @Override
+                public void onFlush(final int flushIndex, final IUpdateProgress<K, V> updateProgress) {
+                    count += updateProgress.getValueCount();
+                    if (minTime == null) {
+                        minTime = updateProgress.getMinTime();
+                    }
+                    maxTime = updateProgress.getMaxTime();
+                    ATimeSeriesUpdater.this.onFlush(flushIndex, updateProgress);
+                }
+
+                @Override
+                public void onElement(final IUpdateProgress<K, V> updateProgress) {
+                    ATimeSeriesUpdater.this.onElement(updateProgress);
+                }
+
+                @Override
+                public boolean shouldRedoLastFile() {
+                    return ATimeSeriesUpdater.this.shouldRedoLastFile();
+                }
+
             };
-        } else {
-            skippingSource = source;
-        }
+            final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues,
+                    skippingSource);
 
-        final ITimeSeriesUpdaterInternalMethods<K, V> internalMethods = new ITimeSeriesUpdaterInternalMethods<K, V>() {
-
-            @Override
-            public K getKey() {
-                return key;
-            }
-
-            @Override
-            public ISerde<V> getValueSerde() {
-                return valueSerde;
-            }
-
-            @Override
-            public TimeSeriesLookupStorageCache<K, V> getLookupTable() {
-                return lookupTable;
-            }
-
-            @Override
-            public ITimeSeriesDB<K, V> getTable() {
-                return table;
-            }
-
-            @Override
-            public FDate extractStartTime(final V element) {
-                return ATimeSeriesUpdater.this.extractStartTime(element);
-            }
-
-            @Override
-            public FDate extractEndTime(final V element) {
-                return ATimeSeriesUpdater.this.extractEndTime(element);
-            }
-
-            @Override
-            public void onFlush(final int flushIndex, final IUpdateProgress<K, V> updateProgress) {
-                count += updateProgress.getValueCount();
-                if (minTime == null) {
-                    minTime = updateProgress.getMinTime();
-                }
-                maxTime = updateProgress.getMaxTime();
-                ATimeSeriesUpdater.this.onFlush(flushIndex, updateProgress);
-            }
-
-            @Override
-            public void onElement(final IUpdateProgress<K, V> updateProgress) {
-                ATimeSeriesUpdater.this.onElement(updateProgress);
-            }
-
-            @Override
-            public boolean shouldRedoLastFile() {
-                return ATimeSeriesUpdater.this.shouldRedoLastFile();
-            }
-
-        };
-        final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues, skippingSource);
-
-        if (shouldWriteInParallel()) {
-            ParallelUpdateProgress.doUpdate(internalMethods, initialPrecedingMemoryOffset, initialMemoryOffset,
-                    initialPrecedingValueCount, flatteningSources);
-        } else {
-            if (IMemoryMappedFile.isSegmentSizeExceeded(Long.MAX_VALUE)) {
-                SequentialChunkedUpdateProgress.doUpdate(internalMethods, initialPrecedingMemoryOffset,
+            if (shouldWriteInParallel()) {
+                ParallelUpdateProgress.doUpdate(updateTransaction, internalMethods, initialPrecedingMemoryOffset,
                         initialMemoryOffset, initialPrecedingValueCount, flatteningSources);
             } else {
-                SequentialContinuousUpdateProgress.doUpdate(internalMethods, initialPrecedingMemoryOffset,
-                        initialMemoryOffset, initialPrecedingValueCount, flatteningSources);
+                if (IMemoryMappedFile.isSegmentSizeExceeded(Long.MAX_VALUE)) {
+                    SequentialChunkedUpdateProgress.doUpdate(updateTransaction, internalMethods,
+                            initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount,
+                            flatteningSources);
+                } else {
+                    SequentialContinuousUpdateProgress.doUpdate(updateTransaction, internalMethods,
+                            initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount,
+                            flatteningSources);
+                }
             }
         }
     }
