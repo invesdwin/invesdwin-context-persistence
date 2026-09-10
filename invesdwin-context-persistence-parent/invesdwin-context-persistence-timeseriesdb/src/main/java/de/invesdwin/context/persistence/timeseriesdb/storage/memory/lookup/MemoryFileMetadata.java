@@ -14,6 +14,7 @@ import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSu
 import de.invesdwin.context.system.properties.ICloseableProperties;
 import de.invesdwin.context.system.properties.IProperties;
 import de.invesdwin.util.concurrent.lock.file.FileChannelLockHeartbeatRegistry;
+import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
@@ -27,8 +28,9 @@ public class MemoryFileMetadata {
 
     public MemoryFileMetadata(final File dataDirectory) {
         this.dataDirectory = dataDirectory;
-        this.logFile = new File(dataDirectory, "memory.log");
-        //System.out.println("TODO: maybe also make metadata update versioned or atomic via move?");
+        this.logFile = new File(new File(dataDirectory, "logs"),
+                Files.normalizeFilename(FDate.now().toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_PS) + "_"
+                        + FileChannelLockHeartbeatRegistry.HEARTBEAT_OWNER + "_memory.log"));
     }
 
     public ICloseableProperties getProperties() {
@@ -82,8 +84,11 @@ public class MemoryFileMetadata {
         logEntry.append("\nVALUE_COUNT=");
         logEntry.append(valueCount);
         logEntry.append("\n");
-        try (FileOutputStream out = new FileOutputStream(logFile, true)) {
-            out.write(logEntry.toString().getBytes());
+        try {
+            Files.forceMkdirParent(logFile);
+            try (FileOutputStream out = new FileOutputStream(logFile, true)) {
+                out.write(logEntry.toString().getBytes());
+            }
         } catch (final FileNotFoundException e) {
             throw new RuntimeException(e);
         } catch (final IOException e) {

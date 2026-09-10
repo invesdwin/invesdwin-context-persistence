@@ -503,6 +503,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
                         // no double checked locking required between read and write lock here because of the outer synchronized block
                         if (status == SegmentStatus.INITIALIZING) {
                             //initialization got aborted, retry from a fresh state
+                            //System.out.println("TODO: handle multipe processes");
                             segmentedTable.deleteRange(segmentedKey);
                             segmentStatusTable.delete(segmentedKey.getSegment());
                         }

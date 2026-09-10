@@ -10,6 +10,7 @@ import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.filechannel.info.path.FileChannelPath;
 import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannel;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummarySerde;
 import de.invesdwin.context.system.properties.ICloseableProperties;
@@ -17,6 +18,7 @@ import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.date.millis.FDateMillis;
 
 @ThreadSafe
 public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesMemoryFileLookupTable {
@@ -48,14 +50,21 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
         final File[] files = directory.listFiles(
                 (dir, name) -> name.endsWith("_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME));
 
-        if (files != null) {
-            for (final File f : files) {
+        if (files != null && files.length > 0) {
+            final long nowMillis = FDateMillis.nowMillis();
+            for (int i = 0; i < files.length; i++) {
+                final File f = files[i];
                 final String name = f.getName();
                 final int underscoreIdx = name.indexOf('_');
                 if (underscoreIdx > 0) {
                     try {
                         final int num = Integer.parseInt(name.substring(0, underscoreIdx));
                         if (num >= currentIndexNumber) {
+                            if (latestIndexFile != null && TimeSeriesProperties.RETAIN_OBSOLETE_FILES_DURATION
+                                    .isLessThanMillis(nowMillis - latestIndexFile.lastModified())) {
+                                // Delete the older index file
+                                latestIndexFile.delete();
+                            }
                             currentIndexNumber = num;
                             latestIndexFile = f;
                         }
@@ -150,10 +159,11 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
         final File newIndexFile = new File(directory,
                 currentIndexNumber + "_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME);
 
+        fileChannel.setFileName(newIndexFile.getName());
         try (IndexSerializingCollection collection = new IndexSerializingCollection(
                 new TextDescription("%s: put: write %s", VersionedTimeSeriesMemoryFileLookupTable.class.getSimpleName(),
                         newIndexFile),
-                AtomicNioFileChannel.newFile(newIndexFile.toURI()), false)) {
+                fileChannel, false)) {
             collection.addAll(existingSummaries);
             collection.closeWithEmptyWrite();
         }
