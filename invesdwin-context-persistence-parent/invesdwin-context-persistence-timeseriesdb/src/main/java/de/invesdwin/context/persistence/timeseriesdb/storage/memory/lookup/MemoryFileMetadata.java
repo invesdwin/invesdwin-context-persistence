@@ -28,6 +28,7 @@ public class MemoryFileMetadata {
     public MemoryFileMetadata(final File dataDirectory) {
         this.dataDirectory = dataDirectory;
         this.logFile = new File(dataDirectory, "memory.log");
+        //System.out.println("TODO: maybe also make metadata update versioned or atomic via move?");
     }
 
     public ICloseableProperties getProperties() {

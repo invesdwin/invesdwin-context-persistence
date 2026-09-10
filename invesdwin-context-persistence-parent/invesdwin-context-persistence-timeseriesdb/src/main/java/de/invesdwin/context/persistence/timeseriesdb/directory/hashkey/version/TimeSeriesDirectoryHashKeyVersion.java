@@ -29,10 +29,6 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
         this(parent);
         finalizer.lease = TimeSeriesDirectoryHashKeyVersionLeaseRegistry.getOrCreate(parent, version);
         this.finalizer.register(this);
-        //        System.out.println(
-        //                "TODO: maybe we also need a registry which hashKey uses which version, so that perNode data can be deleted on a version change? or maybe store the version in perNodeData and clear data when any version changes?");
-        // or store all leased versions of a node in a single heartbeat file; the overall storage stores the version inside of the per-node lookup caches; the lookup caches are deleted on any version change (deleteRange vs deleteAll differentiation)
-        // versions are only differentiated in the hashKey folder
     }
 
     @Override

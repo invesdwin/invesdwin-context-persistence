@@ -24,10 +24,6 @@ public class RefreshingTimeSeriesMemoryFileLookupTable<V> implements ITimeSeries
         this.parent = parent;
         this.directoryHashKeyVersionSegmentStatus = directoryHashKeyVersionSegmentStatus;
         this.directoryVersion = directoryHashKeyVersionSegmentStatus.getParent();
-        /*
-         * System.out.println(TODO for later: also implement a refresh with which the newest index file is determined
-         * again. Otherwise the index file from the startup is used throughout until a refresh happens.
-         */
     }
 
     private ITimeSeriesMemoryFileLookupTable getDelegate() {
@@ -65,6 +61,10 @@ public class RefreshingTimeSeriesMemoryFileLookupTable<V> implements ITimeSeries
     @Override
     public MemoryFileMetadata getMetadata() {
         return getDelegate().getMetadata();
+    }
+
+    public void clear() {
+        delegate = null;
     }
 
 }

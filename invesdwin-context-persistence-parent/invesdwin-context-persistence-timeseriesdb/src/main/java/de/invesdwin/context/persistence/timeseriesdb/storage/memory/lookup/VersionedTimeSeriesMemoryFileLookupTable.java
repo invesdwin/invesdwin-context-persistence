@@ -111,7 +111,10 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
         // Read the index via AMemoryFileSummarySerializingCollection
         final List<MemoryFileSummary> existingSummaries = new ArrayList<>();
         if (latestIndexFile != null && latestIndexFile.exists()) {
-            try (IndexSerializingCollection collection = new IndexSerializingCollection(latestIndexFile, true);
+            try (IndexSerializingCollection collection = new IndexSerializingCollection(
+                    new TextDescription("%s: put: read %s",
+                            VersionedTimeSeriesMemoryFileLookupTable.class.getSimpleName(), latestIndexFile),
+                    AtomicNioFileChannel.newFile(latestIndexFile.toURI()), true);
                     ICloseableIterator<MemoryFileSummary> it = collection.iterator()) {
                 while (it.hasNext()) {
                     existingSummaries.add(it.next());
@@ -119,8 +122,8 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
             }
         }
 
-        // Append the new summaries or replace the existing last summary based on firstValueEndTime
-        for (final MemoryFileSummary newSummary : summaries) {
+        for (int i = 0; i < summaries.size(); i++) {
+            final MemoryFileSummary newSummary = summaries.get(i);
             if (!existingSummaries.isEmpty()) {
                 final MemoryFileSummary lastExisting = existingSummaries.get(existingSummaries.size() - 1);
                 final FDate lastFirstEndTime = lastExisting.getFirstValueEndTime();
@@ -147,8 +150,11 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
         final File newIndexFile = new File(directory,
                 currentIndexNumber + "_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME);
 
-        try (IndexSerializingCollection collection = new IndexSerializingCollection(newIndexFile, false)) {
-            collection.addAllIterable(existingSummaries);
+        try (IndexSerializingCollection collection = new IndexSerializingCollection(
+                new TextDescription("%s: put: write %s", VersionedTimeSeriesMemoryFileLookupTable.class.getSimpleName(),
+                        newIndexFile),
+                AtomicNioFileChannel.newFile(newIndexFile.toURI()), false)) {
+            collection.addAll(existingSummaries);
             collection.closeWithEmptyWrite();
         }
         latestIndexFile = newIndexFile;
@@ -174,7 +180,12 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
     public synchronized ICloseableIterator<MemoryFileSummary> range() {
         // Read index via AMemoryFileSummarySerializingCollection
         if (latestIndexFile != null && latestIndexFile.exists()) {
-            final IndexSerializingCollection collection = new IndexSerializingCollection(latestIndexFile, true);
+            final TextDescription name = new TextDescription("%s: put: %s",
+                    VersionedTimeSeriesMemoryFileLookupTable.class.getSimpleName());
+            final IndexSerializingCollection collection = new IndexSerializingCollection(
+                    new TextDescription("%s: range: read %s",
+                            VersionedTimeSeriesMemoryFileLookupTable.class.getSimpleName(), latestIndexFile),
+                    AtomicNioFileChannel.newFile(latestIndexFile.toURI()), true);
             return collection.iterator();
         }
         return EmptyCloseableIterator.getInstance();

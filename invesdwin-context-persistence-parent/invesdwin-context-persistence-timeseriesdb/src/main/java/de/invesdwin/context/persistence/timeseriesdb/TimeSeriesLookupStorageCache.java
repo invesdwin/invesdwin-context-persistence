@@ -98,7 +98,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
     private static final String READ_RANGE_VALUES = "readRangeValues";
     private static final String READ_RANGE_VALUES_REVERSE = "readRangeValuesReverse";
     private final TimeSeriesStorage storage;
-    private final ITimeSeriesMemoryFileLookupTable memoryFileLookupTable;
+    private final RefreshingTimeSeriesMemoryFileLookupTable<V> memoryFileLookupTable;
     private final ILoadingCache<FDate, Long> latestValueIndexLookupCache = new ALoadingCache<FDate, Long>() {
 
         @Override
@@ -708,6 +708,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
         latestValueIndexLookupCache.clear();
         nextValueIndexLookupCache.clear();
         previousValueIndexLookupCache.clear();
+        memoryFileLookupTable.clear();
         lastResetIndex.incrementAndGet();
     }
 
