@@ -6,7 +6,6 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.filechannel.info.path.FileChannelPath;
 import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannel;
-import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannelPath;
 import de.invesdwin.context.integration.filechannel.nio.atomic.properties.TransactionalFileProperties;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.ITimeSeriesDirectoryHashKey;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.lease.TimeSeriesDirectoryHashKeyVersionLease;
@@ -19,7 +18,7 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
 
     private final ITimeSeriesDirectoryHashKey parent;
     private final TimeSeriesDirectoryVersionFinalizer finalizer;
-    private AtomicNioFileChannelPath propertiesPath;
+    private AtomicNioFileChannel propertiesPath;
 
     public TimeSeriesDirectoryHashKeyVersion(final ITimeSeriesDirectoryHashKey parent) {
         this.parent = parent;
@@ -72,14 +71,12 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
         return new TransactionalFileProperties(getPropertiesPath());
     }
 
-    private AtomicNioFileChannelPath getPropertiesPath() {
+    private AtomicNioFileChannel getPropertiesPath() {
         if (propertiesPath == null) {
             synchronized (this) {
                 if (propertiesPath == null) {
-                    propertiesPath = new AtomicNioFileChannelPath(FileChannelPath.valueOfFile(
-                            new File(new File(getDirectoryHashKeyVersionShared(), "properties"), "version.properties")
-                                    .toURI(),
-                            AtomicNioFileChannel.DEFAULT_SERVER_URI_F));
+                    propertiesPath = new AtomicNioFileChannel(FileChannelPath.newFile(new File(
+                            new File(getDirectoryHashKeyVersionShared(), "properties"), "version.properties")));
                 }
             }
         }

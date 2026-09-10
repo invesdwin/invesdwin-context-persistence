@@ -17,7 +17,7 @@ import de.invesdwin.instrument.DynamicInstrumentationProperties;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.fast.IFastIterableMap;
 import de.invesdwin.util.concurrent.Executors;
-import de.invesdwin.util.concurrent.lock.FileChannelLockHeartbeatRegistry;
+import de.invesdwin.util.concurrent.lock.file.FileChannelLockHeartbeatRegistry;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.time.date.FDate;

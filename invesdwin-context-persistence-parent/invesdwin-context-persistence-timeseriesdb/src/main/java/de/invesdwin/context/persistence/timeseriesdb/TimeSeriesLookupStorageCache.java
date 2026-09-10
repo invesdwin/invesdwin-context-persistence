@@ -25,6 +25,8 @@ import com.github.benmanes.caffeine.cache.RemovalCause;
 
 import de.invesdwin.context.integration.compression.DisabledCompressionFactory;
 import de.invesdwin.context.integration.compression.ICompressionFactory;
+import de.invesdwin.context.integration.filechannel.IFileChannel;
+import de.invesdwin.context.integration.filechannel.registry.FileChannelRegistry;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.ArrayFileBufferCacheResult;
@@ -173,7 +175,8 @@ public class TimeSeriesLookupStorageCache<K, V> {
 
     private final String hashKey;
     private final ISerde<V> valueSerde;
-    private final Integer fixedLength;
+    private final Integer valueFixedLength;
+    private final ICompressionFactory compressionFactory;
     private final Function<V, FDate> extractEndTime;
     private final boolean flyweight;
     private final TimeSeriesLookupMode lookupMode;
@@ -195,8 +198,9 @@ public class TimeSeriesLookupStorageCache<K, V> {
     private final TimeSeriesDirectoryHashKeyVersionData directoryHashKeyVersionMemory;
 
     public TimeSeriesLookupStorageCache(final TimeSeriesStorage storage, final String hashKey,
-            final ISerde<V> valueSerde, final Integer fixedLength, final Function<V, FDate> extractEndTime,
-            final TimeSeriesLookupMode lookupMode, final int batchFlushInterval) {
+            final ISerde<V> valueSerde, final Integer valueFixedLength, final ICompressionFactory compressionFactory,
+            final Function<V, FDate> extractEndTime, final TimeSeriesLookupMode lookupMode,
+            final int batchFlushInterval) {
         this.storage = storage;
         this.hashKey = hashKey;
         this.directoryHashKey = new TimeSeriesDirectoryHashKey(storage.getDirectory(), hashKey);
@@ -205,11 +209,12 @@ public class TimeSeriesLookupStorageCache<K, V> {
         this.memoryFileLookupTable = new RefreshingTimeSeriesMemoryFileLookupTable<V>(this,
                 directoryHashKeyVersionMemory);
         this.valueSerde = valueSerde;
-        this.fixedLength = fixedLength;
+        this.valueFixedLength = valueFixedLength;
+        this.compressionFactory = compressionFactory;
         this.extractEndTime = extractEndTime;
         final boolean compressed = storage.getCompressionFactory() != DisabledCompressionFactory.INSTANCE;
         final boolean mmap = TimeSeriesProperties.FILE_BUFFER_CACHE_MMAP_ENABLED;
-        this.flyweight = !compressed && mmap && fixedLength != null && fixedLength > 0;
+        this.flyweight = !compressed && mmap && valueFixedLength != null && valueFixedLength > 0;
         this.lookupMode = lookupMode;
         this.batchFlushInterval = batchFlushInterval;
         this.resultCache = Caffeine.newBuilder()
@@ -249,6 +254,14 @@ public class TimeSeriesLookupStorageCache<K, V> {
 
     public ISerde<V> getValueSerde() {
         return valueSerde;
+    }
+
+    public Integer getValueFixedLength() {
+        return valueFixedLength;
+    }
+
+    public ICompressionFactory getCompressionFactory() {
+        return compressionFactory;
     }
 
     public FDate extractEndTime(final V value) {
@@ -554,7 +567,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
             final IMemoryMappedFile mmapFile = FileBufferCache.getFile(hashKey, summary.getMemoryResourceUri(), false);
             final MemoryFileSummaryByteBuffer buffer = new MemoryFileSummaryByteBuffer(summary);
             buffer.init(mmapFile);
-            return new ByteBufferFileBufferSource<>(buffer, valueSerde, fixedLength);
+            return new ByteBufferFileBufferSource<>(buffer, valueSerde, valueFixedLength);
         } else {
             return new IterableFileBufferSource<V>(newIterableResult(method, summary, readLock), readLock);
         }
@@ -565,7 +578,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
         final TextDescription name = new TextDescription("%s[%s]: %s(%s)",
                 TimeSeriesLookupStorageCache.class.getSimpleName(), hashKey, method, summary);
         final File memoryFile = new File(summary.getMemoryResourceUri());
-        return new SerializingCollection<V>(name, memoryFile, true) {
+        return new SerializingCollection<V>(name, FileChannelRegistry.newFile(memoryFile), true) {
 
             @Override
             protected ISerde<V> newSerde() {
@@ -573,7 +586,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
             }
 
             @Override
-            protected InputStream newFileInputStream(final File file) throws IOException {
+            protected InputStream newFileInputStream(final IFileChannel file) throws IOException {
                 if (TimeSeriesProperties.FILE_BUFFER_CACHE_MMAP_ENABLED) {
                     readLock.lock();
                     final IMemoryMappedFile mmapFile = FileBufferCache.getFile(hashKey, summary.getMemoryResourceUri(),
@@ -619,7 +632,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
 
             @Override
             protected Integer newFixedLength() {
-                return fixedLength;
+                return valueFixedLength;
             }
 
             @Override

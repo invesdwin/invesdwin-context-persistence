@@ -9,6 +9,8 @@ import java.util.NoSuchElementException;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
+import de.invesdwin.context.integration.filechannel.IFileChannel;
+import de.invesdwin.context.integration.filechannel.registry.FileChannelRegistry;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesUpdateTransaction;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
@@ -127,7 +129,8 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
         try {
             tempOut.getChannel().truncate(0);
             tempOut.seek(0);
-            final ConfiguredSerializingCollection collection = new ConfiguredSerializingCollection(tempFile, tempOut);
+            final ConfiguredSerializingCollection collection = new ConfiguredSerializingCollection(
+                    FileChannelRegistry.newFile(tempFile), tempOut);
             for (int i = 0; i < valueCount; i++) {
                 collection.add((V) batch[i]);
                 batch[i] = null;
@@ -225,7 +228,7 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
 
         private final BufferedFileDataOutputStream targetOut;
 
-        private ConfiguredSerializingCollection(final File file, final BufferedFileDataOutputStream targetOut) {
+        private ConfiguredSerializingCollection(final IFileChannel file, final BufferedFileDataOutputStream targetOut) {
             super(name, file, false);
             this.targetOut = targetOut;
         }
@@ -267,7 +270,7 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
         }
 
         @Override
-        protected OutputStream newFileOutputStream(final File file) throws IOException {
+        protected OutputStream newFileOutputStream(final IFileChannel file) throws IOException {
             return targetOut.asNonClosing();
         }
 

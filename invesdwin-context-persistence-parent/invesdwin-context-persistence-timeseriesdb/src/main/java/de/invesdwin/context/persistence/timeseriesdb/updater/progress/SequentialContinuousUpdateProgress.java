@@ -9,6 +9,8 @@ import java.util.NoSuchElementException;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
+import de.invesdwin.context.integration.filechannel.IFileChannel;
+import de.invesdwin.context.integration.filechannel.registry.FileChannelRegistry;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesUpdateTransaction;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
@@ -122,7 +124,8 @@ public class SequentialContinuousUpdateProgress<K, V> implements IUpdateProgress
         }
         try {
             if (complete) {
-                final ConfiguredSerializingCollection collection = new ConfiguredSerializingCollection(memoryFile, out);
+                final ConfiguredSerializingCollection collection = new ConfiguredSerializingCollection(
+                        FileChannelRegistry.newFile(memoryFile), out);
                 for (int i = 0; i < valueCount; i++) {
                     collection.add((V) batch[i]);
                     batch[i] = null;
@@ -158,7 +161,8 @@ public class SequentialContinuousUpdateProgress<K, V> implements IUpdateProgress
                 memoryOffset = 0;
 
                 //finish file
-                final ConfiguredSerializingCollection collection = new ConfiguredSerializingCollection(memoryFile, out);
+                final ConfiguredSerializingCollection collection = new ConfiguredSerializingCollection(
+                        FileChannelRegistry.newFile(memoryFile), out);
                 for (int i = 0; i < valueCount; i++) {
                     collection.add((V) batch[i]);
                     batch[i] = null;
@@ -206,8 +210,9 @@ public class SequentialContinuousUpdateProgress<K, V> implements IUpdateProgress
 
         private final BufferedFileDataOutputStream targetOut;
 
-        private ConfiguredSerializingCollection(final File file, final BufferedFileDataOutputStream targetOut) {
-            super(name, file, false);
+        private ConfiguredSerializingCollection(final IFileChannel fileChannel,
+                final BufferedFileDataOutputStream targetOut) {
+            super(name, fileChannel, false);
             this.targetOut = targetOut;
         }
 
@@ -248,7 +253,7 @@ public class SequentialContinuousUpdateProgress<K, V> implements IUpdateProgress
         }
 
         @Override
-        protected OutputStream newFileOutputStream(final File file) throws IOException {
+        protected OutputStream newFileOutputStream(final IFileChannel file) throws IOException {
             return targetOut.asNonClosing();
         }
 

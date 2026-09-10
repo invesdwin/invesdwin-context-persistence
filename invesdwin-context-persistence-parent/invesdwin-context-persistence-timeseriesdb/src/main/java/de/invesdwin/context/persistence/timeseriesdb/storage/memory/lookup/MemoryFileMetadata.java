@@ -9,12 +9,11 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.filechannel.info.path.FileChannelPath;
 import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannel;
-import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannelPath;
 import de.invesdwin.context.integration.filechannel.nio.atomic.properties.TransactionalFileProperties;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.system.properties.ICloseableProperties;
 import de.invesdwin.context.system.properties.IProperties;
-import de.invesdwin.util.concurrent.lock.FileChannelLockHeartbeatRegistry;
+import de.invesdwin.util.concurrent.lock.file.FileChannelLockHeartbeatRegistry;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
@@ -24,7 +23,7 @@ public class MemoryFileMetadata {
     private static final String KEY_EXPECTED_MEMORY_FILE_SIZE = "EXPECTED_MEMORY_FILE_SIZE";
     private final File dataDirectory;
     private final File logFile;
-    private AtomicNioFileChannelPath propertiesPath;
+    private AtomicNioFileChannel propertiesPath;
 
     public MemoryFileMetadata(final File dataDirectory) {
         this.dataDirectory = dataDirectory;
@@ -35,13 +34,12 @@ public class MemoryFileMetadata {
         return new TransactionalFileProperties(getPropertiesPath());
     }
 
-    private AtomicNioFileChannelPath getPropertiesPath() {
+    private AtomicNioFileChannel getPropertiesPath() {
         if (propertiesPath == null) {
             synchronized (this) {
                 if (propertiesPath == null) {
-                    propertiesPath = new AtomicNioFileChannelPath(FileChannelPath.valueOfFile(
-                            new File(new File(dataDirectory, "properties"), "memory.properties").toURI(),
-                            AtomicNioFileChannel.DEFAULT_SERVER_URI_F));
+                    propertiesPath = new AtomicNioFileChannel(FileChannelPath
+                            .newFile(new File(new File(dataDirectory, "properties"), "memory.properties")));
                 }
             }
         }

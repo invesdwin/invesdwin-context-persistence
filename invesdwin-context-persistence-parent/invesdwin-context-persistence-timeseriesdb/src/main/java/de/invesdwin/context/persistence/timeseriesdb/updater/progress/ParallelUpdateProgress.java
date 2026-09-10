@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
+import de.invesdwin.context.integration.filechannel.registry.FileChannelRegistry;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesUpdateTransaction;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
@@ -144,7 +145,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
     private final class ConfiguredSerializingCollection extends SerializingCollection<V> {
 
         private ConfiguredSerializingCollection(final File tempFile) {
-            super(name, tempFile, false);
+            super(name, FileChannelRegistry.newFile(tempFile), false);
         }
 
         @Override

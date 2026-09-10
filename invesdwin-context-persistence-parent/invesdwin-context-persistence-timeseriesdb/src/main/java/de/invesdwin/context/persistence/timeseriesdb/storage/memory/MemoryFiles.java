@@ -4,6 +4,7 @@ import java.io.File;
 
 import javax.annotation.concurrent.Immutable;
 
+import de.invesdwin.context.integration.filechannel.IFileChannel;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdaterInternalMethods;
 import de.invesdwin.util.lang.Files;
@@ -26,8 +27,8 @@ public final class MemoryFiles {
         return incompleteFile;
     }
 
-    public static boolean isIncompleteMemoryFile(final File memoryFile) {
-        return isIncompleteMemoryFile(memoryFile.getName());
+    public static boolean isIncompleteMemoryFile(final IFileChannel memoryFile) {
+        return isIncompleteMemoryFile(memoryFile.getFileName());
     }
 
     public static boolean isIncompleteMemoryFile(final String memoryFileName) {

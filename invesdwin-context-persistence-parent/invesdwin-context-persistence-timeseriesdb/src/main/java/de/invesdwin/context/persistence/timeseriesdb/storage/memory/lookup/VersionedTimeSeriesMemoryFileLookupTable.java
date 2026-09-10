@@ -1,16 +1,21 @@
 package de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.filechannel.info.path.FileChannelPath;
 import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannel;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummarySerde;
 import de.invesdwin.context.system.properties.ICloseableProperties;
+import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.time.date.FDate;
 
 @ThreadSafe
@@ -22,11 +27,13 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
     private final int version;
     private MemoryFileMetadata memoryFileMetadata;
 
+    private File latestIndexFile;
+    private int currentIndexNumber = 0;
+
     public VersionedTimeSeriesMemoryFileLookupTable(final TimeSeriesLookupStorageCache<?, V> parent, final File file,
             final int version) {
         //CHECKSTYLE:OFF
-        this(parent, file.getParentFile(), new AtomicNioFileChannel(
-                FileChannelPath.valueOfFile(file.toURI(), AtomicNioFileChannel.DEFAULT_SERVER_URI_F)), version);
+        this(parent, file.getParentFile(), new AtomicNioFileChannel(FileChannelPath.newFile(file)), version);
         //CHECKSTYLE:ON
     }
 
@@ -36,10 +43,28 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
         this.directory = directory;
         this.fileChannel = fileChannel;
         this.version = version;
-        /*
-         * TODO: at the start read the latest (defined by the highest number before the actual file name) index; when
-         * writing the index, write it to a new file with a higher number.
-         */
+
+        // Read the latest index defined by the highest number before the actual file name
+        final File[] files = directory.listFiles(
+                (dir, name) -> name.endsWith("_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME));
+
+        if (files != null) {
+            for (final File f : files) {
+                final String name = f.getName();
+                final int underscoreIdx = name.indexOf('_');
+                if (underscoreIdx > 0) {
+                    try {
+                        final int num = Integer.parseInt(name.substring(0, underscoreIdx));
+                        if (num >= currentIndexNumber) {
+                            currentIndexNumber = num;
+                            latestIndexFile = f;
+                        }
+                    } catch (final NumberFormatException e) {
+                        // ignore malformed prefixes
+                    }
+                }
+            }
+        }
     }
 
     public int getVersion() {
@@ -47,7 +72,7 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
     }
 
     @Override
-    public void put(final List<MemoryFileSummary> summaries) {
+    public synchronized void put(final List<MemoryFileSummary> summaries) {
         final MemoryFileMetadata metadata = getMetadata();
         try (ICloseableProperties properties = metadata.getProperties()) {
             for (int i = 0; i < summaries.size(); i++) {
@@ -80,37 +105,111 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
                 final long precedingValueCount = summary.getPrecedingValueCount();
                 metadata.logSummary(firstValueEndTime, lastValueEndTime, precedingValueCount, valueCount,
                         memoryFile.getAbsolutePath(), precedingMemoryOffset, memoryOffset, memoryLength);
-                /*
-                 * TODO: read the index (in fileChannel) via AMemoryFileSummarySerializingCollection and append the new
-                 * summaries, then write the index back to fileChannel. Though if an existing last summary is already in
-                 * the index, it should be replaced with the first new summary (based on summary.firstValueEndTime). If
-                 * the firstValueEndTime of a replaced summary is not equal, then exception should be thrown (e.g.
-                 * existingLastSummary.firstValueEndTime is after firstNewSummary.firstValueEndTime). Any other
-                 * replacements should be illegal.
-                 */
             }
         }
+
+        // Read the index via AMemoryFileSummarySerializingCollection
+        final List<MemoryFileSummary> existingSummaries = new ArrayList<>();
+        if (latestIndexFile != null && latestIndexFile.exists()) {
+            try (IndexSerializingCollection collection = new IndexSerializingCollection(latestIndexFile, true);
+                    ICloseableIterator<MemoryFileSummary> it = collection.iterator()) {
+                while (it.hasNext()) {
+                    existingSummaries.add(it.next());
+                }
+            }
+        }
+
+        // Append the new summaries or replace the existing last summary based on firstValueEndTime
+        for (final MemoryFileSummary newSummary : summaries) {
+            if (!existingSummaries.isEmpty()) {
+                final MemoryFileSummary lastExisting = existingSummaries.get(existingSummaries.size() - 1);
+                final FDate lastFirstEndTime = lastExisting.getFirstValueEndTime();
+                final FDate newFirstEndTime = newSummary.getFirstValueEndTime();
+
+                if (lastFirstEndTime != null && lastFirstEndTime.equalsNotNullSafe(newFirstEndTime)) {
+                    // Valid replacement for the existing last summary
+                    existingSummaries.set(existingSummaries.size() - 1, newSummary);
+                } else if (lastFirstEndTime != null && lastFirstEndTime.isAfter(newFirstEndTime)) {
+                    // Invalid sequence exception
+                    throw new IllegalStateException("existingLastSummary.firstValueEndTime[" + lastFirstEndTime
+                            + "] is after firstNewSummary.firstValueEndTime[" + newFirstEndTime + "]");
+                } else {
+                    // Normal append
+                    existingSummaries.add(newSummary);
+                }
+            } else {
+                existingSummaries.add(newSummary);
+            }
+        }
+
+        // Write the index back to a new file with an incremented number
+        currentIndexNumber++;
+        final File newIndexFile = new File(directory,
+                currentIndexNumber + "_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME);
+
+        try (IndexSerializingCollection collection = new IndexSerializingCollection(newIndexFile, false)) {
+            collection.addAllIterable(existingSummaries);
+            collection.closeWithEmptyWrite();
+        }
+        latestIndexFile = newIndexFile;
     }
 
     @Override
-    public void deleteRange() {
-        //TODO: delete the index (in fileChannel)
+    public synchronized void deleteRange() {
+        // Delete all index files
+        final File[] files = directory.listFiles(
+                (dir, name) -> name.endsWith("_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME));
+
+        if (files != null) {
+            for (final File f : files) {
+                f.delete();
+            }
+        }
+
+        latestIndexFile = null;
+        currentIndexNumber = 0;
     }
 
     @Override
-    public ICloseableIterator<MemoryFileSummary> range() {
-        //  System.out.println("TODO: read index via AMemoryFileSummarySerializingCollection (in fileChannel)");
-        return null;
+    public synchronized ICloseableIterator<MemoryFileSummary> range() {
+        // Read index via AMemoryFileSummarySerializingCollection
+        if (latestIndexFile != null && latestIndexFile.exists()) {
+            final IndexSerializingCollection collection = new IndexSerializingCollection(latestIndexFile, true);
+            return collection.iterator();
+        }
+        return EmptyCloseableIterator.getInstance();
     }
 
     @Override
     public MemoryFileMetadata getMetadata() {
         if (memoryFileMetadata == null) {
             synchronized (this) {
-                memoryFileMetadata = new MemoryFileMetadata(directory);
+                if (memoryFileMetadata == null) {
+                    memoryFileMetadata = new MemoryFileMetadata(directory);
+                }
             }
         }
         return memoryFileMetadata;
     }
 
+    /**
+     * Inner utility class to instantiate the required SerializingCollection logic for index files.
+     */
+    private final class IndexSerializingCollection extends AMemoryFileSummarySerializingCollection {
+
+        private IndexSerializingCollection(final TextDescription name, final AtomicNioFileChannel fileChannel,
+                final boolean readOnly) {
+            super(name, fileChannel, readOnly);
+        }
+
+        @Override
+        protected MemoryFileSummarySerde newSerde() {
+            return new MemoryFileSummarySerde(parent.getValueFixedLength());
+        }
+
+        @Override
+        protected ICompressionFactory getCompressionFactory() {
+            return parent.getCompressionFactory();
+        }
+    }
 }

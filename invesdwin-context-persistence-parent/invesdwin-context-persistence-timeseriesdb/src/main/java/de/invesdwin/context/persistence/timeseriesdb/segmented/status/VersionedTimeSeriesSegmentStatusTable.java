@@ -44,9 +44,7 @@ public class VersionedTimeSeriesSegmentStatusTable implements ITimeSeriesSegment
 
     public VersionedTimeSeriesSegmentStatusTable(final File directory, final int version) {
         //CHECKSTYLE:OFF
-        this(new AtomicNioFileChannel(
-                FileChannelPath.valueOfDirectory(directory.toURI(), AtomicNioFileChannel.DEFAULT_SERVER_URI_F)),
-                version);
+        this(new AtomicNioFileChannel(FileChannelPath.newDirectory(directory)), version);
         //CHECKSTYLE:ON
     }
 
@@ -125,7 +123,7 @@ public class VersionedTimeSeriesSegmentStatusTable implements ITimeSeriesSegment
 
             try (ICloseableIterator<NioFileInfo> iterator = baseChannel.listIterator()) {
                 while (iterator.hasNext()) {
-                    final String fileName = iterator.next().getFilename();
+                    final String fileName = iterator.next().getFileName();
                     if (fileName != null && fileName.endsWith(STATUS_EXTENSION)) {
                         final TimeRange timeRange = parseRangeFromFileName(fileName);
                         if (timeRange != null) {
@@ -192,7 +190,7 @@ public class VersionedTimeSeriesSegmentStatusTable implements ITimeSeriesSegment
         try (ICloseableIterator<NioFileInfo> iterator = baseChannel.listIterator()) {
             while (true) {
                 final NioFileInfo info = iterator.next();
-                final String fileName = info.getFilename();
+                final String fileName = info.getFileName();
                 if (fileName != null && fileName.endsWith(STATUS_EXTENSION)) {
                     baseChannel.withFilename(fileName).delete();
                 }

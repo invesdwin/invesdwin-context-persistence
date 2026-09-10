@@ -93,8 +93,8 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
             protected TimeSeriesLookupStorageCache<K, V> loadValue(final K key) {
                 final String hashKey = hashKeyToString(key);
                 return new TimeSeriesLookupStorageCache<K, V>(getStorage(), hashKey, getValueSerde(),
-                        getValueFixedLength(), ATimeSeriesDB.this::extractEndTime, getLookupMode(),
-                        getBatchFlushInterval());
+                        getValueFixedLength(), getCompressionFactory(), ATimeSeriesDB.this::extractEndTime,
+                        getLookupMode(), getBatchFlushInterval());
             }
 
             @Override
