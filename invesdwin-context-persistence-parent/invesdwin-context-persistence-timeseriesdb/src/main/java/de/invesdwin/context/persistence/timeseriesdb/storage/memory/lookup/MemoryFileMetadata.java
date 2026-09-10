@@ -28,9 +28,7 @@ public class MemoryFileMetadata {
 
     public MemoryFileMetadata(final File dataDirectory) {
         this.dataDirectory = dataDirectory;
-        this.logFile = new File(new File(dataDirectory, "logs"),
-                Files.normalizeFilename(FDate.now().toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_PS) + "_"
-                        + FileChannelLockHeartbeatRegistry.HEARTBEAT_OWNER + "_memory.log"));
+        this.logFile = new File(dataDirectory, "memory.log");
     }
 
     public ICloseableProperties getProperties() {
