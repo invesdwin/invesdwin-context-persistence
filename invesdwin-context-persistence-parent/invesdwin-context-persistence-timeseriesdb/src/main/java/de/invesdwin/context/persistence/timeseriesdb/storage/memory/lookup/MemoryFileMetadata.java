@@ -14,7 +14,6 @@ import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSu
 import de.invesdwin.context.system.properties.ICloseableProperties;
 import de.invesdwin.context.system.properties.IProperties;
 import de.invesdwin.util.concurrent.lock.file.FileChannelLockHeartbeatRegistry;
-import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
@@ -83,7 +82,6 @@ public class MemoryFileMetadata {
         logEntry.append(valueCount);
         logEntry.append("\n");
         try {
-            Files.forceMkdirParent(logFile);
             try (FileOutputStream out = new FileOutputStream(logFile, true)) {
                 out.write(logEntry.toString().getBytes());
             }
