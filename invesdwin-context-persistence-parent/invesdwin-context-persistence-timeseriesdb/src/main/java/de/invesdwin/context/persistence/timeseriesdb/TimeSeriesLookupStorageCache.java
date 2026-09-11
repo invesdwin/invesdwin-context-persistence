@@ -1120,13 +1120,38 @@ public class TimeSeriesLookupStorageCache<K, V> {
     public void assertSummary(final MemoryFileSummary prevSummary, final MemoryFileSummary summary) {
         final V firstValue = summary.getFirstValue(valueSerde);
         final FDate firstValueTime = extractEndTime(firstValue);
+
+        final FDate summaryFirstValueEndTime = summary.getFirstValueEndTime();
+        if (summaryFirstValueEndTime != null && !summaryFirstValueEndTime.equalsNotNullSafe(firstValueTime)) {
+            throw new IllegalStateException("summary.firstValueEndTime[" + summaryFirstValueEndTime
+                    + "] != summary.firstValue.endTime[" + firstValueTime + "]");
+        }
+
+        if (summary.getValueCount() < 0) {
+            throw new IllegalStateException("valueCount[" + summary.getValueCount() + "] cannot be negative");
+        }
+        if (summary.getMemoryLength() < 0) {
+            throw new IllegalStateException("memoryLength[" + summary.getMemoryLength() + "] cannot be negative");
+        }
+        if (summary.getMemoryOffset() < 0) {
+            throw new IllegalStateException("memoryOffset[" + summary.getMemoryOffset() + "] cannot be negative");
+        }
+
         if (prevSummary != null) {
             final V precedingLastValue = prevSummary.getLastValue(valueSerde);
             final FDate precedingLastValueTime = extractEndTime(precedingLastValue);
+
             if (precedingLastValueTime.isAfterNotNullSafe(firstValueTime)) {
                 throw new IllegalStateException("precedingLastValueTime [" + precedingLastValueTime
                         + "] should not be after firstValueTime [" + firstValueTime + "]");
             }
+
+            final long expectedPrecedingValueCount = prevSummary.getPrecedingValueCount() + prevSummary.getValueCount();
+            if (summary.getPrecedingValueCount() != expectedPrecedingValueCount) {
+                throw new IllegalStateException("precedingValueCount[" + summary.getPrecedingValueCount()
+                        + "] != expectedPrecedingValueCount[" + expectedPrecedingValueCount + "]");
+            }
+
             final long memoryOffset = summary.getPrecedingMemoryOffset() + summary.getMemoryOffset();
             final long expectedMemoryOffset = prevSummary.getPrecedingMemoryOffset() + prevSummary.getMemoryOffset()
                     + prevSummary.getMemoryLength();
@@ -1134,16 +1159,18 @@ public class TimeSeriesLookupStorageCache<K, V> {
                 throw new IllegalStateException(
                         "memoryOffset[" + memoryOffset + "] != expectedMemoryOffset[" + expectedMemoryOffset + "]");
             }
-
-            final File memoryFile = new File(summary.getMemoryResourceUri());
-            final long memoryFileSize = summary.getPrecedingMemoryOffset() + memoryFile.length();
-            final long expectedMemoryFileSize = summary.getPrecedingMemoryOffset() + summary.getMemoryOffset()
-                    + summary.getMemoryLength();
-            if (memoryFileSize != expectedMemoryFileSize) {
-                throw new IllegalStateException("memoryFileSize[" + memoryFileSize + "] != expectedMemoryFileSize["
-                        + expectedMemoryFileSize + "]");
+        } else {
+            final long memoryOffset = summary.getPrecedingMemoryOffset() + summary.getMemoryOffset();
+            if (memoryOffset != 0) {
+                throw new IllegalStateException("first.memoryOffset[" + memoryOffset + "] != expectedMemoryOffset[0]");
+            }
+            final long precedingValueCount = summary.getPrecedingValueCount();
+            if (precedingValueCount != 0) {
+                throw new IllegalStateException(
+                        "first.precedingValueCount[" + precedingValueCount + "] != expectedPrecedingValueCount[0]");
             }
         }
+
         final V lastValue = summary.getLastValue(valueSerde);
         final FDate lastValueTime = extractEndTime(lastValue);
         if (firstValueTime.isAfterNotNullSafe(lastValueTime)) {
