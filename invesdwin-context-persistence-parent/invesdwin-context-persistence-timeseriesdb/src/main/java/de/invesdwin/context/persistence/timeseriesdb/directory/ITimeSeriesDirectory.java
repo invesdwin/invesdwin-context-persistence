@@ -16,6 +16,6 @@ public interface ITimeSeriesDirectory {
 
     File getHeartbeatDirectory();
 
-    void delete();
+    void deleteCorruptedStorage();
 
 }

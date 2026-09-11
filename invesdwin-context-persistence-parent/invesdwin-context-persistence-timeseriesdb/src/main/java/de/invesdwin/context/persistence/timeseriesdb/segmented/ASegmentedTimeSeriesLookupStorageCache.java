@@ -65,6 +65,7 @@ import de.invesdwin.util.concurrent.lock.ICloseableLock;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
+import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
 import de.invesdwin.util.concurrent.lock.readwrite.IReadWriteLock;
 import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
 import de.invesdwin.util.concurrent.reference.WeakThreadLocalReference;
@@ -483,27 +484,28 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
                 //2. if not existing or false, set status to false -> start segment update -> after update set status to true
                 if (status == null || status == SegmentStatus.INITIALIZING) {
                     final ILock segmentWriteLock = segmentTableLock.writeLock();
-                    try {
-                        if (!segmentWriteLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
-                            /*
-                             * should not happen here because segment should not yet exist. Though if it happens we
-                             * would rather like an exception instead of a deadlock!
-                             */
-                            throw segmentWriteLock.getLockTrace()
-                                    .handleLockException(segmentWriteLock.getName(),
-                                            new RetryLaterRuntimeException(
-                                                    "Write lock could not be acquired for table ["
-                                                            + segmentedTable.getName() + "] and key [" + segmentedKey
-                                                            + "]. Please ensure all iterators are closed!"));
-                        }
-                    } catch (final InterruptedException e1) {
-                        throw new RuntimeException(e1);
+                    if (!segmentWriteLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
+                        /*
+                         * should not happen here because segment should not yet exist. Though if it happens we would
+                         * rather like an exception instead of a deadlock!
+                         */
+                        throw segmentWriteLock.getLockTrace()
+                                .handleLockException(segmentWriteLock.getName(),
+                                        new RetryLaterRuntimeException("Write lock could not be acquired for table ["
+                                                + segmentedTable.getName() + "] and key [" + segmentedKey
+                                                + "]. Please ensure all iterators are closed!"));
                     }
-                    try {
+                    try (HeartbeatFileChannelLock lock = segmentStatusTable
+                            .newInitializationFileLock(segmentedKey.getSegment())) {
+                        if (!lock.tryLock(TimeSeriesProperties.newAcquireFileLockTimeout())) {
+                            throw new RetryLaterRuntimeException(
+                                    "Initialization segment file lock could not be acquired for table ["
+                                            + segmentedTable.getName() + "] and key [" + segmentedKey
+                                            + "]. Another process might be initializating this segment currently.");
+                        }
                         // no double checked locking required between read and write lock here because of the outer synchronized block
                         if (status == SegmentStatus.INITIALIZING) {
                             //initialization got aborted, retry from a fresh state
-                            //System.out.println("TODO: handle multipe processes");
                             segmentedTable.deleteRange(segmentedKey);
                             segmentStatusTable.delete(segmentedKey.getSegment());
                         }
@@ -516,6 +518,8 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
                     }
                 }
             }
+        } catch (final InterruptedException e) {
+            throw new RuntimeException(e);
         } finally {
             for (int i = 0; i < readHoldCount; i++) {
                 segmentReadLock.lock();

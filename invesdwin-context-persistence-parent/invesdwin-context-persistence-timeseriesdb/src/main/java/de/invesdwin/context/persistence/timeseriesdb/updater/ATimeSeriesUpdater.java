@@ -94,16 +94,12 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         }
         try {
             final ILock segmentWriteLock = segmentTableLock.writeLock();
-            try {
-                if (!segmentWriteLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
-                    throw segmentWriteLock.getLockTrace()
-                            .handleLockException(segmentWriteLock.getName(),
-                                    new RetryLaterRuntimeException("Write lock could not be acquired for table ["
-                                            + table.getName() + "] and key [" + key
-                                            + "]. Please ensure all iterators are closed!"));
-                }
-            } catch (final InterruptedException e) {
-                throw new RuntimeException(e);
+            if (!segmentWriteLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
+                throw segmentWriteLock.getLockTrace()
+                        .handleLockException(segmentWriteLock.getName(),
+                                new RetryLaterRuntimeException(
+                                        "Write lock could not be acquired for table [" + table.getName() + "] and key ["
+                                                + key + "]. Please ensure all iterators are closed!"));
             }
             final File updateLockSyncFile = new File(updateLockFile.getAbsolutePath() + ".sync");
             try (HeartbeatFileChannelLock updateLockSyncFileLock = new HeartbeatFileChannelLock(updateLockSyncFile) {
@@ -112,8 +108,8 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                     return true;
                 }
             }) {
-                if (!updateLockSyncFileLock.tryLock()) {
-                    throw new IncompleteUpdateRetryableException("Update file lock could not be acquired for table ["
+                if (!updateLockSyncFileLock.tryLock(TimeSeriesProperties.newAcquireFileLockTimeout())) {
+                    throw new RetryLaterRuntimeException("Update file lock could not be acquired for table ["
                             + table.getName() + "] and key [" + key + "]. Another process might be updating currently: "
                             + updateLockSyncFile.getAbsolutePath());
                 }
@@ -132,6 +128,8 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             } finally {
                 segmentWriteLock.unlock();
             }
+        } catch (final InterruptedException e) {
+            throw new RuntimeException(e);
         } finally {
             for (int i = 0; i < readHoldCount; i++) {
                 segmentReadLock.lock();

@@ -5,6 +5,8 @@ import java.io.File;
 import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
+import de.invesdwin.util.lang.Files;
+import de.invesdwin.util.lang.Objects;
 
 @Immutable
 public class TimeSeriesDirectory implements ITimeSeriesDirectory {
@@ -49,13 +51,16 @@ public class TimeSeriesDirectory implements ITimeSeriesDirectory {
     }
 
     @Override
-    public void delete() {
-        //        System.out.println(
-        //                "TODO: create a new version and add a cleanup procedure, though should also be isolated per key?");
-        //maybe atomic rename the folder to _deleted and delete async if this process succeeded in delete? or should we add another version layer?
-        //or should we just reset/delete the perNode data? though I guess we need to handle data format changes with a complete reset?
-        //                "TODO: the lookup caches are deleted on any version change (deleteRange vs deleteAll differentiation)
-        //maybe just increment the version for every hashkey?
+    public void deleteCorruptedStorage() {
+        Files.deleteNative(directoryShared);
+        if (!Objects.equals(directoryShared, directoryPerNode)) {
+            Files.deleteNative(directoryPerNode);
+        }
+    }
+
+    @Override
+    public String toString() {
+        return Objects.toStringHelper(this).addValue(directoryShared.getAbsolutePath()).toString();
     }
 
 }

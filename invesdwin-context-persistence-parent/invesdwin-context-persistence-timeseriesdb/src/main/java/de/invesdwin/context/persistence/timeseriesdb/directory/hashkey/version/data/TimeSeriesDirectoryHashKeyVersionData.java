@@ -7,6 +7,7 @@ import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.ITimeSeriesDirectoryHashKeyVersion;
 import de.invesdwin.util.lang.Files;
+import de.invesdwin.util.lang.Objects;
 
 @Immutable
 public class TimeSeriesDirectoryHashKeyVersionData implements ITimeSeriesDirectoryHashKeyVersionData {
@@ -63,6 +64,11 @@ public class TimeSeriesDirectoryHashKeyVersionData implements ITimeSeriesDirecto
             }
         }
         return directoryHashKeyVersionDataPerNode;
+    }
+
+    @Override
+    public String toString() {
+        return Objects.toStringHelper(this).add("dataId", dataId).with(parent).toString();
     }
 
 }

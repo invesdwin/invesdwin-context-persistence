@@ -83,4 +83,8 @@ public final class TimeSeriesProperties {
         }
     }
 
+    public static Duration newAcquireFileLockTimeout() {
+        return ACQUIRE_WRITE_LOCK_TIMEOUT.newRandomDuration();
+    }
+
 }

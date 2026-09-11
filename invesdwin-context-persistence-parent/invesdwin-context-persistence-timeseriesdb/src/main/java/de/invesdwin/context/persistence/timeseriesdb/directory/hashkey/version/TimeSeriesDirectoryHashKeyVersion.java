@@ -11,6 +11,7 @@ import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.ITimeSeri
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.lease.TimeSeriesDirectoryHashKeyVersionLease;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.lease.TimeSeriesDirectoryHashKeyVersionLeaseRegistry;
 import de.invesdwin.context.system.properties.ICloseableProperties;
+import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 
 @ThreadSafe
@@ -204,6 +205,11 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
             return false;
         }
 
+    }
+
+    @Override
+    public String toString() {
+        return Objects.toStringHelper(this).add("version", getVersion()).with(parent).toString();
     }
 
 }

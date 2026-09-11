@@ -8,6 +8,7 @@ import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.I
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.data.ITimeSeriesDirectoryHashKeyVersionData;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentStatus;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
 import de.invesdwin.util.concurrent.reference.MutableSoftReference;
 import de.invesdwin.util.time.range.TimeRange;
 
@@ -43,6 +44,11 @@ public class RefreshingTimeSeriesSegmentStatusTable implements ITimeSeriesSegmen
     @Override
     public SegmentStatus get(final TimeRange timeRange) {
         return getDelegate().get(timeRange);
+    }
+
+    @Override
+    public HeartbeatFileChannelLock newInitializationFileLock(final TimeRange timeRange) {
+        return getDelegate().newInitializationFileLock(timeRange);
     }
 
     @Override

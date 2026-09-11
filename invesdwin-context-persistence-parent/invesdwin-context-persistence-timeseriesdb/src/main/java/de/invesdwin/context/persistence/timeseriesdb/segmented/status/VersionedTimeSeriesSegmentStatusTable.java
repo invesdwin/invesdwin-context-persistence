@@ -13,14 +13,17 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.filechannel.info.path.FileChannelPath;
+import de.invesdwin.context.integration.filechannel.info.path.FileChannelPaths;
 import de.invesdwin.context.integration.filechannel.nio.NioFileInfo;
 import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannel;
+import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannelContext;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentStatus;
 import de.invesdwin.util.bean.tuple.ImmutableEntry;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ATransformingIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
+import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
 import de.invesdwin.util.lang.string.Strings;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.range.TimeRange;
@@ -32,6 +35,7 @@ public class VersionedTimeSeriesSegmentStatusTable implements ITimeSeriesSegment
     private static final String STATUS_EXTENSION = ".status";
 
     private final AtomicNioFileChannel baseChannel;
+    private final File lockDirectory;
     private final int version;
 
     // Naturally sorted caches for high-performance iteration
@@ -51,6 +55,7 @@ public class VersionedTimeSeriesSegmentStatusTable implements ITimeSeriesSegment
     public VersionedTimeSeriesSegmentStatusTable(final AtomicNioFileChannel baseChannel, final int version) {
         this.baseChannel = baseChannel;
         this.version = version;
+        this.lockDirectory = new File(FileChannelPaths.toFile(baseChannel.getDirectoryUri()), "locks");
     }
 
     public int getVersion() {
@@ -84,6 +89,13 @@ public class VersionedTimeSeriesSegmentStatusTable implements ITimeSeriesSegment
         } catch (final Exception e) {
             return null; // Corrupt/unreadable state triggers the updater
         }
+    }
+
+    @Override
+    public HeartbeatFileChannelLock newInitializationFileLock(final TimeRange timeRange) {
+        final File lockFile = new File(lockDirectory, "lock_" + timeRange.getFrom().toString(DATE_FORMAT) + "_"
+                + timeRange.getTo().toString(DATE_FORMAT) + AtomicNioFileChannelContext.TMP_EXTENSION);
+        return new HeartbeatFileChannelLock(lockFile);
     }
 
     @Override

@@ -9,6 +9,7 @@ import de.invesdwin.context.persistence.timeseriesdb.directory.ITimeSeriesDirect
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.ITimeSeriesDirectoryHashKeyVersion;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.TimeSeriesDirectoryHashKeyVersion;
 import de.invesdwin.util.lang.Files;
+import de.invesdwin.util.lang.Objects;
 
 @ThreadSafe
 public class TimeSeriesDirectoryHashKey implements ITimeSeriesDirectoryHashKey {
@@ -72,6 +73,11 @@ public class TimeSeriesDirectoryHashKey implements ITimeSeriesDirectoryHashKey {
     @Override
     public ITimeSeriesDirectoryHashKeyVersion getDirectoryHashKeyVersion() {
         return directoryHashKeyVersion;
+    }
+
+    @Override
+    public String toString() {
+        return Objects.toStringHelper(this).add("hashKey", hashKey).with(parent).toString();
     }
 
 }

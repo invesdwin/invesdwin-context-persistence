@@ -77,4 +77,9 @@ public final class TimeSeriesDirectoryHashKeyVersionLease implements ISafeClosea
             Files.deleteNative(directoryHashKeyVersionPerNode);
         }
     }
+
+    @Override
+    public String toString() {
+        return Objects.toStringHelper(this).addValue(directoryHashKeyVersionShared.getAbsolutePath()).toString();
+    }
 }

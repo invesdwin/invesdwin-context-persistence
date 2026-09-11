@@ -179,7 +179,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
     }
 
     protected void deleteCorruptedStorage(final ITimeSeriesDirectory directory) {
-        directory.delete();
+        directory.deleteCorruptedStorage();
     }
 
     public abstract ISegmentFinder getSegmentFinder(K key);

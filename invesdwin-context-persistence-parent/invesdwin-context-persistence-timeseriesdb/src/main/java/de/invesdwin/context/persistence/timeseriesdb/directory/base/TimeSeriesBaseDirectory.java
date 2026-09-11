@@ -47,11 +47,15 @@ public class TimeSeriesBaseDirectory implements ITimeSeriesBaseDirectory {
 
     @Override
     public void delete() {
-        //System.out.println("TODO: rework this");
         Files.deleteNative(baseDirectoryShared);
         if (!Objects.equals(baseDirectoryShared, baseDirectoryPerNode)) {
             Files.deleteNative(baseDirectoryPerNode);
         }
+    }
+
+    @Override
+    public String toString() {
+        return Objects.toStringHelper(this).addValue(baseDirectoryShared.getAbsolutePath()).toString();
     }
 
 }

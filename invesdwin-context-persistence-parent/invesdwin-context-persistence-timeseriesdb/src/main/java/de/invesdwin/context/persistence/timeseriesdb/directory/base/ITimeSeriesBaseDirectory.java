@@ -8,6 +8,9 @@ public interface ITimeSeriesBaseDirectory {
 
     File getBaseDirectoryPerNode();
 
+    /**
+     * WARNING: use this only for temporary tables that are not shared between processes
+     */
     void delete();
 
 }

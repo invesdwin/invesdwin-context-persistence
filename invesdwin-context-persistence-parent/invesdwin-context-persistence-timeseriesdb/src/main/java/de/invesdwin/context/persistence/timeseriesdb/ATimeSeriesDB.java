@@ -11,6 +11,7 @@ import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.compression.lz4.LZ4Streams;
 import de.invesdwin.context.integration.persistentmap.CorruptedStorageException;
+import de.invesdwin.context.integration.retry.RetryDisabledRuntimeException;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.timeseriesdb.directory.ITimeSeriesDirectory;
@@ -30,6 +31,7 @@ import de.invesdwin.util.collections.loadingcache.caffeine.ACaffeineLoadingCache
 import de.invesdwin.util.concurrent.lambda.callable.AFastLazyCallable;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
+import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
 import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
@@ -134,10 +136,24 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
             return newStorage(directory, getValueFixedLength(), compressionFactory);
         } catch (final Throwable t) {
             if (Throwables.isCausedByType(t, CorruptedStorageException.class)) {
-                Err.process(new RuntimeException("Resetting " + ATimeSeriesDB.class.getSimpleName() + " [" + directory
-                        + "] because the storage has been corrupted"));
-                deleteCorruptedStorage(directory);
-                return newStorage(directory, getValueFixedLength(), compressionFactory);
+                final File lockFile = new File(
+                        new File(directory.getParent().getBaseDirectoryShared(), "deleteCorruptedStorageLocks"),
+                        Files.normalizeFilename(getName() + ".lock"));
+                try (HeartbeatFileChannelLock lock = new HeartbeatFileChannelLock(lockFile)) {
+                    if (!lock.tryLock(TimeSeriesProperties.newAcquireFileLockTimeout())) {
+                        throw new RetryLaterRuntimeException(
+                                "Delete corrupted stroage file lock could not be acquired for table [" + getName()
+                                        + "] in directory [" + directory
+                                        + "]. Another process might be deleting the corrupted storage currently: "
+                                        + lockFile.getAbsolutePath());
+                    }
+                    Err.process(new RuntimeException("Resetting table [" + getName() + "] in directory [" + directory
+                            + "] because the storage has been corrupted"));
+                    deleteCorruptedStorage(directory);
+                    return newStorage(directory, getValueFixedLength(), compressionFactory);
+                } catch (final InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
             } else {
                 throw Throwables.propagate(t);
             }
@@ -145,7 +161,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     }
 
     protected void deleteCorruptedStorage(final ITimeSeriesDirectory directory) {
-        directory.delete();
+        directory.deleteCorruptedStorage();
         lastResetIndex.incrementAndGet();
     }
 
@@ -431,8 +447,9 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         if (!writeLock.tryLock()) {
             final RuntimeException handleLockException = writeLock.getLockTrace()
                     .handleLockException(writeLock.getName(),
-                            new Exception("Write lock could not be acquired for table [" + tableName + "] and key ["
-                                    + key + "]. Please ensure all iterators are closed! Ignoring and forcing delete."));
+                            new RetryDisabledRuntimeException("Write lock could not be acquired for table [" + tableName
+                                    + "] and key [" + key
+                                    + "]. Please ensure all iterators are closed! Ignoring and forcing delete."));
             Err.process(handleLockException);
             return false;
         } else {

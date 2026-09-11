@@ -141,7 +141,7 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
     }
 
     protected void deleteCorruptedStorage(final ITimeSeriesDirectory directory) {
-        directory.delete();
+        directory.deleteCorruptedStorage();
     }
 
     public abstract ISegmentFinder getSegmentFinder(K key);
