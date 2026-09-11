@@ -17,11 +17,13 @@ import de.invesdwin.instrument.DynamicInstrumentationProperties;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.fast.IFastIterableMap;
 import de.invesdwin.util.concurrent.Executors;
+import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLockRegistry;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.millis.FDateMillis;
+import de.invesdwin.util.time.duration.Duration;
 
 @ThreadSafe
 public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
@@ -29,11 +31,16 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
     private static final Map<File, SharedDirectoryLeaseContext> DIRECTORY_CONTEXTS = ILockCollectionFactory
             .getInstance(true)
             .newConcurrentMap();
-    private static ScheduledExecutorService heartbeatExecutor;
+    private static final Duration HEARTBEAT_INTERVAL = Duration.ONE_MINUTE;
+    private static final Duration CLEANUP_CHECK_INTERVAL = Duration.ONE_HOUR;
+    private static final Duration CLEANUP_INTERVAL = Duration.ONE_DAY;
 
-    private TimeSeriesDirectoryHashKeyVersionLeaseRegistry() {
-        //System.out.println("schedule old version cleanup with a heartbeat file channel try lock once a day in a separate executor");
-    }
+    private static final String CLEANUP_MARKER_FILENAME = ".cleanup";
+
+    private static ScheduledExecutorService heartbeatExecutor;
+    private static ScheduledExecutorService cleanupExecutor;
+
+    private TimeSeriesDirectoryHashKeyVersionLeaseRegistry() {}
 
     public static TimeSeriesDirectoryHashKeyVersionLease getOrCreate(final ITimeSeriesDirectoryHashKey parent,
             final int version) {
@@ -55,20 +62,21 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
         });
 
         stopHeartbeatExecutorIfNeeded();
+        stopCleanupExecutorIfNeeded();
     }
 
     private static void startHeartbeatExecutorIfNeeded() {
         synchronized (TimeSeriesDirectoryHashKeyVersionLeaseRegistry.class) {
             if (heartbeatExecutor == null || heartbeatExecutor.isShutdown()) {
                 heartbeatExecutor = Executors.newScheduledThreadPool(
-                        TimeSeriesDirectoryHashKeyVersionLeaseRegistry.class.getSimpleName(), 1);
+                        TimeSeriesDirectoryHashKeyVersionLeaseRegistry.class.getSimpleName() + "-Heartbeat", 1);
 
                 // Periodic background refresh for all active contexts
                 heartbeatExecutor.scheduleAtFixedRate(() -> {
                     synchronized (DIRECTORY_CONTEXTS) {
                         updateHeartbeats();
                     }
-                }, 1, 1, TimeUnit.MINUTES);
+                }, HEARTBEAT_INTERVAL.millisValue(), HEARTBEAT_INTERVAL.millisValue(), TimeUnit.MILLISECONDS);
             }
         }
     }
@@ -82,15 +90,44 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
         }
     }
 
+    private static void startCleanupExecutorIfNeeded() {
+        synchronized (TimeSeriesDirectoryHashKeyVersionLeaseRegistry.class) {
+            if (cleanupExecutor == null || cleanupExecutor.isShutdown()) {
+                cleanupExecutor = Executors.newScheduledThreadPool(
+                        TimeSeriesDirectoryHashKeyVersionLeaseRegistry.class.getSimpleName() + "-Cleanup", 1);
+
+                // Check cleanup status hourly so restarts can pick up pending cleanups promptly
+                cleanupExecutor.scheduleAtFixedRate(() -> {
+                    final SharedDirectoryLeaseContext[] contexts;
+                    synchronized (DIRECTORY_CONTEXTS) {
+                        contexts = DIRECTORY_CONTEXTS.values().toArray(new SharedDirectoryLeaseContext[0]);
+                    }
+                    for (final SharedDirectoryLeaseContext context : contexts) {
+                        context.cleanupObsoleteVersions();
+                    }
+                }, 0, CLEANUP_CHECK_INTERVAL.millisValue(), TimeUnit.MILLISECONDS);
+            }
+        }
+    }
+
+    private static void stopCleanupExecutorIfNeeded() {
+        synchronized (TimeSeriesDirectoryHashKeyVersionLeaseRegistry.class) {
+            if (DIRECTORY_CONTEXTS.isEmpty() && cleanupExecutor != null && !cleanupExecutor.isShutdown()) {
+                cleanupExecutor.shutdown();
+                cleanupExecutor = null;
+            }
+        }
+    }
+
     private static void updateHeartbeats() {
         for (final SharedDirectoryLeaseContext context : DIRECTORY_CONTEXTS.values()) {
-            // If the context is empty/evicted, remove it from the map atomically
             if (!context.touchOrRewriteHeartbeat()) {
                 DIRECTORY_CONTEXTS.computeIfPresent(context.getHeartbeatDirectory(),
                         (dir, ctx) -> ctx.isEmpty() ? null : ctx);
             }
         }
         stopHeartbeatExecutorIfNeeded();
+        stopCleanupExecutorIfNeeded();
     }
 
     private static final class SharedDirectoryLeaseContext {
@@ -172,9 +209,43 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             }
         }
 
+        public void cleanupObsoleteVersions() {
+            final File cleanupMarkerFile = new File(heartbeatDirectory, CLEANUP_MARKER_FILENAME);
+            final long now = FDateMillis.nowMillis();
+
+            // Fast exit: Skip lock acquisition if the cleanup was executed within the last 24 hours
+            if (cleanupMarkerFile.exists()
+                    && CLEANUP_INTERVAL.isLessThanMillis(now - cleanupMarkerFile.lastModified())) {
+                return;
+            }
+
+            final WeakTimeSeriesDirectoryHashKeyVersionLease[] activeLeasesSnapshot = newActiveLeasesSnapshotPurged();
+            for (int i = 0; i < activeLeasesSnapshot.length; i++) {
+                final TimeSeriesDirectoryHashKeyVersionLease lease = activeLeasesSnapshot[i].get();
+                if (lease != null) {
+                    final File cleanupLockFile = new File(heartbeatDirectory, "cleanup.lock");
+                    try (HeartbeatFileChannelLock lock = new HeartbeatFileChannelLock(cleanupLockFile)) {
+                        if (lock.tryLock()) {
+                            final long lockNow = FDateMillis.nowMillis();
+                            // Double check marker file after locking in case another process ran cleanup concurrently
+                            if (!cleanupMarkerFile.exists()
+                                    || CLEANUP_INTERVAL.isLessThanMillis(lockNow - cleanupMarkerFile.lastModified())) {
+                                lease.getParent().getParent().cleanupObsoleteVersions();
+                                Files.writeStringToFileIfDifferent(cleanupMarkerFile, String.valueOf(lockNow));
+                            }
+                        }
+                    } catch (final Exception e) {
+                        throw new RuntimeException("Failed to execute obsolete version cleanup lock", e);
+                    }
+                    break;
+                }
+            }
+        }
+
         private void requestWrite() {
             if (writeScheduled.compareAndSet(false, true)) {
                 startHeartbeatExecutorIfNeeded();
+                startCleanupExecutorIfNeeded();
                 heartbeatExecutor.execute(() -> {
                     writeScheduled.set(false);
                     synchronized (DIRECTORY_CONTEXTS) {
@@ -242,7 +313,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                     synchronized (activeLeases) {
                         activeLeases.remove(lease.getRegistryKey());
                     }
-                    continue; // Skip dead references
+                    continue;
                 }
                 content.append("\n");
                 content.append(lease.getRegistryKey());
