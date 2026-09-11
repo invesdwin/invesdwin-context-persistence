@@ -163,7 +163,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             this.cleanupMarkerPath = new File(heartbeatDirectory, CLEANUP_MARKER_FILENAME).toPath();
             this.tempCleanupMarkerPath = cleanupMarkerPath.resolveSibling(Files.normalizeFilename(
                     cleanupMarkerPath.getFileName().toString() + AtomicNioFileChannelContext.TMP_SUFFIX));
-            this.cleanupLockFile = new File(heartbeatDirectory, "cleanup.lock");
+            this.cleanupLockFile = new File(heartbeatDirectory, CLEANUP_MARKER_FILENAME + ".lock");
             try {
                 Files.forceMkdirParent(heartbeatFile);
             } catch (final IOException e) {
@@ -271,7 +271,6 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                                         lockNow.toString().getBytes(Charsets.defaultCharset()));
                                 Files.move(tempCleanupMarkerPath, cleanupMarkerPath,
                                         StandardCopyOption.REPLACE_EXISTING);
-                                AtomicNioFileChannelContext.cleanupStaleTempFiles(heartbeatDirectoryPath);
                                 lastCleanupTime.set(lockNow.millisValue());
                             }
                         }
