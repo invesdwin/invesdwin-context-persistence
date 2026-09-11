@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup;
 
 import java.io.File;
-import java.util.List;
 
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -44,7 +43,7 @@ public class RefreshingTimeSeriesMemoryFileLookupTable<V> implements ITimeSeries
     }
 
     @Override
-    public void put(final List<MemoryFileSummary> summaries) {
+    public void put(final ICloseableIterator<MemoryFileSummary> summaries) {
         getDelegate().put(summaries);
     }
 

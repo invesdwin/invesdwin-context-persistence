@@ -5,7 +5,7 @@ import java.io.OutputStream;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
-import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannel;
+import de.invesdwin.context.integration.filechannel.IFileChannel;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummarySerde;
@@ -17,7 +17,7 @@ public abstract class AMemoryFileSummarySerializingCollection extends Serializin
 
     public static final String MEMORY_INDEX_FILE_NAME = "memory.index";
 
-    public AMemoryFileSummarySerializingCollection(final TextDescription name, final AtomicNioFileChannel fileChannel,
+    public AMemoryFileSummarySerializingCollection(final TextDescription name, final IFileChannel fileChannel,
             final boolean readOnly) {
         super(name, fileChannel, readOnly);
     }

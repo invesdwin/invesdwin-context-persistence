@@ -1,8 +1,7 @@
 package de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -81,93 +80,115 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
     }
 
     @Override
-    public synchronized void put(final List<MemoryFileSummary> summaries) {
-        final MemoryFileMetadata metadata = getMetadata();
-        try (ICloseableProperties properties = metadata.getProperties()) {
-            for (int i = 0; i < summaries.size(); i++) {
-                final MemoryFileSummary summary = summaries.get(i);
-                final long precedingMemoryOffset = summary.getPrecedingMemoryOffset();
-                final long memoryOffset = summary.getMemoryOffset();
-                final long memoryLength = summary.getMemoryLength();
-                final File memoryFile = new File(summary.getMemoryResourceUri());
-                final long memoryFileSize = precedingMemoryOffset + memoryFile.length();
-                final long expectedMemoryFileSize = precedingMemoryOffset + memoryOffset + memoryLength;
-                if (memoryFileSize != expectedMemoryFileSize) {
-                    throw new IllegalStateException("memoryFileSize[" + memoryFileSize + "] != expectedMemoryFileSize["
-                            + expectedMemoryFileSize + "]");
+    public synchronized void put(final ICloseableIterator<MemoryFileSummary> summaries) {
+        try {
+            currentIndexNumber++;
+            final File newIndexFile = new File(directory,
+                    currentIndexNumber + "_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME);
+
+            fileChannel.setFileName(newIndexFile.getName());
+
+            try (IndexSerializingCollection newCollection = new IndexSerializingCollection(
+                    new TextDescription("%s: put: write %s",
+                            VersionedTimeSeriesMemoryFileLookupTable.class.getSimpleName(), newIndexFile),
+                    fileChannel, false)) {
+
+                // Buffer exactly one element to allow replacement of the final element if required
+                MemoryFileSummary lastWritten = null;
+
+                // 1. Stream existing index elements to the new file, maintaining the 1-element buffer
+                if (latestIndexFile != null && latestIndexFile.exists()) {
+                    try (IndexSerializingCollection oldCollection = new IndexSerializingCollection(
+                            new TextDescription("%s: put: read %s",
+                                    VersionedTimeSeriesMemoryFileLookupTable.class.getSimpleName(), latestIndexFile),
+                            AtomicNioFileChannel.newFile(latestIndexFile.toURI()), true);
+                            ICloseableIterator<MemoryFileSummary> oldIt = oldCollection.iterator()) {
+                        while (true) {
+                            final MemoryFileSummary oldSummary = oldIt.next();
+                            if (lastWritten != null) {
+                                newCollection.add(lastWritten);
+                            }
+                            lastWritten = oldSummary;
+                        }
+                    } catch (final NoSuchElementException e) {
+                        // end reached
+                    }
                 }
-                final long prevMemoryFileSize = metadata.getExpectedMemoryFileSize(properties);
-                if (prevMemoryFileSize > expectedMemoryFileSize) {
-                    throw new IllegalStateException("memoryFileFize[" + memoryFileSize
-                            + "] should not be less than prevMemoryFileSize[" + prevMemoryFileSize + "]");
+
+                // 2. Stream incoming summaries, log metadata, and directly merge/append via the buffer
+                final MemoryFileMetadata metadata = getMetadata();
+                try (ICloseableProperties properties = metadata.getProperties()) {
+                    while (true) {
+                        final MemoryFileSummary newSummary = summaries.next();
+
+                        // --- Part A: Metadata Logging ---
+                        final long precedingMemoryOffset = newSummary.getPrecedingMemoryOffset();
+                        final long memoryOffset = newSummary.getMemoryOffset();
+                        final long memoryLength = newSummary.getMemoryLength();
+                        final long expectedMemoryFileSize = precedingMemoryOffset + memoryOffset + memoryLength;
+                        final long prevMemoryFileSize = metadata.getExpectedMemoryFileSize(properties);
+
+                        if (prevMemoryFileSize > expectedMemoryFileSize) {
+                            throw new IllegalStateException("prevMemoryFileSize[" + prevMemoryFileSize
+                                    + "] should be less than expectedMemoryFileFize[" + expectedMemoryFileSize + "]");
+                        }
+                        metadata.setExpectedMemoryFileSize(properties, expectedMemoryFileSize);
+
+                        final V lastValue = parent.getValueSerde().fromBytes(newSummary.getLastValue());
+                        final FDate firstValueEndTime = parent
+                                .extractEndTime(parent.getValueSerde().fromBytes(newSummary.getFirstValue()));
+
+                        if (!firstValueEndTime.equalsNotNullSafe(newSummary.getFirstValueEndTime())) {
+                            throw new IllegalStateException("summary.firstValue.endTime[" + firstValueEndTime
+                                    + "] != summary.getFirstValueEndTime[" + newSummary.getFirstValueEndTime() + "]");
+                        }
+
+                        final FDate lastValueEndTime = parent.extractEndTime(lastValue);
+                        final long precedingValueCount = newSummary.getPrecedingValueCount();
+                        final int valueCount = newSummary.getValueCount();
+                        final String memoryResourceUri = newSummary.getMemoryResourceUri();
+
+                        metadata.logSummary(firstValueEndTime, lastValueEndTime, precedingValueCount, valueCount,
+                                memoryResourceUri, precedingMemoryOffset, memoryOffset, memoryLength);
+
+                        // --- Part B: Direct Streaming Merge ---
+                        if (lastWritten != null) {
+                            final FDate lastFirstEndTime = lastWritten.getFirstValueEndTime();
+                            final FDate newFirstEndTime = newSummary.getFirstValueEndTime();
+
+                            if (lastFirstEndTime != null && lastFirstEndTime.equalsNotNullSafe(newFirstEndTime)) {
+                                // Valid replacement: discard lastWritten and buffer the newSummary
+                                lastWritten = newSummary;
+                            } else if (lastFirstEndTime != null && lastFirstEndTime.isAfter(newFirstEndTime)) {
+                                // Invalid sequence exception
+                                throw new IllegalStateException("existingLastSummary.firstValueEndTime["
+                                        + lastFirstEndTime + "] is after firstNewSummary.firstValueEndTime["
+                                        + newFirstEndTime + "]");
+                            } else {
+                                // Normal append: write the buffered item, and buffer the newSummary
+                                newCollection.add(lastWritten);
+                                lastWritten = newSummary;
+                            }
+                        } else {
+                            lastWritten = newSummary;
+                        }
+                    }
+                } catch (final NoSuchElementException e) {
+                    // end reached
                 }
-                metadata.setExpectedMemoryFileSize(properties, expectedMemoryFileSize);
-                final V lastValue = parent.getValueSerde().fromBytes(summary.getLastValue());
-                final FDate firstValueEndTime = parent
-                        .extractEndTime(parent.getValueSerde().fromBytes(summary.getFirstValue()));
-                if (!firstValueEndTime.equalsNotNullSafe(summary.getFirstValueEndTime())) {
-                    throw new IllegalStateException("summary.firstValue.endTime[" + firstValueEndTime
-                            + "] != summary.getFirstValueEndTime[" + summary.getFirstValueEndTime() + "]");
+
+                // Flush the final remaining item to the new file
+                if (lastWritten != null) {
+                    newCollection.add(lastWritten);
                 }
-                final FDate lastValueEndTime = parent.extractEndTime(lastValue);
-                final int valueCount = summary.getValueCount();
-                final long precedingValueCount = summary.getPrecedingValueCount();
-                metadata.logSummary(firstValueEndTime, lastValueEndTime, precedingValueCount, valueCount,
-                        memoryFile.getAbsolutePath(), precedingMemoryOffset, memoryOffset, memoryLength);
+
+                newCollection.closeWithEmptyWrite();
             }
+
+            latestIndexFile = newIndexFile;
+        } finally {
+            summaries.close();
         }
-
-        // Read the index via AMemoryFileSummarySerializingCollection
-        final List<MemoryFileSummary> existingSummaries = new ArrayList<>();
-        if (latestIndexFile != null && latestIndexFile.exists()) {
-            try (IndexSerializingCollection collection = new IndexSerializingCollection(
-                    new TextDescription("%s: put: read %s",
-                            VersionedTimeSeriesMemoryFileLookupTable.class.getSimpleName(), latestIndexFile),
-                    AtomicNioFileChannel.newFile(latestIndexFile.toURI()), true);
-                    ICloseableIterator<MemoryFileSummary> it = collection.iterator()) {
-                while (it.hasNext()) {
-                    existingSummaries.add(it.next());
-                }
-            }
-        }
-
-        for (int i = 0; i < summaries.size(); i++) {
-            final MemoryFileSummary newSummary = summaries.get(i);
-            if (!existingSummaries.isEmpty()) {
-                final MemoryFileSummary lastExisting = existingSummaries.get(existingSummaries.size() - 1);
-                final FDate lastFirstEndTime = lastExisting.getFirstValueEndTime();
-                final FDate newFirstEndTime = newSummary.getFirstValueEndTime();
-
-                if (lastFirstEndTime != null && lastFirstEndTime.equalsNotNullSafe(newFirstEndTime)) {
-                    // Valid replacement for the existing last summary
-                    existingSummaries.set(existingSummaries.size() - 1, newSummary);
-                } else if (lastFirstEndTime != null && lastFirstEndTime.isAfter(newFirstEndTime)) {
-                    // Invalid sequence exception
-                    throw new IllegalStateException("existingLastSummary.firstValueEndTime[" + lastFirstEndTime
-                            + "] is after firstNewSummary.firstValueEndTime[" + newFirstEndTime + "]");
-                } else {
-                    // Normal append
-                    existingSummaries.add(newSummary);
-                }
-            } else {
-                existingSummaries.add(newSummary);
-            }
-        }
-
-        // Write the index back to a new file with an incremented number
-        currentIndexNumber++;
-        final File newIndexFile = new File(directory,
-                currentIndexNumber + "_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME);
-
-        fileChannel.setFileName(newIndexFile.getName());
-        try (IndexSerializingCollection collection = new IndexSerializingCollection(
-                new TextDescription("%s: put: write %s", VersionedTimeSeriesMemoryFileLookupTable.class.getSimpleName(),
-                        newIndexFile),
-                fileChannel, false)) {
-            collection.addAll(existingSummaries);
-            collection.closeWithEmptyWrite();
-        }
-        latestIndexFile = newIndexFile;
     }
 
     @Override

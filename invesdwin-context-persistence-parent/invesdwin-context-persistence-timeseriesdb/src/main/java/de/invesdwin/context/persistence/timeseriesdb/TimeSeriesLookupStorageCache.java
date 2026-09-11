@@ -1127,6 +1127,22 @@ public class TimeSeriesLookupStorageCache<K, V> {
                 throw new IllegalStateException("precedingLastValueTime [" + precedingLastValueTime
                         + "] should not be after firstValueTime [" + firstValueTime + "]");
             }
+            final long memoryOffset = summary.getPrecedingMemoryOffset() + summary.getMemoryOffset();
+            final long expectedMemoryOffset = prevSummary.getPrecedingMemoryOffset() + prevSummary.getMemoryOffset()
+                    + prevSummary.getMemoryLength();
+            if (memoryOffset != expectedMemoryOffset) {
+                throw new IllegalStateException(
+                        "memoryOffset[" + memoryOffset + "] != expectedMemoryOffset[" + expectedMemoryOffset + "]");
+            }
+
+            final File memoryFile = new File(summary.getMemoryResourceUri());
+            final long memoryFileSize = summary.getPrecedingMemoryOffset() + memoryFile.length();
+            final long expectedMemoryFileSize = summary.getPrecedingMemoryOffset() + summary.getMemoryOffset()
+                    + summary.getMemoryLength();
+            if (memoryFileSize != expectedMemoryFileSize) {
+                throw new IllegalStateException("memoryFileSize[" + memoryFileSize + "] != expectedMemoryFileSize["
+                        + expectedMemoryFileSize + "]");
+            }
         }
         final V lastValue = summary.getLastValue(valueSerde);
         final FDate lastValueTime = extractEndTime(lastValue);

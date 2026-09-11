@@ -1,15 +1,20 @@
 package de.invesdwin.context.persistence.timeseriesdb.updater;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
 
 import javax.annotation.concurrent.Immutable;
 
+import de.invesdwin.context.integration.compression.ICompressionFactory;
+import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannel;
+import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannelContext;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummarySerde;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.AMemoryFileSummarySerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.ITimeSeriesMemoryFileLookupTable;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.streams.closeable.ISafeCloseable;
 import de.invesdwin.util.time.date.FDate;
 
@@ -22,7 +27,8 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     private final long precedingMemorOffset;
     private final long memoryOffset;
     private final long precedingValueCount;
-    private List<MemoryFileSummary> summaries;
+    private AMemoryFileSummarySerializingCollection summaries;
+    private MemoryFileSummary prevSummary;
 
     public TimeSeriesUpdateTransaction(final TimeSeriesLookupStorageCache<?, V> parent, final FDate updateFrom,
             final List<V> lastValues, final long precedingMemoryOffset, final long memoryOffset,
@@ -71,29 +77,48 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
 
     public void finishFile(final MemoryFileSummary summary) {
         if (summaries == null) {
-            summaries = new ArrayList<>();
+            final File tempSummariesFile = new File(
+                    parent.getDirectoryHashKeyVersionMemory().getDirectoryHashKeyVersionDataShared(),
+                    AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME + ".update"
+                            + AtomicNioFileChannelContext.TMP_EXTENSION);
+            summaries = new AMemoryFileSummarySerializingCollection(
+                    new TextDescription("%s.finishFile", TimeSeriesUpdateTransaction.class.getSimpleName()),
+                    AtomicNioFileChannel.newFile(tempSummariesFile.toURI()), false) {
+
+                @Override
+                protected MemoryFileSummarySerde newSerde() {
+                    return new MemoryFileSummarySerde(parent.getValueFixedLength());
+                }
+
+                @Override
+                protected ICompressionFactory getCompressionFactory() {
+                    return parent.getCompressionFactory();
+                }
+            };
         }
         assertSummaryBeforeCommit(summary);
         summaries.add(summary);
+        prevSummary = summary;
     }
 
     private void assertSummaryBeforeCommit(final MemoryFileSummary summary) {
         final MemoryFileSummary lastSummary;
-        if (summaries.isEmpty()) {
+        if (prevSummary == null) {
             lastSummary = parent.getLastRangeKey();
         } else {
-            lastSummary = summaries.get(summaries.size() - 1);
+            lastSummary = prevSummary;
         }
         parent.assertSummary(lastSummary, summary);
     }
 
     @Override
     public void close() {
-        if (summaries == null || summaries.isEmpty()) {
+        if (prevSummary == null) {
             return;
         }
+        summaries.closeWithEmptyWrite();
         final ITimeSeriesMemoryFileLookupTable memoryFileLookupTable = parent.getMemoryFileLookupTable();
-        memoryFileLookupTable.put(summaries);
+        memoryFileLookupTable.put(summaries.iterator());
         summaries.clear();
         parent.clearCaches();
     }
