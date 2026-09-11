@@ -116,6 +116,7 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
                 }
 
                 // 2. Stream incoming summaries, log metadata, and directly merge/append via the buffer
+                boolean firstNewSummary = true;
                 final MemoryFileMetadata metadata = getMetadata();
                 try (ICloseableProperties properties = metadata.getProperties()) {
                     while (true) {
@@ -156,13 +157,15 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
                             final FDate lastFirstEndTime = lastWritten.getFirstValueEndTime();
                             final FDate newFirstEndTime = newSummary.getFirstValueEndTime();
 
-                            if (lastFirstEndTime != null && lastFirstEndTime.equalsNotNullSafe(newFirstEndTime)) {
-                                // Valid replacement: discard lastWritten and buffer the newSummary
+                            if (firstNewSummary && lastFirstEndTime != null
+                                    && lastFirstEndTime.equalsNotNullSafe(newFirstEndTime)) {
+                                // Valid single replacement: discard lastWritten (last from old) and buffer newSummary (first from iterator)
                                 lastWritten = newSummary;
-                            } else if (lastFirstEndTime != null && lastFirstEndTime.isAfter(newFirstEndTime)) {
-                                // Invalid sequence exception
+                            } else if (lastFirstEndTime != null && (lastFirstEndTime.isAfter(newFirstEndTime)
+                                    || lastFirstEndTime.equalsNotNullSafe(newFirstEndTime))) {
+                                // Invalid sequence exception: timestamps must be strictly ascending after potential replacement
                                 throw new IllegalStateException("existingLastSummary.firstValueEndTime["
-                                        + lastFirstEndTime + "] is after firstNewSummary.firstValueEndTime["
+                                        + lastFirstEndTime + "] does not align with newSummary.firstValueEndTime["
                                         + newFirstEndTime + "]");
                             } else {
                                 // Normal append: write the buffered item, and buffer the newSummary
@@ -172,6 +175,8 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
                         } else {
                             lastWritten = newSummary;
                         }
+
+                        firstNewSummary = false;
                     }
                 } catch (final NoSuchElementException e) {
                     // end reached
