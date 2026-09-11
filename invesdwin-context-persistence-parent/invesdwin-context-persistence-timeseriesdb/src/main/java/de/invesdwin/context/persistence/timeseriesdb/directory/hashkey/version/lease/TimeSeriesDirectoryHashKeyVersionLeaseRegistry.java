@@ -256,7 +256,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                                 last = currentFileModified;
                             }
 
-                            if (!cleanupMarkerFile.exists() || CLEANUP_INTERVAL.isGreaterThanMillis(lockNow - last)) {
+                            if (!cleanupMarkerFile.exists() || CLEANUP_INTERVAL.isLessThanMillis(lockNow - last)) {
                                 lease.getParent().getParent().cleanupObsoleteVersions();
                                 Files.writeStringToFileIfDifferent(cleanupMarkerFile, String.valueOf(lockNow));
                                 lastCleanupTime.set(lockNow);
@@ -308,7 +308,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             long last = resolveLastCleanupTime();
 
             // Skip scheduling if memory indicates cleanup occurred within the last 24 hours
-            if (!CLEANUP_INTERVAL.isLessThanMillis(now - last)) {
+            if (CLEANUP_INTERVAL.isGreaterThanMillis(now - last)) {
                 return;
             }
 
@@ -318,7 +318,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                     lastCleanupTime.set(fileModified);
                     last = fileModified;
                 }
-                if (!CLEANUP_INTERVAL.isLessThanMillis(now - last)) {
+                if (CLEANUP_INTERVAL.isGreaterThanMillis(now - last)) {
                     return;
                 }
             }
