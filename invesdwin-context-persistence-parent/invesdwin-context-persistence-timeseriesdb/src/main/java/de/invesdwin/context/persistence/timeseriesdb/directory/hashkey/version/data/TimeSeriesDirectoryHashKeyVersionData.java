@@ -14,12 +14,14 @@ public class TimeSeriesDirectoryHashKeyVersionData implements ITimeSeriesDirecto
 
     private final ITimeSeriesDirectoryHashKeyVersion parent;
     private final String dataId;
-    private File directoryHashKeyVersionDataShared;
-    private File directoryHashKeyVersionDataPerNode;
+    private volatile File directoryHashKeyVersionDataShared;
+    private volatile File directoryHashKeyVersionDataPerNode;
+    private volatile int version;
 
     public TimeSeriesDirectoryHashKeyVersionData(final ITimeSeriesDirectoryHashKeyVersion parent, final String dataId) {
         this.parent = parent;
         this.dataId = dataId;
+        this.version = parent.getVersion();
     }
 
     @Override
@@ -34,6 +36,7 @@ public class TimeSeriesDirectoryHashKeyVersionData implements ITimeSeriesDirecto
 
     @Override
     public File getDirectoryHashKeyVersionDataShared() {
+        maybeReset();
         if (directoryHashKeyVersionDataShared == null) {
             synchronized (this) {
                 if (directoryHashKeyVersionDataShared == null) {
@@ -51,6 +54,7 @@ public class TimeSeriesDirectoryHashKeyVersionData implements ITimeSeriesDirecto
 
     @Override
     public File getDirectoryHashKeyVersionDataPerNode() {
+        maybeReset();
         if (directoryHashKeyVersionDataPerNode == null) {
             synchronized (this) {
                 if (directoryHashKeyVersionDataPerNode == null) {
@@ -64,6 +68,18 @@ public class TimeSeriesDirectoryHashKeyVersionData implements ITimeSeriesDirecto
             }
         }
         return directoryHashKeyVersionDataPerNode;
+    }
+
+    private void maybeReset() {
+        if (version != parent.getVersion()) {
+            synchronized (this) {
+                if (version != parent.getVersion()) {
+                    directoryHashKeyVersionDataShared = null;
+                    directoryHashKeyVersionDataPerNode = null;
+                    version = parent.getVersion();
+                }
+            }
+        }
     }
 
     @Override
