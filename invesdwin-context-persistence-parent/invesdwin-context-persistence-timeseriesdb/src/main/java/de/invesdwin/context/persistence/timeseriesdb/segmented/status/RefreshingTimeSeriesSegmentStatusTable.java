@@ -66,11 +66,6 @@ public class RefreshingTimeSeriesSegmentStatusTable implements ITimeSeriesSegmen
     }
 
     @Override
-    public void deleteRange() {
-        getDelegate().deleteRange();
-    }
-
-    @Override
     public Entry<TimeRange, SegmentStatus> getLatest() {
         return getDelegate().getLatest();
     }
@@ -80,13 +75,8 @@ public class RefreshingTimeSeriesSegmentStatusTable implements ITimeSeriesSegmen
         return getDelegate().getLatest(timeRange);
     }
 
-    @Override
-    public void close() {
-        final VersionedTimeSeriesSegmentStatusTable delegateCopy = delegateRef.get();
-        if (delegateCopy != null) {
-            delegateCopy.close();
-            delegateRef.set(null);
-        }
+    public void clear() {
+        delegateRef.set(null);
     }
 
 }

@@ -18,8 +18,6 @@ public interface ITimeSeriesDirectoryHashKey {
 
     File getDirectoryHashKeyPerNode();
 
-    void delete();
-
     ITimeSeriesDirectoryHashKeyVersion getDirectoryHashKeyVersion();
 
 }

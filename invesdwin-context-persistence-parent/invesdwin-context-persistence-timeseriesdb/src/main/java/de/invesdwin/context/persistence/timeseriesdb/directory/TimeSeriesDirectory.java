@@ -55,6 +55,7 @@ public class TimeSeriesDirectory implements ITimeSeriesDirectory {
         //maybe atomic rename the folder to _deleted and delete async if this process succeeded in delete? or should we add another version layer?
         //or should we just reset/delete the perNode data? though I guess we need to handle data format changes with a complete reset?
         //                "TODO: the lookup caches are deleted on any version change (deleteRange vs deleteAll differentiation)
+        //maybe just increment the version for every hashkey?
     }
 
 }

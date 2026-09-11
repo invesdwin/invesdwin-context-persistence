@@ -9,8 +9,6 @@ public interface ITimeSeriesMemoryFileLookupTable {
 
     void put(List<MemoryFileSummary> summaries);
 
-    void deleteRange();
-
     ICloseableIterator<MemoryFileSummary> range();
 
     MemoryFileMetadata getMetadata();

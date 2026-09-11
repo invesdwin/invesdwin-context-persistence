@@ -17,6 +17,4 @@ public interface ITimeSeriesDirectoryHashKeyVersionData {
 
     File getDirectoryHashKeyVersionDataPerNode();
 
-    void delete();
-
 }

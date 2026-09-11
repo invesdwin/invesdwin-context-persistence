@@ -9,7 +9,6 @@ import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDBInternals;
-import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateAbortedException;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
@@ -23,9 +22,8 @@ import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.lock.ILock;
-import de.invesdwin.util.concurrent.lock.file.FileChannelLock;
+import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
 import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
-import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.math.decimal.scaled.Percent;
@@ -108,15 +106,16 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                 throw new RuntimeException(e);
             }
             final File updateLockSyncFile = new File(updateLockFile.getAbsolutePath() + ".sync");
-            try (FileChannelLock updateLockSyncFileLock = new FileChannelLock(updateLockSyncFile) {
+            try (HeartbeatFileChannelLock updateLockSyncFileLock = new HeartbeatFileChannelLock(updateLockSyncFile) {
                 @Override
                 protected boolean isThreadLockEnabled() {
                     return true;
                 }
             }) {
                 if (!updateLockSyncFileLock.tryLock()) {
-                    throw new IncompleteUpdateRetryableException("Incomplete update found for table [" + table.getName()
-                            + "] and key [" + key + "], need to clean everything up to restore all from scratch.");
+                    throw new IncompleteUpdateRetryableException("Update file lock could not be acquired for table ["
+                            + table.getName() + "] and key [" + key + "]. Another process might be updating currently: "
+                            + updateLockSyncFile.getAbsolutePath());
                 }
                 Files.touchQuietly(updateLockFile);
                 try {
@@ -126,7 +125,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                     onUpdateFinished(updateStart);
                     return true;
                 } catch (final Throwable t) {
-                    throw propagateIncompleteUpdateException(t);
+                    throw IncompleteUpdateRetryableException.propagateIncompleteUpdateException(t);
                 } finally {
                     Files.deleteQuietly(updateLockFile);
                 }
@@ -137,20 +136,6 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             for (int i = 0; i < readHoldCount; i++) {
                 segmentReadLock.lock();
             }
-        }
-    }
-
-    protected IncompleteUpdateRetryableException propagateIncompleteUpdateException(final Throwable t)
-            throws IncompleteUpdateRetryableException {
-        if (Throwables.isCausedByType(t, IncompleteUpdateAbortedException.class)) {
-            throw Throwables.propagate(t);
-        }
-        final IncompleteUpdateRetryableException incompleteException = Throwables.getCauseByType(t,
-                IncompleteUpdateRetryableException.class);
-        if (incompleteException != null) {
-            return incompleteException;
-        } else {
-            return new IncompleteUpdateRetryableException("Something unexpected went wrong that could be retried", t);
         }
     }
 

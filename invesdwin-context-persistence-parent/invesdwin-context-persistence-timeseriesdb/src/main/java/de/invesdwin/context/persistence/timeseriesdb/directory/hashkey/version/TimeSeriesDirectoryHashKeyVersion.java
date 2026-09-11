@@ -18,7 +18,7 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
 
     private final ITimeSeriesDirectoryHashKey parent;
     private final TimeSeriesDirectoryVersionFinalizer finalizer;
-    private AtomicNioFileChannel propertiesPath;
+    private volatile AtomicNioFileChannel propertiesPath;
 
     public TimeSeriesDirectoryHashKeyVersion(final ITimeSeriesDirectoryHashKey parent) {
         this.parent = parent;
@@ -49,15 +49,6 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
     @Override
     public File getDirectoryHashKeyVersionPerNode() {
         return getLease().getDirectoryHashKeyVersionPerNode();
-    }
-
-    @Override
-    public void delete() {
-        //System.out.println("TODO: rework this");
-        final TimeSeriesDirectoryHashKeyVersionLease leaseCopy = finalizer.lease;
-        if (leaseCopy != null) {
-            leaseCopy.delete();
-        }
     }
 
     @Override
@@ -95,6 +86,7 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
     /**
      * Atomically creates the next incremental version directory and updates this instance to point to it.
      */
+    @Override
     public void incrementVersion() {
         synchronized (this) {
             final TimeSeriesDirectoryHashKeyVersionLease prevLease = finalizer.lease;

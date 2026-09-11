@@ -108,7 +108,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
 
     private final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable;
     private final ITimeSeriesDirectoryHashKey directoryHashKey;
-    private final ITimeSeriesSegmentStatusTable segmentStatusTable;
+    private final RefreshingTimeSeriesSegmentStatusTable segmentStatusTable;
     private final TimeSeriesLookupMode lookupMode;
     private final SegmentedTimeSeriesStorage storage;
     private final K key;
@@ -901,7 +901,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
                         //end reached
                     }
                 }
-                segmentStatusTable.deleteRange();
+                directoryHashKey.getDirectoryHashKeyVersion().incrementVersion();
                 storage.deleteRange_latestValueLookupTable(hashKey);
                 storage.deleteRange_nextValueLookupTable(hashKey);
                 storage.deleteRange_previousValueLookupTable(hashKey);
@@ -926,6 +926,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         latestValueIndexLookupCache.clear();
         nextValueIndexLookupCache.clear();
         previousValueIndexLookupCache.clear();
+        segmentStatusTable.clear();
         lastResetIndex++;
     }
 
@@ -1673,7 +1674,6 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
             future.cancel(true);
         }
         clearCaches();
-        segmentStatusTable.close();
         closed = true;
     }
 

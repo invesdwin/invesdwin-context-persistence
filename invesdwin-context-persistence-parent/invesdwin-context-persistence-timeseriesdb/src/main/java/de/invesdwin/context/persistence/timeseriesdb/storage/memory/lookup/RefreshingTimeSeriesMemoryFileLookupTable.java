@@ -49,12 +49,6 @@ public class RefreshingTimeSeriesMemoryFileLookupTable<V> implements ITimeSeries
     }
 
     @Override
-    public void deleteRange() {
-        //System.out.println("TODO: rework this");
-        getDelegate().deleteRange();
-    }
-
-    @Override
     public ICloseableIterator<MemoryFileSummary> range() {
         return getDelegate().range();
     }

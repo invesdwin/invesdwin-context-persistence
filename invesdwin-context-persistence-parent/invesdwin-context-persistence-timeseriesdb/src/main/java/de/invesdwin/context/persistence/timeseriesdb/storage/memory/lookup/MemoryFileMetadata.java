@@ -13,7 +13,7 @@ import de.invesdwin.context.integration.filechannel.nio.atomic.properties.Transa
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.system.properties.ICloseableProperties;
 import de.invesdwin.context.system.properties.IProperties;
-import de.invesdwin.util.concurrent.lock.file.FileChannelLockHeartbeatRegistry;
+import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLockRegistry;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
@@ -63,7 +63,7 @@ public class MemoryFileMetadata {
         logEntry.append("\nREAL_TIME=");
         logEntry.append(FDate.now());
         logEntry.append("\nHEARTBEAT_OWNER=");
-        logEntry.append(FileChannelLockHeartbeatRegistry.HEARTBEAT_OWNER);
+        logEntry.append(HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER);
         logEntry.append("\nFIRST_VALUE_END_TIME=");
         logEntry.append(fistValueEndTime);
         logEntry.append("\nLAST_VALUE_END_TIME=");

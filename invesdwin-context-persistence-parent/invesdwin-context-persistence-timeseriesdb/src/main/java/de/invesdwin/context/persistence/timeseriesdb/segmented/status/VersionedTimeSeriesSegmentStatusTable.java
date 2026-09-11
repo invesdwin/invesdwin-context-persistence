@@ -186,28 +186,6 @@ public class VersionedTimeSeriesSegmentStatusTable implements ITimeSeriesSegment
     }
 
     @Override
-    public void deleteRange() {
-        try (ICloseableIterator<NioFileInfo> iterator = baseChannel.listIterator()) {
-            while (true) {
-                final NioFileInfo info = iterator.next();
-                final String fileName = info.getFileName();
-                if (fileName != null && fileName.endsWith(STATUS_EXTENSION)) {
-                    baseChannel.withFilename(fileName).delete();
-                }
-            }
-        } catch (final NoSuchElementException e) {
-            // End of iterator reached, nothing to do
-        }
-        if (!terminalStatusCache.isEmpty()) {
-            terminalStatusCache.clear();
-        }
-        if (!knownRanges.isEmpty()) {
-            knownRanges.clear();
-        }
-        lastDirectoryScan = null;
-    }
-
-    @Override
     public Entry<TimeRange, SegmentStatus> getLatest() {
         return getLatest(null);
     }
@@ -239,19 +217,4 @@ public class VersionedTimeSeriesSegmentStatusTable implements ITimeSeriesSegment
         return null;
     }
 
-    @Override
-    public void close() {
-        if (!terminalStatusCache.isEmpty()) {
-            terminalStatusCache.clear();
-        }
-        if (!knownRanges.isEmpty()) {
-            knownRanges.clear();
-        }
-        synchronized (this) {
-            if (!currentDiskRanges.isEmpty()) {
-                currentDiskRanges.clear();
-            }
-            lastDirectoryScan = null;
-        }
-    }
 }

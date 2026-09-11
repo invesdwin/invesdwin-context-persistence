@@ -15,7 +15,7 @@ public interface ITimeSeriesDirectoryHashKeyVersion {
 
     File getDirectoryHashKeyVersionPerNode();
 
-    void delete();
+    void incrementVersion();
 
     ICloseableProperties getProperties();
 

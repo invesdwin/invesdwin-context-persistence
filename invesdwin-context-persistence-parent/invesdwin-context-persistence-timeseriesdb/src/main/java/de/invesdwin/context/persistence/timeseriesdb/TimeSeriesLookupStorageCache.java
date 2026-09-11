@@ -692,12 +692,11 @@ public class TimeSeriesLookupStorageCache<K, V> {
     }
 
     public synchronized void deleteAll() {
-        memoryFileLookupTable.deleteRange();
+        directoryHashKey.getDirectoryHashKeyVersion().incrementVersion();
         storage.deleteRange_latestValueLookupTable(hashKey);
         storage.deleteRange_nextValueLookupTable(hashKey);
         storage.deleteRange_previousValueLookupTable(hashKey);
         clearCaches();
-        directoryHashKeyVersionMemory.delete();
     }
 
     public void clearCaches() {

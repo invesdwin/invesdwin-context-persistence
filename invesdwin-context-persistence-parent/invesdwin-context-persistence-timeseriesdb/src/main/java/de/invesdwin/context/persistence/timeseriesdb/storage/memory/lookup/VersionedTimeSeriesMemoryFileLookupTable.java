@@ -62,7 +62,7 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
                         if (num >= currentIndexNumber) {
                             if (latestIndexFile != null && TimeSeriesProperties.RETAIN_OBSOLETE_FILES_DURATION
                                     .isLessThanMillis(nowMillis - latestIndexFile.lastModified())) {
-                                // Delete the older index file
+                                // Delete the older index files
                                 latestIndexFile.delete();
                             }
                             currentIndexNumber = num;
@@ -171,27 +171,9 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
     }
 
     @Override
-    public synchronized void deleteRange() {
-        // Delete all index files
-        final File[] files = directory.listFiles(
-                (dir, name) -> name.endsWith("_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME));
-
-        if (files != null) {
-            for (final File f : files) {
-                f.delete();
-            }
-        }
-
-        latestIndexFile = null;
-        currentIndexNumber = 0;
-    }
-
-    @Override
     public synchronized ICloseableIterator<MemoryFileSummary> range() {
         // Read index via AMemoryFileSummarySerializingCollection
         if (latestIndexFile != null && latestIndexFile.exists()) {
-            final TextDescription name = new TextDescription("%s: put: %s",
-                    VersionedTimeSeriesMemoryFileLookupTable.class.getSimpleName());
             final IndexSerializingCollection collection = new IndexSerializingCollection(
                     new TextDescription("%s: range: read %s",
                             VersionedTimeSeriesMemoryFileLookupTable.class.getSimpleName(), latestIndexFile),

@@ -7,7 +7,6 @@ import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.ITimeSeriesDirectoryHashKeyVersion;
 import de.invesdwin.util.lang.Files;
-import de.invesdwin.util.lang.Objects;
 
 @Immutable
 public class TimeSeriesDirectoryHashKeyVersionData implements ITimeSeriesDirectoryHashKeyVersionData {
@@ -64,15 +63,6 @@ public class TimeSeriesDirectoryHashKeyVersionData implements ITimeSeriesDirecto
             }
         }
         return directoryHashKeyVersionDataPerNode;
-    }
-
-    @Override
-    public void delete() {
-        //System.out.println("TODO: rework this");
-        Files.deleteNative(directoryHashKeyVersionDataShared);
-        if (!Objects.equals(directoryHashKeyVersionDataShared, directoryHashKeyVersionDataPerNode)) {
-            Files.deleteNative(directoryHashKeyVersionDataPerNode);
-        }
     }
 
 }

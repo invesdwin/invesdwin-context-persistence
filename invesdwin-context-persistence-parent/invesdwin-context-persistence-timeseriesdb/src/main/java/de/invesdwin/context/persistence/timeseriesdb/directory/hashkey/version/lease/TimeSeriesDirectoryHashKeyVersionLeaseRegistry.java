@@ -17,7 +17,7 @@ import de.invesdwin.instrument.DynamicInstrumentationProperties;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.fast.IFastIterableMap;
 import de.invesdwin.util.concurrent.Executors;
-import de.invesdwin.util.concurrent.lock.file.FileChannelLockHeartbeatRegistry;
+import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLockRegistry;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.time.date.FDate;
@@ -31,7 +31,13 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             .newConcurrentMap();
     private static ScheduledExecutorService heartbeatExecutor;
 
-    private TimeSeriesDirectoryHashKeyVersionLeaseRegistry() {}
+    private TimeSeriesDirectoryHashKeyVersionLeaseRegistry() {
+        //        System.out.println(
+        //                "TODO: implement an executor that regularly cleans up old versions and files in this directory?
+        //though only ones that are currently not leased. do this with a file channel heartbeat lock
+        //this should use a separate executor from heartbeats since it could take a while to delete everything");
+        //though also delete old versions in folders that have no active leases?
+    }
 
     public static TimeSeriesDirectoryHashKeyVersionLease getOrCreate(final ITimeSeriesDirectoryHashKey parent,
             final int version) {
@@ -105,8 +111,9 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
 
         private SharedDirectoryLeaseContext(final File heartbeatDirectory) {
             this.heartbeatDirectory = heartbeatDirectory;
-            this.heartbeatFile = new File(heartbeatDirectory, FileChannelLockHeartbeatRegistry.HEARTBEAT_OWNER
-                    + FileChannelLockHeartbeatRegistry.HEARTBEAT_EXTENSION);
+            this.heartbeatFile = new File(heartbeatDirectory,
+                    Files.normalizeFilename(HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER
+                            + HeartbeatFileChannelLockRegistry.HEARTBEAT_EXTENSION));
             try {
                 Files.forceMkdirParent(heartbeatFile);
             } catch (final IOException e) {
