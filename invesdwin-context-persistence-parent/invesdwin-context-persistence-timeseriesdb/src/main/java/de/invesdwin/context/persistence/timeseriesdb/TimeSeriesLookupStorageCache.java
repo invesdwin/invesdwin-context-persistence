@@ -381,7 +381,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
 
     private MemoryFileSummary getLatestRangeKey(final FDate key) {
         final ArrayFileBufferCacheResult<MemoryFileSummary> allRangeKeys = getAllRangeKeys(DisabledLock.INSTANCE);
-        return allRangeKeys.getLatestValue(MemoryFileSummary::getFirstValueEndTime, key);
+        return allRangeKeys.getLatestValueOrFallback(MemoryFileSummary::getFirstValueEndTime, key);
     }
 
     private MemoryFileSummary getLatestRangeKeyIndex(final long key) {
