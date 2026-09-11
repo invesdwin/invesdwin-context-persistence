@@ -18,4 +18,10 @@ public interface ITimeSeriesDirectory {
 
     void deleteCorruptedStorage();
 
+    /**
+     * Scans heartbeat files and deletes all version directories that are currently not held by any active lease, while
+     * guaranteeing the highest established version for each hashKey is preserved.
+     */
+    void cleanupObsoleteVersions();
+
 }

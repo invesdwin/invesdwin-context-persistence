@@ -60,7 +60,7 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
                     try {
                         final int num = Integer.parseInt(name.substring(0, underscoreIdx));
                         if (num >= currentIndexNumber) {
-                            if (latestIndexFile != null && TimeSeriesProperties.RETAIN_OBSOLETE_FILES_DURATION
+                            if (latestIndexFile != null && TimeSeriesProperties.RETAIN_OBSOLETE_FILES_THRESHOLD
                                     .isLessThanMillis(nowMillis - latestIndexFile.lastModified())) {
                                 // Delete the older index files
                                 latestIndexFile.delete();

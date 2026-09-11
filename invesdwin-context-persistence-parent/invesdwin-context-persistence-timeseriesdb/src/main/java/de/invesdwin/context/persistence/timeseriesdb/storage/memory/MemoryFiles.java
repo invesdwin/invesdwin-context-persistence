@@ -76,7 +76,7 @@ public final class MemoryFiles {
                 if (date == null) {
                     continue;
                 }
-                if (TimeSeriesProperties.RETAIN_OBSOLETE_FILES_DURATION.isGreaterThan(date, latestDate)) {
+                if (TimeSeriesProperties.RETAIN_OBSOLETE_FILES_THRESHOLD.isGreaterThan(date, latestDate)) {
                     continue;
                 }
             }

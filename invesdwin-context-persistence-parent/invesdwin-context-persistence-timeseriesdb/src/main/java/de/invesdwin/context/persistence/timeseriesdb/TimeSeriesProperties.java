@@ -31,7 +31,8 @@ public final class TimeSeriesProperties {
     public static final Duration STORAGE_CACHE_EVICTION_TIMEOUT;
     public static final int STORAGE_CACHE_MAXIMUM_SIZE;
     public static final boolean PERSISTENT_CHRONICLE_MAP_ENABLED;
-    public static final Duration RETAIN_OBSOLETE_FILES_DURATION;
+    public static final Duration RETAIN_OBSOLETE_FILES_THRESHOLD;
+    public static final Duration RETAIN_OBSOLETE_VERSIONS_THRESHOLD;
     private static final SystemProperties SYSTEM_PROPERTIES;
 
     static {
@@ -51,7 +52,8 @@ public final class TimeSeriesProperties {
         STORAGE_CACHE_EVICTION_TIMEOUT = SYSTEM_PROPERTIES.getDuration("STORAGE_CACHE_EVICTION_TIMEOUT");
         STORAGE_CACHE_MAXIMUM_SIZE = SYSTEM_PROPERTIES.getInteger("STORAGE_CACHE_MAXIMUM_SIZE");
         PERSISTENT_CHRONICLE_MAP_ENABLED = determinePersistentChronicleMapEnabled();
-        RETAIN_OBSOLETE_FILES_DURATION = SYSTEM_PROPERTIES.getDuration("RETAIN_OBSOLETE_FILES_DURATION");
+        RETAIN_OBSOLETE_FILES_THRESHOLD = SYSTEM_PROPERTIES.getDuration("RETAIN_OBSOLETE_FILES_THRESHOLD");
+        RETAIN_OBSOLETE_VERSIONS_THRESHOLD = SYSTEM_PROPERTIES.getDuration("RETAIN_OBSOLETE_VERSIONS_THRESHOLD");
         FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR = null;
     }
 

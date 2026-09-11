@@ -32,11 +32,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
     private static ScheduledExecutorService heartbeatExecutor;
 
     private TimeSeriesDirectoryHashKeyVersionLeaseRegistry() {
-        //        System.out.println(
-        //                "TODO: implement an executor that regularly cleans up old versions and files in this directory?
-        //though only ones that are currently not leased. do this with a file channel heartbeat lock
-        //this should use a separate executor from heartbeats since it could take a while to delete everything");
-        //though also delete old versions in folders that have no active leases?
+        //System.out.println("schedule old version cleanup with a heartbeat file channel try lock once a day in a separate executor");
     }
 
     public static TimeSeriesDirectoryHashKeyVersionLease getOrCreate(final ITimeSeriesDirectoryHashKey parent,

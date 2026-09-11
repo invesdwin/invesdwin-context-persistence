@@ -11,17 +11,20 @@ import java.util.stream.Stream;
 
 import javax.annotation.concurrent.Immutable;
 
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.util.collections.factory.pool.set.ICloseableSet;
 import de.invesdwin.util.collections.factory.pool.set.PooledSet;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.string.Strings;
+import de.invesdwin.util.time.date.millis.FDateMillis;
 
 @Immutable
 public class TimeSeriesDirectory implements ITimeSeriesDirectory {
 
     private static final String HEARTBEAT_FOLDER_NAME = "heartbeat";
+
     private final ITimeSeriesBaseDirectory parent;
     private final String storageName;
     private final File directoryShared;
@@ -62,9 +65,12 @@ public class TimeSeriesDirectory implements ITimeSeriesDirectory {
     }
 
     /**
-     * Scans heartbeat files and deletes all version directories that are currently not held by any active lease, while
-     * guaranteeing the highest established version for each hashKey is preserved.
+     * Scans heartbeat files and deletes all version directories that are currently not held by any active lease. To
+     * prevent race conditions during version migration, it opportunistically preserves the highest stable version
+     * (older than 1 hour), any intermediate newer versions, and the absolute maximum version. Unleased directories are
+     * only deleted if they are older than 1 hour.
      */
+    @Override
     public void cleanupObsoleteVersions() {
         final Path sharedPath = directoryShared.toPath();
         if (!Files.exists(sharedPath)) {
@@ -87,12 +93,20 @@ public class TimeSeriesDirectory implements ITimeSeriesDirectory {
                             final String hashKey = sharedPath.relativize(parentDir).toString().replace('\\', '/');
 
                             int maxVersion = -1;
+                            int stableMaxVersion = -1;
+
                             for (int i = 0; i < versionDirs.size(); i++) {
                                 final Path vDir = versionDirs.get(i);
                                 try {
                                     final int v = Integer.parseInt(vDir.getFileName().toString());
                                     if (v > maxVersion) {
                                         maxVersion = v;
+                                    }
+
+                                    final long ageInMillis = FDateMillis.nowMillis() - vDir.toFile().lastModified();
+                                    if (TimeSeriesProperties.RETAIN_OBSOLETE_VERSIONS_THRESHOLD
+                                            .isLessThanMillis(ageInMillis) && v > stableMaxVersion) {
+                                        stableMaxVersion = v;
                                     }
                                 } catch (final NumberFormatException e) {
                                     // Ignore non-numeric structures
@@ -104,8 +118,13 @@ public class TimeSeriesDirectory implements ITimeSeriesDirectory {
                                 final String versionStr = versionDir.getFileName().toString();
 
                                 try {
-                                    if (Integer.parseInt(versionStr) == maxVersion) {
-                                        continue; // Always preserve the latest version
+                                    final int v = Integer.parseInt(versionStr);
+
+                                    if (v == maxVersion) {
+                                        continue; // Always preserve absolute latest version
+                                    }
+                                    if (stableMaxVersion != -1 && v >= stableMaxVersion) {
+                                        continue; // Preserve the stable max version and any intermediate newer versions
                                     }
                                 } catch (final NumberFormatException e) {
                                     // Fall through to lease check if parsing fails
@@ -114,13 +133,20 @@ public class TimeSeriesDirectory implements ITimeSeriesDirectory {
                                 final String registryKey = hashKey + "/" + versionStr;
 
                                 if (!activeLeases.contains(registryKey)) {
-                                    Files.deleteNative(versionDir.toFile());
+                                    final long ageInMillis = FDateMillis.nowMillis()
+                                            - versionDir.toFile().lastModified();
 
-                                    final File perNodeVersionDir = new File(new File(directoryPerNode, hashKey),
-                                            versionStr);
-                                    if (perNodeVersionDir.exists()
-                                            && !Objects.equals(versionDir.toFile(), perNodeVersionDir)) {
-                                        Files.deleteNative(perNodeVersionDir);
+                                    // Only delete if the directory is older than 1 hour
+                                    if (TimeSeriesProperties.RETAIN_OBSOLETE_VERSIONS_THRESHOLD
+                                            .isLessThanMillis(ageInMillis)) {
+                                        Files.deleteNative(versionDir.toFile());
+
+                                        final File perNodeVersionDir = new File(new File(directoryPerNode, hashKey),
+                                                versionStr);
+                                        if (perNodeVersionDir.exists()
+                                                && !Objects.equals(versionDir.toFile(), perNodeVersionDir)) {
+                                            Files.deleteNative(perNodeVersionDir);
+                                        }
                                     }
                                 }
                             }
