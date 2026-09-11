@@ -137,6 +137,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
 
     private static final class SharedDirectoryLeaseContext {
         private final File heartbeatDirectory;
+        private final Path heartbeatDirectoryPath;
         private final File heartbeatFile;
         private final Path cleanupMarkerPath;
         private final Path tempCleanupMarkerPath;
@@ -155,6 +156,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
 
         private SharedDirectoryLeaseContext(final File heartbeatDirectory) {
             this.heartbeatDirectory = heartbeatDirectory;
+            this.heartbeatDirectoryPath = heartbeatDirectory.toPath();
             this.heartbeatFile = new File(heartbeatDirectory,
                     Files.normalizeFilename(HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER
                             + HeartbeatFileChannelLockRegistry.HEARTBEAT_EXTENSION));
@@ -235,7 +237,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             }
 
             if (Files.exists(cleanupMarkerPath)) {
-                final long fileModified = Files.lastModified(cleanupMarkerPath);
+                final long fileModified = Files.lastModifiedNoThrow(cleanupMarkerPath);
                 if (fileModified > last) {
                     lastCleanupTime.set(fileModified);
                     last = fileModified;
@@ -255,7 +257,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
 
                             // Re-verify file timestamp after lock acquisition for multi-process safety
                             final long currentFileModified = Files.exists(cleanupMarkerPath)
-                                    ? Files.lastModified(cleanupMarkerPath)
+                                    ? Files.lastModifiedNoThrow(cleanupMarkerPath)
                                     : 0L;
                             if (currentFileModified > last) {
                                 lastCleanupTime.set(currentFileModified);
@@ -269,7 +271,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                                         lockNow.toString().getBytes(Charsets.defaultCharset()));
                                 Files.move(tempCleanupMarkerPath, cleanupMarkerPath,
                                         StandardCopyOption.REPLACE_EXISTING);
-
+                                AtomicNioFileChannelContext.cleanupStaleTempFiles(heartbeatDirectoryPath);
                                 lastCleanupTime.set(lockNow.millisValue());
                             }
                         }
@@ -293,7 +295,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
 
         private long loadInitialCleanupTime() {
             if (Files.exists(cleanupMarkerPath)) {
-                return Files.lastModified(cleanupMarkerPath);
+                return Files.lastModifiedNoThrow(cleanupMarkerPath);
             }
             return 0L;
         }
@@ -320,7 +322,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             }
 
             if (Files.exists(cleanupMarkerPath)) {
-                final long fileModified = Files.lastModified(cleanupMarkerPath);
+                final long fileModified = Files.lastModifiedNoThrow(cleanupMarkerPath);
                 if (fileModified > last) {
                     lastCleanupTime.set(fileModified);
                     last = fileModified;
