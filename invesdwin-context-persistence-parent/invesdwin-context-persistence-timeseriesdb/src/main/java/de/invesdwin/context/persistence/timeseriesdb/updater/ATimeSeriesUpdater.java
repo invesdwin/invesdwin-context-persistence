@@ -13,7 +13,6 @@ import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateAbortedExce
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
-import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesUpdateTransaction;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdaterInternalMethods;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ParallelUpdateProgress;

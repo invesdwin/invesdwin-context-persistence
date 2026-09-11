@@ -62,9 +62,7 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
 
     @Override
     public ICloseableProperties getProperties() {
-        //System.out.println(
-        //        "TODO: create a wrapper that moved to the new directory on close if delete happened inbetween? also maybe add a flush operation before switching to a new directory?");
-        return new TransactionalFileProperties(getPropertiesPath());
+        return new TransactionalFileProperties(this::getPropertiesPath);
     }
 
     private AtomicNioFileChannel getPropertiesPath() {
@@ -102,6 +100,7 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
             final TimeSeriesDirectoryHashKeyVersionLease prevLease = finalizer.lease;
             final int nextVersion = electNextVersion(parent.getDirectoryHashKeyShared());
             finalizer.lease = TimeSeriesDirectoryHashKeyVersionLeaseRegistry.getOrCreate(parent, nextVersion);
+            propertiesPath = null;
             if (prevLease != null) {
                 prevLease.close();
             }

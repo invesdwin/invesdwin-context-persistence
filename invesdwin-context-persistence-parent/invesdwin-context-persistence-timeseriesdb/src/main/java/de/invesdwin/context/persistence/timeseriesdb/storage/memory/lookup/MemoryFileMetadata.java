@@ -31,7 +31,7 @@ public class MemoryFileMetadata {
     }
 
     public ICloseableProperties getProperties() {
-        return new TransactionalFileProperties(getPropertiesPath());
+        return new TransactionalFileProperties(this::getPropertiesPath);
     }
 
     private AtomicNioFileChannel getPropertiesPath() {
