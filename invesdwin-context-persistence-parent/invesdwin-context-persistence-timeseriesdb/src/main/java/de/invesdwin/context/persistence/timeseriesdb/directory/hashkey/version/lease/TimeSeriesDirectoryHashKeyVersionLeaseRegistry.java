@@ -7,11 +7,13 @@ import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.IntegrationProperties;
+import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannelContext;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.ITimeSeriesDirectoryHashKey;
 import de.invesdwin.instrument.DynamicInstrumentationProperties;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
@@ -33,9 +35,9 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             .newConcurrentMap();
     private static final Duration HEARTBEAT_INTERVAL = Duration.ONE_MINUTE;
     private static final Duration CLEANUP_CHECK_INTERVAL = Duration.ONE_HOUR;
-    private static final Duration CLEANUP_INTERVAL = Duration.ONE_DAY;
-
-    private static final String CLEANUP_MARKER_FILENAME = ".cleanup";
+    private static final Duration CLEANUP_INTERVAL = AtomicNioFileChannelContext.CLEANUP_INTERVAL;
+    private static final String CLEANUP_MARKER_FILENAME = AtomicNioFileChannelContext.CLEANUP_MARKER_FILENAME;
+    private static final long UNINITIALIZED_DIRECTORY_CLEANUP_TIME = AtomicNioFileChannelContext.UNINITIALIZED_DIRECTORY_CLEANUP_TIME;
 
     private static ScheduledExecutorService heartbeatExecutor;
     private static ScheduledExecutorService cleanupExecutor;
@@ -105,7 +107,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                     for (final SharedDirectoryLeaseContext context : contexts) {
                         context.cleanupObsoleteVersions();
                     }
-                }, 0, CLEANUP_CHECK_INTERVAL.millisValue(), TimeUnit.MILLISECONDS);
+                }, CLEANUP_CHECK_INTERVAL.millisValue(), CLEANUP_CHECK_INTERVAL.millisValue(), TimeUnit.MILLISECONDS);
             }
         }
     }
@@ -133,8 +135,13 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
     private static final class SharedDirectoryLeaseContext {
         private final File heartbeatDirectory;
         private final File heartbeatFile;
+        private final File cleanupMarkerFile;
+        private final File cleanupLockFile;
         private final FDate createdTimestamp = FDate.now();
+
         private final AtomicBoolean writeScheduled = new AtomicBoolean(false);
+        private final AtomicBoolean cleanupScheduled = new AtomicBoolean(false);
+        private final AtomicLong lastCleanupTime = new AtomicLong(UNINITIALIZED_DIRECTORY_CLEANUP_TIME);
 
         @GuardedBy("activeLeases")
         private final IFastIterableMap<String, WeakTimeSeriesDirectoryHashKeyVersionLease> activeLeases = ILockCollectionFactory
@@ -147,6 +154,8 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             this.heartbeatFile = new File(heartbeatDirectory,
                     Files.normalizeFilename(HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER
                             + HeartbeatFileChannelLockRegistry.HEARTBEAT_EXTENSION));
+            this.cleanupMarkerFile = new File(heartbeatDirectory, CLEANUP_MARKER_FILENAME);
+            this.cleanupLockFile = new File(heartbeatDirectory, "cleanup.lock");
             try {
                 Files.forceMkdirParent(heartbeatFile);
             } catch (final IOException e) {
@@ -178,6 +187,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             }
 
             requestWrite();
+            requestCleanupCheck();
             return newLease;
         }
 
@@ -210,28 +220,46 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
         }
 
         public void cleanupObsoleteVersions() {
-            final File cleanupMarkerFile = new File(heartbeatDirectory, CLEANUP_MARKER_FILENAME);
             final long now = FDateMillis.nowMillis();
+            long last = resolveLastCleanupTime();
 
-            // Fast exit: Skip lock acquisition if the cleanup was executed within the last 24 hours
-            if (cleanupMarkerFile.exists()
-                    && CLEANUP_INTERVAL.isLessThanMillis(now - cleanupMarkerFile.lastModified())) {
+            // In-memory fast exit: skip disk check entirely if memory shows a recent cleanup
+            if (CLEANUP_INTERVAL.isGreaterThanMillis(now - last)) {
                 return;
+            }
+
+            if (cleanupMarkerFile.exists()) {
+                final long fileModified = cleanupMarkerFile.lastModified();
+                if (fileModified > last) {
+                    lastCleanupTime.set(fileModified);
+                    last = fileModified;
+                }
+                if (CLEANUP_INTERVAL.isGreaterThanMillis(now - last)) {
+                    return;
+                }
             }
 
             final WeakTimeSeriesDirectoryHashKeyVersionLease[] activeLeasesSnapshot = newActiveLeasesSnapshotPurged();
             for (int i = 0; i < activeLeasesSnapshot.length; i++) {
                 final TimeSeriesDirectoryHashKeyVersionLease lease = activeLeasesSnapshot[i].get();
                 if (lease != null) {
-                    final File cleanupLockFile = new File(heartbeatDirectory, "cleanup.lock");
                     try (HeartbeatFileChannelLock lock = new HeartbeatFileChannelLock(cleanupLockFile)) {
                         if (lock.tryLock()) {
                             final long lockNow = FDateMillis.nowMillis();
-                            // Double check marker file after locking in case another process ran cleanup concurrently
-                            if (!cleanupMarkerFile.exists()
-                                    || CLEANUP_INTERVAL.isLessThanMillis(lockNow - cleanupMarkerFile.lastModified())) {
+
+                            // Re-verify file timestamp after lock acquisition for multi-process safety
+                            final long currentFileModified = cleanupMarkerFile.exists()
+                                    ? cleanupMarkerFile.lastModified()
+                                    : 0L;
+                            if (currentFileModified > last) {
+                                lastCleanupTime.set(currentFileModified);
+                                last = currentFileModified;
+                            }
+
+                            if (!cleanupMarkerFile.exists() || CLEANUP_INTERVAL.isGreaterThanMillis(lockNow - last)) {
                                 lease.getParent().getParent().cleanupObsoleteVersions();
                                 Files.writeStringToFileIfDifferent(cleanupMarkerFile, String.valueOf(lockNow));
+                                lastCleanupTime.set(lockNow);
                             }
                         }
                     } catch (final Exception e) {
@@ -242,15 +270,64 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             }
         }
 
+        private long resolveLastCleanupTime() {
+            long last = lastCleanupTime.get();
+            if (last == UNINITIALIZED_DIRECTORY_CLEANUP_TIME) {
+                last = loadInitialCleanupTime();
+                lastCleanupTime.compareAndSet(UNINITIALIZED_DIRECTORY_CLEANUP_TIME, last);
+                last = lastCleanupTime.get();
+            }
+            return last;
+        }
+
+        private long loadInitialCleanupTime() {
+            try {
+                if (cleanupMarkerFile.exists()) {
+                    return cleanupMarkerFile.lastModified();
+                }
+            } catch (final Exception e) {
+                // Ignore and fall back to 0L
+            }
+            return 0L;
+        }
+
         private void requestWrite() {
             if (writeScheduled.compareAndSet(false, true)) {
                 startHeartbeatExecutorIfNeeded();
-                startCleanupExecutorIfNeeded();
                 heartbeatExecutor.execute(() -> {
                     writeScheduled.set(false);
                     synchronized (DIRECTORY_CONTEXTS) {
                         touchOrRewriteHeartbeat();
                     }
+                });
+            }
+        }
+
+        private void requestCleanupCheck() {
+            final long now = FDateMillis.nowMillis();
+            long last = resolveLastCleanupTime();
+
+            // Skip scheduling if memory indicates cleanup occurred within the last 24 hours
+            if (!CLEANUP_INTERVAL.isLessThanMillis(now - last)) {
+                return;
+            }
+
+            if (cleanupMarkerFile.exists()) {
+                final long fileModified = cleanupMarkerFile.lastModified();
+                if (fileModified > last) {
+                    lastCleanupTime.set(fileModified);
+                    last = fileModified;
+                }
+                if (!CLEANUP_INTERVAL.isLessThanMillis(now - last)) {
+                    return;
+                }
+            }
+
+            if (cleanupScheduled.compareAndSet(false, true)) {
+                startCleanupExecutorIfNeeded();
+                cleanupExecutor.execute(() -> {
+                    cleanupScheduled.set(false);
+                    cleanupObsoleteVersions();
                 });
             }
         }
