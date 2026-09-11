@@ -245,7 +245,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                 if (lease != null) {
                     try (HeartbeatFileChannelLock lock = new HeartbeatFileChannelLock(cleanupLockFile)) {
                         if (lock.tryLock()) {
-                            final long lockNow = FDateMillis.nowMillis();
+                            final FDate lockNow = FDate.now();
 
                             // Re-verify file timestamp after lock acquisition for multi-process safety
                             final long currentFileModified = cleanupMarkerFile.exists()
@@ -256,10 +256,11 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                                 last = currentFileModified;
                             }
 
-                            if (!cleanupMarkerFile.exists() || CLEANUP_INTERVAL.isLessThanMillis(lockNow - last)) {
+                            if (!cleanupMarkerFile.exists()
+                                    || CLEANUP_INTERVAL.isLessThanMillis(lockNow.millisValue() - last)) {
                                 lease.getParent().getParent().cleanupObsoleteVersions();
-                                Files.writeStringToFileIfDifferent(cleanupMarkerFile, String.valueOf(lockNow));
-                                lastCleanupTime.set(lockNow);
+                                Files.writeStringToFileIfDifferent(cleanupMarkerFile, lockNow.toString());
+                                lastCleanupTime.set(lockNow.millisValue());
                             }
                         }
                     } catch (final Exception e) {
