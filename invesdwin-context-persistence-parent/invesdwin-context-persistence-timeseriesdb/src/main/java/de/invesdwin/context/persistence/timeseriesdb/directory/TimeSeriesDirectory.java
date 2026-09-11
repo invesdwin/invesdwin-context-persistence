@@ -23,20 +23,20 @@ import de.invesdwin.util.time.date.millis.FDateMillis;
 @Immutable
 public class TimeSeriesDirectory implements ITimeSeriesDirectory {
 
-    private static final String HEARTBEAT_FOLDER_NAME = "heartbeat";
+    private static final String HEARTBEATS_FOLDER_NAME = "heartbeats";
 
     private final ITimeSeriesBaseDirectory parent;
     private final String storageName;
     private final File directoryShared;
     private final File directoryPerNode;
-    private final File heartbeatDirectory;
+    private final File heartbeatsDirectory;
 
     public TimeSeriesDirectory(final ITimeSeriesBaseDirectory parent, final String storageName) {
         this.parent = parent;
         this.storageName = storageName;
         this.directoryShared = new File(parent.getBaseDirectoryShared(), storageName);
         this.directoryPerNode = new File(parent.getBaseDirectoryPerNode(), storageName);
-        this.heartbeatDirectory = new File(directoryShared, HEARTBEAT_FOLDER_NAME);
+        this.heartbeatsDirectory = new File(directoryShared, HEARTBEATS_FOLDER_NAME);
     }
 
     @Override
@@ -60,8 +60,8 @@ public class TimeSeriesDirectory implements ITimeSeriesDirectory {
     }
 
     @Override
-    public File getHeartbeatDirectory() {
-        return heartbeatDirectory;
+    public File getHeartbeatsDirectory() {
+        return heartbeatsDirectory;
     }
 
     /**
@@ -84,7 +84,7 @@ public class TimeSeriesDirectory implements ITimeSeriesDirectory {
             try (Stream<Path> pathStream = Files.walk(sharedPath)) {
                 pathStream.filter(Files::isDirectory)
                         .filter(p -> !p.equals(sharedPath))
-                        .filter(p -> !sharedPath.relativize(p).startsWith(HEARTBEAT_FOLDER_NAME))
+                        .filter(p -> !sharedPath.relativize(p).startsWith(HEARTBEATS_FOLDER_NAME))
                         .filter(p -> Strings.isInteger(p.getFileName().toString()))
                         .collect(Collectors.groupingBy(Path::getParent))
                         .forEach((parentDir, versionDirs) -> {
@@ -158,7 +158,7 @@ public class TimeSeriesDirectory implements ITimeSeriesDirectory {
     }
 
     private void populateActiveHeartbeatLeases(final Set<String> activeLeases) {
-        final Path heartbeatPath = heartbeatDirectory.toPath();
+        final Path heartbeatPath = heartbeatsDirectory.toPath();
         if (!Files.isDirectory(heartbeatPath)) {
             return;
         }

@@ -50,16 +50,16 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
     public static TimeSeriesDirectoryHashKeyVersionLease getOrCreate(final ITimeSeriesDirectoryHashKey parent,
             final int version) {
 
-        final File heartbeatDirectory = parent.getParent().getHeartbeatDirectory();
-        final SharedDirectoryLeaseContext context = DIRECTORY_CONTEXTS.computeIfAbsent(heartbeatDirectory,
+        final File heartbeatsDirectory = parent.getParent().getHeartbeatsDirectory();
+        final SharedDirectoryLeaseContext context = DIRECTORY_CONTEXTS.computeIfAbsent(heartbeatsDirectory,
                 SharedDirectoryLeaseContext::new);
 
         return context.getOrCreateLease(parent, version);
     }
 
     static void remove(final TimeSeriesDirectoryHashKeyVersionLease lease) {
-        final File heartbeatDirectory = lease.getParent().getParent().getHeartbeatDirectory();
-        DIRECTORY_CONTEXTS.computeIfPresent(heartbeatDirectory, (dir, context) -> {
+        final File heartbeatsDirectory = lease.getParent().getParent().getHeartbeatsDirectory();
+        DIRECTORY_CONTEXTS.computeIfPresent(heartbeatsDirectory, (dir, context) -> {
             if (context.removeLeaseAndCheckEmpty(lease)) {
                 return null;
             }
@@ -127,7 +127,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
     private static void updateHeartbeats() {
         for (final SharedDirectoryLeaseContext context : DIRECTORY_CONTEXTS.values()) {
             if (!context.touchOrRewriteHeartbeat()) {
-                DIRECTORY_CONTEXTS.computeIfPresent(context.getHeartbeatDirectory(),
+                DIRECTORY_CONTEXTS.computeIfPresent(context.getHeartbeatsDirectory(),
                         (dir, ctx) -> ctx.isEmpty() ? null : ctx);
             }
         }
@@ -136,8 +136,8 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
     }
 
     private static final class SharedDirectoryLeaseContext {
-        private final File heartbeatDirectory;
-        private final Path heartbeatDirectoryPath;
+        private final File heartbeatsDirectory;
+        private final Path heartbeatsDirectoryPath;
         private final File heartbeatFile;
         private final Path cleanupMarkerPath;
         private final Path tempCleanupMarkerPath;
@@ -154,16 +154,16 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                 .newFastIterableMap();
         private WeakTimeSeriesDirectoryHashKeyVersionLease[] lastActiveLeasesSnapshot = WeakTimeSeriesDirectoryHashKeyVersionLease.EMPTY_ARRAY;
 
-        private SharedDirectoryLeaseContext(final File heartbeatDirectory) {
-            this.heartbeatDirectory = heartbeatDirectory;
-            this.heartbeatDirectoryPath = heartbeatDirectory.toPath();
-            this.heartbeatFile = new File(heartbeatDirectory,
+        private SharedDirectoryLeaseContext(final File heartbeatsDirectory) {
+            this.heartbeatsDirectory = heartbeatsDirectory;
+            this.heartbeatsDirectoryPath = heartbeatsDirectory.toPath();
+            this.heartbeatFile = new File(heartbeatsDirectory,
                     Files.normalizeFilename(HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER
                             + HeartbeatFileChannelLockRegistry.HEARTBEAT_EXTENSION));
-            this.cleanupMarkerPath = new File(heartbeatDirectory, CLEANUP_MARKER_FILENAME).toPath();
+            this.cleanupMarkerPath = new File(heartbeatsDirectory, CLEANUP_MARKER_FILENAME).toPath();
             this.tempCleanupMarkerPath = cleanupMarkerPath.resolveSibling(Files.normalizeFilename(
                     cleanupMarkerPath.getFileName().toString() + AtomicNioFileChannelContext.TMP_SUFFIX));
-            this.cleanupLockFile = new File(heartbeatDirectory, CLEANUP_MARKER_FILENAME + ".lock");
+            this.cleanupLockFile = new File(heartbeatsDirectory, CLEANUP_MARKER_FILENAME + ".lock");
             try {
                 Files.forceMkdirParent(heartbeatFile);
             } catch (final IOException e) {
@@ -171,8 +171,8 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             }
         }
 
-        public File getHeartbeatDirectory() {
-            return heartbeatDirectory;
+        public File getHeartbeatsDirectory() {
+            return heartbeatsDirectory;
         }
 
         public TimeSeriesDirectoryHashKeyVersionLease getOrCreateLease(final ITimeSeriesDirectoryHashKey parent,

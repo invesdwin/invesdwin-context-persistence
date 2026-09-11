@@ -14,7 +14,7 @@ public interface ITimeSeriesDirectory {
 
     File getDirectoryPerNode();
 
-    File getHeartbeatDirectory();
+    File getHeartbeatsDirectory();
 
     void deleteCorruptedStorage();
 
