@@ -3,6 +3,8 @@ package de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.
 import java.io.File;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -23,6 +25,7 @@ import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLockRegistry;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
+import de.invesdwin.util.lang.string.Charsets;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.millis.FDateMillis;
 import de.invesdwin.util.time.duration.Duration;
@@ -135,7 +138,8 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
     private static final class SharedDirectoryLeaseContext {
         private final File heartbeatDirectory;
         private final File heartbeatFile;
-        private final File cleanupMarkerFile;
+        private final Path cleanupMarkerPath;
+        private final Path tempCleanupMarkerPath;
         private final File cleanupLockFile;
         private final FDate createdTimestamp = FDate.now();
 
@@ -154,7 +158,9 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             this.heartbeatFile = new File(heartbeatDirectory,
                     Files.normalizeFilename(HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER
                             + HeartbeatFileChannelLockRegistry.HEARTBEAT_EXTENSION));
-            this.cleanupMarkerFile = new File(heartbeatDirectory, CLEANUP_MARKER_FILENAME);
+            this.cleanupMarkerPath = new File(heartbeatDirectory, CLEANUP_MARKER_FILENAME).toPath();
+            this.tempCleanupMarkerPath = cleanupMarkerPath.resolveSibling(Files.normalizeFilename(
+                    cleanupMarkerPath.getFileName().toString() + AtomicNioFileChannelContext.TMP_SUFFIX));
             this.cleanupLockFile = new File(heartbeatDirectory, "cleanup.lock");
             try {
                 Files.forceMkdirParent(heartbeatFile);
@@ -228,8 +234,8 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                 return;
             }
 
-            if (cleanupMarkerFile.exists()) {
-                final long fileModified = cleanupMarkerFile.lastModified();
+            if (Files.exists(cleanupMarkerPath)) {
+                final long fileModified = Files.lastModified(cleanupMarkerPath);
                 if (fileModified > last) {
                     lastCleanupTime.set(fileModified);
                     last = fileModified;
@@ -248,18 +254,22 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                             final FDate lockNow = FDate.now();
 
                             // Re-verify file timestamp after lock acquisition for multi-process safety
-                            final long currentFileModified = cleanupMarkerFile.exists()
-                                    ? cleanupMarkerFile.lastModified()
+                            final long currentFileModified = Files.exists(cleanupMarkerPath)
+                                    ? Files.lastModified(cleanupMarkerPath)
                                     : 0L;
                             if (currentFileModified > last) {
                                 lastCleanupTime.set(currentFileModified);
                                 last = currentFileModified;
                             }
 
-                            if (!cleanupMarkerFile.exists()
+                            if (!Files.exists(cleanupMarkerPath)
                                     || CLEANUP_INTERVAL.isLessThanMillis(lockNow.millisValue() - last)) {
                                 lease.getParent().getParent().cleanupObsoleteVersions();
-                                Files.writeStringToFileIfDifferent(cleanupMarkerFile, lockNow.toString());
+                                Files.write(tempCleanupMarkerPath,
+                                        lockNow.toString().getBytes(Charsets.defaultCharset()));
+                                Files.move(tempCleanupMarkerPath, cleanupMarkerPath,
+                                        StandardCopyOption.REPLACE_EXISTING);
+
                                 lastCleanupTime.set(lockNow.millisValue());
                             }
                         }
@@ -282,12 +292,8 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
         }
 
         private long loadInitialCleanupTime() {
-            try {
-                if (cleanupMarkerFile.exists()) {
-                    return cleanupMarkerFile.lastModified();
-                }
-            } catch (final Exception e) {
-                // Ignore and fall back to 0L
+            if (Files.exists(cleanupMarkerPath)) {
+                return Files.lastModified(cleanupMarkerPath);
             }
             return 0L;
         }
@@ -313,8 +319,8 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                 return;
             }
 
-            if (cleanupMarkerFile.exists()) {
-                final long fileModified = cleanupMarkerFile.lastModified();
+            if (Files.exists(cleanupMarkerPath)) {
+                final long fileModified = Files.lastModified(cleanupMarkerPath);
                 if (fileModified > last) {
                     lastCleanupTime.set(fileModified);
                     last = fileModified;
