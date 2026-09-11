@@ -11,6 +11,7 @@ import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.ITimeSeri
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.lease.TimeSeriesDirectoryHashKeyVersionLease;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.lease.TimeSeriesDirectoryHashKeyVersionLeaseRegistry;
 import de.invesdwin.context.system.properties.ICloseableProperties;
+import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 
@@ -129,6 +130,10 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
         }
 
         int maxVersion = findMaxExistingVersion(sharedDir);
+        final File currentDir = new File(sharedDir, String.valueOf(maxVersion));
+        if (Files.isEmptyDirectory(currentDir)) {
+            return maxVersion; // If the current version directory is empty, we can reuse it
+        }
 
         while (true) {
             final int candidateVersion = maxVersion + 1;
