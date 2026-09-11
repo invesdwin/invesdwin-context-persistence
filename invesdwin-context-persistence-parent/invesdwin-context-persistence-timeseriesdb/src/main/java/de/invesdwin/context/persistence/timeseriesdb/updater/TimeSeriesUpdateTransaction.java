@@ -104,7 +104,7 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     private void assertSummaryBeforeCommit(final MemoryFileSummary summary) {
         final MemoryFileSummary lastSummary;
         if (prevSummary == null) {
-            lastSummary = parent.getLastRangeKey();
+            lastSummary = parent.getLatestRangeKeyCompleteOnly();
         } else {
             lastSummary = prevSummary;
         }

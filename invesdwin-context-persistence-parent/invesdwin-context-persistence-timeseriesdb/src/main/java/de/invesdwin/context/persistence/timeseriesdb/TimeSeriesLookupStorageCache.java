@@ -287,13 +287,27 @@ public class TimeSeriesLookupStorageCache<K, V> {
 
     public MemoryFileSummary getLastRangeKey() {
         final List<MemoryFileSummary> list = getAllRangeKeys(DisabledLock.INSTANCE).getList();
-        final MemoryFileSummary prevSummary;
         if (list.isEmpty()) {
-            prevSummary = null;
+            return null;
         } else {
-            prevSummary = list.get(list.size() - 1);
+            return list.get(list.size() - 1);
         }
-        return prevSummary;
+    }
+
+    public MemoryFileSummary getLatestRangeKeyCompleteOnly() {
+        final List<MemoryFileSummary> list = getAllRangeKeys(DisabledLock.INSTANCE).getList();
+        if (list.isEmpty()) {
+            return null;
+        } else {
+            for (int i = list.size() - 1; i >= 0; i--) {
+                final MemoryFileSummary summary = list.get(i);
+                if (MemoryFiles.isIncompleteMemoryFile(summary.getMemoryResourceUri())) {
+                    continue;
+                }
+                return summary;
+            }
+            return null;
+        }
     }
 
     protected ICloseableIterable<MemoryFileSummary> readRangeFiles(final FDate from, final FDate to,
