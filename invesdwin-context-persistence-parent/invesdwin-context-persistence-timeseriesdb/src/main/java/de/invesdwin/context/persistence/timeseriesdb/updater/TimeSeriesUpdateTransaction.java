@@ -70,10 +70,10 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     }
 
     public void finishFile(final MemoryFileSummary summary) {
-        assertSummaryBeforeCommit(summary);
         if (summaries == null) {
             summaries = new ArrayList<>();
         }
+        assertSummaryBeforeCommit(summary);
         summaries.add(summary);
     }
 
