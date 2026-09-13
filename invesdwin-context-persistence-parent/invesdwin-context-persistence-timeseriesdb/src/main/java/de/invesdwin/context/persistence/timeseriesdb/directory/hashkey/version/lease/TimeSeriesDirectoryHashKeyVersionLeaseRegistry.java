@@ -58,7 +58,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
     }
 
     static void remove(final TimeSeriesDirectoryHashKeyVersionLease lease) {
-        final File heartbeatsDirectory = lease.getParent().getParent().getHeartbeatsDirectory();
+        final File heartbeatsDirectory = lease.getHeartbeatsDirectory();
         DIRECTORY_CONTEXTS.computeIfPresent(heartbeatsDirectory, (dir, context) -> {
             if (context.removeLeaseAndCheckEmpty(lease)) {
                 return null;
@@ -266,7 +266,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
 
                             if (!Files.exists(cleanupMarkerPath)
                                     || CLEANUP_INTERVAL.isLessThanMillis(lockNow.millisValue() - last)) {
-                                lease.getParent().getParent().cleanupObsoleteVersions();
+                                lease.cleanupObsoleteVersions();
                                 Files.write(tempCleanupMarkerPath,
                                         lockNow.toString().getBytes(Charsets.defaultCharset()));
                                 Files.move(tempCleanupMarkerPath, cleanupMarkerPath,
