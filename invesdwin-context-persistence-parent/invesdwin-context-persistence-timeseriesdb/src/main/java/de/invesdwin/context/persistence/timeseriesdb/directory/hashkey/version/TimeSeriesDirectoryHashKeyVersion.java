@@ -11,7 +11,6 @@ import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.ITimeSeri
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.lease.TimeSeriesDirectoryHashKeyVersionLease;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.lease.TimeSeriesDirectoryHashKeyVersionLeaseRegistry;
 import de.invesdwin.context.system.properties.ICloseableProperties;
-import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 
@@ -51,6 +50,11 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
     @Override
     public File getDirectoryHashKeyVersionPerNode() {
         return getLease().getDirectoryHashKeyVersionPerNode();
+    }
+
+    @Override
+    public File getPopulatedMarkerFile() {
+        return getLease().getPopulatedMarkerFile();
     }
 
     @Override
@@ -101,9 +105,8 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
                 finalizer.lease = TimeSeriesDirectoryHashKeyVersionLeaseRegistry.getOrCreate(parent, maxExistingOnDisk);
             } else {
                 // We are at the highest known version.
-                // If our current version is completely empty, reuse it as a clean slate.
-                final File currentSharedDir = prevLease.getDirectoryHashKeyVersionShared();
-                if (Files.isEmptyDirectory(currentSharedDir)) {
+                // If our current version is unpopulated, reuse it as a clean slate.
+                if (!prevLease.getPopulatedMarkerFile().exists()) {
                     return; // Stay on the current version to populate it
                 }
 

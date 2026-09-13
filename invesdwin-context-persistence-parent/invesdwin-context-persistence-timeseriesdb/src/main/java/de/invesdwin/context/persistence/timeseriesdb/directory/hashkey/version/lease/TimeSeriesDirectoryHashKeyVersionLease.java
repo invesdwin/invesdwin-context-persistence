@@ -28,6 +28,7 @@ import de.invesdwin.util.time.date.millis.FDateMillis;
 public final class TimeSeriesDirectoryHashKeyVersionLease implements ISafeCloseable {
 
     public static final TimeSeriesDirectoryHashKeyVersionLease[] EMPTY_ARRAY = new TimeSeriesDirectoryHashKeyVersionLease[0];
+    private static final String POPULATED_MARKER_FILE_NAME = "populated.marker";
 
     private final String registryKey;
     private final File directoryShared;
@@ -35,6 +36,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLease implements ISafeClosea
     private final File heartbeatsDirectory;
     private final File directoryHashKeyVersionShared;
     private final File directoryHashKeyVersionPerNode;
+    private final File populatedMarkerFile;
     private final int version;
     private final AtomicInteger refCount = new AtomicInteger(0);
 
@@ -46,8 +48,8 @@ public final class TimeSeriesDirectoryHashKeyVersionLease implements ISafeClosea
         this.heartbeatsDirectory = parent.getParent().getHeartbeatsDirectory();
         this.directoryHashKeyVersionShared = new File(parent.getDirectoryHashKeyShared(), String.valueOf(version));
         this.directoryHashKeyVersionPerNode = new File(parent.getDirectoryHashKeyPerNode(), String.valueOf(version));
+        this.populatedMarkerFile = new File(directoryHashKeyVersionShared, POPULATED_MARKER_FILE_NAME);
         this.version = version;
-
         try {
             Files.forceMkdir(directoryHashKeyVersionShared);
             Files.forceMkdir(directoryHashKeyVersionPerNode);
@@ -62,6 +64,10 @@ public final class TimeSeriesDirectoryHashKeyVersionLease implements ISafeClosea
 
     public File getHeartbeatsDirectory() {
         return heartbeatsDirectory;
+    }
+
+    public File getPopulatedMarkerFile() {
+        return populatedMarkerFile;
     }
 
     public void retain() {
@@ -215,4 +221,5 @@ public final class TimeSeriesDirectoryHashKeyVersionLease implements ISafeClosea
             // Ignore directory stream errors
         }
     }
+
 }

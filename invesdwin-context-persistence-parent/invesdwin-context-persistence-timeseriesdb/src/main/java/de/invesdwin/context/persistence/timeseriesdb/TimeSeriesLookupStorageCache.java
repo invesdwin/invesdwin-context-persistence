@@ -75,6 +75,7 @@ import de.invesdwin.util.concurrent.reference.MutableSoftReference;
 import de.invesdwin.util.concurrent.reference.WeakThreadLocalReference;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.error.UnknownArgumentException;
+import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.FromBufferDelegateSerde;
@@ -1057,19 +1058,13 @@ public class TimeSeriesLookupStorageCache<K, V> {
     }
 
     public boolean isEmptyOrInconsistent() {
-        try {
-            getFirstValue();
-            getLastValue();
-        } catch (final Throwable t) {
-            if (Throwables.isCausedByType(t, SerializationException.class)) {
-                //e.g. fst: unable to find class for code 88 after version upgrade
-                log.warn("Table data for [%s] is inconsistent and needs to be reset. Exception during getLastValue: %s",
-                        hashKey, t.toString());
-                return true;
-            } else {
-                //unexpected exception, since RemoteFastSerializingSerde only throws SerializingException
-                throw Throwables.propagate(t);
-            }
+        // if the directory is not populated yet, we treat it as empty
+        if (!directoryHashKey.getDirectoryHashKeyVersion().getPopulatedMarkerFile().exists()) {
+            return true;
+        }
+
+        if (isInvalidSerialization()) {
+            return true;
         }
         final MemoryFileMetadata metadata = memoryFileLookupTable.getMetadata();
         final long expectedMemoryFileSize;
@@ -1128,6 +1123,25 @@ public class TimeSeriesLookupStorageCache<K, V> {
                 }
             }
             return false;
+        }
+    }
+
+    private boolean isInvalidSerialization() {
+        try {
+            getFirstValue();
+            getLastValue();
+            return false;
+        } catch (final Throwable t) {
+            if (Throwables.isCausedByType(t, SerializationException.class)) {
+                //e.g. fst: unable to find class for code 88 after version upgrade
+                log.warn(
+                        "Table data for [%s] is inconsistent and needs to be reset. Exception during deserialization: %s",
+                        hashKey, t.toString());
+                return true;
+            } else {
+                //unexpected exception, since RemoteFastSerializingSerde only throws SerializingException
+                throw Throwables.propagate(t);
+            }
         }
     }
 
@@ -1198,6 +1212,9 @@ public class TimeSeriesLookupStorageCache<K, V> {
      * get fragmented too much between updates
      */
     public synchronized TimeSeriesUpdateTransaction<V> newUpdateTransaction(final boolean shouldRedoLastFile) {
+        // mark the directory as populated (since we already own the file lock the populate it)
+        Files.touchQuietly(directoryHashKey.getDirectoryHashKeyVersion().getPopulatedMarkerFile());
+
         final MemoryFileSummary latestSummary = getLastRangeKey();
         final FDate updateFrom;
         final List<V> lastValues;
