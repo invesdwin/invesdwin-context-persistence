@@ -24,25 +24,18 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
 
     private final TimeSeriesLookupStorageCache<?, V> parent;
     private final File directory;
-    private final AtomicNioFileChannel fileChannel;
+    private final AtomicNioFileChannel baseChannel;
     private final int version;
     private MemoryFileMetadata memoryFileMetadata;
 
     private File latestIndexFile;
     private int currentIndexNumber = 0;
 
-    public VersionedTimeSeriesMemoryFileLookupTable(final TimeSeriesLookupStorageCache<?, V> parent, final File file,
-            final int version) {
-        //CHECKSTYLE:OFF
-        this(parent, file.getParentFile(), new AtomicNioFileChannel(FileChannelPath.newFile(file)), version);
-        //CHECKSTYLE:ON
-    }
-
     public VersionedTimeSeriesMemoryFileLookupTable(final TimeSeriesLookupStorageCache<?, V> parent,
-            final File directory, final AtomicNioFileChannel fileChannel, final int version) {
+            final File directory, final int version) {
         this.parent = parent;
         this.directory = directory;
-        this.fileChannel = fileChannel;
+        this.baseChannel = new AtomicNioFileChannel(FileChannelPath.newDirectory(directory));
         this.version = version;
 
         // Read the latest index defined by the highest number before the actual file name
@@ -86,12 +79,12 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
             final File newIndexFile = new File(directory,
                     currentIndexNumber + "_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME);
 
-            fileChannel.setFileName(newIndexFile.getName());
+            baseChannel.setFileName(newIndexFile.getName());
 
             try (IndexSerializingCollection newCollection = new IndexSerializingCollection(
                     new TextDescription("%s: put: write %s",
                             VersionedTimeSeriesMemoryFileLookupTable.class.getSimpleName(), newIndexFile),
-                    fileChannel, false)) {
+                    baseChannel, false)) {
 
                 // Buffer exactly one element to allow replacement of the final element if required
                 MemoryFileSummary lastWritten = null;

@@ -1,7 +1,5 @@
 package de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup;
 
-import java.io.File;
-
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
@@ -32,8 +30,7 @@ public class RefreshingTimeSeriesMemoryFileLookupTable<V> implements ITimeSeries
                 delegateCopy = delegate;
                 if (delegateCopy == null || delegateCopy.getVersion() != directoryVersion.getVersion()) {
                     delegateCopy = new VersionedTimeSeriesMemoryFileLookupTable<V>(parent,
-                            new File(directoryHashKeyVersionSegmentStatus.getDirectoryHashKeyVersionDataShared(),
-                                    AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME),
+                            directoryHashKeyVersionSegmentStatus.getDirectoryHashKeyVersionDataShared(),
                             directoryVersion.getVersion());
                     delegate = delegateCopy;
                 }
