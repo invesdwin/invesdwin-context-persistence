@@ -74,10 +74,9 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
         if (finalizer.lease == null) {
             synchronized (this) {
                 if (finalizer.lease == null) {
-                    final int resolvedVersion = resolveCurrentVersion(parent);
-                    // Use the registry to prevent duplicate locks across instances
-                    finalizer.lease = TimeSeriesDirectoryHashKeyVersionLeaseRegistry.getOrCreate(parent,
-                            resolvedVersion);
+                    final int curVersion = resolveCurrentVersion();
+                    // Instantiating the lease automatically calls Files.forceMkdir for the version directory
+                    finalizer.lease = TimeSeriesDirectoryHashKeyVersionLeaseRegistry.getOrCreate(parent, curVersion);
                     finalizer.register(this);
                 }
             }
@@ -91,70 +90,48 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
     @Override
     public void incrementVersion() {
         synchronized (this) {
-            final TimeSeriesDirectoryHashKeyVersionLease prevLease = finalizer.lease;
-            final int nextVersion = electNextVersion(parent.getDirectoryHashKeyShared());
-            finalizer.lease = TimeSeriesDirectoryHashKeyVersionLeaseRegistry.getOrCreate(parent, nextVersion);
-            propertiesPath = null;
-            if (prevLease != null) {
-                prevLease.close();
+            final TimeSeriesDirectoryHashKeyVersionLease prevLease = getLease();
+            final int currentVersion = prevLease.getVersion();
+
+            final File sharedDir = parent.getDirectoryHashKeyShared();
+            final int maxExistingOnDisk = findMaxExistingVersion(sharedDir);
+
+            if (maxExistingOnDisk > currentVersion) {
+                // Adopt the higher version already established by another node
+                finalizer.lease = TimeSeriesDirectoryHashKeyVersionLeaseRegistry.getOrCreate(parent, maxExistingOnDisk);
+            } else {
+                // We are at the highest known version.
+                // If our current version is completely empty, reuse it as a clean slate.
+                final File currentSharedDir = prevLease.getDirectoryHashKeyVersionShared();
+                if (Files.isEmptyDirectory(currentSharedDir)) {
+                    return; // Stay on the current version to populate it
+                }
+
+                // Strictly increment based on local state to prevent mass-creation of subsequent versions
+                final int nextVersion = currentVersion + 1;
+                finalizer.lease = TimeSeriesDirectoryHashKeyVersionLeaseRegistry.getOrCreate(parent, nextVersion);
             }
+
+            propertiesPath = null;
+            prevLease.close();
         }
     }
 
     /**
-     * Resolves the active directory version string or atomically creates the next incremental version if none exists.
+     * Resolves the active directory version string or returns 0 if none exists.
      */
-    private static int resolveCurrentVersion(final ITimeSeriesDirectoryHashKey parent) {
+    private int resolveCurrentVersion() {
         final File sharedDir = parent.getDirectoryHashKeyShared();
-        if (!sharedDir.exists()) {
-            sharedDir.mkdirs();
-        }
-
         final int maxVersion = findMaxExistingVersion(sharedDir);
 
-        // If a version already exists, attach to the latest established version
-        if (maxVersion > 0) {
-            return maxVersion;
-        }
-
-        // If no version exists yet, race atomically to initialize version 1
-        return electNextVersion(sharedDir);
+        // Return 0 if the directory does not exist or is empty.
+        // The lease instantiation will handle creating the physical directory.
+        return maxVersion >= 0 ? maxVersion : 0;
     }
 
-    /**
-     * Shared atomic election loop that guarantees only one JVM creates a given directory version number.
-     */
-    private static int electNextVersion(final File sharedDir) {
-        if (!sharedDir.exists()) {
-            sharedDir.mkdirs();
-        }
-
-        int maxVersion = findMaxExistingVersion(sharedDir);
-        final File currentDir = new File(sharedDir, String.valueOf(maxVersion));
-        if (Files.isEmptyDirectory(currentDir)) {
-            return maxVersion; // If the current version directory is empty, we can reuse it
-        }
-
-        while (true) {
-            final int candidateVersion = maxVersion + 1;
-            final File candidateDir = new File(sharedDir, String.valueOf(candidateVersion));
-
-            // Atomic filesystem operation across cluster nodes
-            if (candidateDir.mkdir()) {
-                return candidateVersion; // This JVM won the election
-            }
-
-            // Lost the race; re-scan to adopt the version established by the winning node
-            maxVersion = findMaxExistingVersion(sharedDir);
-
-            // If called from electNextVersionString, we strictly want a *new* highest version.
-            // If another process just created it, we loop again to try maxVersion + 1.
-        }
-    }
-
-    private static int findMaxExistingVersion(final File sharedDir) {
+    private int findMaxExistingVersion(final File sharedDir) {
         final File[] files = sharedDir.listFiles(File::isDirectory);
-        int max = 0;
+        int max = -1;
         if (files != null) {
             for (final File file : files) {
                 try {
@@ -168,23 +145,6 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
             }
         }
         return max;
-    }
-
-    /**
-     * Returns a directory version object pointing to the current highest version. If no version exists yet, it races
-     * atomically to initialize version 1.
-     */
-    public static TimeSeriesDirectoryHashKeyVersion createCurrentVersion(final ITimeSeriesDirectoryHashKey parent) {
-        final int currentVersionStr = resolveCurrentVersion(parent);
-        return new TimeSeriesDirectoryHashKeyVersion(parent, currentVersionStr);
-    }
-
-    /**
-     * Atomically creates and returns a brand-new directory version object for backadjustments/rewrites.
-     */
-    public static TimeSeriesDirectoryHashKeyVersion createNextVersion(final ITimeSeriesDirectoryHashKey parent) {
-        final int nextVersionStr = electNextVersion(parent.getDirectoryHashKeyShared());
-        return new TimeSeriesDirectoryHashKeyVersion(parent, nextVersionStr);
     }
 
     private static final class TimeSeriesDirectoryVersionFinalizer extends AFinalizer {
