@@ -15,7 +15,7 @@ public interface ITimeSeriesDirectoryHashKeyVersion {
 
     File getDirectoryHashKeyVersionPerNode();
 
-    File getPopulatedMarkerFile();
+    File getUpdatedMarkerFile();
 
     void incrementVersion();
 

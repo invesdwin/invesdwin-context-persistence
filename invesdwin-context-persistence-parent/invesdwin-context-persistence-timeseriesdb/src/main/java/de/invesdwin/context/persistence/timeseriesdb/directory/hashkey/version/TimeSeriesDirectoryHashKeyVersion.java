@@ -53,8 +53,8 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
     }
 
     @Override
-    public File getPopulatedMarkerFile() {
-        return getLease().getPopulatedMarkerFile();
+    public File getUpdatedMarkerFile() {
+        return getLease().getUpdatedMarkerFile();
     }
 
     @Override
@@ -106,7 +106,7 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
             } else {
                 // We are at the highest known version.
                 // If our current version is unpopulated, reuse it as a clean slate.
-                if (!prevLease.getPopulatedMarkerFile().exists()) {
+                if (!prevLease.getUpdatedMarkerFile().exists()) {
                     return; // Stay on the current version to populate it
                 }
 
