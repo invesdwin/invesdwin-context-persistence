@@ -28,7 +28,7 @@ import de.invesdwin.util.time.date.millis.FDateMillis;
 public final class TimeSeriesDirectoryHashKeyVersionLease implements ISafeCloseable {
 
     public static final TimeSeriesDirectoryHashKeyVersionLease[] EMPTY_ARRAY = new TimeSeriesDirectoryHashKeyVersionLease[0];
-    private static final String UPDATED_MARKER_FILE_NAME = "updated.marker";
+    private static final String UPDATED_MARKER_FILE_NAME = ".updated";
 
     private final String registryKey;
     private final File directoryShared;
