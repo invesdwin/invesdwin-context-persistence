@@ -24,11 +24,13 @@ import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ATransformingIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
+import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
 import de.invesdwin.util.lang.string.Strings;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
 import de.invesdwin.util.time.date.millis.FDateMillis;
+import de.invesdwin.util.time.duration.Duration;
 import de.invesdwin.util.time.range.TimeRange;
 
 @ThreadSafe
@@ -42,6 +44,8 @@ public class VersionedTimeSeriesSegmentStatusTable implements ITimeSeriesSegment
     private final File lockDirectory;
     private final int version;
     private long lastUpdateMarkerTouch = FDates.MIN_DATE.millisValue();
+    private final ILock updateMarkerLock = ILockCollectionFactory.getInstance(true)
+            .newLock(VersionedTimeSeriesSegmentStatusTable.class.getSimpleName() + "_updateMarkerLock");
 
     // Naturally sorted caches for high-performance iteration
     private final NavigableMap<TimeRange, SegmentStatus> terminalStatusCache = new ConcurrentSkipListMap<>(
@@ -124,9 +128,15 @@ public class VersionedTimeSeriesSegmentStatusTable implements ITimeSeriesSegment
 
     private void maybeTouchUpdateMarker() {
         final long nowMillis = FDateMillis.nowMillis();
-        if (lastUpdateMarkerTouch != nowMillis) {
-            TimeSeriesUpdateTransaction.touchUpdateMarker(updateMarkerFile);
-            lastUpdateMarkerTouch = nowMillis;
+        if (Duration.ONE_MINUTE.isLessThanMillis(nowMillis - lastUpdateMarkerTouch)) {
+            if (updateMarkerLock.tryLock()) {
+                try {
+                    TimeSeriesUpdateTransaction.touchUpdateMarker(updateMarkerFile);
+                    lastUpdateMarkerTouch = nowMillis;
+                } finally {
+                    updateMarkerLock.unlock();
+                }
+            }
         }
     }
 
