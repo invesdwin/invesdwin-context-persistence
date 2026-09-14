@@ -118,11 +118,15 @@ public class VersionedTimeSeriesSegmentStatusTable implements ITimeSeriesSegment
 
         if (status.isComplete()) {
             terminalStatusCache.put(timeRange, status);
-            final long nowMillis = FDateMillis.nowMillis();
-            if (lastUpdateMarkerTouch != nowMillis) {
-                TimeSeriesUpdateTransaction.touchUpdateMarker(updateMarkerFile);
-                lastUpdateMarkerTouch = nowMillis;
-            }
+            maybeTouchUpdateMarker();
+        }
+    }
+
+    private void maybeTouchUpdateMarker() {
+        final long nowMillis = FDateMillis.nowMillis();
+        if (lastUpdateMarkerTouch != nowMillis) {
+            TimeSeriesUpdateTransaction.touchUpdateMarker(updateMarkerFile);
+            lastUpdateMarkerTouch = nowMillis;
         }
     }
 
