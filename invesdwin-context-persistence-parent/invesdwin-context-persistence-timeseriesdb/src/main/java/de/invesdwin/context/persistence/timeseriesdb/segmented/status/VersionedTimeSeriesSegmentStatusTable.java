@@ -18,6 +18,7 @@ import de.invesdwin.context.integration.filechannel.nio.NioFileInfo;
 import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannel;
 import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannelContext;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentStatus;
+import de.invesdwin.context.persistence.timeseriesdb.updater.TimeSeriesUpdateTransaction;
 import de.invesdwin.util.bean.tuple.ImmutableEntry;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ATransformingIterator;
@@ -26,6 +27,8 @@ import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
 import de.invesdwin.util.lang.string.Strings;
 import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.date.FDates;
+import de.invesdwin.util.time.date.millis.FDateMillis;
 import de.invesdwin.util.time.range.TimeRange;
 
 @ThreadSafe
@@ -34,9 +37,11 @@ public class VersionedTimeSeriesSegmentStatusTable implements ITimeSeriesSegment
     private static final String DATE_FORMAT = FDate.FORMAT_NUMBER_DATE_TIME_PS;
     private static final String STATUS_EXTENSION = ".status";
 
+    private final File updateMarkerFile;
     private final AtomicNioFileChannel baseChannel;
     private final File lockDirectory;
     private final int version;
+    private long lastUpdateMarkerTouch = FDates.MIN_DATE.millisValue();
 
     // Naturally sorted caches for high-performance iteration
     private final NavigableMap<TimeRange, SegmentStatus> terminalStatusCache = new ConcurrentSkipListMap<>(
@@ -46,13 +51,15 @@ public class VersionedTimeSeriesSegmentStatusTable implements ITimeSeriesSegment
 
     private volatile FDate lastDirectoryScan = null;
 
-    public VersionedTimeSeriesSegmentStatusTable(final File directory, final int version) {
+    public VersionedTimeSeriesSegmentStatusTable(final File updateMarkerFile, final File directory, final int version) {
         //CHECKSTYLE:OFF
-        this(new AtomicNioFileChannel(FileChannelPath.newDirectory(directory)), version);
+        this(updateMarkerFile, new AtomicNioFileChannel(FileChannelPath.newDirectory(directory)), version);
         //CHECKSTYLE:ON
     }
 
-    public VersionedTimeSeriesSegmentStatusTable(final AtomicNioFileChannel baseChannel, final int version) {
+    public VersionedTimeSeriesSegmentStatusTable(final File updateMarkerFile, final AtomicNioFileChannel baseChannel,
+            final int version) {
+        this.updateMarkerFile = updateMarkerFile;
         this.baseChannel = baseChannel;
         this.version = version;
         this.lockDirectory = new File(FileChannelPaths.toFile(baseChannel.getDirectoryUri()), "locks");
@@ -111,6 +118,11 @@ public class VersionedTimeSeriesSegmentStatusTable implements ITimeSeriesSegment
 
         if (status.isComplete()) {
             terminalStatusCache.put(timeRange, status);
+            final long nowMillis = FDateMillis.nowMillis();
+            if (lastUpdateMarkerTouch != nowMillis) {
+                TimeSeriesUpdateTransaction.touchUpdateMarker(updateMarkerFile);
+                lastUpdateMarkerTouch = nowMillis;
+            }
         }
     }
 

@@ -31,7 +31,7 @@ public class RefreshingTimeSeriesSegmentStatusTable implements ITimeSeriesSegmen
         if (delegateCopy == null || delegateCopy.getVersion() != directoryVersion.getVersion()) {
             synchronized (this) {
                 if (delegateCopy == null || delegateCopy.getVersion() != directoryVersion.getVersion()) {
-                    delegateCopy = new VersionedTimeSeriesSegmentStatusTable(
+                    delegateCopy = new VersionedTimeSeriesSegmentStatusTable(directoryVersion.getUpdatedMarkerFile(),
                             directoryHashKeyVersionSegmentStatus.getDirectoryHashKeyVersionDataShared(),
                             directoryVersion.getVersion());
                     delegateRef.set(delegateCopy);

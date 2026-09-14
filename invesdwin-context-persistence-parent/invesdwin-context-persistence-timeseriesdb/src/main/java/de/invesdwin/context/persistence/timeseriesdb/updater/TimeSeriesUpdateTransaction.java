@@ -10,6 +10,7 @@ import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannel;
 import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannelContext;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.ITimeSeriesDirectoryHashKeyVersion;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummarySerde;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.AMemoryFileSummarySerializingCollection;
@@ -125,12 +126,16 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         memoryFileLookupTable.put(summaries.iterator());
         summaries.clear();
         parent.clearCaches();
-        putUpdateMarker();
+        touchUpdateMarker(parent.getDirectoryHashKey().getDirectoryHashKeyVersion());
     }
 
-    private void putUpdateMarker() {
+    public static void touchUpdateMarker(final ITimeSeriesDirectoryHashKeyVersion directoryHashKeyVersion) {
         // mark the directory as populated (since we already own the file lock the populate it)
-        final File updatedMarkerFile = parent.getDirectoryHashKey().getDirectoryHashKeyVersion().getUpdatedMarkerFile();
+        final File updatedMarkerFile = directoryHashKeyVersion.getUpdatedMarkerFile();
+        touchUpdateMarker(updatedMarkerFile);
+    }
+
+    public static void touchUpdateMarker(final File updatedMarkerFile) {
         if (!updatedMarkerFile.exists()) {
             try {
                 Files.writeStringToFile(updatedMarkerFile, "Created: " + FDate.now(), Charsets.defaultCharset());
