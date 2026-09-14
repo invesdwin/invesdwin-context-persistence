@@ -122,8 +122,8 @@ public class VersionedTimeSeriesSegmentStatusTable implements ITimeSeriesSegment
 
         if (status.isComplete()) {
             terminalStatusCache.put(timeRange, status);
-            maybeTouchUpdateMarker();
         }
+        maybeTouchUpdateMarker();
     }
 
     private void maybeTouchUpdateMarker() {

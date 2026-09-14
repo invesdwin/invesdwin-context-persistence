@@ -137,7 +137,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         }
     }
 
-    private void doUpdate() {
+    private void doUpdate() throws IncompleteUpdateRetryableException {
         try (TimeSeriesUpdateTransaction<V> updateTransaction = lookupTable
                 .newUpdateTransaction(shouldRedoLastFile())) {
             final FDate updateFrom = updateTransaction.getUpdateFrom();
@@ -247,7 +247,8 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         return true;
     }
 
-    protected abstract ICloseableIterable<? extends V> getSource(FDate updateFrom);
+    protected abstract ICloseableIterable<? extends V> getSource(FDate updateFrom)
+            throws IncompleteUpdateRetryableException;
 
     protected abstract void onUpdateFinished(Instant updateStart);
 

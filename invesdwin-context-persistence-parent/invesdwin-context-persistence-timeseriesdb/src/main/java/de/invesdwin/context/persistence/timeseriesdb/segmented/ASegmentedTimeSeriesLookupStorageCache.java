@@ -703,9 +703,11 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
             updater = new ALoggingTimeSeriesUpdater<SegmentedKey<K>, V>(segmentedKey, segmentedTable, log) {
 
                 @Override
-                protected ICloseableIterable<? extends V> getSource(final FDate updateFrom) {
+                protected ICloseableIterable<? extends V> getSource(final FDate updateFrom)
+                        throws IncompleteUpdateRetryableException {
                     if (updateFrom != null) {
-                        throw new IllegalArgumentException("updateFrom should be null");
+                        throw new IncompleteUpdateRetryableException(
+                                segmentedKey + ": updateFrom should be null: " + updateFrom);
                     }
                     return source.apply(segmentedKey);
                 }
