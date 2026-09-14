@@ -75,9 +75,7 @@ import de.invesdwin.util.concurrent.reference.MutableSoftReference;
 import de.invesdwin.util.concurrent.reference.WeakThreadLocalReference;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.error.UnknownArgumentException;
-import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
-import de.invesdwin.util.lang.string.Charsets;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.FromBufferDelegateSerde;
 import de.invesdwin.util.marshallers.serde.ISerde;
@@ -91,7 +89,6 @@ import de.invesdwin.util.streams.pool.buffered.BufferedFileDataInputStream;
 import de.invesdwin.util.streams.pool.buffered.PreLockedBufferedFileDataInputStream;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FTimeUnit;
-import de.invesdwin.util.time.date.millis.FDateMillis;
 
 @NotThreadSafe
 public class TimeSeriesLookupStorageCache<K, V> {
@@ -1214,18 +1211,6 @@ public class TimeSeriesLookupStorageCache<K, V> {
      * get fragmented too much between updates
      */
     public synchronized TimeSeriesUpdateTransaction<V> newUpdateTransaction(final boolean shouldRedoLastFile) {
-        // mark the directory as populated (since we already own the file lock the populate it)
-        final File updatedMarkerFile = directoryHashKey.getDirectoryHashKeyVersion().getUpdatedMarkerFile();
-        if (!updatedMarkerFile.exists()) {
-            try {
-                Files.writeStringToFile(updatedMarkerFile, "Created: " + FDate.now(), Charsets.defaultCharset());
-            } catch (final IOException e) {
-                throw new RuntimeException(e);
-            }
-        } else {
-            updatedMarkerFile.setLastModified(FDateMillis.nowMillis());
-        }
-
         final MemoryFileSummary latestSummary = getLastRangeKey();
         final FDate updateFrom;
         final List<V> lastValues;

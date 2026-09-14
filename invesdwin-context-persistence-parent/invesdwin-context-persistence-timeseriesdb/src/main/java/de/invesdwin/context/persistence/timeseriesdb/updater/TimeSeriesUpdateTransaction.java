@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.timeseriesdb.updater;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 
 import javax.annotation.concurrent.Immutable;
@@ -14,9 +15,12 @@ import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSu
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.AMemoryFileSummarySerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.ITimeSeriesMemoryFileLookupTable;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.lang.Files;
+import de.invesdwin.util.lang.string.Charsets;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.streams.closeable.ISafeCloseable;
 import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.date.millis.FDateMillis;
 
 @Immutable
 public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
@@ -121,6 +125,21 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         memoryFileLookupTable.put(summaries.iterator());
         summaries.clear();
         parent.clearCaches();
+        putUpdateMarker();
+    }
+
+    private void putUpdateMarker() {
+        // mark the directory as populated (since we already own the file lock the populate it)
+        final File updatedMarkerFile = parent.getDirectoryHashKey().getDirectoryHashKeyVersion().getUpdatedMarkerFile();
+        if (!updatedMarkerFile.exists()) {
+            try {
+                Files.writeStringToFile(updatedMarkerFile, "Created: " + FDate.now(), Charsets.defaultCharset());
+            } catch (final IOException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            updatedMarkerFile.setLastModified(FDateMillis.nowMillis());
+        }
     }
 
 }
