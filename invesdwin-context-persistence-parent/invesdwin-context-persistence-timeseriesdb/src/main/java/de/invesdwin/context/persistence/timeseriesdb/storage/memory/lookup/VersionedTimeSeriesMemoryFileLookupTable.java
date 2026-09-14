@@ -29,7 +29,7 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
     private MemoryFileMetadata memoryFileMetadata;
 
     private File latestIndexFile;
-    private int currentIndexNumber = 0;
+    private int currentIndexNumber = -1;
 
     public VersionedTimeSeriesMemoryFileLookupTable(final TimeSeriesLookupStorageCache<?, V> parent,
             final File directory, final int version) {
