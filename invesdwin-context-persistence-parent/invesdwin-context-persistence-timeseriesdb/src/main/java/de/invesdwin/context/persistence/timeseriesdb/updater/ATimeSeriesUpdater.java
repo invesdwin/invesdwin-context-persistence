@@ -9,26 +9,25 @@ import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDBInternals;
-import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateAbortedException;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
-import de.invesdwin.context.persistence.timeseriesdb.PrepareForUpdateResult;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
-import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdaterInternalMethods;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ParallelUpdateProgress;
-import de.invesdwin.context.persistence.timeseriesdb.updater.progress.SequentialUpdateProgress;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.SequentialChunkedUpdateProgress;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.SequentialContinuousUpdateProgress;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
 import de.invesdwin.util.concurrent.Executors;
-import de.invesdwin.util.concurrent.lock.FileChannelLock;
 import de.invesdwin.util.concurrent.lock.ILock;
+import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
 import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
-import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.math.decimal.scaled.Percent;
+import de.invesdwin.util.streams.buffer.file.IMemoryMappedFile;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 
@@ -41,7 +40,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
 
     private final ISerde<V> valueSerde;
     private final ITimeSeriesDBInternals<K, V> table;
-    private final TimeSeriesStorageCache<K, V> lookupTable;
+    private final TimeSeriesLookupStorageCache<K, V> lookupTable;
     private final File updateLockFile;
 
     private final K key;
@@ -95,27 +94,24 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         }
         try {
             final ILock segmentWriteLock = segmentTableLock.writeLock();
-            try {
-                if (!segmentWriteLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
-                    throw segmentWriteLock.getLockTrace()
-                            .handleLockException(segmentWriteLock.getName(),
-                                    new RetryLaterRuntimeException("Write lock could not be acquired for table ["
-                                            + table.getName() + "] and key [" + key
-                                            + "]. Please ensure all iterators are closed!"));
-                }
-            } catch (final InterruptedException e) {
-                throw new RuntimeException(e);
+            if (!segmentWriteLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
+                throw segmentWriteLock.getLockTrace()
+                        .handleLockException(segmentWriteLock.getName(),
+                                new RetryLaterRuntimeException(
+                                        "Write lock could not be acquired for table [" + table.getName() + "] and key ["
+                                                + key + "]. Please ensure all iterators are closed!"));
             }
             final File updateLockSyncFile = new File(updateLockFile.getAbsolutePath() + ".sync");
-            try (FileChannelLock updateLockSyncFileLock = new FileChannelLock(updateLockSyncFile) {
+            try (HeartbeatFileChannelLock updateLockSyncFileLock = new HeartbeatFileChannelLock(updateLockSyncFile) {
                 @Override
                 protected boolean isThreadLockEnabled() {
                     return true;
                 }
             }) {
-                if (!updateLockSyncFileLock.tryLock()) {
-                    throw new IncompleteUpdateRetryableException("Incomplete update found for table [" + table.getName()
-                            + "] and key [" + key + "], need to clean everything up to restore all from scratch.");
+                if (!updateLockSyncFileLock.tryLock(TimeSeriesProperties.newAcquireFileLockTimeout())) {
+                    throw new RetryLaterRuntimeException("Update file lock could not be acquired for table ["
+                            + table.getName() + "] and key [" + key + "]. Another process might be updating currently: "
+                            + updateLockSyncFile.getAbsolutePath());
                 }
                 Files.touchQuietly(updateLockFile);
                 try {
@@ -125,13 +121,15 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                     onUpdateFinished(updateStart);
                     return true;
                 } catch (final Throwable t) {
-                    throw propagateIncompleteUpdateException(t);
+                    throw IncompleteUpdateRetryableException.propagateIncompleteUpdateException(t);
                 } finally {
                     Files.deleteQuietly(updateLockFile);
                 }
             } finally {
                 segmentWriteLock.unlock();
             }
+        } catch (final InterruptedException e) {
+            throw new RuntimeException(e);
         } finally {
             for (int i = 0; i < readHoldCount; i++) {
                 segmentReadLock.lock();
@@ -139,102 +137,103 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         }
     }
 
-    protected IncompleteUpdateRetryableException propagateIncompleteUpdateException(final Throwable t)
-            throws IncompleteUpdateRetryableException {
-        if (Throwables.isCausedByType(t, IncompleteUpdateAbortedException.class)) {
-            throw Throwables.propagate(t);
-        }
-        final IncompleteUpdateRetryableException incompleteException = Throwables.getCauseByType(t,
-                IncompleteUpdateRetryableException.class);
-        if (incompleteException != null) {
-            return incompleteException;
-        } else {
-            return new IncompleteUpdateRetryableException("Something unexpected went wrong that could be retried", t);
-        }
-    }
+    private void doUpdate() throws IncompleteUpdateRetryableException {
+        try (TimeSeriesUpdateTransaction<V> updateTransaction = lookupTable
+                .newUpdateTransaction(shouldRedoLastFile())) {
+            final FDate updateFrom = updateTransaction.getUpdateFrom();
+            final List<V> lastValues = updateTransaction.getLastValues();
+            final long initialPrecedingMemoryOffset = updateTransaction.getPrecedingMemorOffset();
+            final long initialMemoryOffset = updateTransaction.getMemoryOffset();
+            final long initialPrecedingValueCount = updateTransaction.getPrecedingValueCount();
 
-    private void doUpdate() {
-        final PrepareForUpdateResult<V> prepareForUpdateResult = lookupTable.prepareForUpdate(shouldRedoLastFile());
-        final FDate updateFrom = prepareForUpdateResult.getUpdateFrom();
-        final List<V> lastValues = prepareForUpdateResult.getLastValues();
-        final long initialPrecedingMemoryOffset = prepareForUpdateResult.getPrecedingMemorOffset();
-        final long initialMemoryOffset = prepareForUpdateResult.getMemoryOffset();
-        final long initialPrecedingValueCount = prepareForUpdateResult.getPrecedingValueCount();
+            final ICloseableIterable<? extends V> source = getSource(updateFrom);
+            if (source == null) {
+                throw new NullPointerException("source is null");
+            }
+            final ICloseableIterable<? extends V> skippingSource;
+            if (updateFrom != null) {
+                skippingSource = new ASkippingIterable<V>(source) {
+                    @Override
+                    protected boolean skip(final V element) {
+                        final FDate endTime = extractEndTime(element);
+                        //ensure we add no duplicate values
+                        return endTime.isBeforeNotNullSafe(updateFrom);
+                    }
+                };
+            } else {
+                skippingSource = source;
+            }
 
-        final ICloseableIterable<? extends V> source = getSource(updateFrom);
-        if (source == null) {
-            throw new NullPointerException("source is null");
-        }
-        final ICloseableIterable<? extends V> skippingSource;
-        if (updateFrom != null) {
-            skippingSource = new ASkippingIterable<V>(source) {
+            final ITimeSeriesUpdaterInternalMethods<K, V> internalMethods = new ITimeSeriesUpdaterInternalMethods<K, V>() {
+
                 @Override
-                protected boolean skip(final V element) {
-                    final FDate endTime = extractEndTime(element);
-                    //ensure we add no duplicate values
-                    return endTime.isBeforeNotNullSafe(updateFrom);
+                public K getKey() {
+                    return key;
                 }
+
+                @Override
+                public ISerde<V> getValueSerde() {
+                    return valueSerde;
+                }
+
+                @Override
+                public TimeSeriesLookupStorageCache<K, V> getLookupTable() {
+                    return lookupTable;
+                }
+
+                @Override
+                public ITimeSeriesDB<K, V> getTable() {
+                    return table;
+                }
+
+                @Override
+                public FDate extractStartTime(final V element) {
+                    return ATimeSeriesUpdater.this.extractStartTime(element);
+                }
+
+                @Override
+                public FDate extractEndTime(final V element) {
+                    return ATimeSeriesUpdater.this.extractEndTime(element);
+                }
+
+                @Override
+                public void onFlush(final int flushIndex, final IUpdateProgress<K, V> updateProgress) {
+                    count += updateProgress.getValueCount();
+                    if (minTime == null) {
+                        minTime = updateProgress.getMinTime();
+                    }
+                    maxTime = updateProgress.getMaxTime();
+                    ATimeSeriesUpdater.this.onFlush(flushIndex, updateProgress);
+                }
+
+                @Override
+                public void onElement(final IUpdateProgress<K, V> updateProgress) {
+                    ATimeSeriesUpdater.this.onElement(updateProgress);
+                }
+
+                @Override
+                public boolean shouldRedoLastFile() {
+                    return ATimeSeriesUpdater.this.shouldRedoLastFile();
+                }
+
             };
-        } else {
-            skippingSource = source;
-        }
+            final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues,
+                    skippingSource);
 
-        final ITimeSeriesUpdaterInternalMethods<K, V> internalMethods = new ITimeSeriesUpdaterInternalMethods<K, V>() {
-
-            @Override
-            public K getKey() {
-                return key;
-            }
-
-            @Override
-            public ISerde<V> getValueSerde() {
-                return valueSerde;
-            }
-
-            @Override
-            public TimeSeriesStorageCache<K, V> getLookupTable() {
-                return lookupTable;
-            }
-
-            @Override
-            public ITimeSeriesDB<K, V> getTable() {
-                return table;
-            }
-
-            @Override
-            public FDate extractStartTime(final V element) {
-                return ATimeSeriesUpdater.this.extractStartTime(element);
-            }
-
-            @Override
-            public FDate extractEndTime(final V element) {
-                return ATimeSeriesUpdater.this.extractEndTime(element);
-            }
-
-            @Override
-            public void onFlush(final int flushIndex, final IUpdateProgress<K, V> updateProgress) {
-                count += updateProgress.getValueCount();
-                if (minTime == null) {
-                    minTime = updateProgress.getMinTime();
+            if (shouldWriteInParallel()) {
+                ParallelUpdateProgress.doUpdate(updateTransaction, internalMethods, initialPrecedingMemoryOffset,
+                        initialMemoryOffset, initialPrecedingValueCount, flatteningSources);
+            } else {
+                if (IMemoryMappedFile.isSegmentSizeExceeded(Long.MAX_VALUE)) {
+                    SequentialChunkedUpdateProgress.doUpdate(updateTransaction, internalMethods,
+                            initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount,
+                            flatteningSources);
+                } else {
+                    SequentialContinuousUpdateProgress.doUpdate(updateTransaction, internalMethods,
+                            initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount,
+                            flatteningSources);
                 }
-                maxTime = updateProgress.getMaxTime();
-                ATimeSeriesUpdater.this.onFlush(flushIndex, updateProgress);
             }
-
-            @Override
-            public void onElement(final IUpdateProgress<K, V> updateProgress) {
-                ATimeSeriesUpdater.this.onElement(updateProgress);
-            }
-
-        };
-        final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues, skippingSource);
-
-        if (shouldWriteInParallel()) {
-            ParallelUpdateProgress.doUpdate(internalMethods, initialPrecedingMemoryOffset, initialMemoryOffset,
-                    initialPrecedingValueCount, flatteningSources);
-        } else {
-            SequentialUpdateProgress.doUpdate(internalMethods, initialPrecedingMemoryOffset, initialMemoryOffset,
-                    initialPrecedingValueCount, flatteningSources);
         }
     }
 
@@ -248,7 +247,8 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         return true;
     }
 
-    protected abstract ICloseableIterable<? extends V> getSource(FDate updateFrom);
+    protected abstract ICloseableIterable<? extends V> getSource(FDate updateFrom)
+            throws IncompleteUpdateRetryableException;
 
     protected abstract void onUpdateFinished(Instant updateStart);
 

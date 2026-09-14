@@ -1,6 +1,5 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 
-import java.io.File;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
@@ -10,6 +9,8 @@ import org.assertj.core.api.Fail;
 import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
+import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
+import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.ALiveSegmentedTimeSeriesDB;
@@ -40,8 +41,8 @@ public class FileLiveSegmentTest extends ATest {
                 "testInverseOrder") {
 
             @Override
-            public File getBaseDirectory() {
-                return ContextProperties.getCacheDirectory();
+            public ITimeSeriesBaseDirectory getBaseDirectory() {
+                return new TimeSeriesBaseDirectory(ContextProperties.getCacheDirectory());
             }
 
             @Override

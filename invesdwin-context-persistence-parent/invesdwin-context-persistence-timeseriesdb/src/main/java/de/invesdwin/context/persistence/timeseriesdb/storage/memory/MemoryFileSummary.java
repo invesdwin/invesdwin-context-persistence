@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb.storage;
+package de.invesdwin.context.persistence.timeseriesdb.storage.memory;
 
 import javax.annotation.concurrent.Immutable;
 
@@ -8,10 +8,12 @@ import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.math.Integers;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 import de.invesdwin.util.streams.buffer.file.IMemoryMappedFile;
+import de.invesdwin.util.time.date.FDate;
 
 @Immutable
 public class MemoryFileSummary implements ISerializableValueObject {
 
+    private final FDate firstValueEndTime;
     private final byte[] firstValue;
     private final byte[] lastValue;
     private final long precedingValueCount;
@@ -22,9 +24,10 @@ public class MemoryFileSummary implements ISerializableValueObject {
     private final long memoryLength;
     private final int hashCode;
 
-    public <V> MemoryFileSummary(final byte[] firstValue, final byte[] lastValue, final long precedingValueCount,
-            final int valueCount, final String memoryResourceUri, final long precedingMemoryOffset,
-            final long memoryOffset, final long memoryLength) {
+    public <V> MemoryFileSummary(final FDate firstValueEndTime, final byte[] firstValue, final byte[] lastValue,
+            final long precedingValueCount, final int valueCount, final String memoryResourceUri,
+            final long precedingMemoryOffset, final long memoryOffset, final long memoryLength) {
+        this.firstValueEndTime = firstValueEndTime;
         this.firstValue = firstValue;
         this.lastValue = lastValue;
         this.precedingValueCount = precedingValueCount;
@@ -36,9 +39,10 @@ public class MemoryFileSummary implements ISerializableValueObject {
         this.hashCode = newHashCode();
     }
 
-    public <V> MemoryFileSummary(final ISerde<V> serde, final V firstValue, final V lastValue,
-            final long precedingValueCount, final int valueCount, final String memoryResourceUri,
+    public <V> MemoryFileSummary(final FDate firstValueEndTime, final ISerde<V> serde, final V firstValue,
+            final V lastValue, final long precedingValueCount, final int valueCount, final String memoryResourceUri,
             final long precedingMemoryOffset, final long memoryOffset, final long memoryLength) {
+        this.firstValueEndTime = firstValueEndTime;
         this.firstValue = serde.toBytes(firstValue);
         this.lastValue = serde.toBytes(lastValue);
         this.precedingValueCount = precedingValueCount;
@@ -51,7 +55,12 @@ public class MemoryFileSummary implements ISerializableValueObject {
     }
 
     private int newHashCode() {
-        return Objects.hashCode(memoryResourceUri, precedingMemoryOffset, memoryOffset, memoryLength);
+        return Objects.hashCode(firstValueEndTime, memoryResourceUri, precedingMemoryOffset, memoryOffset,
+                memoryLength);
+    }
+
+    public FDate getFirstValueEndTime() {
+        return firstValueEndTime;
     }
 
     public <V> V getFirstValue(final ISerde<V> serde) {
@@ -112,7 +121,8 @@ public class MemoryFileSummary implements ISerializableValueObject {
     public boolean equals(final Object obj) {
         if (obj instanceof MemoryFileSummary) {
             final MemoryFileSummary cObj = (MemoryFileSummary) obj;
-            return Objects.equals(cObj.memoryResourceUri, memoryResourceUri)
+            return Objects.equals(cObj.firstValueEndTime, firstValueEndTime)
+                    && Objects.equals(cObj.memoryResourceUri, memoryResourceUri)
                     && cObj.precedingMemoryOffset == precedingMemoryOffset && cObj.memoryOffset == memoryOffset
                     && cObj.memoryLength == memoryLength;
         }
@@ -122,6 +132,7 @@ public class MemoryFileSummary implements ISerializableValueObject {
     @Override
     public String toString() {
         return Objects.toStringHelper(this)
+                .add("firstValueEndTime", firstValueEndTime)
                 .add("uri", memoryResourceUri)
                 .add("precedingOffset", precedingMemoryOffset)
                 .add("offset", memoryOffset)

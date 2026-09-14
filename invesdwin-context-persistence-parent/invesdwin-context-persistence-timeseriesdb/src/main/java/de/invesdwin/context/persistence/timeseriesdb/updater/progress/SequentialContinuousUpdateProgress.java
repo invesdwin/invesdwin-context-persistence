@@ -9,9 +9,12 @@ import java.util.NoSuchElementException;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
+import de.invesdwin.context.integration.filechannel.IFileChannel;
+import de.invesdwin.context.integration.filechannel.registry.FileChannelRegistry;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
-import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
+import de.invesdwin.context.persistence.timeseriesdb.updater.TimeSeriesUpdateTransaction;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.lang.OperatingSystem;
@@ -23,7 +26,7 @@ import de.invesdwin.util.streams.pool.buffered.BufferedFileDataOutputStream;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
-public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Closeable {
+public class SequentialContinuousUpdateProgress<K, V> implements IUpdateProgress<K, V>, Closeable {
 
     private final ITimeSeriesUpdaterInternalMethods<K, V> parent;
     private final TextDescription name;
@@ -37,10 +40,11 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
     private FDate minTime;
     private V lastElement;
     private FDate maxTime;
-    private ConfiguredSerializingCollection collection;
     private BufferedFileDataOutputStream out;
 
-    public SequentialUpdateProgress(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
+    private final Object[] batch;
+
+    public SequentialContinuousUpdateProgress(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
             final long initialPrecedingMemoryOffset, final long initialMemoryOffset,
             final long initialPrecedingValueCount) {
         this.parent = parent;
@@ -48,6 +52,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         this.precedingMemoryOffset = initialPrecedingMemoryOffset;
         this.memoryOffset = initialMemoryOffset;
         this.precedingValueCount = initialPrecedingValueCount;
+        this.batch = new Object[parent.getLookupTable().getBatchFlushInterval()];
         this.memoryFile = newMemoryFile();
         try {
             this.out = new BufferedFileDataOutputStream(memoryFile);
@@ -60,7 +65,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
     }
 
     private File newMemoryFile() {
-        return TimeSeriesStorageCache.newMemoryFile(parent, precedingMemoryOffset);
+        return MemoryFiles.newMemoryFile(parent, precedingMemoryOffset);
     }
 
     @Override
@@ -74,7 +79,6 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         this.minTime = null;
         this.lastElement = null;
         this.maxTime = null;
-        this.collection = null;
     }
 
     @Override
@@ -91,7 +95,6 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         if (firstElement == null) {
             firstElement = element;
             minTime = endTime;
-            collection = new ConfiguredSerializingCollection(memoryFile);
         }
         if (maxTime != null) {
             if (maxTime.isAfterNotNullSafe(startTime)) {
@@ -107,38 +110,83 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         }
         maxTime = endTime;
         lastElement = element;
-        collection.add(element);
+        batch[valueCount] = element;
         valueCount++;
         parent.onElement(this);
-        return valueCount % parent.getLookupTable().getBatchFlushInterval() == 0;
+        return valueCount == batch.length;
     }
 
-    private void write(final int flushIndex) {
+    @SuppressWarnings("unchecked")
+    private void write(final TimeSeriesUpdateTransaction<V> updateTransaction, final int flushIndex,
+            final boolean complete) {
+        if (valueCount == 0) {
+            return;
+        }
         try {
-            //close first so that lz4 writes out its footer bytes (a flush is not sufficient)
-            collection.close();
-            final long memoryLength = out.position() - memoryOffset;
-            parent.getLookupTable()
-                    .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
-                            precedingMemoryOffset, memoryOffset, memoryLength);
-            memoryOffset += memoryLength;
-            precedingValueCount += valueCount;
-            parent.onFlush(flushIndex, this);
-
-            if (IMemoryMappedFile.isSegmentSizeExceeded(memoryOffset)) {
-                if (OperatingSystem.isWindows()) {
-                    throw new IllegalStateException(
-                            "Memory offset [" + memoryOffset + "] exceeds Windows segment size limit ["
-                                    + IMemoryMappedFile.MAX_SEGMENT_SIZE + "], cannot continue writing to memory file ["
-                                    + memoryFile.getAbsolutePath() + "], precedingMemoryOffset=["
-                                    + precedingMemoryOffset + "], precedingValueCount=[" + precedingValueCount + "]");
+            if (complete) {
+                final ConfiguredSerializingCollection collection = new ConfiguredSerializingCollection(
+                        FileChannelRegistry.newFile(memoryFile), out);
+                for (int i = 0; i < valueCount; i++) {
+                    collection.add((V) batch[i]);
+                    batch[i] = null;
                 }
+                collection.close();
+                final long memoryLength = out.position() - memoryOffset;
+                updateTransaction.finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
+                        precedingMemoryOffset, memoryOffset, memoryLength);
+                memoryOffset += memoryLength;
+                precedingValueCount += valueCount;
+                parent.onFlush(flushIndex, this);
+
+                if (IMemoryMappedFile.isSegmentSizeExceeded(memoryOffset)) {
+                    if (OperatingSystem.isWindows()) {
+                        throw new IllegalStateException("Memory offset [" + memoryOffset
+                                + "] exceeds Windows segment size limit [" + IMemoryMappedFile.MAX_SEGMENT_SIZE
+                                + "], cannot continue writing to memory file [" + memoryFile.getAbsolutePath()
+                                + "], precedingMemoryOffset=[" + precedingMemoryOffset + "], precedingValueCount=["
+                                + precedingValueCount + "]");
+                    }
+                    precedingMemoryOffset += memoryOffset;
+                    memoryFile = newMemoryFile();
+                    out.close();
+                    out = new BufferedFileDataOutputStream(memoryFile);
+                    memoryOffset = 0;
+                }
+            } else {
+                // Route incomplete segment to isolated standalone file
                 precedingMemoryOffset += memoryOffset;
-                memoryOffset = 0;
-                memoryFile = newMemoryFile();
+                memoryFile = MemoryFiles.newIncompleteMemoryFile(memoryFile, memoryOffset);
                 out.close();
                 out = new BufferedFileDataOutputStream(memoryFile);
-                collection = new ConfiguredSerializingCollection(memoryFile);
+                memoryOffset = 0;
+
+                //finish file
+                final ConfiguredSerializingCollection collection = new ConfiguredSerializingCollection(
+                        FileChannelRegistry.newFile(memoryFile), out);
+                for (int i = 0; i < valueCount; i++) {
+                    collection.add((V) batch[i]);
+                    batch[i] = null;
+                }
+                collection.close();
+                final long memoryLength = out.position();
+                updateTransaction.finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
+                        precedingMemoryOffset, memoryOffset, memoryLength);
+                precedingValueCount += valueCount;
+                parent.onFlush(flushIndex, this);
+
+                //close
+                precedingMemoryOffset += memoryLength;
+                close();
+
+                if (IMemoryMappedFile.isSegmentSizeExceeded(memoryLength)) {
+                    if (OperatingSystem.isWindows()) {
+                        throw new IllegalStateException("Memory length [" + memoryLength
+                                + "] exceeds Windows segment size limit [" + IMemoryMappedFile.MAX_SEGMENT_SIZE
+                                + "], cannot continue writing to memory file [" + memoryFile.getAbsolutePath()
+                                + "], precedingMemoryOffset=[" + precedingMemoryOffset + "], precedingValueCount=["
+                                + precedingValueCount + "]");
+                    }
+                }
             }
         } catch (final IOException e) {
             throw new RuntimeException(e);
@@ -151,6 +199,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
             try {
                 out.close();
                 out = null;
+                memoryOffset = Long.MIN_VALUE;
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
@@ -159,8 +208,12 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
 
     private final class ConfiguredSerializingCollection extends SerializingCollection<V> {
 
-        private ConfiguredSerializingCollection(final File file) {
-            super(name, file, false);
+        private final BufferedFileDataOutputStream targetOut;
+
+        private ConfiguredSerializingCollection(final IFileChannel fileChannel,
+                final BufferedFileDataOutputStream targetOut) {
+            super(name, fileChannel, false);
+            this.targetOut = targetOut;
         }
 
         @Override
@@ -200,8 +253,8 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         }
 
         @Override
-        protected OutputStream newFileOutputStream(final File file) throws IOException {
-            return out.asNonClosing();
+        protected OutputStream newFileOutputStream(final IFileChannel file) throws IOException {
+            return targetOut.asNonClosing();
         }
 
         @Override
@@ -211,13 +264,14 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
 
     }
 
-    public static <K, V> void doUpdate(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
-            final long initialPrecedingMemoryOffset, final long initialMemoryOffset,
-            final long initialPrecedingValueCount, final ICloseableIterable<? extends V> source) {
-        try (ICloseableIterator<SequentialUpdateProgress<K, V>> batchWriterProducer = new ICloseableIterator<SequentialUpdateProgress<K, V>>() {
+    public static <K, V> void doUpdate(final TimeSeriesUpdateTransaction<V> updateTransaction,
+            final ITimeSeriesUpdaterInternalMethods<K, V> parent, final long initialPrecedingMemoryOffset,
+            final long initialMemoryOffset, final long initialPrecedingValueCount,
+            final ICloseableIterable<? extends V> source) {
+        try (ICloseableIterator<SequentialContinuousUpdateProgress<K, V>> batchWriterProducer = new ICloseableIterator<SequentialContinuousUpdateProgress<K, V>>() {
 
-            private final SequentialUpdateProgress<K, V> progress = new SequentialUpdateProgress<K, V>(parent,
-                    initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount);
+            private final SequentialContinuousUpdateProgress<K, V> progress = new SequentialContinuousUpdateProgress<K, V>(
+                    parent, initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount);
             private final ICloseableIterator<? extends V> elements = source.iterator();
 
             @Override
@@ -226,7 +280,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
             }
 
             @Override
-            public SequentialUpdateProgress<K, V> next() {
+            public SequentialContinuousUpdateProgress<K, V> next() {
                 progress.reset();
                 try {
                     while (true) {
@@ -252,7 +306,7 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
                 progress.close();
             }
         }) {
-            flush(batchWriterProducer);
+            flush(updateTransaction, parent, batchWriterProducer);
             if (batchWriterProducer.hasNext()) {
                 throw new IllegalStateException(
                         "there are still elements to be processed, but the parallel producer did not feed them");
@@ -260,12 +314,17 @@ public class SequentialUpdateProgress<K, V> implements IUpdateProgress<K, V>, Cl
         }
     }
 
-    private static <K, V> void flush(final ICloseableIterator<SequentialUpdateProgress<K, V>> batchWriterProducer) {
+    private static <K, V> void flush(final TimeSeriesUpdateTransaction<V> updateTransaction,
+            final ITimeSeriesUpdaterInternalMethods<K, V> parent,
+            final ICloseableIterator<SequentialContinuousUpdateProgress<K, V>> batchWriterProducer) {
         int flushIndex = 0;
         try {
             while (true) {
-                final SequentialUpdateProgress<K, V> progress = batchWriterProducer.next();
-                progress.write(flushIndex++);
+                final SequentialContinuousUpdateProgress<K, V> progress = batchWriterProducer.next();
+                final boolean complete = !parent.shouldRedoLastFile()
+                        || (progress.getValueCount() == parent.getLookupTable().getBatchFlushInterval()
+                                && batchWriterProducer.hasNext());
+                progress.write(updateTransaction, flushIndex++, complete);
             }
         } catch (final NoSuchElementException e) {
             //end reached

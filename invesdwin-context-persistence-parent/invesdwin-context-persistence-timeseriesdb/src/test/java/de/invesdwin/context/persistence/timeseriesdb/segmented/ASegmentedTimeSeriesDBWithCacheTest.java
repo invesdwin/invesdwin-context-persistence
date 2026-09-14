@@ -1,6 +1,5 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented;
 
-import java.io.File;
 import java.util.List;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -8,6 +7,8 @@ import javax.annotation.concurrent.NotThreadSafe;
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.base.ABaseDBWithCacheTest;
+import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
+import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.HistoricalCacheSegmentFinder;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -70,8 +71,8 @@ public class ASegmentedTimeSeriesDBWithCacheTest extends ABaseDBWithCacheTest {
         }
 
         @Override
-        public File getBaseDirectory() {
-            return ContextProperties.TEMP_DIRECTORY;
+        public ITimeSeriesBaseDirectory getBaseDirectory() {
+            return new TimeSeriesBaseDirectory(ContextProperties.TEMP_DIRECTORY);
         }
 
         @Override

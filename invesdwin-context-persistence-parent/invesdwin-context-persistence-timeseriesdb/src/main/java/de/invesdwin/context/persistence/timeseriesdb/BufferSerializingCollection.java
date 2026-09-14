@@ -1,12 +1,12 @@
 package de.invesdwin.context.persistence.timeseriesdb;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import de.invesdwin.context.integration.filechannel.IFileChannel;
 import de.invesdwin.norva.beanpath.IntCountingOutputStream;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
@@ -28,7 +28,7 @@ public class BufferSerializingCollection<E> extends SerializingCollection<E> {
     }
 
     @Override
-    protected InputStream newFileInputStream(final File file) throws IOException {
+    protected InputStream newFileInputStream(final IFileChannel file) throws IOException {
         return buffer.asInputStream();
     }
 
@@ -51,7 +51,7 @@ public class BufferSerializingCollection<E> extends SerializingCollection<E> {
     }
 
     @Override
-    protected OutputStream newFileOutputStream(final File file) throws IOException {
+    protected OutputStream newFileOutputStream(final IFileChannel file) throws IOException {
         if (out != null) {
             return out;
         } else {

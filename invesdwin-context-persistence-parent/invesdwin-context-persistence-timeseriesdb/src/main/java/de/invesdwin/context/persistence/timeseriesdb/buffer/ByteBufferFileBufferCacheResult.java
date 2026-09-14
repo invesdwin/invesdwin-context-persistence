@@ -180,11 +180,39 @@ public class ByteBufferFileBufferCacheResult<V> extends AByteBufferCloseableIter
     }
 
     @Override
+    public V getLatestValueOrFallback(final Function<V, FDate> extractEndTime, final FDate key) {
+        final int lastIndex = list.size() - 1;
+        final int highIndex = determineHighIndex(extractEndTime, key, lastIndex);
+        if (highIndex < 0) {
+            if (list.isEmpty()) {
+                return null;
+            } else {
+                return list.get(0);
+            }
+        }
+        return list.get(highIndex);
+    }
+
+    @Override
     public int getLatestValueIndex(final Function<V, FDate> extractEndTime, final FDate key) {
         final int lastIndex = list.size() - 1;
         final int highIndex = determineHighIndex(extractEndTime, key, lastIndex);
         if (highIndex < 0) {
             return -1;
+        }
+        return highIndex;
+    }
+
+    @Override
+    public int getLatestValueIndexOrFallback(final Function<V, FDate> extractEndTime, final FDate key) {
+        final int lastIndex = list.size() - 1;
+        final int highIndex = determineHighIndex(extractEndTime, key, lastIndex);
+        if (highIndex < 0) {
+            if (list.isEmpty()) {
+                return -1;
+            } else {
+                return 0;
+            }
         }
         return highIndex;
     }
@@ -211,6 +239,25 @@ public class ByteBufferFileBufferCacheResult<V> extends AByteBufferCloseableIter
         }
         if (index >= list.size()) {
             return null;
+        }
+        return list.get(index);
+    }
+
+    @Override
+    public V getLatestValueOrFallback(final int index) {
+        if (index < 0) {
+            if (list.isEmpty()) {
+                return null;
+            } else {
+                return list.get(0);
+            }
+        }
+        if (index >= list.size()) {
+            if (list.isEmpty()) {
+                return null;
+            } else {
+                return list.get(list.size() - 1);
+            }
         }
         return list.get(index);
     }

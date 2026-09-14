@@ -11,8 +11,15 @@ import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.compression.lz4.LZ4Streams;
 import de.invesdwin.context.integration.persistentmap.CorruptedStorageException;
+import de.invesdwin.context.integration.retry.RetryDisabledRuntimeException;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.error.Err;
+import de.invesdwin.context.persistence.timeseriesdb.directory.ITimeSeriesDirectory;
+import de.invesdwin.context.persistence.timeseriesdb.directory.TimeSeriesDirectory;
+import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
+import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.ITimeSeriesDirectoryHashKey;
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.data.ITimeSeriesDirectoryHashKeyVersionData;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
@@ -24,10 +31,10 @@ import de.invesdwin.util.collections.loadingcache.caffeine.ACaffeineLoadingCache
 import de.invesdwin.util.concurrent.lambda.callable.AFastLazyCallable;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
+import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
 import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
-import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
@@ -44,8 +51,8 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     private final ICompressionFactory compressionFactory;
     private final TimeSeriesLookupMode lookupMode;
     private final int batchFlushInterval;
-    private final File directory;
-    private final ALoadingCache<K, TimeSeriesStorageCache<K, V>> key_lookupTableCache;
+    private final ITimeSeriesDirectory directory;
+    private final ALoadingCache<K, TimeSeriesLookupStorageCache<K, V>> key_lookupTableCache;
     private final ALoadingCache<K, IReentrantReadWriteLock> key_tableLock = new ALoadingCache<K, IReentrantReadWriteLock>() {
         @Override
         protected IReentrantReadWriteLock loadValue(final K key) {
@@ -80,22 +87,16 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         this.compressionFactory = newCompressionFactory();
         this.lookupMode = newLookupMode();
         this.batchFlushInterval = newBatchFlushInterval();
-        final File baseDirectory = getBaseDirectory();
-        if (baseDirectory == null) {
-            throw new RetryLaterRuntimeException(
-                    "The base directory should not be null, maybe this table was already finalized?");
-        }
-        if (Objects.equals(baseDirectory.getAbsolutePath(), new File(".").getAbsolutePath())) {
-            throw new IllegalStateException(
-                    "Should not use current working directory as base directory: " + baseDirectory);
-        }
-        this.directory = new File(baseDirectory, getStorageName(Files.normalizePath(getName())));
-        this.key_lookupTableCache = new ACaffeineLoadingCache<K, TimeSeriesStorageCache<K, V>>() {
+        final ITimeSeriesBaseDirectory baseDirectory = getBaseDirectory();
+        final String storageName = getStorageName(Files.normalizePath(getName()));
+        this.directory = new TimeSeriesDirectory(baseDirectory, storageName);
+        this.key_lookupTableCache = new ACaffeineLoadingCache<K, TimeSeriesLookupStorageCache<K, V>>() {
             @Override
-            protected TimeSeriesStorageCache<K, V> loadValue(final K key) {
+            protected TimeSeriesLookupStorageCache<K, V> loadValue(final K key) {
                 final String hashKey = hashKeyToString(key);
-                return new TimeSeriesStorageCache<K, V>(getStorage(), hashKey, getValueSerde(), getValueFixedLength(),
-                        input -> extractEndTime(input), getLookupMode(), getBatchFlushInterval());
+                return new TimeSeriesLookupStorageCache<K, V>(getStorage(), hashKey, getValueSerde(),
+                        getValueFixedLength(), getCompressionFactory(), ATimeSeriesDB.this::extractEndTime,
+                        getLookupMode(), getBatchFlushInterval());
             }
 
             @Override
@@ -110,7 +111,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
             @Override
             protected Integer getInitialMaximumSize() {
-                return TimeSeriesStorageCache.MAXIMUM_SIZE;
+                return TimeSeriesLookupStorageCache.MAXIMUM_SIZE;
             }
 
             @Override
@@ -135,37 +136,55 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
             return newStorage(directory, getValueFixedLength(), compressionFactory);
         } catch (final Throwable t) {
             if (Throwables.isCausedByType(t, CorruptedStorageException.class)) {
-                Err.process(new RuntimeException("Resetting " + ATimeSeriesDB.class.getSimpleName() + " ["
-                        + getDirectory() + "] because the storage has been corrupted"));
-                deleteCorruptedStorage(directory);
-                return newStorage(directory, getValueFixedLength(), compressionFactory);
+                final File lockFile = new File(
+                        new File(directory.getParent().getBaseDirectoryShared(), "deleteCorruptedStorageLocks"),
+                        Files.normalizeFilename(getName() + ".lock"));
+                try (HeartbeatFileChannelLock lock = new HeartbeatFileChannelLock(lockFile)) {
+                    if (!lock.tryLock(TimeSeriesProperties.newAcquireFileLockTimeout())) {
+                        throw new RetryLaterRuntimeException(
+                                "Delete corrupted stroage file lock could not be acquired for table [" + getName()
+                                        + "] in directory [" + directory
+                                        + "]. Another process might be deleting the corrupted storage currently: "
+                                        + lockFile.getAbsolutePath());
+                    }
+                    Err.process(new RuntimeException("Resetting table [" + getName() + "] in directory [" + directory
+                            + "] because the storage has been corrupted"));
+                    deleteCorruptedStorage(directory);
+                    return newStorage(directory, getValueFixedLength(), compressionFactory);
+                } catch (final InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
             } else {
                 throw Throwables.propagate(t);
             }
         }
     }
 
-    protected void deleteCorruptedStorage(final File directory) {
-        Files.deleteNative(directory);
+    protected void deleteCorruptedStorage(final ITimeSeriesDirectory directory) {
+        directory.deleteCorruptedStorage();
         lastResetIndex.incrementAndGet();
     }
 
     @Override
-    public File getDirectory() {
+    public ITimeSeriesDirectory getDirectory() {
         return directory;
     }
 
-    public File getDataDirectory(final K key) {
-        return getLookupTableCache(key).newDataDirectory();
+    public ITimeSeriesDirectoryHashKey getDirectoryVersionHashKey(final K key) {
+        return getLookupTableCache(key).getDirectoryHashKey();
     }
 
-    protected TimeSeriesStorage newStorage(final File directory, final Integer valueFixedLength,
+    public ITimeSeriesDirectoryHashKeyVersionData getDirectoryHashKeyVersionMemory(final K key) {
+        return getLookupTableCache(key).getDirectoryHashKeyVersionMemory();
+    }
+
+    protected TimeSeriesStorage newStorage(final ITimeSeriesDirectory directory, final Integer valueFixedLength,
             final ICompressionFactory compressionFactory) {
         return new TimeSeriesStorage(directory, valueFixedLength, compressionFactory);
     }
 
     @Override
-    public File getBaseDirectory() {
+    public ITimeSeriesBaseDirectory getBaseDirectory() {
         return getDefaultBaseDirectory();
     }
 
@@ -177,8 +196,10 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         return ATimeSeriesDB.class.getSimpleName() + "/" + name;
     }
 
-    public static File getDefaultBaseDirectory() {
-        return ContextProperties.getHomeDataDirectory();
+    public static ITimeSeriesBaseDirectory getDefaultBaseDirectory() {
+        final File baseDirectory = ContextProperties.getHomeDataDirectory();
+        final File baseDirectoryPerNode = ContextProperties.getHomeDataDirectoryPerNode();
+        return new TimeSeriesBaseDirectory(baseDirectory, baseDirectoryPerNode);
     }
 
     protected abstract Integer newValueFixedLength();
@@ -274,7 +295,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            final TimeSeriesStorageCache<K, V> lookupTableCache = getLookupTableCache(key);
+            final TimeSeriesLookupStorageCache<K, V> lookupTableCache = getLookupTableCache(key);
             if (index <= 0) {
                 return lookupTableCache.getFirstValue();
             } else if (index >= lookupTableCache.size()) {
@@ -426,8 +447,9 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         if (!writeLock.tryLock()) {
             final RuntimeException handleLockException = writeLock.getLockTrace()
                     .handleLockException(writeLock.getName(),
-                            new Exception("Write lock could not be acquired for table [" + tableName + "] and key ["
-                                    + key + "]. Please ensure all iterators are closed! Ignoring and forcing delete."));
+                            new RetryDisabledRuntimeException("Write lock could not be acquired for table [" + tableName
+                                    + "] and key [" + key
+                                    + "]. Please ensure all iterators are closed! Ignoring and forcing delete."));
             Err.process(handleLockException);
             return false;
         } else {
@@ -441,7 +463,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     }
 
     @Override
-    public final TimeSeriesStorageCache<K, V> getLookupTableCache(final K key) {
+    public final TimeSeriesLookupStorageCache<K, V> getLookupTableCache(final K key) {
         return key_lookupTableCache.get(key);
     }
 
