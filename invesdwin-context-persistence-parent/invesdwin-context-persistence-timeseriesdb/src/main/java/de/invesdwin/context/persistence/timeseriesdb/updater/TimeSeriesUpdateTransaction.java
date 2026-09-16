@@ -81,6 +81,7 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     }
 
     public void finishFile(final MemoryFileSummary summary) {
+        assertSummaryBeforeCommit(summary);
         if (summaries == null) {
             final File tempSummariesFile = new File(
                     parent.getDirectoryHashKeyVersionMemory().getDirectoryHashKeyVersionDataShared(),
@@ -101,7 +102,6 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
                 }
             };
         }
-        assertSummaryBeforeCommit(summary);
         summaries.add(summary);
         prevSummary = summary;
     }

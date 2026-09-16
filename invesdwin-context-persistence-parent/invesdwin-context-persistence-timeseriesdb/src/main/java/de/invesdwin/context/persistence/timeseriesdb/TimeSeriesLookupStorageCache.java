@@ -95,6 +95,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
     public static final Integer MAXIMUM_SIZE = TimeSeriesProperties.STORAGE_CACHE_MAXIMUM_SIZE;
     public static final EvictionMode EVICTION_MODE = EvictionMode.ClearConcurrent;
     public static final boolean HIGH_CONCURRENCY = false;
+    private static final Log LOG = new Log(TimeSeriesLookupStorageCache.class);
 
     private static final String READ_RANGE_VALUES = "readRangeValues";
     private static final String READ_RANGE_VALUES_REVERSE = "readRangeValuesReverse";
@@ -1168,7 +1169,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
             final V precedingLastValue = prevSummary.getLastValue(valueSerde);
             final FDate precedingLastValueTime = extractEndTime(precedingLastValue);
 
-            if (precedingLastValueTime.isAfterNotNullSafe(firstValueTime)) {
+            if (precedingLastValueTime.isAfterOrEqualToNotNullSafe(firstValueTime)) {
                 throw new IllegalStateException("precedingLastValueTime [" + precedingLastValueTime
                         + "] should not be after firstValueTime [" + firstValueTime + "]");
             }
@@ -1187,16 +1188,18 @@ public class TimeSeriesLookupStorageCache<K, V> {
                         "memoryOffset[" + memoryOffset + "] != expectedMemoryOffset[" + expectedMemoryOffset + "]");
             }
         } else {
-            //System.out.println("TODO: retest this");
-            //            final long memoryOffset = summary.getPrecedingMemoryOffset() + summary.getMemoryOffset();
-            //            if (memoryOffset != 0) {
-            //                throw new IllegalStateException("first.memoryOffset[" + memoryOffset + "] != expectedMemoryOffset[0]");
-            //            }
-            //            final long precedingValueCount = summary.getPrecedingValueCount();
-            //            if (precedingValueCount != 0) {
-            //                throw new IllegalStateException(
-            //                        "first.precedingValueCount[" + precedingValueCount + "] != expectedPrecedingValueCount[0]");
-            //            }
+            final long precedingValueCount = summary.getPrecedingValueCount();
+            if (precedingValueCount != 0) {
+                LOG.warn("[%s]: %s", directoryHashKeyVersionMemory,
+                        Throwables.getFullStackTrace(new IllegalStateException("first.precedingValueCount["
+                                + precedingValueCount + "] != expectedPrecedingValueCount[0]")));
+            }
+            final long memoryOffset = summary.getPrecedingMemoryOffset() + summary.getMemoryOffset();
+            if (memoryOffset != 0) {
+                LOG.warn("[%s]: %s", directoryHashKeyVersionMemory,
+                        Throwables.getFullStackTrace(new IllegalStateException(
+                                "first.memoryOffset[" + memoryOffset + "] != expectedMemoryOffset[0]")));
+            }
         }
 
         final V lastValue = summary.getLastValue(valueSerde);
