@@ -17,7 +17,7 @@ public class ATimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ABaseDBWithNoCa
 
     @Override
     protected void putNewEntity(final FDate newEntity) throws IncompleteUpdateRetryableException {
-        updater.update();
+        updater.update().close();
     }
 
     @Override
@@ -25,7 +25,7 @@ public class ATimeSeriesDBWithNoCacheAndNoQueryCacheTest extends ABaseDBWithNoCa
         super.setUp();
         table = new TestTimeSeriesDB(getClass().getSimpleName());
         updater = new TestTimeSeriesUpdater(KEY, (ATimeSeriesDB<String, FDate>) table, entities);
-        updater.update();
+        updater.update().close();
     }
 
 }

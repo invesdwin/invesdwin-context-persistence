@@ -103,7 +103,7 @@ public class ATimeSeriesDBTest extends ATest {
             public Percent getProgress(final FDate minTime, final FDate maxTime) {
                 return null;
             }
-        }.update();
+        }.update().close();
 
         for (int i = 1; i < dates.size(); i++) {
             final FDate value = table.getPreviousValue(key, dates.get(dates.size() - 1), i);
@@ -210,7 +210,7 @@ public class ATimeSeriesDBTest extends ATest {
             public Percent getProgress(final FDate minTime, final FDate maxTime) {
                 return null;
             }
-        }.update();
+        }.update().close();
 
         final List<FDate> dates2 = new ArrayList<>();
         for (int i = 2010; i <= 2020; i++) {
@@ -355,7 +355,7 @@ public class ATimeSeriesDBTest extends ATest {
             public Percent getProgress(final FDate minTime, final FDate maxTime) {
                 return null;
             }
-        }.update();
+        }.update().close();
         Assertions.assertThat(segments.longValue()).isEqualByComparingTo(10L);
 
         for (int i = 0; i < dates.size(); i += ATimeSeriesUpdater.DEFAULT_BATCH_FLUSH_INTERVAL) {

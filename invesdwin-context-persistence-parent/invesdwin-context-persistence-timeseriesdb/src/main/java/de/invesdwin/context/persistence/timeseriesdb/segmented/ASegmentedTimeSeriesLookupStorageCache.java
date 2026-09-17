@@ -651,7 +651,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
                 @Override
                 public Void call() throws Exception {
                     //write lock is reentrant
-                    updater.update();
+                    updater.update().close();
                     return null;
                 }
             };
