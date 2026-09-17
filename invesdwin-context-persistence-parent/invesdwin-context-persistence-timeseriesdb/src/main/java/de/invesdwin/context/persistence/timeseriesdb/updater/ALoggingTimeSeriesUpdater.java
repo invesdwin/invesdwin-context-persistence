@@ -37,7 +37,7 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
 
     private final Object elementLock = new Object();
     private final AtomicLong elementCount = new AtomicLong();
-    private volatile String owner;
+    private volatile String owner = HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER;
     private Instant lastLogElementTime;
     @GuardedBy("elementLock")
     private FDate elementMinTime;
