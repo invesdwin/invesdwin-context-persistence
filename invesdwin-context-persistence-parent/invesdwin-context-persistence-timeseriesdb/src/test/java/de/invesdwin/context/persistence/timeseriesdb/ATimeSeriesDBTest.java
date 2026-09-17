@@ -256,7 +256,7 @@ public class ATimeSeriesDBTest extends ATest {
             public Percent getProgress(final FDate minTime, final FDate maxTime) {
                 return null;
             }
-        }.update();
+        }.update().close();
 
         final List<FDate> allDates = new ArrayList<>();
         allDates.addAll(dates.subList(0, dates.size() - 1));
