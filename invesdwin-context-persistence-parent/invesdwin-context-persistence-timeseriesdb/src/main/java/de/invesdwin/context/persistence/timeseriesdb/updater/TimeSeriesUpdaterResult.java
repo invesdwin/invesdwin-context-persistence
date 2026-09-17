@@ -6,7 +6,7 @@ import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
 import de.invesdwin.util.lang.Files;
-import de.invesdwin.util.lang.finalizer.AFinalizer;
+import de.invesdwin.util.lang.finalizer.AWarningFinalizer;
 import de.invesdwin.util.streams.closeable.ISafeCloseable;
 import de.invesdwin.util.time.date.FDate;
 
@@ -44,7 +44,7 @@ public class TimeSeriesUpdaterResult implements ISafeCloseable {
         closed = true;
     }
 
-    private static final class TimeSeriesUpdaterResultFinalizer extends AFinalizer {
+    private static final class TimeSeriesUpdaterResultFinalizer extends AWarningFinalizer {
 
         private HeartbeatFileChannelLock updateLock;
 
