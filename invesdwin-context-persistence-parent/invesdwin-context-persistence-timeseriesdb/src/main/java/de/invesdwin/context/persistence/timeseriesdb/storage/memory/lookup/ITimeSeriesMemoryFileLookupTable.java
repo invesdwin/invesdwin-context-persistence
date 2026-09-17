@@ -11,4 +11,8 @@ public interface ITimeSeriesMemoryFileLookupTable {
 
     MemoryFileMetadata getMetadata();
 
+    boolean isUpdatedIndexAvailable();
+
+    int getCurrentIndexNumber();
+
 }

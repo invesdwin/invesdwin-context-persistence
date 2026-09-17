@@ -1007,7 +1007,8 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
     private V getLatestValueByValue(final FDate pDate) {
         final FDate date = FDates.min(pDate, getLastAvailableSegmentTo(key, pDate));
         final int version = directoryHashKey.getDirectoryHashKeyVersion().getVersion();
-        final SingleValue value = storage.getOrLoad_latestValueLookupTable(hashKey, version, date, () -> {
+        final int indexNumber = 0;
+        final SingleValue value = storage.getOrLoad_latestValueLookupTable(hashKey, version, indexNumber, date, () -> {
             final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
             //already adjusted on the outside
             final FDate adjFrom = date;
@@ -1167,8 +1168,9 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
             return firstValue;
         } else {
             final int version = directoryHashKey.getDirectoryHashKeyVersion().getVersion();
-            final SingleValue value = storage.getOrLoad_previousValueLookupTable(hashKey, version, date, shiftBackUnits,
-                    () -> {
+            final int indexNumber = 0;
+            final SingleValue value = storage.getOrLoad_previousValueLookupTable(hashKey, version, indexNumber, date,
+                    shiftBackUnits, () -> {
                         final ShiftBackUnitsLoop<V> shiftBackLoop = new ShiftBackUnitsLoop<>(date, shiftBackUnits,
                                 segmentedTable::extractEndTime);
                         final ICloseableIterable<V> rangeValuesReverse = readRangeValuesReverse(date, null,
@@ -1260,8 +1262,9 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
             return lastValue;
         } else {
             final int version = directoryHashKey.getDirectoryHashKeyVersion().getVersion();
-            final SingleValue value = storage.getOrLoad_nextValueLookupTable(hashKey, version, date, shiftForwardUnits,
-                    () -> {
+            final int indexNumber = 0;
+            final SingleValue value = storage.getOrLoad_nextValueLookupTable(hashKey, version, indexNumber, date,
+                    shiftForwardUnits, () -> {
                         final ShiftForwardUnitsLoop<V> shiftForwardLoop = new ShiftForwardUnitsLoop<>(date,
                                 shiftForwardUnits, segmentedTable::extractEndTime);
                         final ICloseableIterable<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,

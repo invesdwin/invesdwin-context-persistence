@@ -2,7 +2,9 @@ package de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup;
 
 import java.io.File;
 import java.util.NoSuchElementException;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
@@ -28,8 +30,9 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
     private final int version;
     private MemoryFileMetadata memoryFileMetadata;
 
-    private File latestIndexFile;
-    private int currentIndexNumber = -1;
+    @GuardedBy("this")
+    private File currentIndexFile;
+    private final AtomicInteger currentIndexNumber = new AtomicInteger(-1);
 
     public VersionedTimeSeriesMemoryFileLookupTable(final TimeSeriesLookupStorageCache<?, V> parent,
             final File directory, final int version) {
@@ -51,14 +54,14 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
                 if (underscoreIdx > 0) {
                     try {
                         final int num = Integer.parseInt(name.substring(0, underscoreIdx));
-                        if (num >= currentIndexNumber) {
-                            if (latestIndexFile != null && TimeSeriesProperties.RETAIN_OBSOLETE_FILES_THRESHOLD
-                                    .isLessThanMillis(nowMillis - latestIndexFile.lastModified())) {
+                        if (num >= currentIndexNumber.get()) {
+                            if (currentIndexFile != null && TimeSeriesProperties.RETAIN_OBSOLETE_FILES_THRESHOLD
+                                    .isLessThanMillis(nowMillis - currentIndexFile.lastModified())) {
                                 // Delete the older index files
-                                latestIndexFile.delete();
+                                currentIndexFile.delete();
                             }
-                            currentIndexNumber = num;
-                            latestIndexFile = f;
+                            currentIndexNumber.set(num);
+                            currentIndexFile = f;
                         }
                     } catch (final NumberFormatException e) {
                         // ignore malformed prefixes
@@ -75,9 +78,9 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
     @Override
     public synchronized void put(final ICloseableIterator<MemoryFileSummary> summaries) {
         try {
-            currentIndexNumber++;
+            final int newIndexNumber = currentIndexNumber.get() + 1;
             final File newIndexFile = new File(directory,
-                    currentIndexNumber + "_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME);
+                    newIndexNumber + "_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME);
 
             baseChannel.setFileName(newIndexFile.getName());
 
@@ -90,11 +93,11 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
                 MemoryFileSummary lastWritten = null;
 
                 // 1. Stream existing index elements to the new file, maintaining the 1-element buffer
-                if (latestIndexFile != null && latestIndexFile.exists()) {
+                if (currentIndexFile != null && currentIndexFile.exists()) {
                     try (IndexSerializingCollection oldCollection = new IndexSerializingCollection(
                             new TextDescription("%s: put: read %s",
-                                    VersionedTimeSeriesMemoryFileLookupTable.class.getSimpleName(), latestIndexFile),
-                            AtomicNioFileChannel.newFile(latestIndexFile.toURI()), true);
+                                    VersionedTimeSeriesMemoryFileLookupTable.class.getSimpleName(), currentIndexFile),
+                            AtomicNioFileChannel.newFile(currentIndexFile.toURI()), true);
                             ICloseableIterator<MemoryFileSummary> oldIt = oldCollection.iterator()) {
                         while (true) {
                             final MemoryFileSummary oldSummary = oldIt.next();
@@ -183,7 +186,8 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
                 newCollection.closeWithEmptyWrite();
             }
 
-            latestIndexFile = newIndexFile;
+            currentIndexFile = newIndexFile;
+            currentIndexNumber.set(newIndexNumber);
         } finally {
             summaries.close();
         }
@@ -192,11 +196,11 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
     @Override
     public synchronized ICloseableIterator<MemoryFileSummary> range() {
         // Read index via AMemoryFileSummarySerializingCollection
-        if (latestIndexFile != null && latestIndexFile.exists()) {
+        if (currentIndexFile != null && currentIndexFile.exists()) {
             final IndexSerializingCollection collection = new IndexSerializingCollection(
                     new TextDescription("%s: range: read %s",
-                            VersionedTimeSeriesMemoryFileLookupTable.class.getSimpleName(), latestIndexFile),
-                    AtomicNioFileChannel.newFile(latestIndexFile.toURI()), true);
+                            VersionedTimeSeriesMemoryFileLookupTable.class.getSimpleName(), currentIndexFile),
+                    AtomicNioFileChannel.newFile(currentIndexFile.toURI()), true);
             return collection.iterator();
         }
         return EmptyCloseableIterator.getInstance();
@@ -233,5 +237,34 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
         protected ICompressionFactory getCompressionFactory() {
             return parent.getCompressionFactory();
         }
+    }
+
+    @Override
+    public boolean isUpdatedIndexAvailable() {
+        final File[] files = directory.listFiles(
+                (dir, name) -> name.endsWith("_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME));
+
+        if (files != null && files.length > 0) {
+            for (int i = 0; i < files.length; i++) {
+                final String name = files[i].getName();
+                final int underscoreIdx = name.indexOf('_');
+                if (underscoreIdx > 0) {
+                    try {
+                        final int num = Integer.parseInt(name.substring(0, underscoreIdx));
+                        if (num > currentIndexNumber.get()) {
+                            return true;
+                        }
+                    } catch (final NumberFormatException e) {
+                        // ignore malformed prefixes
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public int getCurrentIndexNumber() {
+        return currentIndexNumber.get();
     }
 }

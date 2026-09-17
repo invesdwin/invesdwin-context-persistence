@@ -54,6 +54,16 @@ public class RefreshingTimeSeriesMemoryFileLookupTable<V> implements ITimeSeries
         return getDelegate().getMetadata();
     }
 
+    @Override
+    public boolean isUpdatedIndexAvailable() {
+        return getDelegate().isUpdatedIndexAvailable();
+    }
+
+    @Override
+    public int getCurrentIndexNumber() {
+        return getDelegate().getCurrentIndexNumber();
+    }
+
     public void clear() {
         delegate = null;
     }

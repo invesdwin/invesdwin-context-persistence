@@ -10,12 +10,15 @@ public class HashRangeShiftUnitsKey implements Comparable<Object> {
 
     private final String hashKey;
     private final int version;
+    private final int indexNumber;
     private final FDate rangeKey;
     private final int shiftUnits;
 
-    public HashRangeShiftUnitsKey(final String hashKey, final int version, final FDate rangeKey, final int shiftUnits) {
+    public HashRangeShiftUnitsKey(final String hashKey, final int version, final int indexNumber, final FDate rangeKey,
+            final int shiftUnits) {
         this.hashKey = hashKey;
         this.version = version;
+        this.indexNumber = indexNumber;
         this.rangeKey = rangeKey;
         this.shiftUnits = shiftUnits;
     }
@@ -26,6 +29,10 @@ public class HashRangeShiftUnitsKey implements Comparable<Object> {
 
     public int getVersion() {
         return version;
+    }
+
+    public int getIndexNumber() {
+        return indexNumber;
     }
 
     public FDate getRangeKey() {
@@ -41,14 +48,15 @@ public class HashRangeShiftUnitsKey implements Comparable<Object> {
         if (obj instanceof HashRangeShiftUnitsKey) {
             final HashRangeShiftUnitsKey cObj = (HashRangeShiftUnitsKey) obj;
             return Objects.equals(hashKey, cObj.hashKey) && Objects.equals(version, cObj.version)
-                    && Objects.equals(rangeKey, cObj.rangeKey) && Objects.equals(shiftUnits, cObj.shiftUnits);
+                    && Objects.equals(indexNumber, cObj.indexNumber) && Objects.equals(rangeKey, cObj.rangeKey)
+                    && Objects.equals(shiftUnits, cObj.shiftUnits);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(HashRangeShiftUnitsKey.class, hashKey, version, rangeKey, shiftUnits);
+        return Objects.hashCode(HashRangeShiftUnitsKey.class, hashKey, version, indexNumber, rangeKey, shiftUnits);
     }
 
     @Override
@@ -60,6 +68,10 @@ public class HashRangeShiftUnitsKey implements Comparable<Object> {
                 return compare;
             }
             compare = Integer.compare(version, cO.version);
+            if (compare != 0) {
+                return compare;
+            }
+            compare = Integer.compare(indexNumber, cO.indexNumber);
             if (compare != 0) {
                 return compare;
             }

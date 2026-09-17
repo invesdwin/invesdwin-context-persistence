@@ -10,7 +10,8 @@ import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.status.ITimeSeriesSegmentStatusTable;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.ISkipMemoryFileSummaryFunction;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
-import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
+import de.invesdwin.context.persistence.timeseriesdb.updater.TimeSeriesUpdaterResult;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdateProgress;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -19,7 +20,6 @@ import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.math.decimal.scaled.Percent;
-import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
 
@@ -168,10 +168,10 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
 
             @Override
-            protected void onUpdateFinished(final Instant updateStart) {}
+            protected void onUpdateFinished() {}
 
             @Override
-            protected void onUpdateStart() {}
+            protected void onUpdateStarted(final FDate updateStart) {}
 
             @Override
             protected FDate extractStartTime(final V element) {
@@ -184,10 +184,10 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
 
             @Override
-            protected void onElement(final IUpdateProgress<SegmentedKey<K>, V> updateProgress) {}
+            protected void onElement(final ITimeSeriesUpdateProgress relativeProgress, final long relativeCount) {}
 
             @Override
-            protected void onFlush(final int flushIndex, final IUpdateProgress<SegmentedKey<K>, V> updateProgress) {}
+            protected void onFlush(final ITimeSeriesUpdateProgress relativeProgress, final long flushIndex) {}
 
             @Override
             protected boolean shouldRedoLastFile() {
@@ -199,8 +199,8 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
                 return null;
             }
         };
-        try {
-            Assertions.checkTrue(updater.update());
+        try (TimeSeriesUpdaterResult result = updater.update()) {
+            Assertions.checkNotNull(result.getUpdatedTo());
         } catch (final IncompleteUpdateRetryableException e) {
             throw new RuntimeException(e);
         }

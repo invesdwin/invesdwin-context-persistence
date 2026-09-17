@@ -282,8 +282,12 @@ public class TimeSeriesLookupStorageCache<K, V> {
         return memoryFileLookupTable;
     }
 
-    public File getUpdateLockFile() {
-        return new File(directoryHashKeyVersionMemory.getDirectoryHashKeyVersionDataShared(), "updateRunning.lock");
+    public File getUpdateProgressFile() {
+        return new File(directoryHashKeyVersionMemory.getDirectoryHashKeyVersionDataShared(), "update.running");
+    }
+
+    public File getUpdateFinishedFile() {
+        return new File(directoryHashKeyVersionMemory.getDirectoryHashKeyVersionDataShared(), "update.finished");
     }
 
     public MemoryFileSummary getLastRangeKey() {
@@ -706,6 +710,14 @@ public class TimeSeriesLookupStorageCache<K, V> {
         return cachedLastValueCopy.orElse(null);
     }
 
+    public FDate getLastValueEndTime() {
+        final V lastValue = getLastValue();
+        if (lastValue == null) {
+            return null;
+        }
+        return extractEndTime(lastValue);
+    }
+
     public synchronized void deleteAll() {
         directoryHashKey.getDirectoryHashKeyVersion().incrementVersion();
         storage.deleteRange_latestValueLookupTable(hashKey);
@@ -791,7 +803,8 @@ public class TimeSeriesLookupStorageCache<K, V> {
 
     private V getLatestValueByValue(final FDate date) {
         final int version = directoryHashKey.getDirectoryHashKeyVersion().getVersion();
-        final SingleValue value = storage.getOrLoad_latestValueLookupTable(hashKey, version, date, () -> {
+        final int indexNumber = memoryFileLookupTable.getCurrentIndexNumber();
+        final SingleValue value = storage.getOrLoad_latestValueLookupTable(hashKey, version, indexNumber, date, () -> {
             final MemoryFileSummary summary = getLatestRangeKey(date);
             if (summary == null) {
                 return null;
@@ -948,8 +961,9 @@ public class TimeSeriesLookupStorageCache<K, V> {
             return firstValue;
         } else {
             final int version = directoryHashKey.getDirectoryHashKeyVersion().getVersion();
-            final SingleValue value = storage.getOrLoad_previousValueLookupTable(hashKey, version, date, shiftBackUnits,
-                    () -> {
+            final int indexNumber = memoryFileLookupTable.getCurrentIndexNumber();
+            final SingleValue value = storage.getOrLoad_previousValueLookupTable(hashKey, version, indexNumber, date,
+                    shiftBackUnits, () -> {
                         final ShiftBackUnitsLoop<V> shiftBackLoop = new ShiftBackUnitsLoop<>(date, shiftBackUnits,
                                 extractEndTime);
                         final ICloseableIterator<V> rangeValuesReverse = readRangeValuesReverse(date, null,
@@ -1034,8 +1048,9 @@ public class TimeSeriesLookupStorageCache<K, V> {
             return lastValue;
         } else {
             final int version = directoryHashKey.getDirectoryHashKeyVersion().getVersion();
-            final SingleValue value = storage.getOrLoad_nextValueLookupTable(hashKey, version, date, shiftForwardUnits,
-                    () -> {
+            final int indexNumber = memoryFileLookupTable.getCurrentIndexNumber();
+            final SingleValue value = storage.getOrLoad_nextValueLookupTable(hashKey, version, indexNumber, date,
+                    shiftForwardUnits, () -> {
                         final ShiftForwardUnitsLoop<V> shiftForwardLoop = new ShiftForwardUnitsLoop<>(date,
                                 shiftForwardUnits, extractEndTime);
                         final ICloseableIterator<V> rangeValues = readRangeValues(date, null, DisabledLock.INSTANCE,
@@ -1190,13 +1205,13 @@ public class TimeSeriesLookupStorageCache<K, V> {
         } else {
             final long precedingValueCount = summary.getPrecedingValueCount();
             if (precedingValueCount != 0) {
-                LOG.warn("[%s]: %s", directoryHashKeyVersionMemory,
+                LOG.warn("[%s]: WARNING: %s", directoryHashKeyVersionMemory,
                         Throwables.getFullStackTrace(new IllegalStateException("first.precedingValueCount["
                                 + precedingValueCount + "] != expectedPrecedingValueCount[0]")));
             }
             final long memoryOffset = summary.getPrecedingMemoryOffset() + summary.getMemoryOffset();
             if (memoryOffset != 0) {
-                LOG.warn("[%s]: %s", directoryHashKeyVersionMemory,
+                LOG.warn("[%s]: WARNING: %s", directoryHashKeyVersionMemory,
                         Throwables.getFullStackTrace(new IllegalStateException(
                                 "first.memoryOffset[" + memoryOffset + "] != expectedMemoryOffset[0]")));
             }
@@ -1215,6 +1230,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
      * get fragmented too much between updates
      */
     public synchronized TimeSeriesUpdateTransaction<V> newUpdateTransaction(final boolean shouldRedoLastFile) {
+        maybeUpdateIndex();
         final MemoryFileSummary latestSummary = getLastRangeKey();
         final FDate updateFrom;
         final List<V> lastValues;
@@ -1266,9 +1282,15 @@ public class TimeSeriesLookupStorageCache<K, V> {
             memoryOffset = 0L;
             precedingValueCount = 0L;
         }
-        clearCaches();
         return new TimeSeriesUpdateTransaction<>(this, updateFrom, lastValues, precedingMemoryOffset, memoryOffset,
                 precedingValueCount);
+    }
+
+    public synchronized void maybeUpdateIndex() {
+        if (!memoryFileLookupTable.isUpdatedIndexAvailable()) {
+            return;
+        }
+        clearCaches();
     }
 
     private void assertShiftUnitsPositiveNonZero(final int shiftUnits) {

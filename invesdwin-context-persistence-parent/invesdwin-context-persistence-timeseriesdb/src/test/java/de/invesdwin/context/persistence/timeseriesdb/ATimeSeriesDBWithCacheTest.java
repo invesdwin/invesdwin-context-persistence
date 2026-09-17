@@ -9,14 +9,13 @@ import de.invesdwin.context.persistence.timeseriesdb.base.ABaseDBWithCacheTest;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
-import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdateProgress;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
 import de.invesdwin.util.collections.iterable.skip.ATimeRangeSkippingIterable;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.math.decimal.scaled.Percent;
-import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 
 // CHECKSTYLE:OFF
@@ -65,10 +64,10 @@ public class ATimeSeriesDBWithCacheTest extends ABaseDBWithCacheTest {
         }
 
         @Override
-        protected void onUpdateFinished(final Instant updateStart) {}
+        protected void onUpdateFinished() {}
 
         @Override
-        protected void onUpdateStart() {}
+        protected void onUpdateStarted(final FDate updateStart) {}
 
         @Override
         protected FDate extractStartTime(final FDate element) {
@@ -81,10 +80,10 @@ public class ATimeSeriesDBWithCacheTest extends ABaseDBWithCacheTest {
         }
 
         @Override
-        protected void onElement(final IUpdateProgress<String, FDate> updateProgress) {}
+        protected void onElement(final ITimeSeriesUpdateProgress relativeProgress, final long relativeCount) {}
 
         @Override
-        protected void onFlush(final int flushIndex, final IUpdateProgress<String, FDate> updateProgress) {}
+        protected void onFlush(final ITimeSeriesUpdateProgress relativeProgress, final long flushIndex) {}
 
         @Override
         public Percent getProgress(final FDate minTime, final FDate maxTime) {

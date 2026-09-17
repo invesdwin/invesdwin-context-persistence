@@ -1,6 +1,5 @@
 package de.invesdwin.context.persistence.timeseriesdb.updater;
 
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -8,9 +7,11 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
-import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdateProgress;
+import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLockRegistry;
+import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.string.ProcessedEventsRateString;
-import de.invesdwin.util.math.Integers;
+import de.invesdwin.util.math.Longs;
 import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.math.decimal.scaled.PercentScale;
 import de.invesdwin.util.time.Instant;
@@ -26,11 +27,9 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
     public static final Duration FLUSH_LOG_INTERVAL = Duration.ONE_SECOND;
 
     private final Log log;
-    private final AtomicInteger lastFlushIndex = new AtomicInteger();
+    private final AtomicLong lastFlushIndex = new AtomicLong();
     @GuardedBy("this")
-    private Instant updateStart;
-    @GuardedBy("this")
-    private long flushElementCount;
+    private FDate updateStart;
     @GuardedBy("this")
     private FDate lastFlushMaxTime;
     @GuardedBy("this")
@@ -38,6 +37,7 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
 
     private final Object elementLock = new Object();
     private final AtomicLong elementCount = new AtomicLong();
+    private volatile String owner;
     private Instant lastLogElementTime;
     @GuardedBy("elementLock")
     private FDate elementMinTime;
@@ -50,23 +50,23 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
     }
 
     @Override
-    protected void onUpdateStart() {
+    protected void onUpdateStarted(final FDate updateStart) {
         log.info("Updating %s for [%s]", getElementsName(), keyToString(getKey()));
-        updateStart = new Instant();
+        this.updateStart = updateStart;
     }
 
     @Override
-    protected void onElement(final IUpdateProgress<K, V> progress) {
-        final long elements = elementCount.incrementAndGet();
+    protected void onElement(final ITimeSeriesUpdateProgress relativeProgress, final long relativeCount) {
+        final long elements = elementCount.addAndGet(relativeCount);
         if (elementMinTime == null) {
-            elementMinTime = progress.getMinTime();
+            elementMinTime = relativeProgress.getMinTime();
             lastLogElementTime = new Instant();
         }
         if (shouldLogElements()) {
             synchronized (elementLock) {
                 if (shouldLogElements()) {
-                    elementMinTime = FDates.min(elementMinTime, progress.getMinTime());
-                    elementMaxTime = FDates.max(elementMaxTime, progress.getMaxTime());
+                    elementMinTime = FDates.min(elementMinTime, relativeProgress.getMinTime());
+                    elementMaxTime = FDates.max(elementMaxTime, relativeProgress.getMaxTime());
                     logElements(elements);
                 }
             }
@@ -96,11 +96,13 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
     }
 
     @Override
-    protected synchronized void onFlush(final int flushIndex, final IUpdateProgress<K, V> progress) {
-        lastFlushIndex.set(Integers.max(lastFlushIndex.get(), flushIndex));
-        flushElementCount += progress.getValueCount();
-        lastFlushMaxTime = FDates.max(lastFlushMaxTime, progress.getMaxTime());
-        if (flushIndex % BATCH_LOG_INTERVAL == 0) {
+    protected synchronized void onFlush(final ITimeSeriesUpdateProgress relativeProgress, final long flushIndex) {
+        owner = relativeProgress.getOwner();
+        final long prevFlushIndex = lastFlushIndex.get();
+        lastFlushIndex.set(Longs.max(prevFlushIndex, flushIndex));
+        lastFlushMaxTime = FDates.max(lastFlushMaxTime, relativeProgress.getMaxTime());
+        final long flushIncrement = flushIndex - prevFlushIndex;
+        if (flushIncrement > BATCH_LOG_INTERVAL) {
             logFlush();
         }
     }
@@ -112,26 +114,37 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
             final Duration flushDuration = updateStart.toDuration();
             final Percent progress = getProgress();
             if (progress != null) {
-                log.info("Persisted %s. %s batch for [%s]. Reached [%s] at time [%s]. Processed [%s] during %s",
-                        lastFlushIndex, getElementsName(), keyToString(getKey()),
+                log.info("%sPersisted %s. %s batch for [%s]. Reached [%s] at time [%s]. Processed [%s] during %s",
+                        newOwnerPrefix(owner), lastFlushIndex, getElementsName(), keyToString(getKey()),
                         progress.asScale(PercentScale.PERCENT), lastFlushMaxTime,
-                        new ProcessedEventsRateString(flushElementCount, flushDuration), flushDuration);
+                        new ProcessedEventsRateString(getValueCount(), flushDuration), flushDuration);
             } else {
-                log.info("Persisted %s. %s batch for [%s]. Reached time [%s]. Processed [%s] during %s", lastFlushIndex,
-                        getElementsName(), keyToString(getKey()), lastFlushMaxTime,
-                        new ProcessedEventsRateString(flushElementCount, flushDuration), flushDuration);
+                log.info("%sPersisted %s. %s batch for [%s]. Reached time [%s]. Processed [%s] during %s",
+                        newOwnerPrefix(owner), lastFlushIndex, getElementsName(), keyToString(getKey()),
+                        lastFlushMaxTime, new ProcessedEventsRateString(getValueCount(), flushDuration), flushDuration);
             }
             lastLogFlushTime = new Instant();
         }
     }
 
+    public static String newOwnerPrefix(final String owner) {
+        final String ownerPrefix;
+        if (Objects.equals(owner, HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER)) {
+            ownerPrefix = "";
+        } else {
+            ownerPrefix = "[" + owner + "] ";
+        }
+        return ownerPrefix;
+    }
+
     @Override
-    protected synchronized void onUpdateFinished(final Instant updateStart) {
+    protected synchronized void onUpdateFinished() {
         if (lastFlushIndex != null) {
             logFlush();
         }
-        log.info("Finished updating %s %s for [%s] from [%s] to [%s] after %s", getCount(), getElementsName(),
-                keyToString(getKey()), getMinTime(), getMaxTime(), updateStart);
+        log.info("%sFinished updating %s %s for [%s] from [%s] to [%s] after %s", newOwnerPrefix(owner),
+                getValueCount(), getElementsName(), keyToString(getKey()), getMinTime(), getMaxTime(),
+                updateStart.toDuration());
     }
 
     protected abstract String keyToString(K key);

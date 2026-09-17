@@ -23,6 +23,7 @@ import de.invesdwin.util.collections.iterable.concurrent.AParallelChunkConsumerI
 import de.invesdwin.util.collections.iterable.concurrent.ProducerQueueIterable;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
+import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLockRegistry;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.OperatingSystem;
 import de.invesdwin.util.lang.string.description.TextDescription;
@@ -32,7 +33,7 @@ import de.invesdwin.util.streams.buffer.file.IMemoryMappedFile;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
-public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
+public class ParallelUpdateProgress<K, V> implements ITimeSeriesUpdateProgress {
 
     private static final int WRITER_THREADS = Executors.getCpuThreadPoolCount();
     private static final WrappedExecutorService WRITER_LIMIT_EXECUTOR = Executors
@@ -72,6 +73,11 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
     }
 
     @Override
+    public String getOwner() {
+        return HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER;
+    }
+
+    @Override
     public FDate getMinTime() {
         return minTime;
     }
@@ -82,7 +88,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
     }
 
     @Override
-    public int getValueCount() {
+    public long getValueCount() {
         return valueCount;
     }
 
@@ -107,7 +113,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
         lastElement = element;
         batch[valueCount] = element;
         valueCount++;
-        parent.onElement(this);
+        parent.onElement(this, 1L);
         return valueCount % parent.getLookupTable().getBatchFlushInterval() == 0;
     }
 
@@ -123,7 +129,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
 
     public void transferToMemoryFile(final TimeSeriesUpdateTransaction<V> updateTransaction,
             final FileOutputStream memoryFileOut, final File memoryFile, final long precedingMemoryOffset,
-            final long memoryOffset, final int flushIndex, final long precedingValueCount, final long tempFileLength) {
+            final long memoryOffset, final long flushIndex, final long precedingValueCount, final long tempFileLength) {
         try (FileInputStream tempIn = new FileInputStream(tempFile)) {
             long remaining = tempFileLength;
             long position = 0;
@@ -136,7 +142,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
             updateTransaction.finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
                     precedingMemoryOffset, memoryOffset, tempFileLength);
             Files.deleteQuietly(tempFile);
-            parent.onFlush(flushIndex, this);
+            parent.onFlush(this, flushIndex);
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }

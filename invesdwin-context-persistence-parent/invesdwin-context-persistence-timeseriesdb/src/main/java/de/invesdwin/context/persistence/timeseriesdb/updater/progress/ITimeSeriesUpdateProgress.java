@@ -2,9 +2,11 @@ package de.invesdwin.context.persistence.timeseriesdb.updater.progress;
 
 import de.invesdwin.util.time.date.FDate;
 
-public interface IUpdateProgress<K, V> {
+public interface ITimeSeriesUpdateProgress {
 
-    int getValueCount();
+    String getOwner();
+
+    long getValueCount();
 
     FDate getMaxTime();
 

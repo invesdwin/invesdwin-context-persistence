@@ -17,6 +17,7 @@ import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.TimeSeriesUpdateTransaction;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLockRegistry;
 import de.invesdwin.util.lang.OperatingSystem;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.marshallers.serde.ISerde;
@@ -26,7 +27,7 @@ import de.invesdwin.util.streams.pool.buffered.BufferedFileDataOutputStream;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
-public class SequentialContinuousUpdateProgress<K, V> implements IUpdateProgress<K, V>, Closeable {
+public class SequentialContinuousUpdateProgress<K, V> implements ITimeSeriesUpdateProgress, Closeable {
 
     private final ITimeSeriesUpdaterInternalMethods<K, V> parent;
     private final TextDescription name;
@@ -69,6 +70,11 @@ public class SequentialContinuousUpdateProgress<K, V> implements IUpdateProgress
     }
 
     @Override
+    public String getOwner() {
+        return HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER;
+    }
+
+    @Override
     public FDate getMinTime() {
         return minTime;
     }
@@ -87,7 +93,7 @@ public class SequentialContinuousUpdateProgress<K, V> implements IUpdateProgress
     }
 
     @Override
-    public int getValueCount() {
+    public long getValueCount() {
         return valueCount;
     }
 
@@ -112,12 +118,12 @@ public class SequentialContinuousUpdateProgress<K, V> implements IUpdateProgress
         lastElement = element;
         batch[valueCount] = element;
         valueCount++;
-        parent.onElement(this);
+        parent.onElement(this, 1L);
         return valueCount == batch.length;
     }
 
     @SuppressWarnings("unchecked")
-    private void write(final TimeSeriesUpdateTransaction<V> updateTransaction, final int flushIndex,
+    private void write(final TimeSeriesUpdateTransaction<V> updateTransaction, final long flushIndex,
             final boolean complete) {
         if (valueCount == 0) {
             return;
@@ -136,7 +142,7 @@ public class SequentialContinuousUpdateProgress<K, V> implements IUpdateProgress
                         precedingMemoryOffset, memoryOffset, memoryLength);
                 memoryOffset += memoryLength;
                 precedingValueCount += valueCount;
-                parent.onFlush(flushIndex, this);
+                parent.onFlush(this, flushIndex);
 
                 if (IMemoryMappedFile.isSegmentSizeExceeded(memoryOffset)) {
                     if (OperatingSystem.isWindows()) {
@@ -172,7 +178,7 @@ public class SequentialContinuousUpdateProgress<K, V> implements IUpdateProgress
                 updateTransaction.finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
                         precedingMemoryOffset, memoryOffset, memoryLength);
                 precedingValueCount += valueCount;
-                parent.onFlush(flushIndex, this);
+                parent.onFlush(this, flushIndex);
 
                 //close
                 precedingMemoryOffset += memoryLength;

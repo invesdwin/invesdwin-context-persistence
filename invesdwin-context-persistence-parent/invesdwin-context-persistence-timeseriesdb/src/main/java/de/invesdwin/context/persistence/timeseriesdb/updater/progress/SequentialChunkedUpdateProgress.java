@@ -17,6 +17,7 @@ import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.TimeSeriesUpdateTransaction;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLockRegistry;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.OperatingSystem;
 import de.invesdwin.util.lang.string.description.TextDescription;
@@ -27,7 +28,7 @@ import de.invesdwin.util.streams.pool.buffered.BufferedFileDataOutputStream;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
-public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K, V>, Closeable {
+public class SequentialChunkedUpdateProgress<K, V> implements ITimeSeriesUpdateProgress, Closeable {
     private final ITimeSeriesUpdaterInternalMethods<K, V> parent;
     private final TextDescription name;
     private final File tempFile;
@@ -73,6 +74,11 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
     }
 
     @Override
+    public String getOwner() {
+        return HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER;
+    }
+
+    @Override
     public FDate getMinTime() {
         return minTime;
     }
@@ -91,7 +97,7 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
     }
 
     @Override
-    public int getValueCount() {
+    public long getValueCount() {
         return valueCount;
     }
 
@@ -116,12 +122,12 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
         lastElement = element;
         batch[valueCount] = element;
         valueCount++;
-        parent.onElement(this);
+        parent.onElement(this, 1L);
         return valueCount == batch.length;
     }
 
     @SuppressWarnings("unchecked")
-    private void write(final TimeSeriesUpdateTransaction<V> updateTransaction, final int flushIndex,
+    private void write(final TimeSeriesUpdateTransaction<V> updateTransaction, final long flushIndex,
             final boolean complete) {
         if (valueCount == 0) {
             return;
@@ -160,7 +166,7 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
                         precedingMemoryOffset, memoryOffset, tempFileLength);
                 memoryOffset += tempFileLength;
                 precedingValueCount += valueCount;
-                parent.onFlush(flushIndex, this);
+                parent.onFlush(this, flushIndex);
 
             } else {
                 // Route incomplete segment to isolated standalone file
@@ -181,7 +187,7 @@ public class SequentialChunkedUpdateProgress<K, V> implements IUpdateProgress<K,
                 updateTransaction.finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
                         precedingMemoryOffset, memoryOffset, tempFileLength);
                 precedingValueCount += valueCount;
-                parent.onFlush(flushIndex, this);
+                parent.onFlush(this, flushIndex);
 
                 // close
                 precedingMemoryOffset += tempFileLength;

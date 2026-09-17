@@ -138,6 +138,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                                 return;
                             }
                             try {
+                                getTable().getLookupTableCache(key).maybeUpdateIndex();
                                 innerMaybeUpdate(key);
                                 LazyDataUpdaterProperties.maybeUpdateFinished(getUpdaterId());
                                 //update timestamp only at the end if successful
@@ -204,7 +205,8 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
         return !FDates.isSameJulianDay(lastUpdateCheck, curTime) || lastResetIndex != getTable().getLastResetIndex();
     }
 
-    protected final FDate doUpdate(final FDate estimatedTo) throws IncompleteUpdateRetryableException {
+    protected final TimeSeriesUpdaterResult doUpdate(final FDate estimatedTo)
+            throws IncompleteUpdateRetryableException {
         if (estimatedTo == null) {
             throw new NullPointerException("estimatedTo should not be null");
         }
@@ -251,29 +253,29 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 }
 
             };
-            final Callable<FDate> task = new Callable<FDate>() {
+            final Callable<TimeSeriesUpdaterResult> task = new Callable<TimeSeriesUpdaterResult>() {
                 @Override
-                public FDate call() throws Exception {
-                    updater.update();
-                    final FDate maxTime = updater.getMaxTime();
-                    if (maxTime != null) {
-                        final Duration timegap = new Duration(maxTime, estimatedTo);
+                public TimeSeriesUpdaterResult call() throws Exception {
+                    final TimeSeriesUpdaterResult result = updater.update();
+                    final FDate updatedTo = result.getUpdatedTo();
+                    if (updatedTo != null) {
+                        final Duration timegap = new Duration(updatedTo, estimatedTo);
                         if (timegap.isGreaterThan(Duration.ONE_YEAR)) {
                             //might be a race condition in parallel writes that aborts after the first 10k elements chunk
                             log.error(getTable().hashKeyToString(getKey())
-                                    + ": Potential problem with data updates: maxTime[" + maxTime
+                                    + ": Potential problem with data updates: maxTime[" + updatedTo
                                     + "] is too far away from estimatedTo[" + estimatedTo + "]: " + timegap + " > "
                                     + Duration.ONE_YEAR);
                         }
                     }
-                    return maxTime;
+                    return result;
                 }
             };
             final String taskName = "Loading " + getElementsName() + " for " + keyToString(getKey());
             final Callable<Percent> progress = newProgressCallable(estimatedTo, updater);
-            final FDate updatedTo = TaskInfoCallable.of(taskName, task, progress).call();
-            LazyDataUpdaterProperties.setLastUpdateTo(getUpdaterId(), FDates.max(estimatedTo, updatedTo));
-            return updatedTo;
+            final TimeSeriesUpdaterResult result = TaskInfoCallable.of(taskName, task, progress).call();
+            LazyDataUpdaterProperties.setLastUpdateTo(getUpdaterId(), FDates.max(estimatedTo, result.getUpdatedTo()));
+            return result;
         } catch (final IncompleteUpdateRetryableException e) {
             throw e;
         } catch (final Throwable e) {

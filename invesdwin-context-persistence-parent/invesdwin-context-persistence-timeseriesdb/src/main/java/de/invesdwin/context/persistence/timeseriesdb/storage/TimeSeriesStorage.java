@@ -217,21 +217,21 @@ public class TimeSeriesStorage {
         }
     }
 
-    public SingleValue getOrLoad_latestValueLookupTable(final String hashKey, final int version, final FDate key,
-            final Supplier<SingleValue> loadable) {
-        return latestValueLookupTable.getOrLoad(new HashRangeKey(hashKey, version, key), loadable);
+    public SingleValue getOrLoad_latestValueLookupTable(final String hashKey, final int version, final int indexNumber,
+            final FDate key, final Supplier<SingleValue> loadable) {
+        return latestValueLookupTable.getOrLoad(new HashRangeKey(hashKey, version, indexNumber, key), loadable);
     }
 
-    public SingleValue getOrLoad_nextValueLookupTable(final String hashKey, final int version, final FDate date,
-            final int shiftForwardUnits, final Supplier<SingleValue> loadable) {
-        return nextValueLookupTable.getOrLoad(new HashRangeShiftUnitsKey(hashKey, version, date, shiftForwardUnits),
-                loadable);
+    public SingleValue getOrLoad_nextValueLookupTable(final String hashKey, final int version, final int indexNumber,
+            final FDate date, final int shiftForwardUnits, final Supplier<SingleValue> loadable) {
+        return nextValueLookupTable.getOrLoad(
+                new HashRangeShiftUnitsKey(hashKey, version, indexNumber, date, shiftForwardUnits), loadable);
     }
 
-    public SingleValue getOrLoad_previousValueLookupTable(final String hashKey, final int version, final FDate date,
-            final int shiftBackUnits, final Supplier<SingleValue> loadable) {
-        return previousValueLookupTable.getOrLoad(new HashRangeShiftUnitsKey(hashKey, version, date, shiftBackUnits),
-                loadable);
+    public SingleValue getOrLoad_previousValueLookupTable(final String hashKey, final int version, final int indexNumber,
+            final FDate date, final int shiftBackUnits, final Supplier<SingleValue> loadable) {
+        return previousValueLookupTable
+                .getOrLoad(new HashRangeShiftUnitsKey(hashKey, version, indexNumber, date, shiftBackUnits), loadable);
     }
 
 }

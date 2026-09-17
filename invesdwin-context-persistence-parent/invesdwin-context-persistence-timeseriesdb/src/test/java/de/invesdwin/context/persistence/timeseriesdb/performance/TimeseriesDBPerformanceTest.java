@@ -19,7 +19,8 @@ import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesB
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
-import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
+import de.invesdwin.context.persistence.timeseriesdb.updater.TimeSeriesUpdaterResult;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdateProgress;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -98,12 +99,12 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
             }
 
             @Override
-            protected void onUpdateFinished(final Instant updateStart) {
+            protected void onUpdateFinished() {
                 printProgress("WritesFinished", writesStart, VALUES, VALUES);
             }
 
             @Override
-            protected void onUpdateStart() {}
+            protected void onUpdateStarted(final FDate updateStart) {}
 
             @Override
             protected FDate extractStartTime(final FDate element) {
@@ -116,13 +117,13 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
             }
 
             @Override
-            protected void onElement(final IUpdateProgress<String, FDate> updateProgress) {}
+            protected void onElement(final ITimeSeriesUpdateProgress relativeProgress, final long relativeCount) {}
 
             @Override
-            protected void onFlush(final int flushIndex, final IUpdateProgress<String, FDate> updateProgress) {
+            protected void onFlush(final ITimeSeriesUpdateProgress relativeProgress, final long flushIndex) {
                 try {
                     if (loopCheck.check()) {
-                        printProgress("Writes", writesStart, updateProgress.getValueCount() * flushIndex, VALUES);
+                        printProgress("Writes", writesStart, relativeProgress.getValueCount() * flushIndex, VALUES);
                     }
                 } catch (final InterruptedException e) {
                     throw new RuntimeException(e);
@@ -134,7 +135,9 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
                 return null;
             }
         };
-        Assertions.checkTrue(updater.update());
+        try (TimeSeriesUpdaterResult result = updater.update()) {
+            Assertions.checkNotNull(result.getUpdatedTo());
+        }
 
         readIterator(table, "Cold", 1);
         readIterator(table, "Warm", READS);

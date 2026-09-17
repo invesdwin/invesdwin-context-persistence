@@ -6,14 +6,14 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.commons.lang3.mutable.MutableInt;
+import org.apache.commons.lang3.mutable.MutableLong;
 import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
-import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdateProgress;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -22,7 +22,6 @@ import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.math.decimal.scaled.Percent;
-import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
 import de.invesdwin.util.time.date.FDates;
@@ -79,10 +78,10 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected void onUpdateFinished(final Instant updateStart) {}
+            protected void onUpdateFinished() {}
 
             @Override
-            protected void onUpdateStart() {}
+            protected void onUpdateStarted(final FDate updateStart) {}
 
             @Override
             protected FDate extractStartTime(final FDate element) {
@@ -95,10 +94,10 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected void onElement(final IUpdateProgress<String, FDate> updateProgress) {};
+            protected void onElement(final ITimeSeriesUpdateProgress relativeProgress, final long relativeCount) {}
 
             @Override
-            protected void onFlush(final int flushIndex, final IUpdateProgress<String, FDate> updateProgress) {}
+            protected void onFlush(final ITimeSeriesUpdateProgress relativeProgress, final long flushIndex) {}
 
             @Override
             public Percent getProgress(final FDate minTime, final FDate maxTime) {
@@ -186,10 +185,10 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected void onUpdateFinished(final Instant updateStart) {}
+            protected void onUpdateFinished() {}
 
             @Override
-            protected void onUpdateStart() {}
+            protected void onUpdateStarted(final FDate updateStart) {}
 
             @Override
             protected FDate extractStartTime(final FDate element) {
@@ -202,10 +201,10 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected void onElement(final IUpdateProgress<String, FDate> updateProgress) {};
+            protected void onElement(final ITimeSeriesUpdateProgress relativeProgress, final long relativeCount) {}
 
             @Override
-            protected void onFlush(final int flushIndex, final IUpdateProgress<String, FDate> updateProgress) {}
+            protected void onFlush(final ITimeSeriesUpdateProgress relativeProgress, final long flushIndex) {}
 
             @Override
             public Percent getProgress(final FDate minTime, final FDate maxTime) {
@@ -232,10 +231,10 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected void onUpdateFinished(final Instant updateStart) {}
+            protected void onUpdateFinished() {}
 
             @Override
-            protected void onUpdateStart() {}
+            protected void onUpdateStarted(final FDate updateStart) {}
 
             @Override
             protected FDate extractStartTime(final FDate element) {
@@ -248,10 +247,10 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected void onElement(final IUpdateProgress<String, FDate> updateProgress) {}
+            protected void onElement(final ITimeSeriesUpdateProgress relativeProgress, final long relativeCount) {}
 
             @Override
-            protected void onFlush(final int flushIndex, final IUpdateProgress<String, FDate> updateProgress) {}
+            protected void onFlush(final ITimeSeriesUpdateProgress relativeProgress, final long flushIndex) {}
 
             @Override
             public Percent getProgress(final FDate minTime, final FDate maxTime) {
@@ -320,7 +319,7 @@ public class ATimeSeriesDBTest extends ATest {
         for (int i = 0; i < 100_000; i++) {
             dates.add(new FDate(i));
         }
-        final MutableInt segments = new MutableInt();
+        final MutableLong segments = new MutableLong();
         new ATimeSeriesUpdater<String, FDate>(key, table) {
 
             @Override
@@ -329,10 +328,10 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected void onUpdateFinished(final Instant updateStart) {}
+            protected void onUpdateFinished() {}
 
             @Override
-            protected void onUpdateStart() {}
+            protected void onUpdateStarted(final FDate updateStart) {}
 
             @Override
             protected FDate extractStartTime(final FDate element) {
@@ -345,10 +344,10 @@ public class ATimeSeriesDBTest extends ATest {
             }
 
             @Override
-            protected void onElement(final IUpdateProgress<String, FDate> updateProgress) {}
+            protected void onElement(final ITimeSeriesUpdateProgress relativeProgress, final long relativeCount) {}
 
             @Override
-            protected void onFlush(final int flushIndex, final IUpdateProgress<String, FDate> updateProgress) {
+            protected void onFlush(final ITimeSeriesUpdateProgress relativeProgress, final long flushIndex) {
                 segments.increment();
             }
 
@@ -357,7 +356,7 @@ public class ATimeSeriesDBTest extends ATest {
                 return null;
             }
         }.update();
-        Assertions.assertThat(segments.intValue()).isEqualByComparingTo(10);
+        Assertions.assertThat(segments.longValue()).isEqualByComparingTo(10L);
 
         for (int i = 0; i < dates.size(); i += ATimeSeriesUpdater.DEFAULT_BATCH_FLUSH_INTERVAL) {
             final FDate expectedValue = dates.get(dates.size() - i - 1);
