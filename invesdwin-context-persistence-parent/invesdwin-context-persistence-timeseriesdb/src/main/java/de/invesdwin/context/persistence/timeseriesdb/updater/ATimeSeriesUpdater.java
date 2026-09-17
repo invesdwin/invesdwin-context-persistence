@@ -143,8 +143,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                     doUpdate();
                     onUpdateFinished();
                     writeUpdateProgress(updateProgressFile, true);
-                    Files.moveFileNoThrow(updateProgressFile, updateFinishedFile);
-                    return new TimeSeriesUpdaterResult(maxTime, updateLock);
+                    return new TimeSeriesUpdaterResult(maxTime, updateLock, updateProgressFile, updateFinishedFile);
                 } catch (final Throwable t) {
                     updateLock.close();
                     throw IncompleteUpdateRetryableException.propagateIncompleteUpdateException(t);
@@ -193,7 +192,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         lookupTable.clearCaches();
         final FDate updatedTo = lookupTable.getLastValueEndTime();
         onUpdateFinished();
-        return new TimeSeriesUpdaterResult(updatedTo, null);
+        return new TimeSeriesUpdaterResult(updatedTo, null, null, null);
     }
 
     private void doUpdate() throws IncompleteUpdateRetryableException {

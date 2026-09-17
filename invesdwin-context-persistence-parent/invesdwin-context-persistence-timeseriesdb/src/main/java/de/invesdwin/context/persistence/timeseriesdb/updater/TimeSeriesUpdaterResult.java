@@ -1,8 +1,11 @@
 package de.invesdwin.context.persistence.timeseriesdb.updater;
 
+import java.io.File;
+
 import javax.annotation.concurrent.Immutable;
 
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
+import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 import de.invesdwin.util.streams.closeable.ISafeCloseable;
 import de.invesdwin.util.time.date.FDate;
@@ -12,10 +15,16 @@ public class TimeSeriesUpdaterResult implements ISafeCloseable {
 
     private final FDate updatedTo;
     private final TimeSeriesUpdaterResultFinalizer finalizer;
+    private boolean closed;
+    private final File updateProgressFile;
+    private final File updateFinishedFile;
 
-    public TimeSeriesUpdaterResult(final FDate updatedTo, final HeartbeatFileChannelLock updateLock) {
+    public TimeSeriesUpdaterResult(final FDate updatedTo, final HeartbeatFileChannelLock updateLock,
+            final File updateProgressFile, final File updateFinishedFile) {
         this.updatedTo = updatedTo;
         this.finalizer = new TimeSeriesUpdaterResultFinalizer(updateLock);
+        this.updateProgressFile = updateProgressFile;
+        this.updateFinishedFile = updateFinishedFile;
         finalizer.register(this);
     }
 
@@ -24,8 +33,15 @@ public class TimeSeriesUpdaterResult implements ISafeCloseable {
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
+        if (closed) {
+            return;
+        }
+        if (updateProgressFile != null && updateFinishedFile != null) {
+            Files.moveFileNoThrow(updateProgressFile, updateFinishedFile);
+        }
         finalizer.close();
+        closed = true;
     }
 
     private static final class TimeSeriesUpdaterResultFinalizer extends AFinalizer {
