@@ -45,6 +45,7 @@ import de.invesdwin.context.persistence.timeseriesdb.storage.memory.ISkipMemoryF
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ALoggingTimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ITimeSeriesUpdater;
+import de.invesdwin.context.persistence.timeseriesdb.updater.TimeSeriesUpdaterResult;
 import de.invesdwin.util.collections.eviction.EvictionMode;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ATransformingIterable;
@@ -61,6 +62,8 @@ import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.Threads;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
 import de.invesdwin.util.concurrent.future.Futures;
+import de.invesdwin.util.concurrent.future.ImmutableFuture;
+import de.invesdwin.util.concurrent.future.ThrowableFuture;
 import de.invesdwin.util.concurrent.lock.ICloseableLock;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
@@ -588,11 +591,12 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
             final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
         segmentStatusTable.put(segmentedKey.getSegment(), SegmentStatus.INITIALIZING);
         maybePrepareForUpdate(segmentedKey.getSegment());
-        initSegmentRetry(segmentedKey, source);
-        if (segmentedTable.isEmptyOrInconsistent(segmentedKey)) {
-            segmentStatusTable.put(segmentedKey.getSegment(), SegmentStatus.COMPLETE_EMPTY);
-        } else {
-            segmentStatusTable.put(segmentedKey.getSegment(), SegmentStatus.COMPLETE);
+        try (TimeSeriesUpdaterResult result = initSegmentRetry(segmentedKey, source)) {
+            if (segmentedTable.isEmptyOrInconsistent(segmentedKey)) {
+                segmentStatusTable.put(segmentedKey.getSegment(), SegmentStatus.COMPLETE_EMPTY);
+            } else {
+                segmentStatusTable.put(segmentedKey.getSegment(), SegmentStatus.COMPLETE);
+            }
         }
     }
 
@@ -607,24 +611,23 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         }
     }
 
-    private void initSegmentRetry(final SegmentedKey<K> segmentedKey,
+    private TimeSeriesUpdaterResult initSegmentRetry(final SegmentedKey<K> segmentedKey,
             final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
-        final ARetryCallable<Throwable> retryTask = new ARetryCallable<Throwable>(
+        final ARetryCallable<Future<TimeSeriesUpdaterResult>> retryTask = new ARetryCallable<Future<TimeSeriesUpdaterResult>>(
                 new RetryOriginator(ASegmentedTimeSeriesDB.class, "initSegment", segmentedKey)) {
             @Override
-            protected Throwable callRetry() throws Exception {
+            protected Future<TimeSeriesUpdaterResult> callRetry() throws Exception {
                 try {
                     if (closed) {
-                        return new RetryLaterRuntimeException(
+                        return ThrowableFuture.of(new RetryLaterRuntimeException(
                                 ASegmentedTimeSeriesLookupStorageCache.class.getSimpleName() + " for [" + hashKey
-                                        + "] is already closed.");
+                                        + "] is already closed."));
                     } else {
-                        initSegment(segmentedKey, source);
+                        return ImmutableFuture.of(initSegment(segmentedKey, source));
                     }
-                    return null;
                 } catch (final Throwable t) {
                     if (closed) {
-                        return t;
+                        return ThrowableFuture.of(t);
                     } else {
                         throw t;
                     }
@@ -637,22 +640,19 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
                 return BackOffPolicies.randomFixedBackOff(Duration.ONE_SECOND);
             }
         };
-        final Throwable t = retryTask.call();
-        if (t != null) {
-            throw Throwables.propagate(t);
-        }
+        final Future<TimeSeriesUpdaterResult> resultFuture = retryTask.call();
+        return Futures.getNoInterrupt(resultFuture);
     }
 
-    private void initSegment(final SegmentedKey<K> segmentedKey,
+    private TimeSeriesUpdaterResult initSegment(final SegmentedKey<K> segmentedKey,
             final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
         try {
             final ITimeSeriesUpdater<SegmentedKey<K>, V> updater = newSegmentUpdater(segmentedKey, source);
-            final Callable<Void> task = new Callable<Void>() {
+            final Callable<TimeSeriesUpdaterResult> task = new Callable<TimeSeriesUpdaterResult>() {
                 @Override
-                public Void call() throws Exception {
+                public TimeSeriesUpdaterResult call() throws Exception {
                     //write lock is reentrant
-                    updater.update().close();
-                    return null;
+                    return updater.update();
                 }
             };
             final String taskName = "Loading " + getElementsName() + " for " + hashKey;
@@ -662,28 +662,34 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
                     return updater.getProgress();
                 }
             };
-            TaskInfoCallable.of(taskName, task, progress).call();
-            final FDate minTime = updater.getMinTime();
-            if (minTime != null) {
-                final FDate segmentFrom = segmentedKey.getSegment().getFrom();
-                final TimeRange prevSegment = getSegmentFinder(segmentedKey.getKey()).getCacheQuery()
-                        .getValue(segmentFrom.addPicoseconds(-1));
-                if (prevSegment.getTo().equalsNotNullSafe(segmentFrom)
-                        && minTime.isBeforeOrEqualToNotNullSafe(segmentFrom)) {
-                    throw new IllegalStateException(
-                            segmentedKey + ": minTime [" + minTime + "] should not be before or equal to segmentFrom ["
-                                    + segmentFrom + "] when overlapping segments are used");
-                } else if (minTime.isBeforeNotNullSafe(segmentFrom)) {
-                    throw new IllegalStateException(
-                            segmentedKey + ": minTime [" + minTime + "] should not be before segmentFrom ["
-                                    + segmentFrom + "] when non overlapping segments are used");
+            final TimeSeriesUpdaterResult result = TaskInfoCallable.of(taskName, task, progress).call();
+            try {
+                final FDate minTime = updater.getMinTime();
+                if (minTime != null) {
+                    final FDate segmentFrom = segmentedKey.getSegment().getFrom();
+                    final TimeRange prevSegment = getSegmentFinder(segmentedKey.getKey()).getCacheQuery()
+                            .getValue(segmentFrom.addPicoseconds(-1));
+                    if (prevSegment.getTo().equalsNotNullSafe(segmentFrom)
+                            && minTime.isBeforeOrEqualToNotNullSafe(segmentFrom)) {
+                        throw new IllegalStateException(segmentedKey + ": minTime [" + minTime
+                                + "] should not be before or equal to segmentFrom [" + segmentFrom
+                                + "] when overlapping segments are used");
+                    } else if (minTime.isBeforeNotNullSafe(segmentFrom)) {
+                        throw new IllegalStateException(
+                                segmentedKey + ": minTime [" + minTime + "] should not be before segmentFrom ["
+                                        + segmentFrom + "] when non overlapping segments are used");
+                    }
+                    final FDate maxTime = updater.getMaxTime();
+                    final FDate segmentTo = segmentedKey.getSegment().getTo();
+                    if (maxTime.isAfterNotNullSafe(segmentTo)) {
+                        throw new IllegalStateException(segmentedKey + ": maxTime [" + maxTime
+                                + "] should not be after segmentTo [" + segmentTo + "]");
+                    }
                 }
-                final FDate maxTime = updater.getMaxTime();
-                final FDate segmentTo = segmentedKey.getSegment().getTo();
-                if (maxTime.isAfterNotNullSafe(segmentTo)) {
-                    throw new IllegalStateException(segmentedKey + ": maxTime [" + maxTime
-                            + "] should not be after segmentTo [" + segmentTo + "]");
-                }
+                return result;
+            } catch (final Throwable t) {
+                result.close();
+                throw t;
             }
         } catch (final Throwable t) {
             if (Throwables.isCausedByType(t, IncompleteUpdateRetryableException.class)) {
