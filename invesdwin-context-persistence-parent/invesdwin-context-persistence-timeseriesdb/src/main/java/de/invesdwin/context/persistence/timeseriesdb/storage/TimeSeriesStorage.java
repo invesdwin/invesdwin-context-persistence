@@ -197,6 +197,7 @@ public class TimeSeriesStorage {
                 latestValueLookupTable.deleteTable();
             }
         }
+        updateResetTable(latestValueLookupTable);
     }
 
     public void deleteRange_latestValueLookupTable(final String hashKey, final FDate above) {
@@ -213,6 +214,7 @@ public class TimeSeriesStorage {
                     latestValueLookupTable.deleteTable();
                 }
             }
+            updateResetTable(latestValueLookupTable);
         }
     }
 
@@ -258,8 +260,8 @@ public class TimeSeriesStorage {
                     previousValueLookupTable.deleteTable();
                 }
             }
+            updateResetTable(previousValueLookupTable);
         }
-        updateResetTable(previousValueLookupTable);
     }
 
     public SingleValue getOrLoad_latestValueLookupTable(final String hashKey, final int version, final int indexNumber,
