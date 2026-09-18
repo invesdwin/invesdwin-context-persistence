@@ -1,7 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb.storage;
 
 import java.io.File;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.function.Supplier;
 
@@ -144,21 +143,11 @@ public class TimeSeriesStorage {
 
     private void updateResetTableUnchecked(final APersistentMap<?, ?> table, final FDate lastResetShared,
             final FDate now) {
-        try {
-            final String key = newResetTableKey(table);
-            if (lastResetShared == null) {
-                directory.getStoragePropertiesShared().setDate(key, now);
-            }
-            directory.getStoragePropertiesPerNode().setDate(key, now);
-        } catch (final Throwable t) {
-            /*
-             * ignore if another thread is also writing this property at the same time, likely it will be the same
-             * value, otherwise it is not critical if another table deletion happens
-             */
-            if (!Throwables.isCausedByType(t, FileAlreadyExistsException.class)) {
-                throw t;
-            }
+        final String key = newResetTableKey(table);
+        if (lastResetShared == null) {
+            directory.getStoragePropertiesShared().setDate(key, now);
         }
+        directory.getStoragePropertiesPerNode().setDate(key, now);
     }
 
     private void updateResetTable(final APersistentMap<?, ?> table) {
