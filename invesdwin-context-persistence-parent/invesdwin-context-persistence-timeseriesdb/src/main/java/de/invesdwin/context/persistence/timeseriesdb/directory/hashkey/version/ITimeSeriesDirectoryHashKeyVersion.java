@@ -19,6 +19,6 @@ public interface ITimeSeriesDirectoryHashKeyVersion {
 
     void incrementVersion();
 
-    ICloseableProperties getProperties();
+    ICloseableProperties getUpdaterPropertiesShared();
 
 }

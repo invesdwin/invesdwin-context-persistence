@@ -4,7 +4,9 @@ import java.io.File;
 
 import javax.annotation.concurrent.Immutable;
 
+import de.invesdwin.context.integration.filechannel.nio.atomic.properties.AtomicFilesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
+import de.invesdwin.context.system.properties.IProperties;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
 
@@ -18,6 +20,8 @@ public class TimeSeriesDirectory implements ITimeSeriesDirectory {
     private final File directoryShared;
     private final File directoryPerNode;
     private final File heartbeatsDirectory;
+    private AtomicFilesProperties storagePropertiesShared;
+    private AtomicFilesProperties storagePropertiesPerNode;
 
     public TimeSeriesDirectory(final ITimeSeriesBaseDirectory parent, final String storageName) {
         this.parent = parent;
@@ -58,6 +62,34 @@ public class TimeSeriesDirectory implements ITimeSeriesDirectory {
         if (!Objects.equals(directoryShared, directoryPerNode)) {
             Files.deleteNative(directoryPerNode);
         }
+        storagePropertiesShared = null;
+        storagePropertiesPerNode = null;
+    }
+
+    @Override
+    public IProperties getStoragePropertiesShared() {
+        if (storagePropertiesShared == null) {
+            synchronized (this) {
+                if (storagePropertiesShared == null) {
+                    this.storagePropertiesShared = new AtomicFilesProperties(
+                            new File(directoryShared, "storageProperties"));
+                }
+            }
+        }
+        return storagePropertiesShared;
+    }
+
+    @Override
+    public IProperties getStoragePropertiesPerNode() {
+        if (storagePropertiesPerNode == null) {
+            synchronized (this) {
+                if (storagePropertiesPerNode == null) {
+                    this.storagePropertiesPerNode = new AtomicFilesProperties(
+                            new File(directoryPerNode, "storageProperties"));
+                }
+            }
+        }
+        return storagePropertiesPerNode;
     }
 
     @Override

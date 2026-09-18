@@ -16,6 +16,7 @@ import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeKey;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeKeySerde;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeShiftUnitsKey;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeShiftUnitsKeySerde;
+import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.time.date.FDate;
 
@@ -39,7 +40,6 @@ public class TimeSeriesStorage {
         this.directory = directory;
         this.compressionFactory = compressionFactory;
         this.latestValueLookupTable = new APersistentMap<HashRangeKey, SingleValue>("latestValueLookupTable") {
-
             @Override
             public File getDirectory() {
                 return directory.getDirectoryPerNode();
@@ -64,10 +64,8 @@ public class TimeSeriesStorage {
             protected IPersistentMapFactory<HashRangeKey, SingleValue> newFactory() {
                 return getMapType().newFactory();
             }
-
         };
         this.nextValueLookupTable = new APersistentMap<HashRangeShiftUnitsKey, SingleValue>("nextValueLookupTable") {
-
             @Override
             public File getDirectory() {
                 return directory.getDirectoryPerNode();
@@ -95,7 +93,6 @@ public class TimeSeriesStorage {
         };
         this.previousValueLookupTable = new APersistentMap<HashRangeShiftUnitsKey, SingleValue>(
                 "previousValueLookupTable") {
-
             @Override
             public File getDirectory() {
                 return directory.getDirectoryPerNode();
@@ -121,6 +118,31 @@ public class TimeSeriesStorage {
                 return getMapType().newFactory();
             }
         };
+        maybeResetTable(latestValueLookupTable);
+        maybeResetTable(nextValueLookupTable);
+        maybeResetTable(previousValueLookupTable);
+    }
+
+    private void maybeResetTable(final APersistentMap<?, ?> table) {
+        final String key = newResetTableKey(table);
+        final FDate lastResetShared = directory.getStoragePropertiesShared().getDateOptional(key);
+        final FDate lastResetPerNode = directory.getStoragePropertiesPerNode().getDateOptional(key);
+        if ((lastResetShared == null && lastResetPerNode == null)
+                || !Objects.equals(lastResetShared, lastResetPerNode)) {
+            table.deleteTable();
+            updateResetTable(table);
+        }
+    }
+
+    private void updateResetTable(final APersistentMap<?, ?> table) {
+        final FDate now = FDate.now();
+        final String key = newResetTableKey(table);
+        directory.getStoragePropertiesPerNode().setDate(key, now);
+        directory.getStoragePropertiesShared().setDate(newResetTableKey(table), now);
+    }
+
+    private String newResetTableKey(final APersistentMap<?, ?> table) {
+        return table.getName() + ".reset";
     }
 
     /**
@@ -185,6 +207,7 @@ public class TimeSeriesStorage {
                 nextValueLookupTable.deleteTable();
             }
         }
+        updateResetTable(nextValueLookupTable);
     }
 
     public void deleteRange_previousValueLookupTable(final String hashKey) {
@@ -198,6 +221,7 @@ public class TimeSeriesStorage {
                 previousValueLookupTable.deleteTable();
             }
         }
+        updateResetTable(previousValueLookupTable);
     }
 
     public void deleteRange_previousValueLookupTable(final String hashKey, final FDate above) {
@@ -215,6 +239,7 @@ public class TimeSeriesStorage {
                 }
             }
         }
+        updateResetTable(previousValueLookupTable);
     }
 
     public SingleValue getOrLoad_latestValueLookupTable(final String hashKey, final int version, final int indexNumber,
@@ -228,8 +253,8 @@ public class TimeSeriesStorage {
                 new HashRangeShiftUnitsKey(hashKey, version, indexNumber, date, shiftForwardUnits), loadable);
     }
 
-    public SingleValue getOrLoad_previousValueLookupTable(final String hashKey, final int version, final int indexNumber,
-            final FDate date, final int shiftBackUnits, final Supplier<SingleValue> loadable) {
+    public SingleValue getOrLoad_previousValueLookupTable(final String hashKey, final int version,
+            final int indexNumber, final FDate date, final int shiftBackUnits, final Supplier<SingleValue> loadable) {
         return previousValueLookupTable
                 .getOrLoad(new HashRangeShiftUnitsKey(hashKey, version, indexNumber, date, shiftBackUnits), loadable);
     }

@@ -23,6 +23,7 @@ import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.ArrayFileBufferCacheResult;
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.ITimeSeriesDirectoryHashKeyVersion;
 import de.invesdwin.context.persistence.timeseriesdb.loop.AShiftForwardUnitsLoopIntIndex;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
@@ -123,18 +124,21 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
         if (fileChannel == null) {
             synchronized (this) {
                 if (fileChannel == null) {
-                    fileChannel = FileChannelRegistry.newFile(new File(
-                            historicalSegmentTable.getSegmentedLookupTableCache(segmentedKey.getKey())
-                                    .getDirectoryHashKey()
-                                    .getDirectoryHashKeyVersion()
-                                    .getDirectoryHashKeyVersionPerNode(),
-                            Files.normalizePath(historicalSegmentTable.hashKeyToString(segmentedKey)
-                                    .replace("/", "_")
-                                    .replace("\\", "_") + "_" + "inProgress.data")));
+                    fileChannel = FileChannelRegistry
+                            .newFile(new File(getDirerctoryHashKeyVersion().getDirectoryHashKeyVersionPerNode(),
+                                    Files.normalizePath(historicalSegmentTable.hashKeyToString(segmentedKey)
+                                            .replace("/", "_")
+                                            .replace("\\", "_") + "_" + "inProgress.data")));
                 }
             }
         }
         return fileChannel;
+    }
+
+    private ITimeSeriesDirectoryHashKeyVersion getDirerctoryHashKeyVersion() {
+        return historicalSegmentTable.getSegmentedLookupTableCache(segmentedKey.getKey())
+                .getDirectoryHashKey()
+                .getDirectoryHashKeyVersion();
     }
 
     @Override
@@ -310,7 +314,10 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
                 values = newSerializingCollection();
             }
             values.add(nextLiveValue);
-            size.incrementAndGet();
+            final int newSize = size.incrementAndGet();
+            if (newSize < 0) {
+                throw new IllegalStateException("size overflow: " + newSize);
+            }
             needsFlush = true;
         }
         if (firstValue.isEmpty() || firstValueKey.equalsNotNullSafe(nextLiveEndTimeKey)) {
@@ -485,13 +492,15 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
     @Override
     public void close() {
         synchronized (this) {
-            if (values != null) {
-                values.close();
+            final SerializingCollection<V> valuesCopy = values;
+            if (valuesCopy != null) {
+                valuesCopy.close();
                 size.set(0);
-                values.clear();
+                valuesCopy.clear();
                 values = null;
             }
             needsFlush = false;
+            fileChannel = null;
         }
         firstValue.clear();
         firstValueKey = null;

@@ -2,8 +2,10 @@ package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 
 import java.io.File;
 import java.util.NoSuchElementException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
+import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.log.Log;
@@ -33,18 +35,146 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
     private final ThrottledLiveKeyWarning throttledLiveKeyWarning = new ThrottledLiveKeyWarning(LOG);
     private final SegmentedKey<K> segmentedKey;
     private final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable;
-    private final ADelegateRangeTable<Void, FDate, V> values;
+    @GuardedBy("this")
+    private ADelegateRangeTable<Void, FDate, V> values;
     private FDate firstValueKey;
     private final IBufferingIterator<V> firstValue = new BufferingIterator<>();
     private FDate lastValueKey;
     private final IBufferingIterator<V> lastValue = new BufferingIterator<>();
-    private long size;
+    private final AtomicLong size = new AtomicLong();
 
     public RangeTableLiveSegment(final SegmentedKey<K> segmentedKey,
             final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable) {
         this.segmentedKey = segmentedKey;
         this.historicalSegmentTable = historicalSegmentTable;
-        this.values = new ADelegateRangeTable<Void, FDate, V>("inProgress") {
+    }
+
+    @Override
+    public V getFirstValue() {
+        return firstValue.getHead();
+    }
+
+    @Override
+    public V getLastValue() {
+        return lastValue.getTail();
+    }
+
+    @Override
+    public SegmentedKey<K> getSegmentedKey() {
+        return segmentedKey;
+    }
+
+    @Override
+    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final ILock readLock,
+            final ISkipMemoryFileSummaryFunction skipFileFunction) {
+        //we expect the read lock to be already locked from the outside
+        final ADelegateRangeTable<Void, FDate, V> valuesCopy = getValues();
+        if (valuesCopy == null || from != null && to != null && from.isAfterNotNullSafe(to)) {
+            return EmptyCloseableIterable.getInstance();
+        }
+        if (from != null && !lastValue.isEmpty() && from.isAfterOrEqualToNotNullSafe(lastValueKey)) {
+            if (from.isAfterNotNullSafe(lastValueKey)) {
+                return EmptyCloseableIterable.getInstance();
+            } else {
+                return lastValue.snapshot();
+            }
+        }
+        if (to != null && !firstValue.isEmpty() && to.isBeforeOrEqualToNotNullSafe(firstValueKey)) {
+            if (to.isBeforeNotNullSafe(firstValueKey)) {
+                return EmptyCloseableIterable.getInstance();
+            } else {
+                return firstValue.snapshot();
+            }
+        }
+        final ICloseableIterable<V> iterable = new ICloseableIterable<V>() {
+            @Override
+            public ICloseableIterator<V> iterator() {
+                return valuesCopy.rangeValues(null, from, to);
+            }
+        };
+        if (readLock.isDisabled()) {
+            return iterable;
+        } else {
+            //we expect the read lock to be already locked from the outside
+            return new BufferingIterator<>(iterable);
+        }
+    }
+
+    private synchronized ADelegateRangeTable<Void, FDate, V> getValues() {
+        return values;
+    }
+
+    @Override
+    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final ILock readLock,
+            final ISkipMemoryFileSummaryFunction skipFileFunction) {
+        //we expect the read lock to be already locked from the outside
+        final ADelegateRangeTable<Void, FDate, V> valuesCopy = getValues();
+        if (valuesCopy == null || from != null && to != null && from.isBeforeNotNullSafe(to)) {
+            return EmptyCloseableIterable.getInstance();
+        }
+        if (from != null && !firstValue.isEmpty() && from.isBeforeOrEqualToNotNullSafe(firstValueKey)) {
+            if (from.isBeforeNotNullSafe(firstValueKey)) {
+                return EmptyCloseableIterable.getInstance();
+            } else {
+                return firstValue.snapshot();
+            }
+        }
+        if (to != null && !lastValue.isEmpty() && to.isAfterOrEqualToNotNullSafe(lastValueKey)) {
+            if (to.isAfterNotNullSafe(lastValueKey)) {
+                return EmptyCloseableIterable.getInstance();
+            } else {
+                return lastValue.snapshot();
+            }
+        }
+        final ICloseableIterable<V> iterable = new ICloseableIterable<V>() {
+            @Override
+            public ICloseableIterator<V> iterator() {
+                return valuesCopy.rangeReverseValues(null, from, to);
+            }
+        };
+        if (readLock.isDisabled()) {
+            return iterable;
+        } else {
+            //we expect the read lock to be already locked from the outside
+            return new BufferingIterator<>(iterable);
+        }
+    }
+
+    @Override
+    public boolean putNextLiveValue(final FDate nextLiveStartTime, final FDate nextLiveEndTimeKey,
+            final V nextLiveValue) {
+        if (!lastValue.isEmpty()) {
+            if (lastValueKey.isAfterNotNullSafe(nextLiveStartTime)) {
+                throttledLiveKeyWarning.maybeWarn(nextLiveStartTime, lastValueKey, segmentedKey);
+                return false;
+            }
+        }
+        if (nextLiveStartTime.isAfterNotNullSafe(nextLiveEndTimeKey)) {
+            throw new IllegalArgumentException(TextDescription.format(
+                    "nextLiveEndTimeKey [%s] should be after or equal to nextLiveStartTime [%s]: %s",
+                    nextLiveEndTimeKey, nextLiveStartTime, segmentedKey));
+        }
+        synchronized (this) {
+            if (values == null) {
+                values = newValues();
+            }
+            values.put(null, nextLiveEndTimeKey, nextLiveValue);
+            size.incrementAndGet();
+        }
+        if (firstValue.isEmpty() || firstValueKey.equalsNotNullSafe(nextLiveEndTimeKey)) {
+            firstValue.add(nextLiveValue);
+            firstValueKey = nextLiveEndTimeKey;
+        }
+        if (!lastValue.isEmpty() && !lastValueKey.equalsNotNullSafe(nextLiveEndTimeKey)) {
+            lastValue.clear();
+        }
+        lastValue.add(nextLiveValue);
+        lastValueKey = nextLiveEndTimeKey;
+        return true;
+    }
+
+    private ADelegateRangeTable<Void, FDate, V> newValues() {
+        return new ADelegateRangeTable<Void, FDate, V>("inProgress") {
 
             @Override
             protected File getDirectory() {
@@ -80,121 +210,8 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     @Override
-    public V getFirstValue() {
-        return firstValue.getHead();
-    }
-
-    @Override
-    public V getLastValue() {
-        return lastValue.getTail();
-    }
-
-    @Override
-    public SegmentedKey<K> getSegmentedKey() {
-        return segmentedKey;
-    }
-
-    @Override
-    public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final ILock readLock,
-            final ISkipMemoryFileSummaryFunction skipFileFunction) {
-        //we expect the read lock to be already locked from the outside
-        if (values == null || from != null && to != null && from.isAfterNotNullSafe(to)) {
-            return EmptyCloseableIterable.getInstance();
-        }
-        if (from != null && !lastValue.isEmpty() && from.isAfterOrEqualToNotNullSafe(lastValueKey)) {
-            if (from.isAfterNotNullSafe(lastValueKey)) {
-                return EmptyCloseableIterable.getInstance();
-            } else {
-                return lastValue.snapshot();
-            }
-        }
-        if (to != null && !firstValue.isEmpty() && to.isBeforeOrEqualToNotNullSafe(firstValueKey)) {
-            if (to.isBeforeNotNullSafe(firstValueKey)) {
-                return EmptyCloseableIterable.getInstance();
-            } else {
-                return firstValue.snapshot();
-            }
-        }
-        final ICloseableIterable<V> iterable = new ICloseableIterable<V>() {
-            @Override
-            public ICloseableIterator<V> iterator() {
-                return values.rangeValues(null, from, to);
-            }
-        };
-        if (readLock.isDisabled()) {
-            return iterable;
-        } else {
-            //we expect the read lock to be already locked from the outside
-            return new BufferingIterator<>(iterable);
-        }
-    }
-
-    @Override
-    public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final ILock readLock,
-            final ISkipMemoryFileSummaryFunction skipFileFunction) {
-        //we expect the read lock to be already locked from the outside
-        if (values == null || from != null && to != null && from.isBeforeNotNullSafe(to)) {
-            return EmptyCloseableIterable.getInstance();
-        }
-        if (from != null && !firstValue.isEmpty() && from.isBeforeOrEqualToNotNullSafe(firstValueKey)) {
-            if (from.isBeforeNotNullSafe(firstValueKey)) {
-                return EmptyCloseableIterable.getInstance();
-            } else {
-                return firstValue.snapshot();
-            }
-        }
-        if (to != null && !lastValue.isEmpty() && to.isAfterOrEqualToNotNullSafe(lastValueKey)) {
-            if (to.isAfterNotNullSafe(lastValueKey)) {
-                return EmptyCloseableIterable.getInstance();
-            } else {
-                return lastValue.snapshot();
-            }
-        }
-        final ICloseableIterable<V> iterable = new ICloseableIterable<V>() {
-            @Override
-            public ICloseableIterator<V> iterator() {
-                return values.rangeReverseValues(null, from, to);
-            }
-        };
-        if (readLock.isDisabled()) {
-            return iterable;
-        } else {
-            //we expect the read lock to be already locked from the outside
-            return new BufferingIterator<>(iterable);
-        }
-    }
-
-    @Override
-    public boolean putNextLiveValue(final FDate nextLiveStartTime, final FDate nextLiveEndTimeKey,
-            final V nextLiveValue) {
-        if (!lastValue.isEmpty()) {
-            if (lastValueKey.isAfterNotNullSafe(nextLiveStartTime)) {
-                throttledLiveKeyWarning.maybeWarn(nextLiveStartTime, lastValueKey, segmentedKey);
-                return false;
-            }
-        }
-        if (nextLiveStartTime.isAfterNotNullSafe(nextLiveEndTimeKey)) {
-            throw new IllegalArgumentException(TextDescription.format(
-                    "nextLiveEndTimeKey [%s] should be after or equal to nextLiveStartTime [%s]: %s",
-                    nextLiveEndTimeKey, nextLiveStartTime, segmentedKey));
-        }
-        values.put(null, nextLiveEndTimeKey, nextLiveValue);
-        size++;
-        if (firstValue.isEmpty() || firstValueKey.equalsNotNullSafe(nextLiveEndTimeKey)) {
-            firstValue.add(nextLiveValue);
-            firstValueKey = nextLiveEndTimeKey;
-        }
-        if (!lastValue.isEmpty() && !lastValueKey.equalsNotNullSafe(nextLiveEndTimeKey)) {
-            lastValue.clear();
-        }
-        lastValue.add(nextLiveValue);
-        lastValueKey = nextLiveEndTimeKey;
-        return true;
-    }
-
-    @Override
     public long size() {
-        return size;
+        return size.get();
     }
 
     @Override
@@ -251,7 +268,11 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
             //we always return the first first value
             return firstValue.getHead();
         }
-        return values.getLatestValue(null, date);
+        final ADelegateRangeTable<Void, FDate, V> valuesCopy = getValues();
+        if (valuesCopy == null) {
+            return null;
+        }
+        return valuesCopy.getLatestValue(null, date);
     }
 
     @Override
@@ -271,12 +292,19 @@ public class RangeTableLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public void close() {
-        values.deleteTable();
+        synchronized (this) {
+            final ADelegateRangeTable<Void, FDate, V> valuesCopy = values;
+            if (valuesCopy != null) {
+                valuesCopy.close();
+                valuesCopy.deleteTable();
+                values = null;
+            }
+        }
         firstValue.clear();
         firstValueKey = null;
         lastValue.clear();
         lastValueKey = null;
-        size = 0;
+        size.set(0);
     }
 
     @Override

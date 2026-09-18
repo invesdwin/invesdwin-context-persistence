@@ -19,7 +19,7 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
 
     private final ITimeSeriesDirectoryHashKey parent;
     private final TimeSeriesDirectoryVersionFinalizer finalizer;
-    private volatile AtomicNioFileChannel propertiesPath;
+    private volatile AtomicNioFileChannel propertiesSharedPath;
 
     public TimeSeriesDirectoryHashKeyVersion(final ITimeSeriesDirectoryHashKey parent) {
         this.parent = parent;
@@ -58,20 +58,20 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
     }
 
     @Override
-    public ICloseableProperties getProperties() {
-        return new TransactionalFileProperties(this::getPropertiesPath);
+    public ICloseableProperties getUpdaterPropertiesShared() {
+        return new TransactionalFileProperties(this::getPropertiesSharedPath);
     }
 
-    private AtomicNioFileChannel getPropertiesPath() {
-        if (propertiesPath == null) {
+    private AtomicNioFileChannel getPropertiesSharedPath() {
+        if (propertiesSharedPath == null) {
             synchronized (this) {
-                if (propertiesPath == null) {
-                    propertiesPath = new AtomicNioFileChannel(FileChannelPath.newFile(new File(
-                            new File(getDirectoryHashKeyVersionShared(), "properties"), "version.properties")));
+                if (propertiesSharedPath == null) {
+                    propertiesSharedPath = new AtomicNioFileChannel(FileChannelPath.newFile(new File(
+                            new File(getDirectoryHashKeyVersionShared(), "updaterProperties"), "updater.properties")));
                 }
             }
         }
-        return propertiesPath;
+        return propertiesSharedPath;
     }
 
     private TimeSeriesDirectoryHashKeyVersionLease getLease() {
@@ -115,7 +115,7 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
                 finalizer.lease = TimeSeriesDirectoryHashKeyVersionLeaseRegistry.getOrCreate(parent, nextVersion);
             }
 
-            propertiesPath = null;
+            propertiesSharedPath = null;
             prevLease.close();
         }
     }
