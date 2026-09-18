@@ -283,7 +283,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
     }
 
     public File getUpdateProgressFile() {
-        return new File(directoryHashKeyVersionMemory.getDirectoryHashKeyVersionDataShared(), "update.running");
+        return new File(directoryHashKeyVersionMemory.getDirectoryHashKeyVersionDataShared(), "update.progress");
     }
 
     public File getUpdateFinishedFile() {

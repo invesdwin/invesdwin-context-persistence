@@ -1,6 +1,8 @@
 package de.invesdwin.context.persistence.timeseriesdb.updater;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 
 import javax.annotation.concurrent.Immutable;
 
@@ -38,7 +40,14 @@ public class TimeSeriesUpdaterResult implements ISafeCloseable {
             return;
         }
         if (updateProgressFile != null && updateFinishedFile != null) {
-            Files.moveFileNoThrow(updateProgressFile, updateFinishedFile);
+            try {
+                Files.moveFile(updateProgressFile, updateFinishedFile);
+            } catch (final FileNotFoundException e) {
+                // ignore, file was already moved or deleted
+                Files.touchQuietly(updateFinishedFile);
+            } catch (final IOException e) {
+                throw new RuntimeException("Failed to move update progress file to update finished file", e);
+            }
         }
         finalizer.close();
         closed = true;

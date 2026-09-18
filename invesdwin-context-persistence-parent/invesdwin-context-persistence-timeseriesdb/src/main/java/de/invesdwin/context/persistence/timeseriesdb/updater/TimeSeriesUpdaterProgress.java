@@ -94,6 +94,9 @@ public class TimeSeriesUpdaterProgress implements ITimeSeriesUpdateProgress {
     public static TimeSeriesUpdaterProgress readUpdateProgress(final File updateProgressFile) {
         try {
             final String progress = Files.readFileToStringNoThrow(updateProgressFile, Charsets.defaultCharset());
+            if (Strings.isBlank(progress)) {
+                return null;
+            }
             final String[] split = Strings.splitPreserveAllTokens(progress, ";");
             if (split.length != 6) {
                 return null;
