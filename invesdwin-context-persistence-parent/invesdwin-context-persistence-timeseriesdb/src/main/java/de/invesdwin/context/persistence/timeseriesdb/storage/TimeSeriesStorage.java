@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.timeseriesdb.storage;
 
 import java.io.File;
+import java.nio.file.NoSuchFileException;
 import java.util.function.Supplier;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -16,6 +17,7 @@ import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeKey;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeKeySerde;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeShiftUnitsKey;
 import de.invesdwin.context.persistence.timeseriesdb.storage.key.HashRangeShiftUnitsKeySerde;
+import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.time.date.FDate;
@@ -126,19 +128,37 @@ public class TimeSeriesStorage {
     private void maybeResetTable(final APersistentMap<?, ?> table) {
         final String key = newResetTableKey(table);
         final FDate lastResetShared = directory.getStoragePropertiesShared().getDateOptional(key);
+        final FDate now;
+        if (lastResetShared == null) {
+            now = FDate.now();
+        } else {
+            now = lastResetShared;
+        }
         final FDate lastResetPerNode = directory.getStoragePropertiesPerNode().getDateOptional(key);
-        if ((lastResetShared == null && lastResetPerNode == null)
-                || !Objects.equals(lastResetShared, lastResetPerNode)) {
+        if (!Objects.equals(now, lastResetPerNode)) {
             table.deleteTable();
-            updateResetTable(table);
+            updateResetTableUnchecked(table, lastResetShared, now);
         }
     }
 
-    private void updateResetTable(final APersistentMap<?, ?> table) {
-        final FDate now = FDate.now();
+    private void updateResetTableUnchecked(final APersistentMap<?, ?> table, final FDate lastResetShared,
+            final FDate now) {
         final String key = newResetTableKey(table);
-        directory.getStoragePropertiesPerNode().setDate(key, now);
-        directory.getStoragePropertiesShared().setDate(newResetTableKey(table), now);
+        if (lastResetShared == null) {
+            directory.getStoragePropertiesPerNode().setDate(key, now);
+        }
+        directory.getStoragePropertiesShared().setDate(key, now);
+    }
+
+    private void updateResetTable(final APersistentMap<?, ?> table) {
+        try {
+            updateResetTableUnchecked(table, null, FDate.now());
+        } catch (final Throwable t) {
+            //ignore if directory was deleted already
+            if (!Throwables.isCausedByType(t, NoSuchFileException.class)) {
+                throw t;
+            }
+        }
     }
 
     private String newResetTableKey(final APersistentMap<?, ?> table) {

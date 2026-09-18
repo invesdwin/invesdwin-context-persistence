@@ -3,6 +3,7 @@ package de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
@@ -18,6 +19,7 @@ import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.ITimeSeri
 import de.invesdwin.util.collections.factory.pool.set.ICloseableSet;
 import de.invesdwin.util.collections.factory.pool.set.PooledSet;
 import de.invesdwin.util.error.RuntimeIOException;
+import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.string.Strings;
@@ -191,8 +193,11 @@ public final class TimeSeriesDirectoryHashKeyVersionLease implements ISafeClosea
                                 }
                             }
                         });
-            } catch (final IOException e) {
-                throw new RuntimeException(e);
+            } catch (final Throwable t) {
+                // Ignore concurrently deleted files or directories during tree traversal
+                if (!Throwables.isCausedByType(t, NoSuchFileException.class)) {
+                    throw Throwables.propagate(t);
+                }
             }
         }
     }
