@@ -1184,7 +1184,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
             final V precedingLastValue = prevSummary.getLastValue(valueSerde);
             final FDate precedingLastValueTime = extractEndTime(precedingLastValue);
 
-            if (precedingLastValueTime.isAfterOrEqualToNotNullSafe(firstValueTime)) {
+            if (precedingLastValueTime.isAfterNotNullSafe(firstValueTime)) {
                 throw new IllegalStateException("precedingLastValueTime [" + precedingLastValueTime
                         + "] should not be after firstValueTime [" + firstValueTime + "]");
             }
