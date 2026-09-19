@@ -127,10 +127,11 @@ public class ParallelUpdateProgress<K, V> implements ITimeSeriesUpdateProgress {
         collection.close();
     }
 
-    public void transferToMemoryFile(final TimeSeriesUpdateTransaction<V> updateTransaction,
+    public long transferToMemoryFile(final TimeSeriesUpdateTransaction<V> updateTransaction,
             final FileOutputStream memoryFileOut, final File memoryFile, final long precedingMemoryOffset,
             final long memoryOffset, final long flushIndex, final long precedingValueCount, final long tempFileLength) {
         try (FileInputStream tempIn = new FileInputStream(tempFile)) {
+            memoryFileOut.getChannel().position(memoryOffset);
             long remaining = tempFileLength;
             long position = 0;
             while (remaining > 0L) {
@@ -138,11 +139,18 @@ public class ParallelUpdateProgress<K, V> implements ITimeSeriesUpdateProgress {
                 remaining -= copied;
                 position += copied;
             }
+            if (position != tempFileLength || remaining != 0L) {
+                throw new IllegalStateException(
+                        "Failed to transfer all bytes from temp file [" + tempFile + "] to memory file [" + memoryFile
+                                + "], expected length [" + tempFileLength + "] but only transferred [" + position
+                                + "]: position=" + position + ", remaining=" + remaining);
+            }
             //close first so that lz4 writes out its footer bytes (a flush is not sufficient)
             updateTransaction.finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
                     precedingMemoryOffset, memoryOffset, tempFileLength);
             Files.deleteQuietly(tempFile);
             parent.onFlush(this, flushIndex);
+            return position;
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
@@ -294,7 +302,7 @@ public class ParallelUpdateProgress<K, V> implements ITimeSeriesUpdateProgress {
         FileOutputStream memoryFileOut = null;
         try {
             memoryFileOut = new FileOutputStream(memoryFile, true);
-            //append could set the initial position above 0 (if the file already exists), even if this is the first segment
+            long memoryOffset = initialMemoryOffset;
             memoryFileOut.getChannel().position(initialMemoryOffset);
 
             final int batchFlushInterval = parent.getLookupTable().getBatchFlushInterval();
@@ -307,7 +315,6 @@ public class ParallelUpdateProgress<K, V> implements ITimeSeriesUpdateProgress {
                     final boolean complete = !parent.shouldRedoLastFile()
                             || (progress.getValueCount() == batchFlushInterval && batchWriterProducer.hasNext());
                     if (complete) {
-                        long memoryOffset = memoryFileOut.getChannel().position();
                         if (IMemoryMappedFile.isSegmentSizeExceeded(memoryOffset + tempFileLength)) {
                             precedingMemoryOffset += memoryOffset;
                             memoryFile = MemoryFiles.newMemoryFile(parent, precedingMemoryOffset);
@@ -321,11 +328,15 @@ public class ParallelUpdateProgress<K, V> implements ITimeSeriesUpdateProgress {
                             memoryFileOut = new FileOutputStream(memoryFile, true);
                             memoryOffset = 0;
                         }
-                        progress.transferToMemoryFile(updateTransaction, memoryFileOut, memoryFile,
+                        memoryOffset += progress.transferToMemoryFile(updateTransaction, memoryFileOut, memoryFile,
                                 precedingMemoryOffset, memoryOffset, flushIndex, precedingValueCount, tempFileLength);
+                        if (memoryFileOut.getChannel().position() != memoryOffset) {
+                            throw new IllegalStateException(
+                                    "Memory file channel position [" + memoryFileOut.getChannel().position()
+                                            + "] does not match expected memory offset [" + memoryOffset + "]");
+                        }
                         precedingValueCount += progress.getValueCount();
                     } else {
-                        long memoryOffset = memoryFileOut.getChannel().position();
                         //open new incomplete segment to isolated file
                         precedingMemoryOffset += memoryOffset;
                         memoryFile = MemoryFiles.newIncompleteMemoryFile(memoryFile, memoryOffset);
@@ -339,8 +350,13 @@ public class ParallelUpdateProgress<K, V> implements ITimeSeriesUpdateProgress {
                         memoryOffset = 0;
 
                         //finish file
-                        progress.transferToMemoryFile(updateTransaction, memoryFileOut, memoryFile,
+                        memoryOffset += progress.transferToMemoryFile(updateTransaction, memoryFileOut, memoryFile,
                                 precedingMemoryOffset, memoryOffset, flushIndex, precedingValueCount, tempFileLength);
+                        if (memoryFileOut.getChannel().position() != memoryOffset) {
+                            throw new IllegalStateException(
+                                    "Memory file channel position [" + memoryFileOut.getChannel().position()
+                                            + "] does not match expected memory offset [" + memoryOffset + "]");
+                        }
                         precedingValueCount += progress.getValueCount();
 
                         //close
