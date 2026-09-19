@@ -13,9 +13,11 @@ import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCach
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.ITimeSeriesDirectoryHashKeyVersion;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummarySerde;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.AMemoryFileSummarySerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.ITimeSeriesMemoryFileLookupTable;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.string.Charsets;
 import de.invesdwin.util.lang.string.description.TextDescription;
@@ -29,7 +31,7 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     private final TimeSeriesLookupStorageCache<?, V> parent;
     private final FDate updateFrom;
     private final List<V> lastValues;
-    private final long precedingMemorOffset;
+    private final long precedingMemoryOffset;
     private final long memoryOffset;
     private final long precedingValueCount;
     private AMemoryFileSummarySerializingCollection summaries;
@@ -42,9 +44,10 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         this.updateFrom = updateFrom;
         Assertions.checkNotNull(lastValues);
         this.lastValues = lastValues;
-        this.precedingMemorOffset = precedingMemoryOffset;
+        this.precedingMemoryOffset = precedingMemoryOffset;
         this.memoryOffset = memoryOffset;
         this.precedingValueCount = precedingValueCount;
+        MemoryFiles.assertFirstSummaryMaybe(precedingMemoryOffset, memoryOffset, precedingValueCount);
     }
 
     public TimeSeriesLookupStorageCache<?, V> getParent() {
@@ -59,8 +62,8 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         return lastValues;
     }
 
-    public long getPrecedingMemorOffset() {
-        return precedingMemorOffset;
+    public long getPrecedingMemoryOffset() {
+        return precedingMemoryOffset;
     }
 
     public long getMemoryOffset() {
@@ -117,16 +120,20 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
         if (prevSummary == null) {
             return;
         }
         summaries.closeWithEmptyWrite();
         final ITimeSeriesMemoryFileLookupTable memoryFileLookupTable = parent.getMemoryFileLookupTable();
-        memoryFileLookupTable.put(summaries.iterator());
+        final ICloseableIterator<MemoryFileSummary> iterator = summaries.iterator();
+        if (iterator != null) {
+            memoryFileLookupTable.put(iterator);
+        }
         summaries.clear();
         parent.clearCaches();
         touchUpdateMarker(parent.getDirectoryHashKey().getDirectoryHashKeyVersion());
+        prevSummary = null;
     }
 
     public static void touchUpdateMarker(final ITimeSeriesDirectoryHashKeyVersion directoryHashKeyVersion) {
