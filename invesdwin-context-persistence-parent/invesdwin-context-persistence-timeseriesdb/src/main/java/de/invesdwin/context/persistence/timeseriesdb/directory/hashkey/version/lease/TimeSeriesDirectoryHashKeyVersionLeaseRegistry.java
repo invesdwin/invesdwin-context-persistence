@@ -15,12 +15,12 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.IntegrationProperties;
-import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannelContext;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.ITimeSeriesDirectoryHashKey;
 import de.invesdwin.instrument.DynamicInstrumentationProperties;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.fast.IFastIterableMap;
 import de.invesdwin.util.concurrent.Executors;
+import de.invesdwin.util.concurrent.lock.file.AtomicNioFileChannelContext;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLockRegistry;
 import de.invesdwin.util.lang.Files;
@@ -38,8 +38,8 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             .newConcurrentMap();
     private static final Duration HEARTBEAT_INTERVAL = Duration.ONE_MINUTE;
     private static final Duration CLEANUP_CHECK_INTERVAL = Duration.ONE_HOUR;
-    private static final Duration CLEANUP_INTERVAL = AtomicNioFileChannelContext.CLEANUP_INTERVAL;
-    private static final String CLEANUP_MARKER_FILENAME = AtomicNioFileChannelContext.CLEANUP_MARKER_FILENAME;
+    private static final Duration CLEANUP_INTERVAL = AtomicNioFileChannelContext.TMP_CLEANUP_INTERVAL;
+    private static final String CLEANUP_MARKER_FILENAME = AtomicNioFileChannelContext.TMP_CLEANUP_MARKER_FILENAME;
     private static final long UNINITIALIZED_DIRECTORY_CLEANUP_TIME = AtomicNioFileChannelContext.UNINITIALIZED_DIRECTORY_CLEANUP_TIME;
 
     private static ScheduledExecutorService heartbeatExecutor;
@@ -137,7 +137,6 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
 
     private static final class SharedDirectoryLeaseContext {
         private final File heartbeatsDirectory;
-        private final Path heartbeatsDirectoryPath;
         private final File heartbeatFile;
         private final Path cleanupMarkerPath;
         private final Path tempCleanupMarkerPath;
@@ -156,7 +155,6 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
 
         private SharedDirectoryLeaseContext(final File heartbeatsDirectory) {
             this.heartbeatsDirectory = heartbeatsDirectory;
-            this.heartbeatsDirectoryPath = heartbeatsDirectory.toPath();
             this.heartbeatFile = new File(heartbeatsDirectory,
                     Files.normalizeFilename(HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER
                             + HeartbeatFileChannelLockRegistry.HEARTBEAT_EXTENSION));

@@ -8,7 +8,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannel;
-import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannelContext;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.ITimeSeriesDirectoryHashKeyVersion;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
@@ -18,6 +17,7 @@ import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.AMemo
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.ITimeSeriesMemoryFileLookupTable;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.concurrent.lock.file.AtomicNioFileChannelContext;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.string.Charsets;
 import de.invesdwin.util.lang.string.description.TextDescription;
@@ -90,11 +90,6 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
                     parent.getDirectoryHashKeyVersionMemory().getDirectoryHashKeyVersionDataShared(),
                     AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME + ".update"
                             + AtomicNioFileChannelContext.TMP_EXTENSION);
-            try {
-                Files.forceMkdirParent(tempSummariesFile);
-            } catch (final IOException e) {
-                throw new RuntimeException(e);
-            }
             summaries = new AMemoryFileSummarySerializingCollection(
                     new TextDescription("%s.finishFile", TimeSeriesUpdateTransaction.class.getSimpleName()),
                     AtomicNioFileChannel.newFile(tempSummariesFile.toURI()), false) {
@@ -129,11 +124,15 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         if (prevSummary == null) {
             return;
         }
-        summaries.closeWithEmptyWrite();
-        final ITimeSeriesMemoryFileLookupTable memoryFileLookupTable = parent.getMemoryFileLookupTable();
-        final ICloseableIterator<MemoryFileSummary> iterator = summaries.iterator();
-        memoryFileLookupTable.put(iterator);
-        summaries.clear();
+        final AMemoryFileSummarySerializingCollection summariesCopy = summaries;
+        if (summariesCopy != null) {
+            summariesCopy.closeWithEmptyWrite();
+            final ITimeSeriesMemoryFileLookupTable memoryFileLookupTable = parent.getMemoryFileLookupTable();
+            final ICloseableIterator<MemoryFileSummary> iterator = summariesCopy.iterator();
+            memoryFileLookupTable.put(iterator);
+            summariesCopy.clear();
+            summaries = null;
+        }
         parent.clearCaches();
         touchUpdateMarker(parent.getDirectoryHashKey().getDirectoryHashKeyVersion());
         prevSummary = null;
