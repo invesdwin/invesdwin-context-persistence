@@ -3,6 +3,7 @@ package de.invesdwin.context.persistence.timeseriesdb;
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -117,7 +118,11 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
 
     @Override
     public final InputStream newInputStream() throws IOException {
-        return newDecompressor(newFileInputStream(file));
+        final InputStream in = newFileInputStream(file);
+        if (in == null) {
+            throw new FileNotFoundException("File not found, must have been deleted in the mean time: " + file);
+        }
+        return newDecompressor(in);
     }
 
     protected SerializingCollectionFinalizer newFinalizer() {

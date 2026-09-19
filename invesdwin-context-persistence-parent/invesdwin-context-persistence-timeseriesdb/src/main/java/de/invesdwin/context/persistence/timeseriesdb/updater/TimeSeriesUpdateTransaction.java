@@ -4,7 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 
-import javax.annotation.concurrent.Immutable;
+import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannel;
@@ -25,7 +25,7 @@ import de.invesdwin.util.streams.closeable.ISafeCloseable;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.millis.FDateMillis;
 
-@Immutable
+@NotThreadSafe
 public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
 
     private final TimeSeriesLookupStorageCache<?, V> parent;
@@ -90,6 +90,11 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
                     parent.getDirectoryHashKeyVersionMemory().getDirectoryHashKeyVersionDataShared(),
                     AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME + ".update"
                             + AtomicNioFileChannelContext.TMP_EXTENSION);
+            try {
+                Files.forceMkdirParent(tempSummariesFile);
+            } catch (final IOException e) {
+                throw new RuntimeException(e);
+            }
             summaries = new AMemoryFileSummarySerializingCollection(
                     new TextDescription("%s.finishFile", TimeSeriesUpdateTransaction.class.getSimpleName()),
                     AtomicNioFileChannel.newFile(tempSummariesFile.toURI()), false) {
@@ -127,10 +132,6 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         summaries.closeWithEmptyWrite();
         final ITimeSeriesMemoryFileLookupTable memoryFileLookupTable = parent.getMemoryFileLookupTable();
         final ICloseableIterator<MemoryFileSummary> iterator = summaries.iterator();
-        if (iterator == null) {
-            throw new NullPointerException(
-                    "File not found, must have been deleted in the mean time: " + summaries.getFile());
-        }
         memoryFileLookupTable.put(iterator);
         summaries.clear();
         parent.clearCaches();
