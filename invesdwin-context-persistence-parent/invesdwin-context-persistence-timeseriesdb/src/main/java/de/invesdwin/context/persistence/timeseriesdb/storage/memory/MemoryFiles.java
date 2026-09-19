@@ -100,4 +100,36 @@ public final class MemoryFiles {
         }
     }
 
+    public static void assertMaybeFirstSummary(final long precedingMemoryOffset, final long memoryOffset,
+            final long precedingValueCount) {
+        if (precedingMemoryOffset == 0 && memoryOffset == 0) {
+            if (precedingValueCount != 0) {
+                throw new IllegalArgumentException(
+                        "If precedingMemoryOffset and memoryOffset are 0, then precedingValueCount must also be 0");
+            }
+        }
+        if (precedingValueCount == 0) {
+            if (precedingMemoryOffset != 0) {
+                throw new IllegalArgumentException(
+                        "If precedingValueCount is 0, then precedingMemoryOffset must also be 0");
+            }
+            if (memoryOffset != 0) {
+                throw new IllegalArgumentException("If precedingValueCount is 0, then memoryOffset must also be 0");
+            }
+        }
+    }
+
+    public static void assertFirstSummary(final long precedingMemoryOffset, final long memoryOffset,
+            final long precedingValueCount) {
+        if (precedingMemoryOffset != 0) {
+            throw new IllegalArgumentException("If precedingMemoryOffset is not 0, then this is not the first summary");
+        }
+        if (memoryOffset != 0) {
+            throw new IllegalArgumentException("If memoryOffset is not 0, then this is not the first summary");
+        }
+        if (precedingValueCount != 0) {
+            throw new IllegalArgumentException("If precedingValueCount is not 0, then this is not the first summary");
+        }
+    }
+
 }

@@ -1203,18 +1203,8 @@ public class TimeSeriesLookupStorageCache<K, V> {
                         "memoryOffset[" + memoryOffset + "] != expectedMemoryOffset[" + expectedMemoryOffset + "]");
             }
         } else {
-            final long precedingValueCount = summary.getPrecedingValueCount();
-            if (precedingValueCount != 0) {
-                LOG.warn("[%s]: WARNING: %s", directoryHashKeyVersionMemory,
-                        Throwables.getFullStackTrace(new IllegalStateException("first.precedingValueCount["
-                                + precedingValueCount + "] != expectedPrecedingValueCount[0]")));
-            }
-            final long memoryOffset = summary.getPrecedingMemoryOffset() + summary.getMemoryOffset();
-            if (memoryOffset != 0) {
-                LOG.warn("[%s]: WARNING: %s", directoryHashKeyVersionMemory,
-                        Throwables.getFullStackTrace(new IllegalStateException(
-                                "first.memoryOffset[" + memoryOffset + "] != expectedMemoryOffset[0]")));
-            }
+            MemoryFiles.assertFirstSummary(summary.getPrecedingMemoryOffset(), summary.getMemoryOffset(),
+                    summary.getPrecedingValueCount());
         }
 
         final V lastValue = summary.getLastValue(valueSerde);

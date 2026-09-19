@@ -294,9 +294,8 @@ public class ParallelUpdateProgress<K, V> implements ITimeSeriesUpdateProgress {
         FileOutputStream memoryFileOut = null;
         try {
             memoryFileOut = new FileOutputStream(memoryFile, true);
-            if (initialMemoryOffset > 0L) {
-                memoryFileOut.getChannel().position(initialMemoryOffset);
-            }
+            //append could set the initial position above 0 (if the file already exists), even if this is the first segment
+            memoryFileOut.getChannel().position(initialMemoryOffset);
 
             final int batchFlushInterval = parent.getLookupTable().getBatchFlushInterval();
 

@@ -37,6 +37,7 @@ public class MemoryFileSummary implements ISerializableValueObject {
         this.memoryOffset = memoryOffset;
         this.memoryLength = memoryLength;
         this.hashCode = newHashCode();
+        MemoryFiles.assertMaybeFirstSummary(precedingMemoryOffset, memoryOffset, precedingValueCount);
     }
 
     public <V> MemoryFileSummary(final FDate firstValueEndTime, final ISerde<V> serde, final V firstValue,
@@ -52,6 +53,7 @@ public class MemoryFileSummary implements ISerializableValueObject {
         this.memoryOffset = memoryOffset;
         this.memoryLength = memoryLength;
         this.hashCode = newHashCode();
+        MemoryFiles.assertMaybeFirstSummary(precedingMemoryOffset, memoryOffset, precedingValueCount);
     }
 
     private int newHashCode() {

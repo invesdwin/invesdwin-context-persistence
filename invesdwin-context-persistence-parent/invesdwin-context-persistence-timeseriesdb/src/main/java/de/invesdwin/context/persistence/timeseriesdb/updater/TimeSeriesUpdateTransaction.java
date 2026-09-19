@@ -47,7 +47,7 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         this.precedingMemoryOffset = precedingMemoryOffset;
         this.memoryOffset = memoryOffset;
         this.precedingValueCount = precedingValueCount;
-        MemoryFiles.assertFirstSummaryMaybe(precedingMemoryOffset, memoryOffset, precedingValueCount);
+        MemoryFiles.assertMaybeFirstSummary(precedingMemoryOffset, memoryOffset, precedingValueCount);
     }
 
     public TimeSeriesLookupStorageCache<?, V> getParent() {
@@ -127,9 +127,11 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         summaries.closeWithEmptyWrite();
         final ITimeSeriesMemoryFileLookupTable memoryFileLookupTable = parent.getMemoryFileLookupTable();
         final ICloseableIterator<MemoryFileSummary> iterator = summaries.iterator();
-        if (iterator != null) {
-            memoryFileLookupTable.put(iterator);
+        if (iterator == null) {
+            throw new NullPointerException(
+                    "File not found, must have been deleted in the mean time: " + summaries.getFile());
         }
+        memoryFileLookupTable.put(iterator);
         summaries.clear();
         parent.clearCaches();
         touchUpdateMarker(parent.getDirectoryHashKey().getDirectoryHashKeyVersion());

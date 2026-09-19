@@ -200,7 +200,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                 .newUpdateTransaction(shouldRedoLastFile())) {
             final FDate updateFrom = updateTransaction.getUpdateFrom();
             final List<V> lastValues = updateTransaction.getLastValues();
-            final long initialPrecedingMemoryOffset = updateTransaction.getPrecedingMemorOffset();
+            final long initialPrecedingMemoryOffset = updateTransaction.getPrecedingMemoryOffset();
             final long initialMemoryOffset = updateTransaction.getMemoryOffset();
             final long initialPrecedingValueCount = updateTransaction.getPrecedingValueCount();
 
