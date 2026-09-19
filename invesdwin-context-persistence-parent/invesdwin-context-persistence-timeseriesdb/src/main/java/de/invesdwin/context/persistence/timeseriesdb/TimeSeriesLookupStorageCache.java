@@ -1245,7 +1245,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
                     latestRangeKey = latestSummary.getFirstValueEndTime();
                 } else {
                     precedingMemoryOffset = latestSummary.getPrecedingMemoryOffset();
-                    memoryOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength() + 1L;
+                    memoryOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength();
                     precedingValueCount = latestSummary.getPrecedingValueCount() + latestSummary.getValueCount();
                     updateFrom = latestSummary.getFirstValueEndTime();
                     latestRangeKey = latestSummary.getFirstValueEndTime().addPicoseconds(1);
@@ -1253,7 +1253,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
             } else {
                 lastValues = Collections.emptyList();
                 precedingMemoryOffset = latestSummary.getPrecedingMemoryOffset();
-                memoryOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength() + 1L;
+                memoryOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength();
                 precedingValueCount = latestSummary.getPrecedingValueCount() + latestSummary.getValueCount();
                 updateFrom = latestSummary.getFirstValueEndTime();
                 latestRangeKey = latestSummary.getFirstValueEndTime().addPicoseconds(1);

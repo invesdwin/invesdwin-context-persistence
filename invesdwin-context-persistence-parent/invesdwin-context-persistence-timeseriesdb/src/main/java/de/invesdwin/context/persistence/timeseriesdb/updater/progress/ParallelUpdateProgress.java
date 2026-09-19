@@ -150,7 +150,7 @@ public class ParallelUpdateProgress<K, V> implements ITimeSeriesUpdateProgress {
                     precedingMemoryOffset, memoryOffset, tempFileLength);
             Files.deleteQuietly(tempFile);
             parent.onFlush(this, flushIndex);
-            return position;
+            return tempFileLength;
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
