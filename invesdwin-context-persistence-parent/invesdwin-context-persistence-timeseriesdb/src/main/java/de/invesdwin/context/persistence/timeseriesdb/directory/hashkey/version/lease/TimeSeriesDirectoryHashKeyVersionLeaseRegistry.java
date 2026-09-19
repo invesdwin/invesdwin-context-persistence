@@ -37,9 +37,9 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             .getInstance(true)
             .newConcurrentMap();
     private static final Duration HEARTBEAT_INTERVAL = Duration.ONE_MINUTE;
-    private static final Duration CLEANUP_CHECK_INTERVAL = Duration.ONE_HOUR;
-    private static final Duration CLEANUP_INTERVAL = AtomicNioFileChannelContext.TMP_CLEANUP_INTERVAL;
-    private static final String CLEANUP_MARKER_FILENAME = AtomicNioFileChannelContext.TMP_CLEANUP_MARKER_FILENAME;
+    private static final Duration VERSION_CLEANUP_CHECK_INTERVAL = Duration.ONE_HOUR;
+    private static final Duration VERSION_CLEANUP_INTERVAL = AtomicNioFileChannelContext.TMP_CLEANUP_INTERVAL;
+    private static final String VERSION_CLEANUP_MARKER_FILENAME = ".version" + AtomicNioFileChannelContext.CLEANUP_MARKER_EXTENSION;
     private static final long UNINITIALIZED_DIRECTORY_CLEANUP_TIME = AtomicNioFileChannelContext.UNINITIALIZED_DIRECTORY_CLEANUP_TIME;
 
     private static ScheduledExecutorService heartbeatExecutor;
@@ -110,7 +110,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                     for (final SharedDirectoryLeaseContext context : contexts) {
                         context.cleanupObsoleteVersions();
                     }
-                }, CLEANUP_CHECK_INTERVAL.millisValue(), CLEANUP_CHECK_INTERVAL.millisValue(), TimeUnit.MILLISECONDS);
+                }, VERSION_CLEANUP_CHECK_INTERVAL.millisValue(), VERSION_CLEANUP_CHECK_INTERVAL.millisValue(), TimeUnit.MILLISECONDS);
             }
         }
     }
@@ -158,10 +158,10 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             this.heartbeatFile = new File(heartbeatsDirectory,
                     Files.normalizeFilename(HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER
                             + HeartbeatFileChannelLockRegistry.HEARTBEAT_EXTENSION));
-            this.cleanupMarkerPath = new File(heartbeatsDirectory, CLEANUP_MARKER_FILENAME).toPath();
+            this.cleanupMarkerPath = new File(heartbeatsDirectory, VERSION_CLEANUP_MARKER_FILENAME).toPath();
             this.tempCleanupMarkerPath = cleanupMarkerPath.resolveSibling(Files.normalizeFilename(
                     cleanupMarkerPath.getFileName().toString() + AtomicNioFileChannelContext.TMP_SUFFIX));
-            this.cleanupLockFile = new File(heartbeatsDirectory, CLEANUP_MARKER_FILENAME + ".lock");
+            this.cleanupLockFile = new File(heartbeatsDirectory, VERSION_CLEANUP_MARKER_FILENAME + ".lock");
             try {
                 Files.forceMkdirParent(heartbeatFile);
             } catch (final IOException e) {
@@ -230,7 +230,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             long last = resolveLastCleanupTime();
 
             // In-memory fast exit: skip disk check entirely if memory shows a recent cleanup
-            if (CLEANUP_INTERVAL.isGreaterThanMillis(now - last)) {
+            if (VERSION_CLEANUP_INTERVAL.isGreaterThanMillis(now - last)) {
                 return;
             }
 
@@ -240,7 +240,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                     lastCleanupTime.set(fileModified);
                     last = fileModified;
                 }
-                if (CLEANUP_INTERVAL.isGreaterThanMillis(now - last)) {
+                if (VERSION_CLEANUP_INTERVAL.isGreaterThanMillis(now - last)) {
                     return;
                 }
             }
@@ -263,7 +263,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                             }
 
                             if (!Files.exists(cleanupMarkerPath)
-                                    || CLEANUP_INTERVAL.isLessThanMillis(lockNow.millisValue() - last)) {
+                                    || VERSION_CLEANUP_INTERVAL.isLessThanMillis(lockNow.millisValue() - last)) {
                                 lease.cleanupObsoleteVersions();
                                 Files.write(tempCleanupMarkerPath,
                                         lockNow.toString().getBytes(Charsets.defaultCharset()));
@@ -314,7 +314,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             long last = resolveLastCleanupTime();
 
             // Skip scheduling if memory indicates cleanup occurred within the last 24 hours
-            if (CLEANUP_INTERVAL.isGreaterThanMillis(now - last)) {
+            if (VERSION_CLEANUP_INTERVAL.isGreaterThanMillis(now - last)) {
                 return;
             }
 
@@ -324,7 +324,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                     lastCleanupTime.set(fileModified);
                     last = fileModified;
                 }
-                if (CLEANUP_INTERVAL.isGreaterThanMillis(now - last)) {
+                if (VERSION_CLEANUP_INTERVAL.isGreaterThanMillis(now - last)) {
                     return;
                 }
             }
