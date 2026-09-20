@@ -8,6 +8,8 @@ import javax.annotation.concurrent.NotThreadSafe;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdateProgress;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
+import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLockRegistry;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.string.ProcessedEventsRateString;
@@ -17,6 +19,7 @@ import de.invesdwin.util.math.decimal.scaled.PercentScale;
 import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
+import de.invesdwin.util.time.date.millis.FDateNanos;
 import de.invesdwin.util.time.duration.Duration;
 
 @NotThreadSafe
@@ -33,12 +36,14 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
     @GuardedBy("this")
     private FDate lastFlushMaxTime;
     @GuardedBy("this")
-    private Instant lastLogFlushTime;
+    private long lastLogFlushTimeNanos = Instant.DUMMY_NANOS;
 
-    private final Object elementLock = new Object();
+    private final ILock elementLock = ILockCollectionFactory.getInstance(true)
+            .newLock(ALoggingTimeSeriesUpdater.class.getSimpleName() + "_elementLock");
     private final AtomicLong elementCount = new AtomicLong();
     private volatile String owner = HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER;
-    private Instant lastLogElementTime;
+    @GuardedBy("elementLock")
+    private long lastLogElementTimeNanos = Instant.DUMMY_NANOS;
     @GuardedBy("elementLock")
     private FDate elementMinTime;
     @GuardedBy("elementLock")
@@ -57,29 +62,38 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
 
     @Override
     protected void onElement(final ITimeSeriesUpdateProgress relativeProgress, final long relativeCount) {
+        final FDate minTime = relativeProgress.getMinTime();
+        if (minTime == null) {
+            return;
+        }
         final long elements = elementCount.addAndGet(relativeCount);
         if (elementMinTime == null) {
-            elementMinTime = relativeProgress.getMinTime();
-            lastLogElementTime = new Instant();
+            elementMinTime = minTime;
+            if (lastLogElementTimeNanos == Instant.DUMMY_NANOS) {
+                lastLogElementTimeNanos = FDateNanos.elapsedNanos();
+            }
         }
-        if (shouldLogElements()) {
-            synchronized (elementLock) {
-                if (shouldLogElements()) {
-                    elementMinTime = FDates.min(elementMinTime, relativeProgress.getMinTime());
+        if (elementLock.tryLock()) {
+            try {
+                final long nowNanos = FDateNanos.elapsedNanos();
+                if (shouldLogElements(nowNanos)) {
+                    elementMinTime = FDates.min(elementMinTime, minTime);
                     elementMaxTime = FDates.max(elementMaxTime, relativeProgress.getMaxTime());
-                    logElements(elements);
+                    logElements(nowNanos, elements);
                 }
+            } finally {
+                elementLock.unlock();
             }
         }
     }
 
-    private boolean shouldLogElements() {
-        return (lastLogFlushTime == null || lastLogFlushTime.isGreaterThan(ELEMENT_LOG_INTERVAL))
-                //if we are too fast, only print status once a second
-                && (lastLogElementTime == null || lastLogElementTime.isGreaterThan(ELEMENT_LOG_INTERVAL));
+    private boolean shouldLogElements(final long nowNanos) {
+        //if we are too fast, only print status once a second
+        return ELEMENT_LOG_INTERVAL.isLessThanNanos(nowNanos - lastLogFlushTimeNanos)
+                && ELEMENT_LOG_INTERVAL.isLessThanNanos(nowNanos - lastLogElementTimeNanos);
     }
 
-    private void logElements(final long elements) {
+    private void logElements(final long nowNanos, final long elements) {
         final Duration flushDuration = updateStart.toDuration();
         final Percent progress = getProgress(elementMinTime, elementMaxTime);
         if (progress != null) {
@@ -92,7 +106,7 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
                     lastFlushIndex.intValue() + 1, getElementsName(), keyToString(getKey()), elementMaxTime,
                     new ProcessedEventsRateString(elements, flushDuration), flushDuration);
         }
-        lastLogElementTime = new Instant();
+        lastLogElementTimeNanos = nowNanos;
     }
 
     @Override
@@ -103,14 +117,17 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
         lastFlushMaxTime = FDates.max(lastFlushMaxTime, relativeProgress.getMaxTime());
         final long flushIncrement = flushIndex - prevFlushIndex;
         if (flushIncrement > BATCH_LOG_INTERVAL) {
-            logFlush();
+            logFlush(FLUSH_LOG_INTERVAL);
+        } else if (flushIndex != prevFlushIndex) {
+            logFlush(ELEMENT_LOG_INTERVAL);
         }
     }
 
-    private void logFlush() {
+    private void logFlush(final Duration logInterval) {
+        final long nowNanos = FDateNanos.elapsedNanos();
         //if we are too fast, only print status once a second
-        if ((lastLogFlushTime == null || lastLogFlushTime.isGreaterThan(FLUSH_LOG_INTERVAL))
-                && (lastLogElementTime == null || lastLogElementTime.isGreaterThan(FLUSH_LOG_INTERVAL))) {
+        if (logInterval.isLessThanNanos(nowNanos - lastLogFlushTimeNanos)
+                && logInterval.isLessThanNanos(nowNanos - lastLogElementTimeNanos)) {
             final Duration flushDuration = updateStart.toDuration();
             final Percent progress = getProgress();
             if (progress != null) {
@@ -123,7 +140,7 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
                         newOwnerPrefix(owner), lastFlushIndex, getElementsName(), keyToString(getKey()),
                         lastFlushMaxTime, new ProcessedEventsRateString(getValueCount(), flushDuration), flushDuration);
             }
-            lastLogFlushTime = new Instant();
+            lastLogFlushTimeNanos = nowNanos;
         }
     }
 
@@ -140,7 +157,7 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
     @Override
     protected synchronized void onUpdateFinished() {
         if (lastFlushIndex != null) {
-            logFlush();
+            logFlush(FLUSH_LOG_INTERVAL);
         }
         log.info("%sFinished updating %s %s for [%s] from [%s] to [%s] after %s", newOwnerPrefix(owner),
                 getValueCount(), getElementsName(), keyToString(getKey()), getMinTime(), getMaxTime(),

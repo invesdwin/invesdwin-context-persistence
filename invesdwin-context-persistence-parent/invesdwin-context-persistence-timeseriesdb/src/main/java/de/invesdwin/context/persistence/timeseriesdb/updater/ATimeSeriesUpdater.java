@@ -137,6 +137,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                 }
                 try {
                     Files.deleteQuietly(updateFinishedFile);
+                    Files.deleteQuietly(updateProgressFile);
                     this.updateStart = FDate.now();
                     onUpdateStarted(updateStart);
                     writeUpdateProgress(updateProgressFile, true);
