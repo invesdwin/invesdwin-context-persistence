@@ -9,7 +9,11 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.commons.lang3.BooleanUtils;
 
-import de.invesdwin.context.integration.DatabaseThreads;
+import de.invesdwin.context.integration.IntegrationProperties;
+import de.invesdwin.context.integration.concurrent.DatabaseThreads;
+import de.invesdwin.context.integration.concurrent.nonblocking.ANonBlockingRunnable;
+import de.invesdwin.context.integration.concurrent.nonblocking.DisabledNonBlockingRunnable;
+import de.invesdwin.context.integration.concurrent.nonblocking.INonBlockingRunnable;
 import de.invesdwin.context.integration.retry.NonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
@@ -49,12 +53,16 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     private Future<?> updateFuture;
     @GuardedBy("none for performance")
     private String updaterId;
+    private final ANonBlockingRunnable nonBlocking;
+    private final ANonBlockingRunnable nonBlockingForce;
 
     public ALazyDataUpdater(final K key) {
         if (key == null) {
             throw new NullPointerException("key should not be null");
         }
         this.key = key;
+        this.nonBlocking = new NonBlockingMaybeUpdate(getClass(), key + ": maybeUpdate()");
+        this.nonBlockingForce = new NonBlockingMaybeUpdateForce(getClass(), key + ": maybeUpdate(true)");
     }
 
     public final String getUpdaterId() {
@@ -105,14 +113,28 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     }
 
     @Override
-    public final void maybeUpdate(final boolean force) {
+    public INonBlockingRunnable getNonBlocking(final boolean force) {
+        if (force) {
+            nonBlockingForce.resetIfDone();
+            nonBlocking.resetIfDone();
+            return nonBlockingForce;
+        } else if (shouldCheckForUpdate()) {
+            nonBlocking.resetIfDone();
+            return nonBlocking;
+        } else {
+            return DisabledNonBlockingRunnable.INSTANCE;
+        }
+    }
+
+    @Override
+    public final boolean maybeUpdate(final boolean force) {
         final FDate newUpdateCheck = FDate.now();
         if (force || shouldCheckForUpdate(newUpdateCheck)) {
             final IReentrantLock updateLock = getUpdateLock();
             if (shouldSkipUpdateOnCurrentThreadIfAlreadyRunning()) {
                 try {
                     if (!updateLock.tryLock(TimeSeriesProperties.ACQUIRE_UPDATE_LOCK_TIMEOUT)) {
-                        return;
+                        return false;
                     }
                 } catch (final InterruptedException e) {
                     throw new RuntimeException(e);
@@ -123,7 +145,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
             try {
                 if (!force && !shouldCheckForUpdate(newUpdateCheck)) {
                     //some sort of double checked locking to skip if someone else came before us
-                    return;
+                    return false;
                 }
                 Future<?> updateFutureCopy = updateFuture;
                 final String reason;
@@ -157,7 +179,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 if (DatabaseThreads.isThreadBlockingUpdateDatabaseDisabled()) {
                     try {
                         Futures.waitNoInterrupt(updateFutureCopy,
-                                TimeSeriesProperties.NON_BLOCKING_ASYNC_UPDATE_WAIT_TIMEOUT);
+                                IntegrationProperties.NON_BLOCKING_ASYNC_WAIT_TIMEOUT);
                         updateFuture = null;
                     } catch (final TimeoutException e) {
                         throw new NonBlockingRetryLaterRuntimeException(
@@ -169,10 +191,12 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                     Futures.waitNoInterrupt(updateFutureCopy);
                     updateFuture = null;
                 }
+                return true;
             } finally {
                 updateLock.unlock();
             }
         }
+        return false;
     }
 
     protected <T> void logReload(final boolean logged, final String name, final T oldValue, final String reason,
@@ -199,6 +223,10 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
 
     protected boolean shouldSkipUpdateOnCurrentThreadIfAlreadyRunning() {
         return isSkipUpdateOnCurrentThreadIfAlreadyRunning();
+    }
+
+    public boolean shouldCheckForUpdate() {
+        return shouldCheckForUpdate(FDate.now());
     }
 
     protected boolean shouldCheckForUpdate(final FDate curTime) {
@@ -309,5 +337,27 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     protected abstract FDate extractEndTime(V element);
 
     protected abstract void innerMaybeUpdate(K key);
+
+    private final class NonBlockingMaybeUpdateForce extends ANonBlockingRunnable {
+        private NonBlockingMaybeUpdateForce(final Class<?> parentClass, final String taskName) {
+            super(parentClass, taskName);
+        }
+
+        @Override
+        public void run() {
+            maybeUpdate(true);
+        }
+    }
+
+    private final class NonBlockingMaybeUpdate extends ANonBlockingRunnable {
+        private NonBlockingMaybeUpdate(final Class<?> parentClass, final String taskName) {
+            super(parentClass, taskName);
+        }
+
+        @Override
+        public void run() {
+            maybeUpdate();
+        }
+    }
 
 }

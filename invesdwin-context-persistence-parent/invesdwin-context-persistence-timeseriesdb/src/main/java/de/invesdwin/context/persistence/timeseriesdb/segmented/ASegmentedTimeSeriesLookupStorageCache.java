@@ -17,7 +17,8 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.lang3.SerializationException;
 import org.springframework.retry.backoff.BackOffPolicy;
 
-import de.invesdwin.context.integration.DatabaseThreads;
+import de.invesdwin.context.integration.IntegrationProperties;
+import de.invesdwin.context.integration.concurrent.DatabaseThreads;
 import de.invesdwin.context.integration.retry.NonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.task.ARetryCallable;
@@ -394,7 +395,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         //1. check segment status in series storage
         final IReadWriteLock segmentTableLock = segmentedTable.getTableLock(segmentedKey);
         final ILock segmentReadLock = segmentTableLock.readLock();
-        if (!segmentReadLock.tryLockNoInterrupt(TimeSeriesProperties.NON_BLOCKING_ASYNC_UPDATE_WAIT_TIMEOUT)) {
+        if (!segmentReadLock.tryLockNoInterrupt(IntegrationProperties.NON_BLOCKING_ASYNC_WAIT_TIMEOUT)) {
             throw new NonBlockingRetryLaterRuntimeException(ASegmentedTimeSeriesLookupStorageCache.class.getSimpleName()
                     + ".maybeInitSegmentAsync: readlock could not be acquired for async update check while operating in non-blocking mode for segment "
                     + getElementsName() + ": " + segmentedKey);
@@ -439,7 +440,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
             }
 
             try {
-                Futures.waitNoInterrupt(future, TimeSeriesProperties.NON_BLOCKING_ASYNC_UPDATE_WAIT_TIMEOUT);
+                Futures.waitNoInterrupt(future, IntegrationProperties.NON_BLOCKING_ASYNC_WAIT_TIMEOUT);
                 //make sure entry is removed even if async task finished before the put operation happened
                 segmentedKey_maybeInitSegmentAsyncFuture.remove(segmentedKey);
             } catch (final TimeoutException e) {

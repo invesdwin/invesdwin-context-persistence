@@ -16,7 +16,6 @@ import de.invesdwin.util.time.duration.Duration;
 @Immutable
 public final class TimeSeriesProperties {
 
-    public static final Duration NON_BLOCKING_ASYNC_UPDATE_WAIT_TIMEOUT;
     public static final Duration ACQUIRE_WRITE_LOCK_TIMEOUT;
     public static final Duration ACQUIRE_UPDATE_LOCK_TIMEOUT;
     public static final boolean FILE_BUFFER_CACHE_SEGMENTS_ENABLED;
@@ -37,8 +36,6 @@ public final class TimeSeriesProperties {
 
     static {
         SYSTEM_PROPERTIES = new SystemProperties(TimeSeriesProperties.class);
-        NON_BLOCKING_ASYNC_UPDATE_WAIT_TIMEOUT = SYSTEM_PROPERTIES
-                .getDuration("NON_BLOCKING_ASYNC_UPDATE_WAIT_TIMEOUT");
         ACQUIRE_WRITE_LOCK_TIMEOUT = SYSTEM_PROPERTIES.getDuration("ACQUIRE_WRITE_LOCK_TIMEOUT");
         ACQUIRE_UPDATE_LOCK_TIMEOUT = SYSTEM_PROPERTIES.getDuration("ACQUIRE_UPDATE_LOCK_TIMEOUT");
         FILE_BUFFER_CACHE_SEGMENTS_ENABLED = SYSTEM_PROPERTIES.getBoolean("FILE_BUFFER_CACHE_SEGMENTS_ENABLED");
