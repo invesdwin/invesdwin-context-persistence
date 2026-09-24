@@ -138,7 +138,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
             if (Throwables.isCausedByType(t, CorruptedStorageException.class)) {
                 final File lockFile = new File(
                         new File(directory.getParent().getBaseDirectoryShared(), "deleteCorruptedStorageLocks"),
-                        Files.normalizeFilename(getName() + ".lock"));
+                        Files.normalizeFileName(getName() + ".lock"));
                 try (HeartbeatFileChannelLock lock = new HeartbeatFileChannelLock(lockFile)) {
                     if (!lock.tryLock(TimeSeriesProperties.newAcquireFileLockTimeout())) {
                         throw new RetryLaterRuntimeException(
@@ -489,7 +489,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
 
     @Override
     public final String hashKeyToString(final K key) {
-        return Files.normalizeFilename(innerHashKeyToString(key));
+        return Files.normalizeFileName(innerHashKeyToString(key));
     }
 
     protected abstract String innerHashKeyToString(K key);

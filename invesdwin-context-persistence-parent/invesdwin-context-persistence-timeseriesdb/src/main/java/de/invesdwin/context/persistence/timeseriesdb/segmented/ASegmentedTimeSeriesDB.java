@@ -213,7 +213,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
 
     @Override
     public final String hashKeyToString(final K key) {
-        return Files.normalizeFilename(innerHashKeyToString(key));
+        return Files.normalizeFileName(innerHashKeyToString(key));
     }
 
     protected abstract String innerHashKeyToString(K key);

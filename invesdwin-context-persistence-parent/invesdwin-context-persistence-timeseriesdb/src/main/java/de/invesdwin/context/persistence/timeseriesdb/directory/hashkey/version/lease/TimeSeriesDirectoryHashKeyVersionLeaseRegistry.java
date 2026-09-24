@@ -156,10 +156,10 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
         private SharedDirectoryLeaseContext(final File heartbeatsDirectory) {
             this.heartbeatsDirectory = heartbeatsDirectory;
             this.heartbeatFile = new File(heartbeatsDirectory,
-                    Files.normalizeFilename(HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER
+                    Files.normalizeFileName(HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER
                             + HeartbeatFileChannelLockRegistry.HEARTBEAT_EXTENSION));
             this.versionCleanupMarkerPath = new File(heartbeatsDirectory, VERSION_CLEANUP_MARKER_FILENAME).toPath();
-            this.tempVersionCleanupMarkerPath = versionCleanupMarkerPath.resolveSibling(Files.normalizeFilename(
+            this.tempVersionCleanupMarkerPath = versionCleanupMarkerPath.resolveSibling(Files.normalizeFileName(
                     versionCleanupMarkerPath.getFileName().toString() + AtomicNioFileChannelContext.TMP_SUFFIX));
             this.versionCleanupLockFile = new File(heartbeatsDirectory, VERSION_CLEANUP_MARKER_FILENAME + ".lock");
             try {
