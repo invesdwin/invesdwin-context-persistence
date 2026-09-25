@@ -6,11 +6,13 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.filechannel.info.path.FileChannelPath;
 import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannel;
+import de.invesdwin.context.integration.filechannel.nio.atomic.properties.AtomicFilesProperties;
 import de.invesdwin.context.integration.filechannel.nio.atomic.properties.TransactionalFileProperties;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.ITimeSeriesDirectoryHashKey;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.lease.TimeSeriesDirectoryHashKeyVersionLease;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.lease.TimeSeriesDirectoryHashKeyVersionLeaseRegistry;
 import de.invesdwin.context.system.properties.ICloseableProperties;
+import de.invesdwin.context.system.properties.IProperties;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.finalizer.AFinalizer;
 
@@ -19,7 +21,8 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
 
     private final ITimeSeriesDirectoryHashKey parent;
     private final TimeSeriesDirectoryVersionFinalizer finalizer;
-    private volatile AtomicNioFileChannel propertiesSharedPath;
+    private volatile AtomicNioFileChannel updaterPropertiesSharedPath;
+    private AtomicFilesProperties versionPropertiesShared;
 
     public TimeSeriesDirectoryHashKeyVersion(final ITimeSeriesDirectoryHashKey parent) {
         this.parent = parent;
@@ -59,19 +62,32 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
 
     @Override
     public ICloseableProperties getUpdaterPropertiesShared() {
-        return new TransactionalFileProperties(this::getPropertiesSharedPath);
+        return new TransactionalFileProperties(this::getUpdaterPropertiesSharedPath);
     }
 
-    private AtomicNioFileChannel getPropertiesSharedPath() {
-        if (propertiesSharedPath == null) {
+    private AtomicNioFileChannel getUpdaterPropertiesSharedPath() {
+        if (updaterPropertiesSharedPath == null) {
             synchronized (this) {
-                if (propertiesSharedPath == null) {
-                    propertiesSharedPath = new AtomicNioFileChannel(FileChannelPath.newFile(new File(
+                if (updaterPropertiesSharedPath == null) {
+                    updaterPropertiesSharedPath = new AtomicNioFileChannel(FileChannelPath.newFile(new File(
                             new File(getDirectoryHashKeyVersionShared(), "updaterProperties"), "updater.properties")));
                 }
             }
         }
-        return propertiesSharedPath;
+        return updaterPropertiesSharedPath;
+    }
+
+    @Override
+    public IProperties getVersionPropertiesShared() {
+        if (versionPropertiesShared == null) {
+            synchronized (this) {
+                if (versionPropertiesShared == null) {
+                    this.versionPropertiesShared = new AtomicFilesProperties(
+                            new File(getDirectoryHashKeyVersionShared(), "versionProperties"));
+                }
+            }
+        }
+        return versionPropertiesShared;
     }
 
     private TimeSeriesDirectoryHashKeyVersionLease getLease() {
@@ -115,7 +131,8 @@ public class TimeSeriesDirectoryHashKeyVersion implements ITimeSeriesDirectoryHa
                 finalizer.lease = TimeSeriesDirectoryHashKeyVersionLeaseRegistry.getOrCreate(parent, nextVersion);
             }
 
-            propertiesSharedPath = null;
+            updaterPropertiesSharedPath = null;
+            versionPropertiesShared = null;
             prevLease.close();
         }
     }

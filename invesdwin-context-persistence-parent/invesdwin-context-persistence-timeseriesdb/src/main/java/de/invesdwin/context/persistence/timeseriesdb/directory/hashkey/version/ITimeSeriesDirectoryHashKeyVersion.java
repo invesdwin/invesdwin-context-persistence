@@ -4,6 +4,7 @@ import java.io.File;
 
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.ITimeSeriesDirectoryHashKey;
 import de.invesdwin.context.system.properties.ICloseableProperties;
+import de.invesdwin.context.system.properties.IProperties;
 
 public interface ITimeSeriesDirectoryHashKeyVersion {
 
@@ -20,5 +21,7 @@ public interface ITimeSeriesDirectoryHashKeyVersion {
     void incrementVersion();
 
     ICloseableProperties getUpdaterPropertiesShared();
+
+    IProperties getVersionPropertiesShared();
 
 }
