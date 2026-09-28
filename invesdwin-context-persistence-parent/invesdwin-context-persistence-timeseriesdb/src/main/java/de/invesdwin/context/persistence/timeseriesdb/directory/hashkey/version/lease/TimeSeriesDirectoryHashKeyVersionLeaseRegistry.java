@@ -159,8 +159,8 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
         private SharedDirectoryLeaseContext(final File heartbeatsDirectory) {
             this.heartbeatsDirectory = heartbeatsDirectory;
             this.heartbeatFile = new File(heartbeatsDirectory,
-                    Files.normalizeFileName(Files.setExtension(HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER,
-                            HeartbeatFileChannelLockRegistry.HEARTBEAT_EXTENSION)));
+                    Files.setExtensionNormalizeFileName(HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER,
+                            HeartbeatFileChannelLockRegistry.HEARTBEAT_EXTENSION));
             try {
                 Files.forceMkdirParent(heartbeatFile);
             } catch (final IOException e) {
@@ -168,8 +168,8 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             }
             this.versionCleanupMarkerPath = new File(heartbeatsDirectory, VERSION_CLEANUP_MARKER_FILENAME).toPath();
             this.tempVersionCleanupMarkerPath = versionCleanupMarkerPath.resolveSibling(
-                    Files.normalizeFileName(Files.setExtension(versionCleanupMarkerPath.getFileName().toString(),
-                            AtomicNioFileChannelContext.TMP_SUFFIX)));
+                    Files.setExtensionNormalizeFileName(versionCleanupMarkerPath.getFileName().toString(),
+                            AtomicNioFileChannelContext.TMP_SUFFIX));
             try {
                 Files.createDirectories(tempVersionCleanupMarkerPath.getParent());
             } catch (final IOException e) {
