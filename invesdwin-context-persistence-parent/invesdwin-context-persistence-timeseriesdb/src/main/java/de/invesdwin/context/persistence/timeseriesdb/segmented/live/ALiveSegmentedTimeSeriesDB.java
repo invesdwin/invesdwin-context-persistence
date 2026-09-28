@@ -173,7 +173,8 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
         return Files.normalizeFileName(innerHashKeyToString(key));
     }
 
-    protected abstract String innerHashKeyToString(K key);
+    @Override
+    public abstract String innerHashKeyToString(K key);
 
     @Override
     public final String hashKeyToString(final SegmentedKey<K> segmentedKey) {
@@ -225,8 +226,8 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
         }
 
         @Override
-        protected String innerHashKeyToString(final K key) {
-            return ALiveSegmentedTimeSeriesDB.this.hashKeyToString(key);
+        public String innerHashKeyToString(final K key) {
+            return ALiveSegmentedTimeSeriesDB.this.innerHashKeyToString(key);
         }
 
         @Override

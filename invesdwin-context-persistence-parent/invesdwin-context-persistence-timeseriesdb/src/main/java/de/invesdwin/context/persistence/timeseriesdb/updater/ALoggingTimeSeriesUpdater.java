@@ -56,7 +56,7 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
 
     @Override
     protected void onUpdateStarted(final FDate updateStart) {
-        log.info("Updating %s for [%s]", getElementsName(), keyToString(getKey()));
+        log.info("Updating %s for [%s]", getElementsName(), getKeyStr());
         this.updateStart = updateStart;
     }
 
@@ -98,12 +98,12 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
         final Percent progress = getProgress(elementMinTime, elementMaxTime);
         if (progress != null) {
             log.info("Persisting %s. %s batch for [%s]. Reached [%s] at time [%s]. Processed [%s] during %s",
-                    lastFlushIndex.intValue() + 1, getElementsName(), keyToString(getKey()),
+                    lastFlushIndex.intValue() + 1, getElementsName(), getKeyStr(),
                     progress.asScale(PercentScale.PERCENT), elementMaxTime,
                     new ProcessedEventsRateString(elements, flushDuration), flushDuration);
         } else {
             log.info("Persisting %s. %s batch for [%s]. Reached time [%s]. Processed [%s] during %s",
-                    lastFlushIndex.intValue() + 1, getElementsName(), keyToString(getKey()), elementMaxTime,
+                    lastFlushIndex.intValue() + 1, getElementsName(), getKeyStr(), elementMaxTime,
                     new ProcessedEventsRateString(elements, flushDuration), flushDuration);
         }
         lastLogElementTimeNanos = nowNanos;
@@ -132,13 +132,13 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
             final Percent progress = getProgress();
             if (progress != null) {
                 log.info("%sPersisted %s. %s batch for [%s]. Reached [%s] at time [%s]. Processed [%s] during %s",
-                        newOwnerPrefix(owner), lastFlushIndex, getElementsName(), keyToString(getKey()),
+                        newOwnerPrefix(owner), lastFlushIndex, getElementsName(), getKeyStr(),
                         progress.asScale(PercentScale.PERCENT), lastFlushMaxTime,
                         new ProcessedEventsRateString(getValueCount(), flushDuration), flushDuration);
             } else {
                 log.info("%sPersisted %s. %s batch for [%s]. Reached time [%s]. Processed [%s] during %s",
-                        newOwnerPrefix(owner), lastFlushIndex, getElementsName(), keyToString(getKey()),
-                        lastFlushMaxTime, new ProcessedEventsRateString(getValueCount(), flushDuration), flushDuration);
+                        newOwnerPrefix(owner), lastFlushIndex, getElementsName(), getKeyStr(), lastFlushMaxTime,
+                        new ProcessedEventsRateString(getValueCount(), flushDuration), flushDuration);
             }
             lastLogFlushTimeNanos = nowNanos;
         }
@@ -160,11 +160,8 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
             logFlush(FLUSH_LOG_INTERVAL);
         }
         log.info("%sFinished updating %s %s for [%s] from [%s] to [%s] after %s", newOwnerPrefix(owner),
-                getValueCount(), getElementsName(), keyToString(getKey()), getMinTime(), getMaxTime(),
-                updateStart.toDuration());
+                getValueCount(), getElementsName(), getKeyStr(), getMinTime(), getMaxTime(), updateStart.toDuration());
     }
-
-    protected abstract String keyToString(K key);
 
     protected abstract String getElementsName();
 

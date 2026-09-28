@@ -107,7 +107,7 @@ public class ATimeSeriesDBWithCacheTest extends ABaseDBWithCacheTest {
         }
 
         @Override
-        protected String innerHashKeyToString(final String key) {
+        public String innerHashKeyToString(final String key) {
             return key;
         }
 

@@ -263,7 +263,7 @@ public class ParallelUpdateProgress<K, V> implements ITimeSeriesUpdateProgress {
                 elements.close();
             }
         }) {
-            final String name = parent.getTable().hashKeyToString(parent.getKey());
+            final String name = parent.getTable().innerHashKeyToString(parent.getKey());
             try (ACloseableIterator<ParallelUpdateProgress<K, V>> batchProducer = new ProducerQueueIterable<ParallelUpdateProgress<K, V>>(
                     ParallelUpdateProgress.class.getSimpleName() + "_batchProducer_" + name, () -> batchWriterProducer,
                     ATimeSeriesUpdater.BATCH_QUEUE_SIZE).iterator()) {

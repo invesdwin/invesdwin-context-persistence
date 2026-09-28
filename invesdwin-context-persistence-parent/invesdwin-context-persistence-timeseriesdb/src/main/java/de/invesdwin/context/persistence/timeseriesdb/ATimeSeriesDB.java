@@ -56,8 +56,8 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     private final ALoadingCache<K, IReentrantReadWriteLock> key_tableLock = new ALoadingCache<K, IReentrantReadWriteLock>() {
         @Override
         protected IReentrantReadWriteLock loadValue(final K key) {
-            return Locks.newReentrantReadWriteLock(
-                    ATimeSeriesDB.class.getSimpleName() + "_" + getName() + "_" + hashKeyToString(key) + "_tableLock");
+            return Locks.newReentrantReadWriteLock(ATimeSeriesDB.class.getSimpleName() + "_" + getName() + "_"
+                    + innerHashKeyToString(key) + "_tableLock");
         }
 
         @Override
@@ -492,7 +492,8 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         return Files.normalizeFileName(innerHashKeyToString(key));
     }
 
-    protected abstract String innerHashKeyToString(K key);
+    @Override
+    public abstract String innerHashKeyToString(K key);
 
     @Override
     public void close() {

@@ -85,6 +85,8 @@ public interface ITimeSeriesDB<K, V> extends Closeable {
 
     String hashKeyToString(K key);
 
+    String innerHashKeyToString(K key);
+
     ISerde<V> getValueSerde();
 
     Integer getValueFixedLength();

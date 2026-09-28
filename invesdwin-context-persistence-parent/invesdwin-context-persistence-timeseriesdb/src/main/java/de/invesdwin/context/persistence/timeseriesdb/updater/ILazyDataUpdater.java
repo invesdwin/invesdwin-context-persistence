@@ -5,10 +5,10 @@ import de.invesdwin.context.integration.concurrent.nonblocking.INonBlockingRunna
 public interface ILazyDataUpdater<K, V> {
 
     default INonBlockingRunnable getNonBlocking() {
-        return getNonBlocking(false);
+        return maybeUpdateNonBlocking(false);
     }
 
-    INonBlockingRunnable getNonBlocking(boolean force);
+    INonBlockingRunnable maybeUpdateNonBlocking(boolean force);
 
     default boolean maybeUpdate() {
         return maybeUpdate(false);

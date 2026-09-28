@@ -53,16 +53,15 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     private Future<?> updateFuture;
     @GuardedBy("none for performance")
     private String updaterId;
-    private final ANonBlockingRunnable nonBlocking;
-    private final ANonBlockingRunnable nonBlockingForce;
+    private ANonBlockingRunnable maybeUpdateNonBlocking;
+    private ANonBlockingRunnable maybeUpdateNonBlockingForce;
+    private String keyStr;
 
     public ALazyDataUpdater(final K key) {
         if (key == null) {
             throw new NullPointerException("key should not be null");
         }
         this.key = key;
-        this.nonBlocking = new NonBlockingMaybeUpdate(getClass(), key + ": maybeUpdate()");
-        this.nonBlockingForce = new NonBlockingMaybeUpdateForce(getClass(), key + ": maybeUpdate(true)");
     }
 
     public final String getUpdaterId() {
@@ -79,16 +78,27 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                         .getDirectoryHashKeyVersion()
                         .getDirectoryHashKeyVersionShared()
                         .getAbsolutePath()
-                + "_" + keyToString(key) + "_" + getElementsName();
+                + "_" + getKeyStr() + "_" + getElementsName();
     }
 
     @Override
     public String toString() {
-        return Objects.toStringHelper(this).addValue(keyToString(key)).toString();
+        return Objects.toStringHelper(this).addValue(getKeyStr()).toString();
     }
 
-    public K getKey() {
+    public final K getKey() {
         return key;
+    }
+
+    public final String getKeyStr() {
+        if (keyStr == null) {
+            keyStr = newKeyStr();
+        }
+        return keyStr;
+    }
+
+    protected String newKeyStr() {
+        return getTable().innerHashKeyToString(key);
     }
 
     private synchronized IReentrantLock getUpdateLock() {
@@ -113,14 +123,30 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     }
 
     @Override
-    public INonBlockingRunnable getNonBlocking(final boolean force) {
+    public INonBlockingRunnable maybeUpdateNonBlocking(final boolean force) {
         if (force) {
-            nonBlockingForce.resetIfDone();
-            nonBlocking.resetIfDone();
-            return nonBlockingForce;
+            if (maybeUpdateNonBlockingForce == null) {
+                synchronized (this) {
+                    if (maybeUpdateNonBlockingForce == null) {
+                        maybeUpdateNonBlockingForce = new NonBlockingMaybeUpdateForce(getClass(), getKeyStr());
+                    }
+                }
+            }
+            maybeUpdateNonBlockingForce.resetIfDone();
+            if (maybeUpdateNonBlocking != null) {
+                maybeUpdateNonBlocking.resetIfDone();
+            }
+            return maybeUpdateNonBlockingForce;
         } else if (shouldCheckForUpdate()) {
-            nonBlocking.resetIfDone();
-            return nonBlocking;
+            if (maybeUpdateNonBlocking == null) {
+                synchronized (this) {
+                    if (maybeUpdateNonBlocking == null) {
+                        maybeUpdateNonBlocking = new NonBlockingMaybeUpdate(getClass(), getKeyStr());
+                    }
+                }
+            }
+            maybeUpdateNonBlocking.resetIfDone();
+            return maybeUpdateNonBlocking;
         } else {
             return DisabledNonBlockingRunnable.INSTANCE;
         }
@@ -259,11 +285,6 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 }
 
                 @Override
-                protected String keyToString(final K key) {
-                    return ALazyDataUpdater.this.keyToString(key);
-                }
-
-                @Override
                 protected String getElementsName() {
                     return ALazyDataUpdater.this.getElementsName();
                 }
@@ -299,7 +320,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                     return result;
                 }
             };
-            final String taskName = "Loading " + getElementsName() + " for " + keyToString(getKey());
+            final String taskName = "Loading " + getElementsName() + " for " + getKeyStr();
             final Callable<Percent> progress = newProgressCallable(estimatedTo, updater);
             final TimeSeriesUpdaterResult result = TaskInfoCallable.of(taskName, task, progress).call();
             LazyDataUpdaterProperties.setLastUpdateTo(getUpdaterId(), FDates.max(estimatedTo, result.getUpdatedTo()));
@@ -328,8 +349,6 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
 
     protected abstract ICloseableIterable<? extends V> downloadElements(K key, FDate fromDate);
 
-    protected abstract String keyToString(K key);
-
     protected abstract String getElementsName();
 
     protected abstract FDate extractStartTime(V element);
@@ -339,8 +358,8 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     protected abstract void innerMaybeUpdate(K key);
 
     private final class NonBlockingMaybeUpdateForce extends ANonBlockingRunnable {
-        private NonBlockingMaybeUpdateForce(final Class<?> parentClass, final String taskName) {
-            super(parentClass, taskName);
+        private NonBlockingMaybeUpdateForce(final Class<?> parentClass, final String parentInfo) {
+            super(parentClass, parentInfo);
         }
 
         @Override
@@ -350,8 +369,8 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     }
 
     private final class NonBlockingMaybeUpdate extends ANonBlockingRunnable {
-        private NonBlockingMaybeUpdate(final Class<?> parentClass, final String taskName) {
-            super(parentClass, taskName);
+        private NonBlockingMaybeUpdate(final Class<?> parentClass, final String parentInfo) {
+            super(parentClass, parentInfo);
         }
 
         @Override

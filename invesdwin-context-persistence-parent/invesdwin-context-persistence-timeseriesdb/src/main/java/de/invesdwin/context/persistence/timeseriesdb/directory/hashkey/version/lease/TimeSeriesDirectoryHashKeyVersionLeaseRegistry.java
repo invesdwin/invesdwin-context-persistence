@@ -23,6 +23,7 @@ import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.lock.file.AtomicNioFileChannelContext;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLockRegistry;
+import de.invesdwin.util.error.RuntimeIOException;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.string.Charsets;
@@ -39,7 +40,8 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
     private static final Duration HEARTBEAT_INTERVAL = Duration.ONE_MINUTE;
     private static final Duration VERSION_CLEANUP_CHECK_INTERVAL = Duration.ONE_HOUR;
     private static final Duration VERSION_CLEANUP_INTERVAL = AtomicNioFileChannelContext.TMP_CLEANUP_INTERVAL;
-    private static final String VERSION_CLEANUP_MARKER_FILENAME = ".version" + AtomicNioFileChannelContext.CLEANUP_MARKER_EXTENSION;
+    private static final String VERSION_CLEANUP_MARKER_FILENAME = ".version"
+            + AtomicNioFileChannelContext.CLEANUP_MARKER_EXTENSION;
     private static final long UNINITIALIZED_DIRECTORY_CLEANUP_TIME = AtomicNioFileChannelContext.UNINITIALIZED_DIRECTORY_CLEANUP_TIME;
 
     private static ScheduledExecutorService heartbeatExecutor;
@@ -110,7 +112,8 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                     for (final SharedDirectoryLeaseContext context : contexts) {
                         context.cleanupObsoleteVersions();
                     }
-                }, VERSION_CLEANUP_CHECK_INTERVAL.millisValue(), VERSION_CLEANUP_CHECK_INTERVAL.millisValue(), TimeUnit.MILLISECONDS);
+                }, VERSION_CLEANUP_CHECK_INTERVAL.millisValue(), VERSION_CLEANUP_CHECK_INTERVAL.millisValue(),
+                        TimeUnit.MILLISECONDS);
             }
         }
     }
@@ -156,16 +159,28 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
         private SharedDirectoryLeaseContext(final File heartbeatsDirectory) {
             this.heartbeatsDirectory = heartbeatsDirectory;
             this.heartbeatFile = new File(heartbeatsDirectory,
-                    Files.normalizeFileName(HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER
-                            + HeartbeatFileChannelLockRegistry.HEARTBEAT_EXTENSION));
-            this.versionCleanupMarkerPath = new File(heartbeatsDirectory, VERSION_CLEANUP_MARKER_FILENAME).toPath();
-            this.tempVersionCleanupMarkerPath = versionCleanupMarkerPath.resolveSibling(Files.normalizeFileName(
-                    versionCleanupMarkerPath.getFileName().toString() + AtomicNioFileChannelContext.TMP_SUFFIX));
-            this.versionCleanupLockFile = new File(heartbeatsDirectory, VERSION_CLEANUP_MARKER_FILENAME + ".lock");
+                    Files.normalizeFileName(Files.setExtension(HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER,
+                            HeartbeatFileChannelLockRegistry.HEARTBEAT_EXTENSION)));
             try {
                 Files.forceMkdirParent(heartbeatFile);
             } catch (final IOException e) {
-                throw new RuntimeException(e);
+                throw new RuntimeIOException(e);
+            }
+            this.versionCleanupMarkerPath = new File(heartbeatsDirectory, VERSION_CLEANUP_MARKER_FILENAME).toPath();
+            this.tempVersionCleanupMarkerPath = versionCleanupMarkerPath.resolveSibling(
+                    Files.normalizeFileName(Files.setExtension(versionCleanupMarkerPath.getFileName().toString(),
+                            AtomicNioFileChannelContext.TMP_SUFFIX)));
+            try {
+                Files.createDirectories(tempVersionCleanupMarkerPath.getParent());
+            } catch (final IOException e) {
+                throw new RuntimeIOException(e);
+            }
+            this.versionCleanupLockFile = new File(heartbeatsDirectory,
+                    Files.normalizeFileName(VERSION_CLEANUP_MARKER_FILENAME + ".lock"));
+            try {
+                Files.forceMkdirParent(heartbeatFile);
+            } catch (final IOException e) {
+                throw new RuntimeIOException(e);
             }
         }
 

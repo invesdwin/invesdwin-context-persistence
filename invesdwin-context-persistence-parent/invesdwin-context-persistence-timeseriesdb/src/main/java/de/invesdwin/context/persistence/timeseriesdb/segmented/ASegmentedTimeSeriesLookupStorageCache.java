@@ -730,11 +730,6 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
                 }
 
                 @Override
-                protected String keyToString(final SegmentedKey<K> key) {
-                    return segmentedTable.hashKeyToString(key);
-                }
-
-                @Override
                 protected String getElementsName() {
                     return "segment " + ASegmentedTimeSeriesLookupStorageCache.this.getElementsName();
                 }

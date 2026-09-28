@@ -216,11 +216,16 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         return Files.normalizeFileName(innerHashKeyToString(key));
     }
 
-    protected abstract String innerHashKeyToString(K key);
+    @Override
+    public abstract String innerHashKeyToString(K key);
 
     @Override
     public final String hashKeyToString(final SegmentedKey<K> key) {
-        return ASegmentedTimeSeriesDB.this.hashKeyToString(key.getKey()) + "/"
+        return Files.normalizeFileName(innerHashKeyToString(key));
+    }
+
+    public final String innerHashKeyToString(final SegmentedKey<K> key) {
+        return innerHashKeyToString(key.getKey()) + "/"
                 + key.getSegment().getFrom().toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_PS) + "-"
                 + key.getSegment().getTo().toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_PS);
     }
@@ -629,7 +634,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         }
 
         @Override
-        protected String innerHashKeyToString(final SegmentedKey<K> key) {
+        public String innerHashKeyToString(final SegmentedKey<K> key) {
             return ASegmentedTimeSeriesDB.this.hashKeyToString(key);
         }
 

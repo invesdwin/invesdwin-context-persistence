@@ -140,6 +140,11 @@ public abstract class ADelegateTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V>
     }
 
     @Override
+    public String innerHashKeyToString(final K key) {
+        return delegate.innerHashKeyToString(key);
+    }
+
+    @Override
     public ISerde<V> getValueSerde() {
         return delegate.getValueSerde();
     }

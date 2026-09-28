@@ -77,7 +77,7 @@ public class RangeTableLiveSegmentTest extends ATest {
             }
 
             @Override
-            protected String innerHashKeyToString(final FDate key) {
+            public String innerHashKeyToString(final FDate key) {
                 return key.toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_PS);
             }
 

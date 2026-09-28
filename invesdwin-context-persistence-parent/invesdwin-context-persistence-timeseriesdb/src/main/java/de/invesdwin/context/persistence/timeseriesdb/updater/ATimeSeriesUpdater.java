@@ -4,6 +4,7 @@ import java.io.File;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
+import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
@@ -52,6 +53,8 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     private final File updateFinishedFile;
 
     private final K key;
+    @GuardedBy("none for performance")
+    private String keyStr;
     private volatile String owner = HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER;
     private volatile FDate updateStart;
     private volatile FDate minTime = null;
@@ -79,6 +82,17 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     @Override
     public K getKey() {
         return key;
+    }
+
+    public final String getKeyStr() {
+        if (keyStr == null) {
+            keyStr = newKeyStr();
+        }
+        return keyStr;
+    }
+
+    protected String newKeyStr() {
+        return table.innerHashKeyToString(key);
     }
 
     @Override

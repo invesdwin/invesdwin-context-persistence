@@ -73,7 +73,7 @@ public class ALiveSegmentedTimeSeriesDBWithCacheTest extends ABaseDBWithCacheTes
         }
 
         @Override
-        protected String innerHashKeyToString(final String key) {
+        public String innerHashKeyToString(final String key) {
             return key;
         }
 

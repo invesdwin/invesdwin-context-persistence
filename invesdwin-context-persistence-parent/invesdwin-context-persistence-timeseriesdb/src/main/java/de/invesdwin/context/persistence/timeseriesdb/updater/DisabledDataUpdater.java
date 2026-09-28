@@ -12,7 +12,7 @@ public class DisabledDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     private static final DisabledDataUpdater INSTANCE = new DisabledDataUpdater<>();
 
     @Override
-    public INonBlockingRunnable getNonBlocking(final boolean force) {
+    public INonBlockingRunnable maybeUpdateNonBlocking(final boolean force) {
         return DisabledNonBlockingRunnable.INSTANCE;
     }
 
