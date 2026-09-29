@@ -13,6 +13,7 @@ import de.invesdwin.util.collections.iterable.collection.arraylist.ArrayListClos
 import de.invesdwin.util.collections.iterable.collection.arraylist.IArrayListCloseableIterable;
 import de.invesdwin.util.collections.iterable.collection.arraylist.SynchronizedArrayListCloseableIterable;
 import de.invesdwin.util.collections.iterable.refcount.RefCountReverseCloseableIterable;
+import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.math.Integers;
 import de.invesdwin.util.time.date.BisectDuplicateKeyHandling;
 import de.invesdwin.util.time.date.FDate;
@@ -24,8 +25,8 @@ public class ArrayFileBufferCacheResult<V> extends RefCountReverseCloseableItera
 
     private final ArrayList<V> list;
 
-    public ArrayFileBufferCacheResult(final ArrayList<V> list) {
-        super(new SynchronizedArrayListCloseableIterable<>(new ArrayListCloseableIterable<>(list)));
+    public ArrayFileBufferCacheResult(final TextDescription name, final ArrayList<V> list) {
+        super(name, new SynchronizedArrayListCloseableIterable<>(new ArrayListCloseableIterable<>(list)));
         getRefCount().incrementAndGet();
         this.list = list;
     }

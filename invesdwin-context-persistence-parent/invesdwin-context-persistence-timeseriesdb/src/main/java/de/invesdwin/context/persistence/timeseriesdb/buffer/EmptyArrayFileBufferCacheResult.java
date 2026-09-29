@@ -4,6 +4,8 @@ import java.util.ArrayList;
 
 import javax.annotation.concurrent.Immutable;
 
+import de.invesdwin.util.lang.string.description.TextDescription;
+
 @Immutable
 public final class EmptyArrayFileBufferCacheResult<V> extends ArrayFileBufferCacheResult<V> {
 
@@ -11,7 +13,7 @@ public final class EmptyArrayFileBufferCacheResult<V> extends ArrayFileBufferCac
     private static final EmptyArrayFileBufferCacheResult INSTANCE = new EmptyArrayFileBufferCacheResult<>();
 
     private EmptyArrayFileBufferCacheResult() {
-        super(new ArrayList<>());
+        super(new TextDescription(EmptyArrayFileBufferCacheResult.class.getSimpleName()), new ArrayList<>());
     }
 
     @SuppressWarnings("unchecked")

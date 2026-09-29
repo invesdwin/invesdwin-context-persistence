@@ -37,6 +37,7 @@ import de.invesdwin.util.concurrent.pool.AgronaObjectPool;
 import de.invesdwin.util.concurrent.pool.IObjectPool;
 import de.invesdwin.util.concurrent.pool.MemoryLimit;
 import de.invesdwin.util.lang.Objects;
+import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 import de.invesdwin.util.streams.buffer.file.IMemoryMappedFile;
 import de.invesdwin.util.streams.buffer.file.MemoryMappedFile;
@@ -146,7 +147,9 @@ public final class FileBufferCache {
                     } catch (final NoSuchElementException e) {
                         //end reached
                     }
-                    return new SoftReference<IFileBufferCacheResult>(new ArrayFileBufferCacheResult(list));
+                    return new SoftReference<IFileBufferCacheResult>(new ArrayFileBufferCacheResult(
+                            new TextDescription("%s.resultCache_load(%s)", FileBufferCache.class.getSimpleName(), key),
+                            list));
                 }
             }
         } finally {

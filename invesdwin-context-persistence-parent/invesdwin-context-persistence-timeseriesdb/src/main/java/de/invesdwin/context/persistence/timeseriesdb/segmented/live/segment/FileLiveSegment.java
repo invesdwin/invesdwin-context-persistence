@@ -552,7 +552,9 @@ public class FileLiveSegment<K, V> implements ILiveSegment<K, V> {
                         + "] should be at least as big as expected values size [" + expectedSize + "]: "
                         + getFileChannel());
             }
-            final ArrayFileBufferCacheResult<V> inMemoryCache = new ArrayFileBufferCacheResult<V>(fromFileList);
+            final ArrayFileBufferCacheResult<V> inMemoryCache = new ArrayFileBufferCacheResult<V>(
+                    new TextDescription("%s[%s].getFlushedValues()", FileLiveSegment.class.getSimpleName(), hashKey),
+                    fromFileList);
             inMemoryCacheHolder = new WeakReference<ArrayFileBufferCacheResult<V>>(inMemoryCache);
             return inMemoryCache;
         } catch (final Throwable t) {

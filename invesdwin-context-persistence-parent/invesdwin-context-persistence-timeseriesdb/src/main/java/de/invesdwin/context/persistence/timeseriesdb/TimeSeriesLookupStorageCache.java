@@ -95,7 +95,6 @@ public class TimeSeriesLookupStorageCache<K, V> {
     public static final Integer MAXIMUM_SIZE = TimeSeriesProperties.STORAGE_CACHE_MAXIMUM_SIZE;
     public static final EvictionMode EVICTION_MODE = EvictionMode.ClearConcurrent;
     public static final boolean HIGH_CONCURRENCY = false;
-    private static final Log LOG = new Log(TimeSeriesLookupStorageCache.class);
 
     private static final String READ_RANGE_VALUES = "readRangeValues";
     private static final String READ_RANGE_VALUES_REVERSE = "readRangeValuesReverse";
@@ -1299,7 +1298,10 @@ public class TimeSeriesLookupStorageCache<K, V> {
                     try (ICloseableIterator<MemoryFileSummary> range = memoryFileLookupTable.range()) {
                         final ArrayList<MemoryFileSummary> allRangeKeys = new ArrayList<>();
                         Lists.toListWithoutHasNext(range, allRangeKeys);
-                        cachedAllRangeKeysCopy = new ArrayFileBufferCacheResult<MemoryFileSummary>(allRangeKeys);
+                        cachedAllRangeKeysCopy = new ArrayFileBufferCacheResult<MemoryFileSummary>(
+                                new TextDescription("%s[%s].getAllRangeKeys()",
+                                        TimeSeriesLookupStorageCache.class.getSimpleName(), hashKey),
+                                allRangeKeys);
                         cachedAllRangeKeys.set(cachedAllRangeKeysCopy);
                     }
                 }
