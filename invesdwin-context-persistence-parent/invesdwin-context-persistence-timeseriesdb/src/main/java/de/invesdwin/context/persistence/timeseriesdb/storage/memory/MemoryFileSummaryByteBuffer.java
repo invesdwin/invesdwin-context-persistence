@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb.storage;
+package de.invesdwin.context.persistence.timeseriesdb.storage.memory;
 
 import java.io.Closeable;
 

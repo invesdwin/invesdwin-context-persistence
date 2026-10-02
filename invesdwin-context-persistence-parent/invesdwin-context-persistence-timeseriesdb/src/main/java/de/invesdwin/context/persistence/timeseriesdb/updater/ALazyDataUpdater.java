@@ -9,7 +9,11 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.commons.lang3.BooleanUtils;
 
-import de.invesdwin.context.integration.DatabaseThreads;
+import de.invesdwin.context.integration.IntegrationProperties;
+import de.invesdwin.context.integration.concurrent.DatabaseThreads;
+import de.invesdwin.context.integration.concurrent.nonblocking.ANonBlockingRunnable;
+import de.invesdwin.context.integration.concurrent.nonblocking.DisabledNonBlockingRunnable;
+import de.invesdwin.context.integration.concurrent.nonblocking.INonBlockingRunnable;
 import de.invesdwin.context.integration.retry.NonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
@@ -49,6 +53,9 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     private Future<?> updateFuture;
     @GuardedBy("none for performance")
     private String updaterId;
+    private ANonBlockingRunnable maybeUpdateNonBlocking;
+    private ANonBlockingRunnable maybeUpdateNonBlockingForce;
+    private String keyStr;
 
     public ALazyDataUpdater(final K key) {
         if (key == null) {
@@ -66,16 +73,32 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
 
     protected String newUpdaterId() {
         return ALazyDataUpdater.class.getSimpleName() + "_" + getTable().getName() + "_"
-                + getTable().getDirectory().getAbsolutePath() + "_" + keyToString(key) + "_" + getElementsName();
+                + getTable().getLookupTableCache(getKey())
+                        .getDirectoryHashKey()
+                        .getDirectoryHashKeyVersion()
+                        .getDirectoryHashKeyVersionShared()
+                        .getAbsolutePath()
+                + "_" + getKeyStr() + "_" + getElementsName();
     }
 
     @Override
     public String toString() {
-        return Objects.toStringHelper(this).addValue(keyToString(key)).toString();
+        return Objects.toStringHelper(this).addValue(getKeyStr()).toString();
     }
 
-    public K getKey() {
+    public final K getKey() {
         return key;
+    }
+
+    public final String getKeyStr() {
+        if (keyStr == null) {
+            keyStr = newKeyStr();
+        }
+        return keyStr;
+    }
+
+    protected String newKeyStr() {
+        return getTable().innerHashKeyToString(key);
     }
 
     private synchronized IReentrantLock getUpdateLock() {
@@ -100,14 +123,44 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     }
 
     @Override
-    public final void maybeUpdate(final boolean force) {
+    public INonBlockingRunnable maybeUpdateNonBlocking(final boolean force) {
+        if (force) {
+            if (maybeUpdateNonBlockingForce == null) {
+                synchronized (this) {
+                    if (maybeUpdateNonBlockingForce == null) {
+                        maybeUpdateNonBlockingForce = new NonBlockingMaybeUpdateForce(getClass(), getKeyStr());
+                    }
+                }
+            }
+            maybeUpdateNonBlockingForce.resetIfDone();
+            if (maybeUpdateNonBlocking != null) {
+                maybeUpdateNonBlocking.resetIfDone();
+            }
+            return maybeUpdateNonBlockingForce;
+        } else if (shouldCheckForUpdate()) {
+            if (maybeUpdateNonBlocking == null) {
+                synchronized (this) {
+                    if (maybeUpdateNonBlocking == null) {
+                        maybeUpdateNonBlocking = new NonBlockingMaybeUpdate(getClass(), getKeyStr());
+                    }
+                }
+            }
+            maybeUpdateNonBlocking.resetIfDone();
+            return maybeUpdateNonBlocking;
+        } else {
+            return DisabledNonBlockingRunnable.INSTANCE;
+        }
+    }
+
+    @Override
+    public final boolean maybeUpdate(final boolean force) {
         final FDate newUpdateCheck = FDate.now();
         if (force || shouldCheckForUpdate(newUpdateCheck)) {
             final IReentrantLock updateLock = getUpdateLock();
             if (shouldSkipUpdateOnCurrentThreadIfAlreadyRunning()) {
                 try {
                     if (!updateLock.tryLock(TimeSeriesProperties.ACQUIRE_UPDATE_LOCK_TIMEOUT)) {
-                        return;
+                        return false;
                     }
                 } catch (final InterruptedException e) {
                     throw new RuntimeException(e);
@@ -118,7 +171,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
             try {
                 if (!force && !shouldCheckForUpdate(newUpdateCheck)) {
                     //some sort of double checked locking to skip if someone else came before us
-                    return;
+                    return false;
                 }
                 Future<?> updateFutureCopy = updateFuture;
                 final String reason;
@@ -133,6 +186,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                                 return;
                             }
                             try {
+                                getTable().getLookupTableCache(key).maybeUpdateIndex();
                                 innerMaybeUpdate(key);
                                 LazyDataUpdaterProperties.maybeUpdateFinished(getUpdaterId());
                                 //update timestamp only at the end if successful
@@ -151,7 +205,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 if (DatabaseThreads.isThreadBlockingUpdateDatabaseDisabled()) {
                     try {
                         Futures.waitNoInterrupt(updateFutureCopy,
-                                TimeSeriesProperties.NON_BLOCKING_ASYNC_UPDATE_WAIT_TIMEOUT);
+                                IntegrationProperties.NON_BLOCKING_ASYNC_WAIT_TIMEOUT);
                         updateFuture = null;
                     } catch (final TimeoutException e) {
                         throw new NonBlockingRetryLaterRuntimeException(
@@ -163,10 +217,12 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                     Futures.waitNoInterrupt(updateFutureCopy);
                     updateFuture = null;
                 }
+                return true;
             } finally {
                 updateLock.unlock();
             }
         }
+        return false;
     }
 
     protected <T> void logReload(final boolean logged, final String name, final T oldValue, final String reason,
@@ -195,11 +251,16 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
         return isSkipUpdateOnCurrentThreadIfAlreadyRunning();
     }
 
+    public boolean shouldCheckForUpdate() {
+        return shouldCheckForUpdate(FDate.now());
+    }
+
     protected boolean shouldCheckForUpdate(final FDate curTime) {
         return !FDates.isSameJulianDay(lastUpdateCheck, curTime) || lastResetIndex != getTable().getLastResetIndex();
     }
 
-    protected final FDate doUpdate(final FDate estimatedTo) throws IncompleteUpdateRetryableException {
+    protected final TimeSeriesUpdaterResult doUpdate(final FDate estimatedTo)
+            throws IncompleteUpdateRetryableException {
         if (estimatedTo == null) {
             throw new NullPointerException("estimatedTo should not be null");
         }
@@ -224,11 +285,6 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 }
 
                 @Override
-                protected String keyToString(final K key) {
-                    return ALazyDataUpdater.this.keyToString(key);
-                }
-
-                @Override
                 protected String getElementsName() {
                     return ALazyDataUpdater.this.getElementsName();
                 }
@@ -246,29 +302,29 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 }
 
             };
-            final Callable<FDate> task = new Callable<FDate>() {
+            final Callable<TimeSeriesUpdaterResult> task = new Callable<TimeSeriesUpdaterResult>() {
                 @Override
-                public FDate call() throws Exception {
-                    updater.update();
-                    final FDate maxTime = updater.getMaxTime();
-                    if (maxTime != null) {
-                        final Duration timegap = new Duration(maxTime, estimatedTo);
+                public TimeSeriesUpdaterResult call() throws Exception {
+                    final TimeSeriesUpdaterResult result = updater.update();
+                    final FDate updatedTo = result.getUpdatedTo();
+                    if (updatedTo != null) {
+                        final Duration timegap = new Duration(updatedTo, estimatedTo);
                         if (timegap.isGreaterThan(Duration.ONE_YEAR)) {
                             //might be a race condition in parallel writes that aborts after the first 10k elements chunk
                             log.error(getTable().hashKeyToString(getKey())
-                                    + ": Potential problem with data updates: maxTime[" + maxTime
+                                    + ": Potential problem with data updates: maxTime[" + updatedTo
                                     + "] is too far away from estimatedTo[" + estimatedTo + "]: " + timegap + " > "
                                     + Duration.ONE_YEAR);
                         }
                     }
-                    return maxTime;
+                    return result;
                 }
             };
-            final String taskName = "Loading " + getElementsName() + " for " + keyToString(getKey());
+            final String taskName = "Loading " + getElementsName() + " for " + getKeyStr();
             final Callable<Percent> progress = newProgressCallable(estimatedTo, updater);
-            final FDate updatedTo = TaskInfoCallable.of(taskName, task, progress).call();
-            LazyDataUpdaterProperties.setLastUpdateTo(getUpdaterId(), FDates.max(estimatedTo, updatedTo));
-            return updatedTo;
+            final TimeSeriesUpdaterResult result = TaskInfoCallable.of(taskName, task, progress).call();
+            LazyDataUpdaterProperties.setLastUpdateTo(getUpdaterId(), FDates.max(estimatedTo, result.getUpdatedTo()));
+            return result;
         } catch (final IncompleteUpdateRetryableException e) {
             throw e;
         } catch (final Throwable e) {
@@ -293,8 +349,6 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
 
     protected abstract ICloseableIterable<? extends V> downloadElements(K key, FDate fromDate);
 
-    protected abstract String keyToString(K key);
-
     protected abstract String getElementsName();
 
     protected abstract FDate extractStartTime(V element);
@@ -302,5 +356,27 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     protected abstract FDate extractEndTime(V element);
 
     protected abstract void innerMaybeUpdate(K key);
+
+    private final class NonBlockingMaybeUpdateForce extends ANonBlockingRunnable {
+        private NonBlockingMaybeUpdateForce(final Class<?> parentClass, final String parentInfo) {
+            super(parentClass, parentInfo);
+        }
+
+        @Override
+        public void run() {
+            maybeUpdate(true);
+        }
+    }
+
+    private final class NonBlockingMaybeUpdate extends ANonBlockingRunnable {
+        private NonBlockingMaybeUpdate(final Class<?> parentClass, final String parentInfo) {
+            super(parentClass, parentInfo);
+        }
+
+        @Override
+        public void run() {
+            maybeUpdate();
+        }
+    }
 
 }

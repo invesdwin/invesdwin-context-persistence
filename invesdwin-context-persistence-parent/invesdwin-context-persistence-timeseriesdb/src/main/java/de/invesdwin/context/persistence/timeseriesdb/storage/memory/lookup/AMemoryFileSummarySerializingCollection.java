@@ -1,21 +1,25 @@
-package de.invesdwin.context.persistence.timeseriesdb.storage;
+package de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup;
 
-import java.io.File;
 import java.io.OutputStream;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
+import de.invesdwin.context.integration.filechannel.IFileChannel;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummarySerde;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.lang.string.description.TextDescription;
 
 @NotThreadSafe
 public abstract class AMemoryFileSummarySerializingCollection extends SerializingCollection<MemoryFileSummary> {
 
-    public AMemoryFileSummarySerializingCollection(final TextDescription name, final File file,
+    public static final String MEMORY_INDEX_FILE_NAME = "memory.index";
+
+    public AMemoryFileSummarySerializingCollection(final TextDescription name, final IFileChannel fileChannel,
             final boolean readOnly) {
-        super(name, file, readOnly);
+        super(name, fileChannel, readOnly);
     }
 
     @Override

@@ -25,7 +25,7 @@ import de.invesdwin.context.beans.hook.ReinitializationHookSupport;
 import de.invesdwin.context.persistence.timeseriesdb.IDeserializingCloseableIterable;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.source.IFileBufferSource;
-import de.invesdwin.context.persistence.timeseriesdb.storage.MemoryFileSummary;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -37,6 +37,7 @@ import de.invesdwin.util.concurrent.pool.AgronaObjectPool;
 import de.invesdwin.util.concurrent.pool.IObjectPool;
 import de.invesdwin.util.concurrent.pool.MemoryLimit;
 import de.invesdwin.util.lang.Objects;
+import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 import de.invesdwin.util.streams.buffer.file.IMemoryMappedFile;
 import de.invesdwin.util.streams.buffer.file.MemoryMappedFile;
@@ -146,7 +147,9 @@ public final class FileBufferCache {
                     } catch (final NoSuchElementException e) {
                         //end reached
                     }
-                    return new SoftReference<IFileBufferCacheResult>(new ArrayFileBufferCacheResult(list));
+                    return new SoftReference<IFileBufferCacheResult>(new ArrayFileBufferCacheResult(
+                            new TextDescription("%s.resultCache_load(%s)", FileBufferCache.class.getSimpleName(), key),
+                            list));
                 }
             }
         } finally {

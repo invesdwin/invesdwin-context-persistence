@@ -1,6 +1,5 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented;
 
-import java.io.File;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -10,6 +9,8 @@ import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.compression.lz4.LZ4Streams;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
+import de.invesdwin.context.persistence.timeseriesdb.directory.ITimeSeriesDirectory;
+import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
@@ -52,7 +53,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
             return true;
         }
     };
-    private final ILoadingCache<K, ASegmentedTimeSeriesStorageCache<K, V>> key_segmentedLookupTableCache;
+    private final ILoadingCache<K, ASegmentedTimeSeriesLookupStorageCache<K, V>> key_segmentedLookupTableCache;
 
     public ASegmentedTimeSeriesDB(final String name) {
         this.valueSerde = new AFastLazyCallable<ISerde<V>>() {
@@ -71,11 +72,11 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         this.lookupMode = newLookupMode();
         this.batchFlushInterval = newBatchFlushInterval();
         this.segmentedTable = new SegmentedTable(name);
-        this.key_segmentedLookupTableCache = new ALoadingCache<K, ASegmentedTimeSeriesStorageCache<K, V>>() {
+        this.key_segmentedLookupTableCache = new ALoadingCache<K, ASegmentedTimeSeriesLookupStorageCache<K, V>>() {
             @Override
-            protected ASegmentedTimeSeriesStorageCache<K, V> loadValue(final K key) {
+            protected ASegmentedTimeSeriesLookupStorageCache<K, V> loadValue(final K key) {
                 final String hashKey = hashKeyToString(key);
-                return new ASegmentedTimeSeriesStorageCache<K, V>(segmentedTable, getStorage(), key, hashKey) {
+                return new ASegmentedTimeSeriesLookupStorageCache<K, V>(segmentedTable, getStorage(), key, hashKey) {
 
                     @Override
                     protected FDate getLastAvailableSegmentTo(final K key, final FDate updateTo) {
@@ -167,8 +168,8 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
 
     protected abstract ICloseableIterable<? extends V> downloadSegmentElements(SegmentedKey<K> segmentedKey);
 
-    protected SegmentedTimeSeriesStorage newStorage(final File directory, final Integer valueFixedLength,
-            final ICompressionFactory compressionFactory) {
+    protected SegmentedTimeSeriesStorage newStorage(final ITimeSeriesDirectory directory,
+            final Integer valueFixedLength, final ICompressionFactory compressionFactory) {
         return new SegmentedTimeSeriesStorage(directory, valueFixedLength, compressionFactory);
     }
 
@@ -177,8 +178,8 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         return segmentedTable;
     }
 
-    protected void deleteCorruptedStorage(final File directory) {
-        directory.delete();
+    protected void deleteCorruptedStorage(final ITimeSeriesDirectory directory) {
+        directory.deleteCorruptedStorage();
     }
 
     public abstract ISegmentFinder getSegmentFinder(K key);
@@ -212,14 +213,19 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
 
     @Override
     public final String hashKeyToString(final K key) {
-        return Files.normalizeFilename(innerHashKeyToString(key));
+        return Files.normalizeFileName(innerHashKeyToString(key));
     }
 
-    protected abstract String innerHashKeyToString(K key);
+    @Override
+    public abstract String innerHashKeyToString(K key);
 
     @Override
     public final String hashKeyToString(final SegmentedKey<K> key) {
-        return ASegmentedTimeSeriesDB.this.hashKeyToString(key.getKey()) + "/"
+        return Files.normalizeFileName(innerHashKeyToString(key));
+    }
+
+    public final String innerHashKeyToString(final SegmentedKey<K> key) {
+        return innerHashKeyToString(key.getKey()) + "/"
                 + key.getSegment().getFrom().toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_PS) + "-"
                 + key.getSegment().getTo().toString(FDate.FORMAT_UNDERSCORE_DATE_TIME_PS);
     }
@@ -230,7 +236,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
 
     @Override
     public synchronized void close() {
-        for (final ASegmentedTimeSeriesStorageCache<?, ?> cache : key_segmentedLookupTableCache.values()) {
+        for (final ASegmentedTimeSeriesLookupStorageCache<?, ?> cache : key_segmentedLookupTableCache.values()) {
             cache.close();
         }
         key_segmentedLookupTableCache.clear();
@@ -239,7 +245,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
     }
 
     @Override
-    public File getDirectory() {
+    public ITimeSeriesDirectory getDirectory() {
         return segmentedTable.getDirectory();
     }
 
@@ -289,7 +295,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
     }
 
     @Override
-    public ASegmentedTimeSeriesStorageCache<K, V> getSegmentedLookupTableCache(final K key) {
+    public ASegmentedTimeSeriesLookupStorageCache<K, V> getSegmentedLookupTableCache(final K key) {
         return key_segmentedLookupTableCache.get(key);
     }
 
@@ -335,7 +341,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         final ILock readLock = getTableLock(key).readLock();
         readLock.lock();
         try {
-            final ASegmentedTimeSeriesStorageCache<K, V> lookupTableCache = getSegmentedLookupTableCache(key);
+            final ASegmentedTimeSeriesLookupStorageCache<K, V> lookupTableCache = getSegmentedLookupTableCache(key);
             if (index <= 0) {
                 return lookupTableCache.getFirstValue();
             } else if (index >= lookupTableCache.size()) {
@@ -454,7 +460,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
     }
 
     @Override
-    public File getBaseDirectory() {
+    public ITimeSeriesBaseDirectory getBaseDirectory() {
         return ATimeSeriesDB.getDefaultBaseDirectory();
     }
 
@@ -628,18 +634,18 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         }
 
         @Override
-        protected String innerHashKeyToString(final SegmentedKey<K> key) {
+        public String innerHashKeyToString(final SegmentedKey<K> key) {
             return ASegmentedTimeSeriesDB.this.hashKeyToString(key);
         }
 
         @Override
-        protected TimeSeriesStorage newStorage(final File directory, final Integer valueFixedLength,
+        protected TimeSeriesStorage newStorage(final ITimeSeriesDirectory directory, final Integer valueFixedLength,
                 final ICompressionFactory compressionFactory) {
             return ASegmentedTimeSeriesDB.this.newStorage(directory, valueFixedLength, compressionFactory);
         }
 
         @Override
-        protected void deleteCorruptedStorage(final File directory) {
+        protected void deleteCorruptedStorage(final ITimeSeriesDirectory directory) {
             ASegmentedTimeSeriesDB.this.deleteCorruptedStorage(directory);
         }
 
@@ -649,7 +655,7 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
         }
 
         @Override
-        public File getBaseDirectory() {
+        public ITimeSeriesBaseDirectory getBaseDirectory() {
             return ASegmentedTimeSeriesDB.this.getBaseDirectory();
         }
 

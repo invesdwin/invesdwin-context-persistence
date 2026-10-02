@@ -1,6 +1,5 @@
 package de.invesdwin.context.persistence.timeseriesdb.performance;
 
-import java.io.File;
 import java.util.List;
 import java.util.NoSuchElementException;
 
@@ -15,9 +14,13 @@ import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.IPersistentMapType;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.PersistentMapType;
+import de.invesdwin.context.persistence.timeseriesdb.directory.ITimeSeriesDirectory;
+import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
+import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.storage.TimeSeriesStorage;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
-import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
+import de.invesdwin.context.persistence.timeseriesdb.updater.TimeSeriesUpdaterResult;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdateProgress;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -39,7 +42,7 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
         final ATimeSeriesDB<String, FDate> table = new ATimeSeriesDB<String, FDate>("testTimeSeriesDbPerformance") {
 
             @Override
-            protected TimeSeriesStorage newStorage(final File directory, final Integer valueFixedLength,
+            protected TimeSeriesStorage newStorage(final ITimeSeriesDirectory directory, final Integer valueFixedLength,
                     final ICompressionFactory compressionFactory) {
                 return new TimeSeriesStorage(directory, valueFixedLength, compressionFactory) {
                     @Override
@@ -50,8 +53,8 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
             }
 
             @Override
-            public File getBaseDirectory() {
-                return ContextProperties.TEMP_DIRECTORY;
+            public ITimeSeriesBaseDirectory getBaseDirectory() {
+                return new TimeSeriesBaseDirectory(ContextProperties.TEMP_DIRECTORY);
             }
 
             @Override
@@ -65,7 +68,7 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
             }
 
             @Override
-            protected String innerHashKeyToString(final String key) {
+            public String innerHashKeyToString(final String key) {
                 return "testTimeSeriesDbPerformance_" + key;
             }
 
@@ -96,12 +99,12 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
             }
 
             @Override
-            protected void onUpdateFinished(final Instant updateStart) {
+            protected void onUpdateFinished() {
                 printProgress("WritesFinished", writesStart, VALUES, VALUES);
             }
 
             @Override
-            protected void onUpdateStart() {}
+            protected void onUpdateStarted(final FDate updateStart) {}
 
             @Override
             protected FDate extractStartTime(final FDate element) {
@@ -114,13 +117,13 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
             }
 
             @Override
-            protected void onElement(final IUpdateProgress<String, FDate> updateProgress) {}
+            protected void onElement(final ITimeSeriesUpdateProgress relativeProgress, final long relativeCount) {}
 
             @Override
-            protected void onFlush(final int flushIndex, final IUpdateProgress<String, FDate> updateProgress) {
+            protected void onFlush(final ITimeSeriesUpdateProgress relativeProgress, final long flushIndex) {
                 try {
                     if (loopCheck.check()) {
-                        printProgress("Writes", writesStart, updateProgress.getValueCount() * flushIndex, VALUES);
+                        printProgress("Writes", writesStart, relativeProgress.getValueCount() * flushIndex, VALUES);
                     }
                 } catch (final InterruptedException e) {
                     throw new RuntimeException(e);
@@ -132,7 +135,9 @@ public class TimeseriesDBPerformanceTest extends ADatabasePerformanceTest {
                 return null;
             }
         };
-        Assertions.checkTrue(updater.update());
+        try (TimeSeriesUpdaterResult result = updater.update()) {
+            Assertions.checkNotNull(result.getUpdatedTo());
+        }
 
         readIterator(table, "Cold", 1);
         readIterator(table, "Warm", READS);

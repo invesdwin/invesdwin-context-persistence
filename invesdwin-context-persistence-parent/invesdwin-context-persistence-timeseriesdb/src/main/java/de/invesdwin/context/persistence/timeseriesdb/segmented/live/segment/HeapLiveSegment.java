@@ -9,10 +9,10 @@ import java.util.function.Function;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.log.Log;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
-import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.ISkipMemoryFileSummaryFunction;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ATransformingIterable;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterable;
@@ -65,7 +65,7 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final ILock readLock,
-            final ISkipFileFunction skipFileFunction) {
+            final ISkipMemoryFileSummaryFunction skipFileFunction) {
         //we expect the read lock to be already locked from the outside
         if (values == null || from != null && to != null && from.isAfterNotNullSafe(to)) {
             return EmptyCloseableIterable.getInstance();
@@ -123,7 +123,7 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final ILock readLock,
-            final ISkipFileFunction skipFileFunction) {
+            final ISkipMemoryFileSummaryFunction skipFileFunction) {
         //we expect the read lock to be already locked from the outside
         if (values == null || from != null && to != null && from.isBeforeNotNullSafe(to)) {
             return EmptyCloseableIterable.getInstance();
@@ -299,7 +299,7 @@ public class HeapLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public void convertLiveSegmentToHistorical() {
-        final ASegmentedTimeSeriesStorageCache<K, V> lookupTableCache = historicalSegmentTable
+        final ASegmentedTimeSeriesLookupStorageCache<K, V> lookupTableCache = historicalSegmentTable
                 .getSegmentedLookupTableCache(getSegmentedKey().getKey());
         final boolean initialized = lookupTableCache.maybeInitSegmentSync(getSegmentedKey(),
                 new Function<SegmentedKey<K>, ICloseableIterable<? extends V>>() {

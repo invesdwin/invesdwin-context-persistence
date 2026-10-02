@@ -2,34 +2,42 @@ package de.invesdwin.context.persistence.timeseriesdb.updater;
 
 import java.io.File;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
+import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDBInternals;
-import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateAbortedException;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
-import de.invesdwin.context.persistence.timeseriesdb.PrepareForUpdateResult;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
-import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdateProgress;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdaterInternalMethods;
-import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ParallelUpdateProgress;
-import de.invesdwin.context.persistence.timeseriesdb.updater.progress.SequentialUpdateProgress;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.SequentialChunkedUpdateProgress;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.SequentialContinuousUpdateProgress;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
-import de.invesdwin.util.concurrent.lock.FileChannelLock;
+import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.lock.ILock;
+import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
+import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLockRegistry;
 import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
-import de.invesdwin.util.error.Throwables;
+import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
+import de.invesdwin.util.concurrent.reference.IMutableReference;
+import de.invesdwin.util.concurrent.reference.MutableReference;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.math.decimal.scaled.Percent;
-import de.invesdwin.util.time.Instant;
+import de.invesdwin.util.streams.buffer.file.IMemoryMappedFile;
 import de.invesdwin.util.time.date.FDate;
+import de.invesdwin.util.time.date.FDates;
+import de.invesdwin.util.time.date.millis.FDateMillis;
 
 @NotThreadSafe
 public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, V> {
@@ -40,13 +48,22 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
 
     private final ISerde<V> valueSerde;
     private final ITimeSeriesDBInternals<K, V> table;
-    private final TimeSeriesStorageCache<K, V> lookupTable;
-    private final File updateLockFile;
+    private final TimeSeriesLookupStorageCache<K, V> lookupTable;
+    private final File updateProgressFile;
+    private final File updateFinishedFile;
 
     private final K key;
+    @GuardedBy("none for performance")
+    private String keyStr;
+    private volatile String owner = HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER;
+    private volatile FDate updateStart;
     private volatile FDate minTime = null;
     private volatile FDate maxTime = null;
-    private volatile int count = 0;
+    private final AtomicLong unflushedValueCount = new AtomicLong();
+    private final AtomicLong flushedValueCount = new AtomicLong();
+    private final AtomicLong lastFlushIndex = new AtomicLong();
+    private final AtomicLong lastWriteUpdateProgressMillis = new AtomicLong(FDates.MIN_DATE.millisValue());
+    private final ILock writeUpdateProgressLock;
 
     public ATimeSeriesUpdater(final K key, final ITimeSeriesDBInternals<K, V> table) {
         if (key == null) {
@@ -56,12 +73,31 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         this.valueSerde = table.getValueSerde();
         this.table = table;
         this.lookupTable = table.getLookupTableCache(key);
-        this.updateLockFile = lookupTable.getUpdateLockFile();
+        this.updateProgressFile = lookupTable.getUpdateProgressFile();
+        this.updateFinishedFile = lookupTable.getUpdateFinishedFile();
+        this.writeUpdateProgressLock = ILockCollectionFactory.getInstance(true)
+                .newLock(updateProgressFile.getAbsolutePath() + "_writeUpdateProgressLock");
     }
 
     @Override
     public K getKey() {
         return key;
+    }
+
+    public final String getKeyStr() {
+        if (keyStr == null) {
+            keyStr = newKeyStr();
+        }
+        return keyStr;
+    }
+
+    protected String newKeyStr() {
+        return table.innerHashKeyToString(key);
+    }
+
+    @Override
+    public String getOwner() {
+        return owner;
     }
 
     @Override
@@ -74,12 +110,13 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         return maxTime;
     }
 
-    public int getCount() {
-        return count;
+    @Override
+    public long getValueCount() {
+        return flushedValueCount.get() + unflushedValueCount.get();
     }
 
     @Override
-    public final boolean update() throws IncompleteUpdateRetryableException {
+    public final TimeSeriesUpdaterResult update() throws IncompleteUpdateRetryableException {
         final IReentrantReadWriteLock segmentTableLock = table.getTableLock(key);
         /*
          * Make sure to release read locks in current thread when trying to acquire write lock
@@ -94,43 +131,43 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         }
         try {
             final ILock segmentWriteLock = segmentTableLock.writeLock();
-            try {
-                if (!segmentWriteLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
-                    throw segmentWriteLock.getLockTrace()
-                            .handleLockException(segmentWriteLock.getName(),
-                                    new RetryLaterRuntimeException("Write lock could not be acquired for table ["
-                                            + table.getName() + "] and key [" + key
-                                            + "]. Please ensure all iterators are closed!"));
-                }
-            } catch (final InterruptedException e) {
-                throw new RuntimeException(e);
+            if (!segmentWriteLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
+                throw segmentWriteLock.getLockTrace()
+                        .handleLockException(segmentWriteLock.getName(),
+                                new RetryLaterRuntimeException(
+                                        "Write lock could not be acquired for table [" + table.getName() + "] and key ["
+                                                + key + "]. Please ensure all iterators are closed!"));
             }
-            final File updateLockSyncFile = new File(updateLockFile.getAbsolutePath() + ".sync");
-            try (FileChannelLock updateLockSyncFileLock = new FileChannelLock(updateLockSyncFile) {
+            final File updateLockFile = new File(updateProgressFile.getAbsolutePath() + ".lock");
+            final HeartbeatFileChannelLock updateLock = new HeartbeatFileChannelLock(updateLockFile) {
                 @Override
                 protected boolean isThreadLockEnabled() {
                     return true;
                 }
-            }) {
-                if (!updateLockSyncFileLock.tryLock()) {
-                    throw new IncompleteUpdateRetryableException("Incomplete update found for table [" + table.getName()
-                            + "] and key [" + key + "], need to clean everything up to restore all from scratch.");
+            };
+            try {
+                if (!updateLock.tryLock()) {
+                    return trackRemoteUpdate(updateLock);
                 }
-                Files.touchQuietly(updateLockFile);
                 try {
-                    final Instant updateStart = new Instant();
-                    onUpdateStart();
+                    Files.deleteQuietly(updateFinishedFile);
+                    Files.deleteQuietly(updateProgressFile);
+                    this.updateStart = FDate.now();
+                    onUpdateStarted(updateStart);
+                    writeUpdateProgress(updateProgressFile, true);
                     doUpdate();
-                    onUpdateFinished(updateStart);
-                    return true;
+                    onUpdateFinished();
+                    writeUpdateProgress(updateProgressFile, true);
+                    return new TimeSeriesUpdaterResult(maxTime, updateLock, updateProgressFile, updateFinishedFile);
                 } catch (final Throwable t) {
-                    throw propagateIncompleteUpdateException(t);
-                } finally {
-                    Files.deleteQuietly(updateLockFile);
+                    updateLock.close();
+                    throw IncompleteUpdateRetryableException.propagateIncompleteUpdateException(t);
                 }
             } finally {
                 segmentWriteLock.unlock();
             }
+        } catch (final InterruptedException e) {
+            throw new RuntimeException(e);
         } finally {
             for (int i = 0; i < readHoldCount; i++) {
                 segmentReadLock.lock();
@@ -138,108 +175,205 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         }
     }
 
-    protected IncompleteUpdateRetryableException propagateIncompleteUpdateException(final Throwable t)
-            throws IncompleteUpdateRetryableException {
-        if (Throwables.isCausedByType(t, IncompleteUpdateAbortedException.class)) {
-            throw Throwables.propagate(t);
+    private TimeSeriesUpdaterResult trackRemoteUpdate(final HeartbeatFileChannelLock updateLock) {
+        final IMutableReference<TimeSeriesUpdaterProgress> prevProgress = new MutableReference<>(
+                TimeSeriesUpdaterProgress.EMPTY);
+        final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(
+                HeartbeatFileChannelLockRegistry.HEARTBEAT_INTERVAL);
+        while (true) {
+            if (updateFinishedFile.exists()) {
+                readUpdateProgress(prevProgress, updateFinishedFile);
+                break;
+            }
+            readUpdateProgress(prevProgress, updateProgressFile);
+            if (loopCheck.checkClockNoInterrupt()) {
+                if (updateLock.tryLock()) {
+                    try {
+                        if (updateFinishedFile.exists()) {
+                            readUpdateProgress(prevProgress, updateFinishedFile);
+                            break;
+                        } else {
+                            throw new RetryLaterRuntimeException(
+                                    "Update of another process timed out for table [" + table.getName() + "] and key ["
+                                            + key + "]: " + updateLock.getFile().getAbsolutePath());
+                        }
+                    } finally {
+                        updateLock.close();
+                    }
+                }
+            }
+            ALoggingTimeSeriesUpdater.FLUSH_LOG_INTERVAL.sleepNoInterrupt();
         }
-        final IncompleteUpdateRetryableException incompleteException = Throwables.getCauseByType(t,
-                IncompleteUpdateRetryableException.class);
-        if (incompleteException != null) {
-            return incompleteException;
-        } else {
-            return new IncompleteUpdateRetryableException("Something unexpected went wrong that could be retried", t);
+        lookupTable.clearCaches();
+        final FDate updatedTo = lookupTable.getLastValueEndTime();
+        onUpdateFinished();
+        return new TimeSeriesUpdaterResult(updatedTo, null, null, null);
+    }
+
+    private void doUpdate() throws IncompleteUpdateRetryableException {
+        try (TimeSeriesUpdateTransaction<V> updateTransaction = lookupTable
+                .newUpdateTransaction(shouldRedoLastFile())) {
+            final FDate updateFrom = updateTransaction.getUpdateFrom();
+            final List<V> lastValues = updateTransaction.getLastValues();
+            final long initialPrecedingMemoryOffset = updateTransaction.getPrecedingMemoryOffset();
+            final long initialMemoryOffset = updateTransaction.getMemoryOffset();
+            final long initialPrecedingValueCount = updateTransaction.getPrecedingValueCount();
+
+            final ICloseableIterable<? extends V> source = getSource(updateFrom);
+            if (source == null) {
+                throw new NullPointerException("source is null");
+            }
+            final ICloseableIterable<? extends V> skippingSource;
+            if (updateFrom != null) {
+                skippingSource = new ASkippingIterable<V>(source) {
+                    @Override
+                    protected boolean skip(final V element) {
+                        final FDate endTime = extractEndTime(element);
+                        //ensure we add no duplicate values
+                        return endTime.isBeforeNotNullSafe(updateFrom);
+                    }
+                };
+            } else {
+                skippingSource = source;
+            }
+
+            final ITimeSeriesUpdaterInternalMethods<K, V> internalMethods = new ITimeSeriesUpdaterInternalMethods<K, V>() {
+
+                @Override
+                public K getKey() {
+                    return key;
+                }
+
+                @Override
+                public ISerde<V> getValueSerde() {
+                    return valueSerde;
+                }
+
+                @Override
+                public TimeSeriesLookupStorageCache<K, V> getLookupTable() {
+                    return lookupTable;
+                }
+
+                @Override
+                public ITimeSeriesDB<K, V> getTable() {
+                    return table;
+                }
+
+                @Override
+                public FDate extractStartTime(final V element) {
+                    return ATimeSeriesUpdater.this.extractStartTime(element);
+                }
+
+                @Override
+                public FDate extractEndTime(final V element) {
+                    return ATimeSeriesUpdater.this.extractEndTime(element);
+                }
+
+                @Override
+                public void onFlush(final ITimeSeriesUpdateProgress relativeProgress, final long flushIndex) {
+                    lastFlushIndex.set(flushIndex);
+                    unflushedValueCount.set(0);
+                    flushedValueCount.addAndGet(relativeProgress.getValueCount());
+                    if (minTime == null) {
+                        minTime = relativeProgress.getMinTime();
+                    }
+                    maxTime = relativeProgress.getMaxTime();
+                    ATimeSeriesUpdater.this.onFlush(relativeProgress, flushIndex);
+                    writeUpdateProgress(updateProgressFile, false);
+                }
+
+                @Override
+                public void onElement(final ITimeSeriesUpdateProgress relativeProgress, final long relativeCount) {
+                    unflushedValueCount.addAndGet(relativeCount);
+                    ATimeSeriesUpdater.this.onElement(relativeProgress, relativeCount);
+                    writeUpdateProgress(updateProgressFile, false);
+                }
+
+                @Override
+                public boolean shouldRedoLastFile() {
+                    return ATimeSeriesUpdater.this.shouldRedoLastFile();
+                }
+
+            };
+            final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues,
+                    skippingSource);
+
+            if (shouldWriteInParallel()) {
+                ParallelUpdateProgress.doUpdate(updateTransaction, internalMethods, initialPrecedingMemoryOffset,
+                        initialMemoryOffset, initialPrecedingValueCount, flatteningSources);
+            } else {
+                if (IMemoryMappedFile.isSegmentSizeExceeded(Long.MAX_VALUE)) {
+                    SequentialChunkedUpdateProgress.doUpdate(updateTransaction, internalMethods,
+                            initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount,
+                            flatteningSources);
+                } else {
+                    SequentialContinuousUpdateProgress.doUpdate(updateTransaction, internalMethods,
+                            initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount,
+                            flatteningSources);
+                }
+            }
         }
     }
 
-    private void doUpdate() {
-        final PrepareForUpdateResult<V> prepareForUpdateResult = lookupTable.prepareForUpdate(shouldRedoLastFile());
-        final FDate updateFrom = prepareForUpdateResult.getUpdateFrom();
-        final List<V> lastValues = prepareForUpdateResult.getLastValues();
-        final long initialPrecedingMemoryOffset = prepareForUpdateResult.getPrecedingMemorOffset();
-        final long initialMemoryOffset = prepareForUpdateResult.getMemoryOffset();
-        final long initialPrecedingValueCount = prepareForUpdateResult.getPrecedingValueCount();
-
-        final ICloseableIterable<? extends V> source = getSource(updateFrom);
-        if (source == null) {
-            throw new NullPointerException("source is null");
-        }
-        final ICloseableIterable<? extends V> skippingSource;
-        if (updateFrom != null) {
-            skippingSource = new ASkippingIterable<V>(source) {
-                @Override
-                protected boolean skip(final V element) {
-                    final FDate endTime = extractEndTime(element);
-                    //ensure we add no duplicate values
-                    return endTime.isBeforeNotNullSafe(updateFrom);
-                }
-            };
+    private void writeUpdateProgress(final File updateProgressFile, final boolean forced) {
+        if (forced) {
+            writeUpdateProgressLock.lock();
+            try {
+                final long nowMillis = FDateMillis.nowMillis();
+                TimeSeriesUpdaterProgress.writeUpdateProgress(updateProgressFile, updateStart, lastFlushIndex.get(),
+                        flushedValueCount.get(), minTime, maxTime);
+                lastWriteUpdateProgressMillis.set(nowMillis);
+            } finally {
+                writeUpdateProgressLock.unlock();
+            }
         } else {
-            skippingSource = source;
-        }
-
-        final ITimeSeriesUpdaterInternalMethods<K, V> internalMethods = new ITimeSeriesUpdaterInternalMethods<K, V>() {
-
-            @Override
-            public K getKey() {
-                return key;
-            }
-
-            @Override
-            public ISerde<V> getValueSerde() {
-                return valueSerde;
-            }
-
-            @Override
-            public TimeSeriesStorageCache<K, V> getLookupTable() {
-                return lookupTable;
-            }
-
-            @Override
-            public ITimeSeriesDB<K, V> getTable() {
-                return table;
-            }
-
-            @Override
-            public FDate extractStartTime(final V element) {
-                return ATimeSeriesUpdater.this.extractStartTime(element);
-            }
-
-            @Override
-            public FDate extractEndTime(final V element) {
-                return ATimeSeriesUpdater.this.extractEndTime(element);
-            }
-
-            @Override
-            public void onFlush(final int flushIndex, final IUpdateProgress<K, V> updateProgress) {
-                count += updateProgress.getValueCount();
-                if (minTime == null) {
-                    minTime = updateProgress.getMinTime();
+            final long nowMillis = FDateMillis.nowMillis();
+            if (ALoggingTimeSeriesUpdater.FLUSH_LOG_INTERVAL
+                    .isLessThanMillis(nowMillis - lastWriteUpdateProgressMillis.get())) {
+                if (writeUpdateProgressLock.tryLock()) {
+                    try {
+                        TimeSeriesUpdaterProgress.writeUpdateProgress(updateProgressFile, updateStart,
+                                lastFlushIndex.get(), flushedValueCount.get(), minTime, maxTime);
+                        lastWriteUpdateProgressMillis.set(nowMillis);
+                    } finally {
+                        writeUpdateProgressLock.unlock();
+                    }
                 }
-                maxTime = updateProgress.getMaxTime();
-                ATimeSeriesUpdater.this.onFlush(flushIndex, updateProgress);
             }
+        }
+    }
 
-            @Override
-            public void onElement(final IUpdateProgress<K, V> updateProgress) {
-                ATimeSeriesUpdater.this.onElement(updateProgress);
-            }
-
-        };
-        final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues, skippingSource);
-
-        if (shouldWriteInParallel()) {
-            ParallelUpdateProgress.doUpdate(internalMethods, initialPrecedingMemoryOffset, initialMemoryOffset,
-                    initialPrecedingValueCount, flatteningSources);
+    private void readUpdateProgress(final IMutableReference<TimeSeriesUpdaterProgress> prevProgress,
+            final File updateProgressFile) {
+        final TimeSeriesUpdaterProgress progress = TimeSeriesUpdaterProgress.readUpdateProgress(updateProgressFile);
+        if (progress == null) {
+            return;
+        }
+        final TimeSeriesUpdaterProgress prevProgressValue = prevProgress.get();
+        this.owner = progress.getOwner();
+        final boolean firstProgress = this.updateStart == null;
+        this.updateStart = progress.getUpdateStart();
+        if (firstProgress) {
+            onUpdateStarted(progress.getUpdateStart());
+        }
+        this.minTime = progress.getMinTime();
+        this.maxTime = progress.getMaxTime();
+        if (prevProgressValue.getFlushIndex() != progress.getFlushIndex()) {
+            this.lastFlushIndex.set(progress.getFlushIndex());
+            this.unflushedValueCount.set(0);
+            this.flushedValueCount.set(progress.getValueCount());
+            onFlush(progress.asRelativeProgress(prevProgressValue), progress.getFlushIndex());
         } else {
-            SequentialUpdateProgress.doUpdate(internalMethods, initialPrecedingMemoryOffset, initialMemoryOffset,
-                    initialPrecedingValueCount, flatteningSources);
+            final long unflushedValues = progress.getValueCount() - flushedValueCount.get();
+            final long unflushedValuesBefore = unflushedValueCount.getAndSet(unflushedValues);
+            final long relativeCount = unflushedValues - unflushedValuesBefore;
+            onElement(progress.asRelativeProgress(prevProgressValue), relativeCount);
         }
     }
 
     protected boolean shouldWriteInParallel() {
         //LZ4HC should be compressed in parallel
-        return true;
+        return Executors.getCpuThreadPoolCount() > 1;
     }
 
     protected boolean shouldRedoLastFile() {
@@ -247,11 +381,12 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         return true;
     }
 
-    protected abstract ICloseableIterable<? extends V> getSource(FDate updateFrom);
+    protected abstract ICloseableIterable<? extends V> getSource(FDate updateFrom)
+            throws IncompleteUpdateRetryableException;
 
-    protected abstract void onUpdateFinished(Instant updateStart);
+    protected abstract void onUpdateStarted(FDate updateStart);
 
-    protected abstract void onUpdateStart();
+    protected abstract void onUpdateFinished();
 
     protected abstract FDate extractStartTime(V element);
 
@@ -262,8 +397,16 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         return getProgress(getMinTime(), getMaxTime());
     }
 
-    protected abstract void onFlush(int flushIndex, IUpdateProgress<K, V> updateProgress);
+    public File getUpdateProgressFile() {
+        return updateProgressFile;
+    }
 
-    protected abstract void onElement(IUpdateProgress<K, V> updateProgress);
+    public File getUpdateFinishedFile() {
+        return updateFinishedFile;
+    }
+
+    protected abstract void onFlush(ITimeSeriesUpdateProgress relativeProgress, long flushIndex);
+
+    protected abstract void onElement(ITimeSeriesUpdateProgress relativeProgress, long pendingCount);
 
 }

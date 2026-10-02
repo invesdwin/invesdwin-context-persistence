@@ -2,15 +2,16 @@ package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentStatus;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
-import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.status.ITimeSeriesSegmentStatusTable;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.ISkipMemoryFileSummaryFunction;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
-import de.invesdwin.context.persistence.timeseriesdb.updater.progress.IUpdateProgress;
+import de.invesdwin.context.persistence.timeseriesdb.updater.TimeSeriesUpdaterResult;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdateProgress;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -19,10 +20,8 @@ import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.math.decimal.scaled.Percent;
-import de.invesdwin.util.time.Instant;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDates;
-import de.invesdwin.util.time.range.TimeRange;
 
 @NotThreadSafe
 public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
@@ -30,7 +29,7 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
     private final SegmentedKey<K> segmentedKey;
     private final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable;
     private final ITimeSeriesDBInternals<SegmentedKey<K>, V> table;
-    private final String hashKey;
+    private final ITimeSeriesSegmentStatusTable segmentStatusTable;
     private boolean empty = true;
 
     public PersistentLiveSegment(final SegmentedKey<K> segmentedKey,
@@ -38,12 +37,9 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
         this.segmentedKey = segmentedKey;
         this.historicalSegmentTable = historicalSegmentTable;
         this.table = historicalSegmentTable.getSegmentedTable();
-        this.hashKey = historicalSegmentTable.hashKeyToString(segmentedKey.getKey());
-
-        final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable = historicalSegmentTable
-                .getStorage()
+        this.segmentStatusTable = historicalSegmentTable.getSegmentedLookupTableCache(segmentedKey.getKey())
                 .getSegmentStatusTable();
-        final SegmentStatus existingStatus = segmentStatusTable.get(hashKey, segmentedKey.getSegment());
+        final SegmentStatus existingStatus = segmentStatusTable.get(segmentedKey.getSegment());
         if (existingStatus == SegmentStatus.INITIALIZING) {
             //cleanup initially
             this.table.deleteRange(segmentedKey);
@@ -80,7 +76,7 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final ILock readLock,
-            final ISkipFileFunction skipFileFunction) {
+            final ISkipMemoryFileSummaryFunction skipFileFunction) {
         return new ICloseableIterable<V>() {
             @Override
             public ICloseableIterator<V> iterator() {
@@ -94,7 +90,7 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final ILock readLock,
-            final ISkipFileFunction skipFileFunction) {
+            final ISkipMemoryFileSummaryFunction skipFileFunction) {
         return new ICloseableIterable<V>() {
             @Override
             public ICloseableIterator<V> iterator() {
@@ -158,12 +154,9 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
     }
 
     public void putNextLiveValues(final ICloseableIterable<V> memoryValues) {
-        final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable = historicalSegmentTable
-                .getStorage()
-                .getSegmentStatusTable();
-        final SegmentStatus existingStatus = segmentStatusTable.get(hashKey, segmentedKey.getSegment());
+        final SegmentStatus existingStatus = segmentStatusTable.get(segmentedKey.getSegment());
         if (existingStatus == null) {
-            segmentStatusTable.put(hashKey, segmentedKey.getSegment(), SegmentStatus.INITIALIZING);
+            segmentStatusTable.put(segmentedKey.getSegment(), SegmentStatus.INITIALIZING);
         } else if (existingStatus != SegmentStatus.INITIALIZING) {
             throw UnknownArgumentException.newInstance(SegmentStatus.class, existingStatus);
         }
@@ -175,10 +168,10 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
 
             @Override
-            protected void onUpdateFinished(final Instant updateStart) {}
+            protected void onUpdateFinished() {}
 
             @Override
-            protected void onUpdateStart() {}
+            protected void onUpdateStarted(final FDate updateStart) {}
 
             @Override
             protected FDate extractStartTime(final V element) {
@@ -191,10 +184,10 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
 
             @Override
-            protected void onElement(final IUpdateProgress<SegmentedKey<K>, V> updateProgress) {}
+            protected void onElement(final ITimeSeriesUpdateProgress relativeProgress, final long relativeCount) {}
 
             @Override
-            protected void onFlush(final int flushIndex, final IUpdateProgress<SegmentedKey<K>, V> updateProgress) {}
+            protected void onFlush(final ITimeSeriesUpdateProgress relativeProgress, final long flushIndex) {}
 
             @Override
             protected boolean shouldRedoLastFile() {
@@ -206,8 +199,8 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
                 return null;
             }
         };
-        try {
-            Assertions.checkTrue(updater.update());
+        try (TimeSeriesUpdaterResult result = updater.update()) {
+            Assertions.checkNotNull(result.getUpdatedTo());
         } catch (final IncompleteUpdateRetryableException e) {
             throw new RuntimeException(e);
         }
@@ -216,12 +209,9 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     public void finish() {
         if (!isEmpty()) {
-            final ADelegateRangeTable<String, TimeRange, SegmentStatus> segmentStatusTable = historicalSegmentTable
-                    .getStorage()
-                    .getSegmentStatusTable();
-            final SegmentStatus existingStatus = segmentStatusTable.get(hashKey, segmentedKey.getSegment());
+            final SegmentStatus existingStatus = segmentStatusTable.get(segmentedKey.getSegment());
             if (existingStatus == SegmentStatus.INITIALIZING) {
-                segmentStatusTable.put(hashKey, segmentedKey.getSegment(), SegmentStatus.COMPLETE);
+                segmentStatusTable.put(segmentedKey.getSegment(), SegmentStatus.COMPLETE);
                 final ICloseableIterable<V> rangeValues = rangeValues(segmentedKey.getSegment().getFrom(),
                         segmentedKey.getSegment().getTo(), DisabledLock.INSTANCE, null);
                 historicalSegmentTable.getSegmentedLookupTableCache(segmentedKey.getKey())

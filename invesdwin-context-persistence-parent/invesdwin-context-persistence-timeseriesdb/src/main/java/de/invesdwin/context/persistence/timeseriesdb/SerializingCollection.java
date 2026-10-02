@@ -3,8 +3,7 @@ package de.invesdwin.context.persistence.timeseriesdb;
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -21,6 +20,8 @@ import org.apache.commons.lang3.SerializationException;
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.compression.lz4.LZ4Streams;
+import de.invesdwin.context.integration.filechannel.IFileChannel;
+import de.invesdwin.context.integration.filechannel.registry.FileChannelRegistry;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -57,7 +58,7 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
     private int size;
     private boolean empty;
     private final boolean readOnly;
-    private final File file;
+    private final IFileChannel file;
     private final SerializingCollectionFinalizer finalizer;
     private final Integer fixedLength = newFixedLength();
     @SuppressWarnings("unchecked")
@@ -66,14 +67,9 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
     public SerializingCollection(final TextDescription name, final String tempFileId) {
         this.name = name;
         this.finalizer = newFinalizer();
-        this.file = new File(getTempFolder(),
+        final File file = new File(getTempFolder(),
                 Files.normalizePath(UNIQUE_NAME_GENERATOR.get(Files.normalizePath(tempFileId) + ".data")));
-        try {
-            Files.forceMkdir(file.getParentFile());
-        } catch (final IOException e) {
-            throw new RuntimeException(e);
-        }
-
+        this.file = FileChannelRegistry.newFile(file);
         if (file.exists()) {
             throw new IllegalStateException("File [" + file.getAbsolutePath() + "] already exists!");
         }
@@ -83,7 +79,7 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
         this.readOnly = false;
     }
 
-    public SerializingCollection(final TextDescription name, final File file, final boolean readOnly) {
+    public SerializingCollection(final TextDescription name, final IFileChannel file, final boolean readOnly) {
         this.name = name;
         this.finalizer = newFinalizer();
         this.file = file;
@@ -122,7 +118,11 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
 
     @Override
     public final InputStream newInputStream() throws IOException {
-        return newDecompressor(newFileInputStream(file));
+        final InputStream in = newFileInputStream(file);
+        if (in == null) {
+            throw new FileNotFoundException("File not found, must have been deleted in the mean time: " + file);
+        }
+        return newDecompressor(in);
     }
 
     protected SerializingCollectionFinalizer newFinalizer() {
@@ -133,7 +133,7 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
         return finalizer;
     }
 
-    public File getFile() {
+    public IFileChannel getFile() {
         return file;
     }
 
@@ -384,12 +384,12 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
         throw new UnsupportedOperationException();
     }
 
-    protected InputStream newFileInputStream(final File file) throws IOException {
-        return new FileInputStream(file);
+    protected InputStream newFileInputStream(final IFileChannel file) throws IOException {
+        return file.newDownload();
     }
 
-    protected OutputStream newFileOutputStream(final File file) throws IOException {
-        return new FileOutputStream(file);
+    protected OutputStream newFileOutputStream(final IFileChannel file) throws IOException {
+        return file.newUpload();
     }
 
     @NotThreadSafe

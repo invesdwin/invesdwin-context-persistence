@@ -13,6 +13,7 @@ import de.invesdwin.util.collections.iterable.collection.arraylist.ArrayListClos
 import de.invesdwin.util.collections.iterable.collection.arraylist.IArrayListCloseableIterable;
 import de.invesdwin.util.collections.iterable.collection.arraylist.SynchronizedArrayListCloseableIterable;
 import de.invesdwin.util.collections.iterable.refcount.RefCountReverseCloseableIterable;
+import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.math.Integers;
 import de.invesdwin.util.time.date.BisectDuplicateKeyHandling;
 import de.invesdwin.util.time.date.FDate;
@@ -24,8 +25,8 @@ public class ArrayFileBufferCacheResult<V> extends RefCountReverseCloseableItera
 
     private final ArrayList<V> list;
 
-    public ArrayFileBufferCacheResult(final ArrayList<V> list) {
-        super(new SynchronizedArrayListCloseableIterable<>(new ArrayListCloseableIterable<>(list)));
+    public ArrayFileBufferCacheResult(final TextDescription name, final ArrayList<V> list) {
+        super(name, new SynchronizedArrayListCloseableIterable<>(new ArrayListCloseableIterable<>(list)));
         getRefCount().incrementAndGet();
         this.list = list;
     }
@@ -131,11 +132,39 @@ public class ArrayFileBufferCacheResult<V> extends RefCountReverseCloseableItera
     }
 
     @Override
+    public V getLatestValueOrFallback(final Function<V, FDate> extractEndTime, final FDate key) {
+        final int lastIndex = list.size() - 1;
+        final int highIndex = determineHighIndex(extractEndTime, key, lastIndex);
+        if (highIndex < 0) {
+            if (list.isEmpty()) {
+                return null;
+            } else {
+                return list.get(0);
+            }
+        }
+        return list.get(highIndex);
+    }
+
+    @Override
     public int getLatestValueIndex(final Function<V, FDate> extractEndTime, final FDate key) {
         final int lastIndex = list.size() - 1;
         final int highIndex = determineHighIndex(extractEndTime, key, lastIndex);
         if (highIndex < 0) {
             return -1;
+        }
+        return highIndex;
+    }
+
+    @Override
+    public int getLatestValueIndexOrFallback(final Function<V, FDate> extractEndTime, final FDate key) {
+        final int lastIndex = list.size() - 1;
+        final int highIndex = determineHighIndex(extractEndTime, key, lastIndex);
+        if (highIndex < 0) {
+            if (list.isEmpty()) {
+                return -1;
+            } else {
+                return 0;
+            }
         }
         return highIndex;
     }
@@ -147,6 +176,25 @@ public class ArrayFileBufferCacheResult<V> extends RefCountReverseCloseableItera
         }
         if (index >= list.size()) {
             return null;
+        }
+        return list.get(index);
+    }
+
+    @Override
+    public V getLatestValueOrFallback(final int index) {
+        if (index < 0) {
+            if (list.isEmpty()) {
+                return null;
+            } else {
+                return list.get(0);
+            }
+        }
+        if (index >= list.size()) {
+            if (list.isEmpty()) {
+                return null;
+            } else {
+                return list.get(list.size() - 1);
+            }
         }
         return list.get(index);
     }

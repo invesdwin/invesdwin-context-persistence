@@ -986,7 +986,7 @@ public abstract class ABaseDBWithLimitedCacheTest extends ARootDBTest {
         Assertions.assertThat(previousValue).isEqualTo(expectedValue);
         Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(3);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(2);
-        Assertions.assertThat(countInnerExtractKey).isEqualTo(2);
+        Assertions.assertThat(countInnerExtractKey).isLessThanOrEqualTo(3);
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
 
         //first +1

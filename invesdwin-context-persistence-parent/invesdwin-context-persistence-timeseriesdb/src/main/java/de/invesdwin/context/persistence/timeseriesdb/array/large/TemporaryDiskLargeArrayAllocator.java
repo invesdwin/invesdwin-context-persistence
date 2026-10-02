@@ -38,7 +38,7 @@ public class TemporaryDiskLargeArrayAllocator implements ILargeArrayAllocator, C
     }
 
     public TemporaryDiskLargeArrayAllocator(final String name, final File baseDirectory) {
-        this.uniqueName = Files.normalizeFilename(UNIQUE_NAME_GENERATOR.get(name));
+        this.uniqueName = Files.normalizeFileName(UNIQUE_NAME_GENERATOR.get(name));
         this.directory = new File(baseDirectory, uniqueName);
         this.finalizer = new TemporaryDiskLargeArrayAllocatorFinalizer();
         this.finalizer.register(this);

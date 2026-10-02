@@ -11,7 +11,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.commons.lang3.mutable.MutableInt;
 
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
-import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
@@ -19,7 +19,7 @@ import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFi
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment.ILiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment.ReadLockedLiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment.SwitchingLiveSegment;
-import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.ISkipMemoryFileSummaryFunction;
 import de.invesdwin.util.collections.Arrays;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -40,7 +40,7 @@ import de.invesdwin.util.time.range.TimeRange;
 public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Closeable {
 
     private final ALiveSegmentedTimeSeriesDB<K, V>.HistoricalSegmentTable historicalSegmentTable;
-    private final ASegmentedTimeSeriesStorageCache<K, V> historicalSegmentLookupTableCache;
+    private final ASegmentedTimeSeriesLookupStorageCache<K, V> historicalSegmentLookupTableCache;
     private final TimeSeriesLookupMode lookupMode;
     private final K key;
     private final IReadWriteLock liveSegmentLock;
@@ -137,7 +137,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
     }
 
     public ICloseableIterable<V> readRangeValues(final FDate from, final FDate to, final ILock readLock,
-            final ISkipFileFunction skipFileFunction) {
+            final ISkipMemoryFileSummaryFunction skipFileFunction) {
         readLock.lock();
         try {
             if (liveSegment == null) {
@@ -175,7 +175,7 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
     }
 
     public ICloseableIterable<V> readRangeValuesReverse(final FDate from, final FDate to, final ILock readLock,
-            final ISkipFileFunction skipFileFunction) {
+            final ISkipMemoryFileSummaryFunction skipFileFunction) {
         readLock.lock();
         try {
             if (liveSegment == null) {

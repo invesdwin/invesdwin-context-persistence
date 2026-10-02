@@ -16,7 +16,6 @@ import de.invesdwin.util.time.duration.Duration;
 @Immutable
 public final class TimeSeriesProperties {
 
-    public static final Duration NON_BLOCKING_ASYNC_UPDATE_WAIT_TIMEOUT;
     public static final Duration ACQUIRE_WRITE_LOCK_TIMEOUT;
     public static final Duration ACQUIRE_UPDATE_LOCK_TIMEOUT;
     public static final boolean FILE_BUFFER_CACHE_SEGMENTS_ENABLED;
@@ -31,12 +30,12 @@ public final class TimeSeriesProperties {
     public static final Duration STORAGE_CACHE_EVICTION_TIMEOUT;
     public static final int STORAGE_CACHE_MAXIMUM_SIZE;
     public static final boolean PERSISTENT_CHRONICLE_MAP_ENABLED;
+    public static final Duration RETAIN_OBSOLETE_FILES_THRESHOLD;
+    public static final Duration RETAIN_OBSOLETE_VERSIONS_THRESHOLD;
     private static final SystemProperties SYSTEM_PROPERTIES;
 
     static {
         SYSTEM_PROPERTIES = new SystemProperties(TimeSeriesProperties.class);
-        NON_BLOCKING_ASYNC_UPDATE_WAIT_TIMEOUT = SYSTEM_PROPERTIES
-                .getDuration("NON_BLOCKING_ASYNC_UPDATE_WAIT_TIMEOUT");
         ACQUIRE_WRITE_LOCK_TIMEOUT = SYSTEM_PROPERTIES.getDuration("ACQUIRE_WRITE_LOCK_TIMEOUT");
         ACQUIRE_UPDATE_LOCK_TIMEOUT = SYSTEM_PROPERTIES.getDuration("ACQUIRE_UPDATE_LOCK_TIMEOUT");
         FILE_BUFFER_CACHE_SEGMENTS_ENABLED = SYSTEM_PROPERTIES.getBoolean("FILE_BUFFER_CACHE_SEGMENTS_ENABLED");
@@ -50,6 +49,8 @@ public final class TimeSeriesProperties {
         STORAGE_CACHE_EVICTION_TIMEOUT = SYSTEM_PROPERTIES.getDuration("STORAGE_CACHE_EVICTION_TIMEOUT");
         STORAGE_CACHE_MAXIMUM_SIZE = SYSTEM_PROPERTIES.getInteger("STORAGE_CACHE_MAXIMUM_SIZE");
         PERSISTENT_CHRONICLE_MAP_ENABLED = determinePersistentChronicleMapEnabled();
+        RETAIN_OBSOLETE_FILES_THRESHOLD = SYSTEM_PROPERTIES.getDuration("RETAIN_OBSOLETE_FILES_THRESHOLD");
+        RETAIN_OBSOLETE_VERSIONS_THRESHOLD = SYSTEM_PROPERTIES.getDuration("RETAIN_OBSOLETE_VERSIONS_THRESHOLD");
         FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR = null;
     }
 
@@ -79,6 +80,10 @@ public final class TimeSeriesProperties {
                     + ". This might happen in chrooted environments. Disabling chronicle map because it will be unable to check free/available space before memory mapping a file.");
             return false;
         }
+    }
+
+    public static Duration newAcquireFileLockTimeout() {
+        return ACQUIRE_WRITE_LOCK_TIMEOUT.newRandomDuration();
     }
 
 }

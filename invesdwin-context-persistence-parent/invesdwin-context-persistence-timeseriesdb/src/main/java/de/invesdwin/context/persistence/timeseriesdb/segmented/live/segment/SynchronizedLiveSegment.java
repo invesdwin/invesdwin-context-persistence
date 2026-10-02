@@ -3,7 +3,7 @@ package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
-import de.invesdwin.context.persistence.timeseriesdb.storage.ISkipFileFunction;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.ISkipMemoryFileSummaryFunction;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.time.date.FDate;
@@ -44,13 +44,13 @@ public class SynchronizedLiveSegment<K, V> implements ILiveSegment<K, V> {
 
     @Override
     public synchronized ICloseableIterable<V> rangeValues(final FDate from, final FDate to, final ILock readLock,
-            final ISkipFileFunction skipFileFunction) {
+            final ISkipMemoryFileSummaryFunction skipFileFunction) {
         return delegate.rangeValues(from, to, readLock, skipFileFunction);
     }
 
     @Override
     public synchronized ICloseableIterable<V> rangeReverseValues(final FDate from, final FDate to, final ILock readLock,
-            final ISkipFileFunction skipFileFunction) {
+            final ISkipMemoryFileSummaryFunction skipFileFunction) {
         return delegate.rangeReverseValues(from, to, readLock, skipFileFunction);
     }
 

@@ -11,9 +11,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
+import de.invesdwin.context.integration.filechannel.registry.FileChannelRegistry;
 import de.invesdwin.context.persistence.timeseriesdb.SerializingCollection;
-import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
+import de.invesdwin.context.persistence.timeseriesdb.updater.TimeSeriesUpdateTransaction;
 import de.invesdwin.util.collections.iterable.ACloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -21,6 +23,7 @@ import de.invesdwin.util.collections.iterable.concurrent.AParallelChunkConsumerI
 import de.invesdwin.util.collections.iterable.concurrent.ProducerQueueIterable;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.WrappedExecutorService;
+import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLockRegistry;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.OperatingSystem;
 import de.invesdwin.util.lang.string.description.TextDescription;
@@ -30,7 +33,7 @@ import de.invesdwin.util.streams.buffer.file.IMemoryMappedFile;
 import de.invesdwin.util.time.date.FDate;
 
 @NotThreadSafe
-public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
+public class ParallelUpdateProgress<K, V> implements ITimeSeriesUpdateProgress {
 
     private static final int WRITER_THREADS = Executors.getCpuThreadPoolCount();
     private static final WrappedExecutorService WRITER_LIMIT_EXECUTOR = Executors
@@ -70,6 +73,11 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
     }
 
     @Override
+    public String getOwner() {
+        return HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER;
+    }
+
+    @Override
     public FDate getMinTime() {
         return minTime;
     }
@@ -80,7 +88,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
     }
 
     @Override
-    public int getValueCount() {
+    public long getValueCount() {
         return valueCount;
     }
 
@@ -105,7 +113,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
         lastElement = element;
         batch[valueCount] = element;
         valueCount++;
-        parent.onElement(this);
+        parent.onElement(this, 1L);
         return valueCount % parent.getLookupTable().getBatchFlushInterval() == 0;
     }
 
@@ -119,10 +127,11 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
         collection.close();
     }
 
-    public void transferToMemoryFile(final FileOutputStream memoryFileOut, final File memoryFile,
-            final long precedingMemoryOffset, final long memoryOffset, final int flushIndex,
-            final long precedingValueCount, final long tempFileLength) {
+    public long transferToMemoryFile(final TimeSeriesUpdateTransaction<V> updateTransaction,
+            final FileOutputStream memoryFileOut, final File memoryFile, final long precedingMemoryOffset,
+            final long memoryOffset, final long flushIndex, final long precedingValueCount, final long tempFileLength) {
         try (FileInputStream tempIn = new FileInputStream(tempFile)) {
+            memoryFileOut.getChannel().position(memoryOffset);
             long remaining = tempFileLength;
             long position = 0;
             while (remaining > 0L) {
@@ -130,12 +139,18 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                 remaining -= copied;
                 position += copied;
             }
+            if (position != tempFileLength || remaining != 0L) {
+                throw new IllegalStateException(
+                        "Failed to transfer all bytes from temp file [" + tempFile + "] to memory file [" + memoryFile
+                                + "], expected length [" + tempFileLength + "] but only transferred [" + position
+                                + "]: position=" + position + ", remaining=" + remaining);
+            }
             //close first so that lz4 writes out its footer bytes (a flush is not sufficient)
-            parent.getLookupTable()
-                    .finishFile(minTime, firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
-                            precedingMemoryOffset, memoryOffset, tempFileLength);
+            updateTransaction.finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
+                    precedingMemoryOffset, memoryOffset, tempFileLength);
             Files.deleteQuietly(tempFile);
-            parent.onFlush(flushIndex, this);
+            parent.onFlush(this, flushIndex);
+            return tempFileLength;
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
@@ -144,7 +159,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
     private final class ConfiguredSerializingCollection extends SerializingCollection<V> {
 
         private ConfiguredSerializingCollection(final File tempFile) {
-            super(name, tempFile, false);
+            super(name, FileChannelRegistry.newFile(tempFile), false);
         }
 
         @Override
@@ -194,10 +209,12 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
         return firstElement;
     }
 
-    public static <K, V> void doUpdate(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
-            final long initialPrecedingMemoryOffset, final long initialMemoryOffset,
-            final long initialPrecedingValueCount, final ICloseableIterable<? extends V> source) {
-        final File tempDir = new File(parent.getLookupTable().getDataDirectory(),
+    public static <K, V> void doUpdate(final TimeSeriesUpdateTransaction<V> updateTransaction,
+            final ITimeSeriesUpdaterInternalMethods<K, V> parent, final long initialPrecedingMemoryOffset,
+            final long initialMemoryOffset, final long initialPrecedingValueCount,
+            final ICloseableIterable<? extends V> source) {
+        final File tempDir = new File(
+                parent.getLookupTable().getDirectoryHashKeyVersionMemory().getDirectoryHashKeyVersionDataPerNode(),
                 ATimeSeriesUpdater.class.getSimpleName());
         Files.deleteQuietly(tempDir);
         try {
@@ -246,7 +263,7 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                 elements.close();
             }
         }) {
-            final String name = parent.getTable().hashKeyToString(parent.getKey());
+            final String name = parent.getTable().innerHashKeyToString(parent.getKey());
             try (ACloseableIterator<ParallelUpdateProgress<K, V>> batchProducer = new ProducerQueueIterable<ParallelUpdateProgress<K, V>>(
                     ParallelUpdateProgress.class.getSimpleName() + "_batchProducer_" + name, () -> batchWriterProducer,
                     ATimeSeriesUpdater.BATCH_QUEUE_SIZE).iterator()) {
@@ -259,8 +276,8 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                         return request;
                     }
                 }) {
-                    flush(parent, initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount,
-                            parallelConsumer);
+                    flush(updateTransaction, parent, initialPrecedingMemoryOffset, initialMemoryOffset,
+                            initialPrecedingValueCount, parallelConsumer);
                 }
             }
             if (batchWriterProducer.hasNext()) {
@@ -272,44 +289,83 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
         Files.deleteQuietly(tempDir);
     }
 
-    private static <K, V> void flush(final ITimeSeriesUpdaterInternalMethods<K, V> parent,
-            final long initialPrecedingMemoryOffset, final long initialMemoryOffset,
-            final long initialPrecedingValueCount,
+    private static <K, V> void flush(final TimeSeriesUpdateTransaction<V> updateTransaction,
+            final ITimeSeriesUpdaterInternalMethods<K, V> parent, final long initialPrecedingMemoryOffset,
+            final long initialMemoryOffset, final long initialPrecedingValueCount,
             final ICloseableIterator<ParallelUpdateProgress<K, V>> batchWriterProducer) {
         int flushIndex = 0;
         long precedingMemoryOffset = initialPrecedingMemoryOffset;
         long precedingValueCount = initialPrecedingValueCount;
 
-        File memoryFile = TimeSeriesStorageCache.newMemoryFile(parent, precedingMemoryOffset);
+        File memoryFile = MemoryFiles.newMemoryFile(parent, precedingMemoryOffset);
 
         FileOutputStream memoryFileOut = null;
         try {
             memoryFileOut = new FileOutputStream(memoryFile, true);
-            if (initialMemoryOffset > 0L) {
-                memoryFileOut.getChannel().position(initialMemoryOffset);
-            }
+            long memoryOffset = initialMemoryOffset;
+            memoryFileOut.getChannel().position(initialMemoryOffset);
+
+            final int batchFlushInterval = parent.getLookupTable().getBatchFlushInterval();
 
             try {
                 while (true) {
                     final ParallelUpdateProgress<K, V> progress = batchWriterProducer.next();
                     flushIndex++;
-                    long memoryOffset = memoryFileOut.getChannel().position();
                     final long tempFileLength = progress.getTempFile().length();
-                    if (IMemoryMappedFile.isSegmentSizeExceeded(memoryOffset + tempFileLength)) {
+                    final boolean complete = !parent.shouldRedoLastFile()
+                            || (progress.getValueCount() == batchFlushInterval && batchWriterProducer.hasNext());
+                    if (complete) {
+                        if (IMemoryMappedFile.isSegmentSizeExceeded(memoryOffset + tempFileLength)) {
+                            precedingMemoryOffset += memoryOffset;
+                            memoryFile = MemoryFiles.newMemoryFile(parent, precedingMemoryOffset);
+                            memoryFileOut.close();
+                            if (OperatingSystem.isWindows()
+                                    && IMemoryMappedFile.isSegmentSizeExceeded(tempFileLength)) {
+                                throw new IllegalStateException("Cannot write temp file of length [" + tempFileLength
+                                        + "] to new memory file because it would exceed the maximum segment size of ["
+                                        + IMemoryMappedFile.MAX_SEGMENT_SIZE_WINDOWS + "] on Windows");
+                            }
+                            memoryFileOut = new FileOutputStream(memoryFile, true);
+                            memoryOffset = 0;
+                        }
+                        memoryOffset += progress.transferToMemoryFile(updateTransaction, memoryFileOut, memoryFile,
+                                precedingMemoryOffset, memoryOffset, flushIndex, precedingValueCount, tempFileLength);
+                        if (memoryFileOut.getChannel().position() != memoryOffset) {
+                            throw new IllegalStateException(
+                                    "Memory file channel position [" + memoryFileOut.getChannel().position()
+                                            + "] does not match expected memory offset [" + memoryOffset + "]");
+                        }
+                        precedingValueCount += progress.getValueCount();
+                    } else {
+                        //open new incomplete segment to isolated file
+                        precedingMemoryOffset += memoryOffset;
+                        memoryFile = MemoryFiles.newIncompleteMemoryFile(memoryFile, memoryOffset);
+                        memoryFileOut.close();
                         if (OperatingSystem.isWindows() && IMemoryMappedFile.isSegmentSizeExceeded(tempFileLength)) {
                             throw new IllegalStateException("Cannot write temp file of length [" + tempFileLength
-                                    + "] to memory file at offset [" + memoryOffset
-                                    + "] because it would exceed the maximum segment size of ["
+                                    + "] to incomplete memory file because it would exceed the maximum segment size of ["
                                     + IMemoryMappedFile.MAX_SEGMENT_SIZE_WINDOWS + "] on Windows");
                         }
-                        precedingMemoryOffset += memoryOffset;
-                        memoryFile = TimeSeriesStorageCache.newMemoryFile(parent, precedingMemoryOffset);
-                        memoryFileOut = new FileOutputStream(memoryFile, true);
+                        memoryFileOut = new FileOutputStream(memoryFile);
                         memoryOffset = 0;
+
+                        //finish file
+                        memoryOffset += progress.transferToMemoryFile(updateTransaction, memoryFileOut, memoryFile,
+                                precedingMemoryOffset, memoryOffset, flushIndex, precedingValueCount, tempFileLength);
+                        if (memoryFileOut.getChannel().position() != memoryOffset) {
+                            throw new IllegalStateException(
+                                    "Memory file channel position [" + memoryFileOut.getChannel().position()
+                                            + "] does not match expected memory offset [" + memoryOffset + "]");
+                        }
+                        precedingValueCount += progress.getValueCount();
+
+                        //close
+                        precedingMemoryOffset += tempFileLength;
+                        memoryFile = null;
+                        memoryFileOut.close();
+                        memoryFileOut = null;
+                        memoryOffset = Long.MIN_VALUE;
                     }
-                    progress.transferToMemoryFile(memoryFileOut, memoryFile, precedingMemoryOffset, memoryOffset,
-                            flushIndex, precedingValueCount, tempFileLength);
-                    precedingValueCount += progress.getValueCount();
 
                     ParallelUpdateProgressPool.INSTANCE.returnObject(progress);
                 }
@@ -317,11 +373,6 @@ public class ParallelUpdateProgress<K, V> implements IUpdateProgress<K, V> {
                 //end reached
             }
 
-            /*
-             * force sync on filesystem:
-             * https://stackoverflow.com/questions/52481281/does-java-nio-file-files-copy-call-sync-on-the-file-system
-             */
-            //            memoryFileOut.getChannel().force(true);
         } catch (final IOException e) {
             throw new RuntimeException(e);
         } finally {

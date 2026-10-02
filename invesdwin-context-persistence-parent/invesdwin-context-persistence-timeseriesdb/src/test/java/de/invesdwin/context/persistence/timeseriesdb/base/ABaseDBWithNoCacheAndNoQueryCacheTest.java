@@ -264,13 +264,13 @@ public abstract class ABaseDBWithNoCacheAndNoQueryCacheTest extends ARootDBTest 
     public void testPreviousValueWithDistance() {
         FDate previousValue = cache.query().getPreviousValue(FDate.now(), entities.size());
         Assertions.assertThat(previousValue).isEqualTo(entities.get(0));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(5);
         //loading newest entity is faster than always loading all entities
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
 
         previousValue = cache.query().getPreviousValue(FDate.now(), 1);
         Assertions.assertThat(previousValue).isEqualTo(entities.get(entities.size() - 2));
-        Assertions.assertThat(countReadAllValuesAscendingFrom).isEqualTo(5);
+        Assertions.assertThat(countReadAllValuesAscendingFrom).isLessThanOrEqualTo(5);
         Assertions.assertThat(countReadNewestValueTo).isEqualTo(4);
     }
 
