@@ -406,19 +406,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
     @Override
     public void deleteRange(final K key) {
         final ILock writeLock = getTableLock(key).writeLock();
-        deleteRangeOnCloseLock(getName(), key, writeLock);
-        try {
-            getLookupTableCache(key).deleteAll();
-            lastResetIndex.incrementAndGet();
-        } finally {
-            writeLock.unlock();
-        }
-    }
-
-    @Override
-    public void deleteRangeForced(final K key) {
-        final ILock writeLock = getTableLock(key).writeLock();
-        final boolean locked = deleteRangeOnCloseTryLock(getName(), key, writeLock);
+        final boolean locked = deleteRangeTryLock(getName(), key, writeLock);
         try {
             getLookupTableCache(key).deleteAll();
             lastResetIndex.incrementAndGet();
@@ -429,21 +417,7 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         }
     }
 
-    public static void deleteRangeOnCloseLock(final String tableName, final Object key, final ILock writeLock) {
-        try {
-            if (!writeLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
-                throw writeLock.getLockTrace()
-                        .handleLockException(writeLock.getName(),
-                                new RetryLaterRuntimeException(
-                                        "Write lock could not be acquired for table [" + tableName + "] and key [" + key
-                                                + "]. Please ensure all iterators are closed!"));
-            }
-        } catch (final InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static boolean deleteRangeOnCloseTryLock(final String tableName, final Object key, final ILock writeLock) {
+    public static boolean deleteRangeTryLock(final String tableName, final Object key, final ILock writeLock) {
         if (!writeLock.tryLock()) {
             final RuntimeException handleLockException = writeLock.getLockTrace()
                     .handleLockException(writeLock.getName(),

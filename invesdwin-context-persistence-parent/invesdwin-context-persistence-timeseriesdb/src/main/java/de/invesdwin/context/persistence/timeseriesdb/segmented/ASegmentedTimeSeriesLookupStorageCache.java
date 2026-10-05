@@ -871,7 +871,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         return filteredSegments;
     }
 
-    public void deleteAll(final boolean forced) {
+    public void deleteAll() {
         lookupByIndexAvailableFutureDisabled = true;
         try {
             final Future<?> future = lookupByIndexAvailableFuture;
@@ -890,24 +890,13 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
 
             deleteLock.lock();
             try {
-                if (forced) {
-                    try (ICloseableIterator<TimeRange> iterator = segmentStatusTable.rangeKeys()) {
-                        while (true) {
-                            final TimeRange rangeKey = iterator.next();
-                            segmentedTable.deleteRangeForced(new SegmentedKey<K>(key, rangeKey));
-                        }
-                    } catch (final NoSuchElementException e) {
-                        //end reached
+                try (ICloseableIterator<TimeRange> iterator = segmentStatusTable.rangeKeys()) {
+                    while (true) {
+                        final TimeRange rangeKey = iterator.next();
+                        segmentedTable.deleteRange(new SegmentedKey<K>(key, rangeKey));
                     }
-                } else {
-                    try (ICloseableIterator<TimeRange> iterator = segmentStatusTable.rangeKeys()) {
-                        while (true) {
-                            final TimeRange rangeKey = iterator.next();
-                            segmentedTable.deleteRange(new SegmentedKey<K>(key, rangeKey));
-                        }
-                    } catch (final NoSuchElementException e) {
-                        //end reached
-                    }
+                } catch (final NoSuchElementException e) {
+                    //end reached
                 }
                 directoryHashKey.getDirectoryHashKeyVersion().incrementVersion();
                 storage.deleteRange_latestValueLookupTable(hashKey);
