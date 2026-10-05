@@ -345,20 +345,9 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
     @Override
     public void deleteRange(final K key) {
         final ILock writeLock = getTableLock(key).writeLock();
-        ATimeSeriesDB.deleteRangeOnCloseLock(getName(), key, writeLock);
+        final boolean locked = ATimeSeriesDB.deleteRangeTryLock(getName(), key, writeLock);
         try {
             getLiveSegmentedLookupTableCache(key).deleteAll();
-        } finally {
-            writeLock.unlock();
-        }
-    }
-
-    @Override
-    public void deleteRangeForced(final K key) {
-        final ILock writeLock = getTableLock(key).writeLock();
-        final boolean locked = ATimeSeriesDB.deleteRangeOnCloseTryLock(getName(), key, writeLock);
-        try {
-            getLiveSegmentedLookupTableCache(key).deleteAllForced();
         } finally {
             if (locked) {
                 writeLock.unlock();

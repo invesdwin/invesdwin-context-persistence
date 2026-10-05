@@ -268,20 +268,9 @@ public abstract class ASegmentedTimeSeriesDB<K, V> implements ISegmentedTimeSeri
     @Override
     public void deleteRange(final K key) {
         final ILock writeLock = getTableLock(key).writeLock();
-        ATimeSeriesDB.deleteRangeOnCloseLock(getName(), key, writeLock);
+        final boolean locked = ATimeSeriesDB.deleteRangeTryLock(getName(), key, writeLock);
         try {
-            getSegmentedLookupTableCache(key).deleteAll(false);
-        } finally {
-            writeLock.unlock();
-        }
-    }
-
-    @Override
-    public void deleteRangeForced(final K key) {
-        final ILock writeLock = getTableLock(key).writeLock();
-        final boolean locked = ATimeSeriesDB.deleteRangeOnCloseTryLock(getName(), key, writeLock);
-        try {
-            getSegmentedLookupTableCache(key).deleteAll(true);
+            getSegmentedLookupTableCache(key).deleteAll();
         } finally {
             if (locked) {
                 writeLock.unlock();
