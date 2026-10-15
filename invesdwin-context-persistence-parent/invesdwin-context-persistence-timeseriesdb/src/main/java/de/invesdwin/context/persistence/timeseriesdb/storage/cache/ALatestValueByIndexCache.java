@@ -2,7 +2,7 @@ package de.invesdwin.context.persistence.timeseriesdb.storage.cache;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import de.invesdwin.util.collections.array.primitive.circular.CircularGenericPrimitiveArrayQueue;
+import de.invesdwin.util.collections.array.primitive.queue.circular.CircularGenericPrimitiveArrayQueue;
 import de.invesdwin.util.error.UnknownArgumentException;
 import de.invesdwin.util.time.date.BisectDuplicateKeyHandling;
 import de.invesdwin.util.time.date.FDate;
