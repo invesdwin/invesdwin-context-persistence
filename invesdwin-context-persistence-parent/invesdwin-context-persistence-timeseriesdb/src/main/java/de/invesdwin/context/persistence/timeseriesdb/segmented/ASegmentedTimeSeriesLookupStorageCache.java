@@ -599,6 +599,37 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
                 segmentStatusTable.put(segmentedKey.getSegment(), SegmentStatus.COMPLETE);
             }
         }
+        //Readers that skipped this segment while it was initializing wrote lookup entries computed from the state
+        //visible without its values, which are stale now that the segment is complete - the invalidation in
+        //maybePrepareForUpdate ran before the update started, so entries written during the update window stayed
+        //stale before; delete them after the update result is closed (segment fully flushed).
+        invalidateLookupTablesForSegment(segmentedKey.getSegment());
+    }
+
+    /**
+     * Deletes storage lookup table entries that readers can have written from the state visible before [segment]
+     * became complete. The next table is deleted fully because its shift units can be arbitrarily large, the latest
+     * and previous tables are deleted from the segment start on because entries keyed before that are computed from
+     * values that the segment completion does not affect.
+     */
+    private void invalidateLookupTablesForSegment(final TimeRange segment) {
+        deleteLock.lock();
+        try {
+            storage.deleteRange_latestValueLookupTable(hashKey, segment.getFrom());
+            storage.deleteRange_nextValueLookupTable(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
+            storage.deleteRange_previousValueLookupTable(hashKey, segment.getFrom());
+            cachedFirstValue = null;
+            cachedLastValue = null;
+            cachedSize = -1L;
+            precedingValueCountCache.clear();
+            latestSegmentedKeyFromIndexCache.clear();
+            latestValueIndexLookupCache.clear();
+            nextValueIndexLookupCache.clear();
+            previousValueIndexLookupCache.clear();
+            lastResetIndex++;
+        } finally {
+            deleteLock.unlock();
+        }
     }
 
     private SegmentStatus getSegmentStatusWithReadLock(final SegmentedKey<K> segmentedKey,
