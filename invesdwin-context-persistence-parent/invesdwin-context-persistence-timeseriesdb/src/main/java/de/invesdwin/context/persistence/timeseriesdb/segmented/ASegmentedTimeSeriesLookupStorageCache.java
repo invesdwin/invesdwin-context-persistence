@@ -620,13 +620,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
             storage.deleteRange_previousValueLookupTable(hashKey, segment.getFrom());
             cachedFirstValue = null;
             cachedLastValue = null;
-            cachedSize = -1L;
-            precedingValueCountCache.clear();
-            latestSegmentedKeyFromIndexCache.clear();
-            latestValueIndexLookupCache.clear();
-            nextValueIndexLookupCache.clear();
-            previousValueIndexLookupCache.clear();
-            lastResetIndex++;
+            clearValueCaches();
         } finally {
             deleteLock.unlock();
         }
@@ -783,13 +777,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
     }
 
     public void onSegmentCompleted(final SegmentedKey<K> segmentedKey, final ICloseableIterable<V> segmentValues) {
-        cachedSize = -1L;
-        precedingValueCountCache.clear();
-        latestSegmentedKeyFromIndexCache.clear();
-        latestValueIndexLookupCache.clear();
-        nextValueIndexLookupCache.clear();
-        previousValueIndexLookupCache.clear();
-        lastResetIndex++;
+        clearValueCaches();
     }
 
     protected abstract ITimeSeriesUpdater<SegmentedKey<K>, V> newSegmentUpdaterOverride(SegmentedKey<K> segmentedKey,
@@ -946,15 +934,23 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         FileBufferCache.remove(hashKey);
         cachedFirstValue = null;
         cachedLastValue = null;
-        cachedSize = -1L;
         cachedPrevLastAvailableSegmentToWithLive = null;
         cachedPrevLastAvailableSegmentToWithoutLive = null;
+        clearValueCaches();
+        segmentStatusTable.clear();
+    }
+
+    /**
+     * Clears the caches derived from the table values: size, preceding value count and the
+     * index/lookup position caches. Used on segment updates and as part of clearCaches().
+     */
+    private void clearValueCaches() {
+        cachedSize = -1L;
         precedingValueCountCache.clear();
         latestSegmentedKeyFromIndexCache.clear();
         latestValueIndexLookupCache.clear();
         nextValueIndexLookupCache.clear();
         previousValueIndexLookupCache.clear();
-        segmentStatusTable.clear();
         lastResetIndex++;
     }
 
