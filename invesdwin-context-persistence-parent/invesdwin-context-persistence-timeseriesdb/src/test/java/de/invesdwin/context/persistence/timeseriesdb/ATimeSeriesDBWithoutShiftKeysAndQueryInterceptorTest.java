@@ -27,6 +27,7 @@ public class ATimeSeriesDBWithoutShiftKeysAndQueryInterceptorTest
         table = new TestTimeSeriesDB(getClass().getSimpleName());
         updater = new TestTimeSeriesUpdater(KEY, (ATimeSeriesDB<String, FDate>) table, entities);
         updater.update().close();
+        warmUpCacheSingletons();
     }
 
 }

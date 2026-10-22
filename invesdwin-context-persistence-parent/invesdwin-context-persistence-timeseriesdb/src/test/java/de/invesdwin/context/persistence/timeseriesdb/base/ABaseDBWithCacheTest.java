@@ -23,7 +23,29 @@ public abstract class ABaseDBWithCacheTest extends ARootDBTest {
 
     @Override
     protected ATestGapHistoricalCache newTestGapHistoricalCache() {
-        return new TestGapHistoricalCache();
+        return new TestGapHistoricalCacheWithCache();
+    }
+
+    /**
+     * Makes the cache state explicit for every test of this class: the very first query that a JVM
+     * process runs against a given cache class performs one more underlying read than every later
+     * query, and the junit discovery order used to decide which of the tests below pays for it -
+     * making their exact read counter expectations dependent on that order. Warming the cache class
+     * of exactly this test with two in-range queries before the test body runs, and resetting the
+     * counters to zero right after that warmup, keeps those exact expectations stable independent
+     * of method order and JVM startup - also when a single method runs in isolation or inside the
+     * junit runner of an IDE. The nested cache class carries a process-unique name on purpose: this
+     * first-query state is keyed by the cache class' simple name, so warming it here must not
+     * consume the state that the caches of other test bases rely on.
+     */
+    protected final void warmUpCacheSingletons() {
+        final ATestGapHistoricalCache warmupCache = newTestGapHistoricalCache();
+        warmupCache.query().getValue(entities.get(0));
+        warmupCache.query().getValue(entities.get(1).addDays(1));
+        countReadAllValuesAscendingFrom = 0;
+        countReadNewestValueTo = 0;
+        countInnerExtractKey = 0;
+        countAdjustKey = 0;
     }
 
     @Test
@@ -1040,7 +1062,7 @@ public abstract class ABaseDBWithCacheTest extends ARootDBTest {
         Assertions.assertThat(countAdjustKey).isEqualTo(0);
     }
 
-    private final class TestGapHistoricalCache extends ATestGapHistoricalCache {
+    private final class TestGapHistoricalCacheWithCache extends ATestGapHistoricalCache {
 
         {
             enableTrailingQueryCore();

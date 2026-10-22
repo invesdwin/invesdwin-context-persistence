@@ -39,6 +39,7 @@ public class ALiveSegmentedTimeSeriesDBWithCacheTest extends ABaseDBWithCacheTes
     public void setUp() throws Exception {
         super.setUp();
         table = new TestLiveSegmentedTimeSeriesDB(getClass().getSimpleName(), entities);
+        warmUpCacheSingletons();
     }
 
     public static final class TestLiveSegmentedTimeSeriesDB extends ALiveSegmentedTimeSeriesDB<String, FDate> {

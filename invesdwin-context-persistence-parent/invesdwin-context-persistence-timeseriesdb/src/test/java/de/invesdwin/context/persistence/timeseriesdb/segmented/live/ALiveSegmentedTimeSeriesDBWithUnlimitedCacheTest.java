@@ -21,5 +21,6 @@ public class ALiveSegmentedTimeSeriesDBWithUnlimitedCacheTest extends ABaseDBWit
     public void setUp() throws Exception {
         super.setUp();
         table = new TestLiveSegmentedTimeSeriesDB(getClass().getSimpleName(), entities);
+        warmUpCacheSingletons();
     }
 }
