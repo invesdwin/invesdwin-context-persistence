@@ -513,10 +513,18 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
                             segmentedTable.deleteRange(segmentedKey);
                             segmentStatusTable.delete(segmentedKey.getSegment());
                         }
-                        initSegmentWithStatusHandling(segmentedKey, source);
-                        onSegmentCompleted(segmentedKey, readRangeValues(segmentedKey.getSegment().getFrom(),
-                                segmentedKey.getSegment().getTo(), DisabledLock.INSTANCE, null));
-                        return true;
+                        //initSegmentWithStatusHandling reports the outcome: when the completion publish was
+                        //discarded (a deleteAll overtook the update) it wipes the segment and throws a
+                        //RetryLaterRuntimeException, so no completion event is reported to listeners (and the
+                        //live convertLiveSegmentToHistorical callers that consume this boolean) and the
+                        //blocking read retries against the wiped fresh state instead of being answered with
+                        //the segment silently missing. The false branch below stays defensive only.
+                        if (initSegmentWithStatusHandling(segmentedKey, source)) {
+                            onSegmentCompleted(segmentedKey, readRangeValues(segmentedKey.getSegment().getFrom(),
+                                    segmentedKey.getSegment().getTo(), DisabledLock.INSTANCE, null));
+                            return true;
+                        }
+                        return false;
                     } finally {
                         segmentWriteLock.unlock();
                     }
@@ -588,22 +596,110 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         return true;
     }
 
-    private void initSegmentWithStatusHandling(final SegmentedKey<K> segmentedKey,
+    private boolean initSegmentWithStatusHandling(final SegmentedKey<K> segmentedKey,
             final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
+        //Wipe before the update so that each publish is a replacement and never an append onto files a
+        //racing deleteAll may have left in this generation: deleteAll iterates a point-in-time status
+        //rangeKeys snapshot, so a segment whose INITIALIZING row lands after that snapshot gets its key
+        //generation bumped while its data files (and its segment-level version) survive; appending the
+        //fresh flush onto them would publish COMPLETE over the merge (resurrection/duplication) and no
+        //version-equality check could ever see it. Same idiom as the INITIALIZING resume wipe in
+        //maybeInitSegmentSync; deleteRange re-enters the segment write lock the caller already holds
+        //and bumps the segment-level version, which the capture below records after it.
+        segmentedTable.deleteRange(segmentedKey);
         segmentStatusTable.put(segmentedKey.getSegment(), SegmentStatus.INITIALIZING);
         maybePrepareForUpdate(segmentedKey.getSegment());
+        /*
+         * Pin the completion publish to the generation this update was computed for (887fc597 idiom:
+         * capture the directory version once per operation like the lookup-table read sites do). deleteAll
+         * increments the key version while holding deleteLock and force-deletes each snapshotted segment
+         * (bumping that segment's own version); it never waits on the segment write lock held here
+         * (ATimeSeriesDB.deleteRange forces past busy locks), so deleteAll can overtake a running update.
+         * The segmentStatus directory is version-scoped but re-resolved on every status call
+         * (RefreshingTimeSeriesSegmentStatusTable.getDelegate), so publishing after such a bump would write
+         * COMPLETE/COMPLETE_EMPTY into the NEW generation's directory - the one row deleteAll never removes
+         * (clearCaches only drops the delegate reference) - and every later reader would then be served a
+         * segment that claims complete while holding no values. Two tokens are compared because the
+         * orphaning happens at two levels: deleteAll's per-segment wipe moves the SEGMENT version, while
+         * the key-level incrementVersion can stay on the current version when the .updated marker is
+         * absent (and the marker touch a status put performs is rate-gated and tryLock-skipped under
+         * contention) - in that interleaving only the segment token moves. Captured after
+         * maybePrepareForUpdate on purpose: an update whose long phase only begins once deleteAll is
+         * through (maybePrepareForUpdate blocks there on deleteLock) still publishes normally; only
+         * updates overtaken mid-flight are discarded. The guard is coherent per cache instance only:
+         * deleteLock and the version objects are per-instance (distinct UniqueNameGenerator names), so no
+         * cross-instance coverage is claimed.
+         */
+        final int versionAtUpdateStart = directoryHashKey.getDirectoryHashKeyVersion().getVersion();
+        final int segmentVersionAtUpdateStart = segmentedTable.getLookupTableCache(segmentedKey)
+                .getDirectoryHashKey().getDirectoryHashKeyVersion().getVersion();
+        boolean discarded = false;
+        int versionObservedAtPublish = versionAtUpdateStart;
+        int segmentVersionObservedAtPublish = segmentVersionAtUpdateStart;
         try (TimeSeriesUpdaterResult result = initSegmentRetry(segmentedKey, source)) {
-            if (segmentedTable.isEmptyOrInconsistent(segmentedKey)) {
-                segmentStatusTable.put(segmentedKey.getSegment(), SegmentStatus.COMPLETE_EMPTY);
-            } else {
-                segmentStatusTable.put(segmentedKey.getSegment(), SegmentStatus.COMPLETE);
+            //The re-check and the publish must be atomic against deleteAll: take deleteLock (the per-key
+            //lock deleteAll holds across its rangeKeys loop and incrementVersion; the invalidation below
+            //uses the same lock) BEFORE reading the publish-time tokens and hold it through
+            //isEmptyOrInconsistent (disk I/O) and both status puts. Without it the check is decorative:
+            //a deleteAll completing entirely between the re-check and the put still lands the poison row
+            //in the new generation. With it, every deleteAll either completed before this region (a token
+            //moved -> discard below) or waits for this region (the put lands in the captured generation,
+            //is orphaned by the later bump and self-heals: the next reader resolves the new directory,
+            //finds no row and re-initializes from a fresh wipe). The segment-write -> deleteLock order is
+            //pre-existing (maybePrepareForUpdate, invalidateLookupTablesForSegment) and deleteAll never
+            //blocks on any segment lock, so no new cycle is introduced.
+            deleteLock.lock();
+            try {
+                versionObservedAtPublish = directoryHashKey.getDirectoryHashKeyVersion().getVersion();
+                segmentVersionObservedAtPublish = segmentedTable.getLookupTableCache(segmentedKey)
+                        .getDirectoryHashKey().getDirectoryHashKeyVersion().getVersion();
+                if (versionObservedAtPublish != versionAtUpdateStart
+                        || segmentVersionObservedAtPublish != segmentVersionAtUpdateStart) {
+                    discarded = true;
+                } else if (segmentedTable.isEmptyOrInconsistent(segmentedKey)) {
+                    segmentStatusTable.put(segmentedKey.getSegment(), SegmentStatus.COMPLETE_EMPTY);
+                } else {
+                    segmentStatusTable.put(segmentedKey.getSegment(), SegmentStatus.COMPLETE);
+                }
+            } finally {
+                deleteLock.unlock();
             }
         }
-        //Readers that skipped this segment while it was initializing wrote lookup entries computed from the state
-        //visible without its values, which are stale now that the segment is complete - the invalidation in
-        //maybePrepareForUpdate ran before the update started, so entries written during the update window stayed
-        //stale before; delete them after the update result is closed (segment fully flushed).
+        //Readers that skipped this segment while it was initializing wrote lookup entries computed from
+        //the state visible without its values, which are stale now that the segment is complete - the
+        //invalidation in maybePrepareForUpdate ran before the update started, so entries written during
+        //the update window stayed stale before; delete them after the update result is closed (segment
+        //fully flushed). A discarded update takes the same invalidation path: racing readers can have
+        //loaded the half-written segment at the new version, so its derived lookup rows and value caches
+        //have to go as well.
         invalidateLookupTablesForSegment(segmentedKey.getSegment());
+        if (discarded) {
+            //The version moved while the update ran (a deleteAll raced it): the values this updater wrote
+            //belong to a generation that was deleted. Wipe the segment (deleteRange re-enters the write
+            //lock held here - same idiom as the resume wipe above - so no partial data survives into the
+            //new generation) and drop the INITIALIZING row for completeness: any bump that forces a
+            //discard necessarily postdates the INITIALIZING put above, so that row sits orphaned in the
+            //OLD generation and this delete resolves the CURRENT directory and finds nothing - kept as a
+            //defensive no-op, not as the row removal an earlier draft claimed; the next attempt therefore
+            //sees no status row at all and takes the fresh-init branch (wipe first), not the INITIALIZING
+            //resume. Throw a retryable signal (house precedent in maybeInitSegmentSync) instead of
+            //returning quietly: a blocking-mode read whose values this thread just wiped must not complete
+            //its current query with the segment silently missing - that is exactly the family symptom.
+            //Cost bound: one wasted fetch+wipe per in-flight init per racing deleteAll, plus one bounded
+            //NON_BLOCKING_ASYNC_WAIT_TIMEOUT parent wait per racing non-blocking read.
+            Err.process(new RuntimeException(getElementsName() + ": discarding segment update for ["
+                    + segmentedKey + "]: the directory version moved from [" + versionAtUpdateStart
+                    + "] to [" + versionObservedAtPublish + "] and the segment version from ["
+                    + segmentVersionAtUpdateStart + "] to [" + segmentVersionObservedAtPublish
+                    + "] while the update ran (deleteAll raced it) - wiping the segment instead of"
+                    + " publishing its completion status."));
+            segmentedTable.deleteRange(segmentedKey);
+            segmentStatusTable.delete(segmentedKey.getSegment());
+            throw new RetryLaterRuntimeException(getElementsName() + ": segment update for ["
+                    + segmentedKey + "] was discarded because the directory version moved while it ran"
+                    + " (a deleteAll raced it) - retry the initialization from the wiped fresh state.");
+        }
+        return true;
     }
 
     /**
@@ -913,6 +1009,11 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
                     while (true) {
                         final TimeRange rangeKey = iterator.next();
                         segmentedTable.deleteRange(new SegmentedKey<K>(key, rangeKey));
+                        //also drop the status row: on the bump-skip path (no .updated marker ->
+                        //incrementVersion stays on the current version) the generation is NOT
+                        //orphaned, and a surviving COMPLETE/COMPLETE_EMPTY row would serve this
+                        //deleted segment as complete-without-values to every later reader.
+                        segmentStatusTable.delete(rangeKey);
                     }
                 } catch (final NoSuchElementException e) {
                     //end reached
