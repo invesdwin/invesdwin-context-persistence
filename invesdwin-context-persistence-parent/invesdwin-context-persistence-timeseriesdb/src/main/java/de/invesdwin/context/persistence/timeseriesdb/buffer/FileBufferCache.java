@@ -9,6 +9,7 @@ import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -247,7 +248,15 @@ public final class FileBufferCache {
                 }
                 return value;
             } catch (final TimeoutException e) {
-                //prevent async deadlock when write lock just became active
+                //prevent async deadlock when write lock just became active; also drop the cached
+                //future - Futures.get() cancels it on timeout/interrupt, and leaving a cancelled
+                //future in the cache would poison every later reader with a CancellationException
+                RESULT_CACHE.asMap().remove(key);
+                return getResultNoCache(source);
+            } catch (final CancellationException e) {
+                //the cached future was cancelled by an earlier timed-out reader (see above); evict
+                //the poisoned entry and serve this read synchronously
+                RESULT_CACHE.asMap().remove(key);
                 return getResultNoCache(source);
             }
         } else {
