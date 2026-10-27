@@ -182,8 +182,18 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                         public void run() {
                             final ILock writeLock = getTable().getTableLock(key).writeLock();
                             if (!writeLock.tryLock()) {
-                                //don't try to update if currently a backtest is running which is keeping iterators open
-                                return;
+                                //don't try to update if currently a backtest is running which is keeping iterators
+                                //open - but do NOT let the caller proceed believing the update happened: it would
+                                //read interior holes that the still-running update of another context will fill
+                                //later, making the run's result depend on thread scheduling (cold vs warm drift in
+                                //the feed's gap-close counters). Surface it as a retry so the demand read waits
+                                //until the iterators close and the data actually lands.
+                                throw new NonBlockingRetryLaterRuntimeException(
+                                        ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: update of "
+                                                + getElementsName() + " [" + getKeyStr()
+                                                + "] skipped because the table write lock is held by active"
+                                                + " iterators of another run - retrying instead of reading an"
+                                                + " incomplete store");
                             }
                             try {
                                 getTable().getLookupTableCache(key).maybeUpdateIndex();

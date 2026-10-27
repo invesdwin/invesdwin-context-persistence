@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.timeseriesdb.updater;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -200,6 +201,27 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                     } finally {
                         updateLock.close();
                     }
+                } else if (isLockClaimedByThisJvm(updateLock.getFile().toPath())) {
+                    /*
+                     * The beating update lock is claimed by a still-open HeartbeatFileChannelLock instance of this
+                     * very JVM: the owning TimeSeriesUpdaterResult was never closed (leaked). A same-JVM steal can
+                     * never succeed (the leaked instance holds the NIO FileLock and the per-path thread lock while
+                     * HeartbeatFileChannelLockRegistry keeps beating the heartbeat time-based, independent of the
+                     * owner thread's progress), so instead of spinning in this wait loop forever, terminate the wait
+                     * with a named, diagnosable RetryLater. The dominant leak vector (close() throwing before
+                     * releasing the lock) is fixed in TimeSeriesUpdaterResult.close()'s finally - if this fires
+                     * nonetheless, look for a "Finalizing unclosed TimeSeriesUpdaterResult" WARN which carries the
+                     * creation stack trace of the leaked instance.
+                     */
+                    throw new RetryLaterRuntimeException(
+                            "Update lock of table [" + table.getName() + "] and key [" + key
+                                    + "] is beaten by this very JVM (owner ["
+                                    + HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER
+                                    + "]) although no local update() is active for this key: an unclosed"
+                                    + " TimeSeriesUpdaterResult leaked its HeartbeatFileChannelLock at ["
+                                    + updateLock.getFile().getAbsolutePath()
+                                    + "] - a same-JVM steal can never succeed, see the leaked-result WARNs in the"
+                                    + " log for the creation stack trace");
                 }
             }
             ALoggingTimeSeriesUpdater.FLUSH_LOG_INTERVAL.sleepNoInterrupt();
@@ -208,6 +230,32 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         final FDate updatedTo = lookupTable.getLastValueEndTime();
         onUpdateFinished();
         return new TimeSeriesUpdaterResult(updatedTo, null, null, null);
+    }
+
+    /**
+     * Reads the claim marker written into the update lock file at tryLock time (with the same heartbeat file
+     * fallback used for Windows mandatory locks) and checks whether it was written by this JVM. The HEARTBEAT_OWNER
+     * string is unique per JVM (PID@host plus random UUID), so a match proves that some still open
+     * HeartbeatFileChannelLock instance of this JVM holds this lock file, i.e. the beating lock is a local ghost and
+     * not a remote process working on the update.
+     */
+    private boolean isLockClaimedByThisJvm(final Path lockPath) {
+        final String lockOwner = readLockOwner(lockPath);
+        if (lockOwner != null) {
+            return HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER.equals(lockOwner);
+        }
+        // Windows lock fallback: if the main file is unreadable due to a mandatory OS lock, check the heartbeat file.
+        final Path heartbeatPath = lockPath.resolveSibling(Files.setExtensionNormalizeFileName(
+                lockPath.getFileName().toString(), HeartbeatFileChannelLockRegistry.HEARTBEAT_EXTENSION));
+        return HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER.equals(readLockOwner(heartbeatPath));
+    }
+
+    private String readLockOwner(final Path path) {
+        try {
+            return Files.readString(path).trim();
+        } catch (final Exception e) {
+            return null;
+        }
     }
 
     private void doUpdate() throws IncompleteUpdateRetryableException {
