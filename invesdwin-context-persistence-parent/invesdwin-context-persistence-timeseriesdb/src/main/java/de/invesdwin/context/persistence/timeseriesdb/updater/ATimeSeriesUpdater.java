@@ -7,7 +7,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
+import de.invesdwin.context.integration.retry.RetryLaterPendingRuntimeException;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDBInternals;
@@ -134,7 +134,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             if (!segmentWriteLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
                 throw segmentWriteLock.getLockTrace()
                         .handleLockException(segmentWriteLock.getName(),
-                                new RetryLaterRuntimeException(
+                                new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_TAG +
                                         "Write lock could not be acquired for table [" + table.getName() + "] and key ["
                                                 + key + "]. Please ensure all iterators are closed!"));
             }
@@ -193,7 +193,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                             readUpdateProgress(prevProgress, updateFinishedFile);
                             break;
                         } else {
-                            throw new RetryLaterRuntimeException(
+                            throw new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_TAG +
                                     "Update of another process timed out for table [" + table.getName() + "] and key ["
                                             + key + "]: " + updateLock.getFile().getAbsolutePath());
                         }
@@ -212,7 +212,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                      * a "Finalizing unclosed TimeSeriesUpdaterResult" WARN which carries the creation stack trace of
                      * the leaked instance.
                      */
-                    throw new RetryLaterRuntimeException("Update lock of table [" + table.getName() + "] and key ["
+                    throw new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_TAG + "Update lock of table [" + table.getName() + "] and key ["
                             + key + "] is beaten by this very JVM (owner ["
                             + HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER
                             + "]) although no local update() is active for this key: an unclosed"
