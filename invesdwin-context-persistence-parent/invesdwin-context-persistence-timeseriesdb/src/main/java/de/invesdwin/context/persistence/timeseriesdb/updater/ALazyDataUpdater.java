@@ -156,11 +156,25 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     public final boolean maybeUpdate(final boolean force) {
         final FDate newUpdateCheck = FDate.now();
         if (force || shouldCheckForUpdate(newUpdateCheck)) {
+            final String graphKey = UpdaterWaitGraph.newKey(getTable().getName(), getKeyStr());
+            //Deadlock avoidance: never add a wait edge that closes a wait-for cycle inside this JVM (the permanent precalculated livelock formed exactly like that). If the target update's progress transitively depends on a lock, pin, or task held by this very thread, abort this attempt retryably; later attempts run once the chain has unwound
+            if (UpdaterWaitGraph.wouldCloseCycle(graphKey)) {
+                throw new NonBlockingRetryLaterRuntimeException(
+                        ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: update of "
+                                + getElementsName() + " [" + getKeyStr()
+                                + "] aborted retryably because this thread's wait would close a wait-for cycle: "
+                                + UpdaterWaitGraph.describeCycle(graphKey));
+            }
             final IReentrantLock updateLock = getUpdateLock();
             if (shouldSkipUpdateOnCurrentThreadIfAlreadyRunning()) {
                 try {
                     if (!updateLock.tryLock(TimeSeriesProperties.ACQUIRE_UPDATE_LOCK_TIMEOUT)) {
-                        return false;
+                        //do NOT let the caller proceed believing the update happened when another context holds the update lock past the timeout: that reads interior holes the pending update fills later, making results depend on thread scheduling - surface it as a retry instead (same policy as the table write-lock case below)
+                        throw new NonBlockingRetryLaterRuntimeException(
+                                ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: update of "
+                                        + getElementsName() + " [" + getKeyStr()
+                                        + "] blocked because the update lock is held by another context past the"
+                                        + " acquire timeout - retrying instead of reading an incomplete table");
                     }
                 } catch (final InterruptedException e) {
                     throw new RuntimeException(e);
@@ -168,6 +182,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
             } else {
                 updateLock.lock();
             }
+            UpdaterWaitGraph.lockAcquired(graphKey);
             try {
                 if (!force && !shouldCheckForUpdate(newUpdateCheck)) {
                     //some sort of double checked locking to skip if someone else came before us
@@ -180,55 +195,69 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                     updateFutureCopy = getNestedExecutor().getNestedExecutor().submit(new Runnable() {
                         @Override
                         public void run() {
-                            final ILock writeLock = getTable().getTableLock(key).writeLock();
-                            if (!writeLock.tryLock()) {
-                                //don't try to update if currently a backtest is running which is keeping iterators
-                                //open - but do NOT let the caller proceed believing the update happened: it would
-                                //read interior holes that the still-running update of another context will fill
-                                //later, making the run's result depend on thread scheduling (cold vs warm drift in
-                                //the feed's gap-close counters). Surface it as a retry so the demand read waits
-                                //until the iterators close and the data actually lands.
-                                throw new NonBlockingRetryLaterRuntimeException(
-                                        ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: update of "
-                                                + getElementsName() + " [" + getKeyStr()
-                                                + "] skipped because the table write lock is held by active"
-                                                + " iterators of another run - retrying instead of reading an"
-                                                + " incomplete store");
-                            }
+                            UpdaterWaitGraph.taskStarted(graphKey);
                             try {
-                                getTable().getLookupTableCache(key).maybeUpdateIndex();
-                                innerMaybeUpdate(key);
-                                LazyDataUpdaterProperties.maybeUpdateFinished(getUpdaterId());
-                                //update timestamp only at the end if successful
-                                lastUpdateCheck = newUpdateCheck;
-                                lastResetIndex = getTable().getLastResetIndex();
+                                final ILock writeLock = getTable().getTableLock(key).writeLock();
+                                if (!writeLock.tryLock()) {
+                                    //don't try to update if currently a backtest is running which is keeping iterators
+                                    //open - but do NOT let the caller proceed believing the update happened: it would
+                                    //read interior holes that the still-running update of another context will fill
+                                    //later, making the run's result depend on thread scheduling (cold vs warm drift in
+                                    //the feed's gap-close counters). Surface it as a retry so the demand read waits
+                                    //until the iterators close and the data actually lands.
+                                    throw new NonBlockingRetryLaterRuntimeException(
+                                            ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: update of "
+                                                    + getElementsName() + " [" + getKeyStr()
+                                                    + "] skipped because the table write lock is held by active"
+                                                    + " iterators of another run - retrying instead of reading an"
+                                                    + " incomplete store");
+                                }
+                                try {
+                                    getTable().getLookupTableCache(key).maybeUpdateIndex();
+                                    innerMaybeUpdate(key);
+                                    LazyDataUpdaterProperties.maybeUpdateFinished(getUpdaterId());
+                                    //update timestamp only at the end if successful
+                                    lastUpdateCheck = newUpdateCheck;
+                                    lastResetIndex = getTable().getLastResetIndex();
+                                } finally {
+                                    writeLock.unlock();
+                                }
                             } finally {
-                                writeLock.unlock();
+                                UpdaterWaitGraph.taskFinished(graphKey);
                             }
                         }
                     });
                     updateFuture = updateFutureCopy;
                     reason = "started";
                 } else {
-                    reason = "is in progress";
+                    reason = "in progress";
                 }
-                if (DatabaseThreads.isThreadBlockingUpdateDatabaseDisabled()) {
-                    try {
-                        Futures.waitNoInterrupt(updateFutureCopy,
-                                IntegrationProperties.NON_BLOCKING_ASYNC_WAIT_TIMEOUT);
+                UpdaterWaitGraph.beginWait(graphKey);
+                try {
+                    if (DatabaseThreads.isThreadBlockingUpdateDatabaseDisabled()) {
+                        try {
+                            Futures.waitNoInterrupt(updateFutureCopy,
+                                    IntegrationProperties.NON_BLOCKING_ASYNC_WAIT_TIMEOUT);
+                            updateFuture = null;
+                        } catch (final TimeoutException e) {
+                            throw new NonBlockingRetryLaterRuntimeException(
+                                    ALazyDataUpdater.class.getSimpleName()
+                                            + ".maybeUpdate: async update " + reason
+                                            + " while operating in non-blocking mode for " + getElementsName() + ": "
+                                            + key,
+                                    e);
+                        }
+                    } else {
+                        //unbounded join by design: cycle edges are refused up front and the task itself aborts retryably on cyclic pin waits (see ATimeSeriesUpdater.trackRemoteUpdate), so a legitimate long-running update is waited out patiently
+                        Futures.waitNoInterrupt(updateFutureCopy);
                         updateFuture = null;
-                    } catch (final TimeoutException e) {
-                        throw new NonBlockingRetryLaterRuntimeException(
-                                ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: async update " + reason
-                                        + " while operating in non-blocking mode for " + getElementsName() + ": " + key,
-                                e);
                     }
-                } else {
-                    Futures.waitNoInterrupt(updateFutureCopy);
-                    updateFuture = null;
+                } finally {
+                    UpdaterWaitGraph.endWait(graphKey);
                 }
                 return true;
             } finally {
+                UpdaterWaitGraph.lockReleased(graphKey);
                 updateLock.unlock();
             }
         }

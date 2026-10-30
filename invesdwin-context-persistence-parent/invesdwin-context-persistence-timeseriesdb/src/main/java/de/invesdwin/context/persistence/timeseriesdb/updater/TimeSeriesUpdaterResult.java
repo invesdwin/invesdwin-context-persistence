@@ -20,14 +20,30 @@ public class TimeSeriesUpdaterResult implements ISafeCloseable {
     private boolean closed;
     private final File updateProgressFile;
     private final File updateFinishedFile;
+    //wait-for graph key of the pinned update (null when this result owns no heartbeat lock). The pin was already registered by the updater at heartbeat-lock acquisition (the chained-wait danger lives in the doUpdate() BEFORE this constructor exists); recording the owner thread here keeps the pin release correct even when the warning-finalizer closes this result on another thread
+    private final String graphKey;
+    private final Thread pinOwnerThread;
 
     public TimeSeriesUpdaterResult(final FDate updatedTo, final HeartbeatFileChannelLock updateLock,
             final File updateProgressFile, final File updateFinishedFile) {
+        this(updatedTo, updateLock, updateProgressFile, updateFinishedFile, null);
+    }
+
+    public TimeSeriesUpdaterResult(final FDate updatedTo, final HeartbeatFileChannelLock updateLock,
+            final File updateProgressFile, final File updateFinishedFile, final String graphKey) {
         this.updatedTo = updatedTo;
         this.finalizer = new TimeSeriesUpdaterResultFinalizer(updateLock);
         this.updateProgressFile = updateProgressFile;
         this.updateFinishedFile = updateFinishedFile;
+        this.graphKey = updateLock != null ? graphKey : null;
+        this.pinOwnerThread = this.graphKey != null ? Thread.currentThread() : null;
         finalizer.register(this);
+    }
+
+    private void releasePinCount() {
+        if (graphKey != null) {
+            UpdaterWaitGraph.pinReleased(graphKey, pinOwnerThread);
+        }
     }
 
     public FDate getUpdatedTo() {
@@ -56,6 +72,7 @@ public class TimeSeriesUpdaterResult implements ISafeCloseable {
             // while HeartbeatFileChannelLockRegistry keeps beating its heartbeat time-based and
             // independent of the owner thread's progress, which livelocks every later updater of the
             // same key (trackRemoteUpdate can never steal a lock held by this very JVM).
+            releasePinCount();
             finalizer.close();
             closed = true;
         }
