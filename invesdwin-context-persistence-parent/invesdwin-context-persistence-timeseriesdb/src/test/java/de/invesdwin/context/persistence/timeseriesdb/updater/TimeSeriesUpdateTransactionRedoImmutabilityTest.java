@@ -11,12 +11,15 @@ import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
+import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdateProgress;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdaterInternalMethods;
+import de.invesdwin.context.persistence.timeseriesdb.updater.progress.SequentialChunkedUpdateProgress;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.Arrays;
@@ -73,6 +76,63 @@ public class TimeSeriesUpdateTransactionRedoImmutabilityTest extends ATest {
     @Test
     public void testRedoLastFileKeepsPublishedDataFilesImmutableInParallel() throws Exception {
         checkRedoKeepsPublishedDataFiles(true);
+    }
+
+    /**
+     * A store published before the epoch local layout (one shared data file per version directory) must stay readable
+     * and byte stable: the following attempt keeps the legacy summaries pointing at the old file, continues the running
+     * byte total, and writes its new values into files of its own.
+     */
+    @Test
+    public void testEpochLocalAttemptContinuesLegacySharedDataFileStore() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable();
+        final TimeSeriesLookupStorageCache<String, FDate> lookupTable = table.getLookupTableCache(KEY);
+        try (TimeSeriesUpdateTransaction<FDate> legacyTransaction = lookupTable.newUpdateTransaction(true)) {
+            //a parent without an epoch local data id is what an older JVM wrote: the shared file of the version directory
+            SequentialChunkedUpdateProgress.doUpdate(legacyTransaction,
+                    new LegacyLayoutInternalMethods(table, lookupTable),
+                    legacyTransaction.getPrecedingMemoryOffset(), legacyTransaction.getMemoryOffset(),
+                    legacyTransaction.getPrecedingValueCount(), WrapperCloseableIterable.maybeWrap(sourceValues));
+            legacyTransaction.commit();
+        }
+        final List<MemoryFileSummary> legacyGeneration = readSummaries(lookupTable);
+        Assertions.checkTrue(legacyGeneration.size() >= 2, "expected several legacy summaries: " + legacyGeneration);
+        final Map<File, byte[]> legacyBytes = ILockCollectionFactory.getInstance(false).newLinkedMap();
+        for (final MemoryFileSummary summary : legacyGeneration) {
+            final File dataFile = new File(summary.getMemoryResourceUri());
+            Assertions.checkFalse(MemoryFiles.isEpochLocalDataFile(dataFile.getName()),
+                    "the legacy layout must have written shared data files, got: " + dataFile);
+            legacyBytes.put(dataFile, readAllBytes(dataFile));
+        }
+        final String legacyIncompleteUri = legacyGeneration.get(legacyGeneration.size() - 1).getMemoryResourceUri();
+        Assertions.checkTrue(MemoryFiles.isIncompleteMemoryFile(legacyIncompleteUri),
+                "a legacy attempt redoes its last file, so that one must be an incomplete file: "
+                        + legacyGeneration.get(legacyGeneration.size() - 1));
+
+        addValues(11, 14);
+        newUpdater(table, false).update().close();
+
+        for (final Map.Entry<File, byte[]> entry : legacyBytes.entrySet()) {
+            final File dataFile = entry.getKey();
+            Assertions.checkTrue(dataFile.exists(), "the epoch local attempt removed a legacy data file: " + dataFile);
+            Assertions.checkTrue(Arrays.equals(entry.getValue(), readAllBytes(dataFile)),
+                    "the epoch local attempt mutated the legacy data file: " + dataFile);
+        }
+        final List<MemoryFileSummary> mixedGeneration = readSummaries(lookupTable);
+        //everything the legacy attempt published as complete keeps its summary and its bytes, only its incomplete last
+        //file is replaced (by files of the new attempt) and stays behind as garbage
+        for (int i = 0; i < legacyGeneration.size() - 1; i++) {
+            Assertions.checkEquals(legacyGeneration.get(i), mixedGeneration.get(i),
+                    i + ": the epoch local attempt must not change an already published summary");
+        }
+        for (int i = legacyGeneration.size() - 1; i < mixedGeneration.size(); i++) {
+            final MemoryFileSummary summary = mixedGeneration.get(i);
+            Assertions.checkTrue(MemoryFiles.isEpochLocalDataFile(new File(summary.getMemoryResourceUri()).getName()),
+                    "the new attempt must write data files of its own: " + summary);
+        }
+        Assertions.checkFalse(lookupTable.isEmptyOrInconsistent(),
+                "the store reports itself inconsistent after continuing a legacy store: " + mixedGeneration);
+        Assertions.assertThat(readValues(table)).isEqualTo(new ArrayList<>(sourceValues));
     }
 
     private void checkRedoKeepsPublishedDataFiles(final boolean parallel) throws Exception {
@@ -228,6 +288,65 @@ public class TimeSeriesUpdateTransactionRedoImmutabilityTest extends ATest {
                 return null;
             }
         };
+    }
+
+    /**
+     * Stands in for an update attempt of an older version of this module: it has no epoch local data id, so its values
+     * are appended to the shared data file of the version directory.
+     */
+    @NotThreadSafe
+    private static final class LegacyLayoutInternalMethods implements ITimeSeriesUpdaterInternalMethods<String, FDate> {
+
+        private final ITimeSeriesDB<String, FDate> table;
+        private final TimeSeriesLookupStorageCache<String, FDate> lookupTable;
+
+        private LegacyLayoutInternalMethods(final ATimeSeriesDB<String, FDate> table,
+                final TimeSeriesLookupStorageCache<String, FDate> lookupTable) {
+            this.table = table;
+            this.lookupTable = lookupTable;
+        }
+
+        @Override
+        public ISerde<FDate> getValueSerde() {
+            return table.getValueSerde();
+        }
+
+        @Override
+        public TimeSeriesLookupStorageCache<String, FDate> getLookupTable() {
+            return lookupTable;
+        }
+
+        @Override
+        public ITimeSeriesDB<String, FDate> getTable() {
+            return table;
+        }
+
+        @Override
+        public FDate extractStartTime(final FDate element) {
+            return element;
+        }
+
+        @Override
+        public FDate extractEndTime(final FDate element) {
+            return element;
+        }
+
+        @Override
+        public void onElement(final ITimeSeriesUpdateProgress updateProgress, final long pendingCount) {}
+
+        @Override
+        public void onFlush(final ITimeSeriesUpdateProgress updateProgress, final long flushIndex) {}
+
+        @Override
+        public String getKey() {
+            return KEY;
+        }
+
+        @Override
+        public boolean shouldRedoLastFile() {
+            //the default of an incremental updater: its last batch lands in an incomplete file that the next attempt redoes
+            return true;
+        }
     }
 
 }
