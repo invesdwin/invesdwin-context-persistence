@@ -167,6 +167,9 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
         final FDate newUpdateCheck = FDate.now();
         if (force || shouldCheckForUpdate(newUpdateCheck)) {
             final String graphKey = WaitForGraph.newKey(getTable().getName(), getKeyStr());
+            if (skipSelfServedDemand(graphKey)) {
+                return false;
+            }
             //Deadlock avoidance: never add a wait edge that closes a wait-for cycle inside this JVM (the permanent precalculated livelock formed exactly like that). If the target update's progress transitively depends on a lock, pin, or task held by this very thread, abort this attempt retryably; later attempts run once the chain has unwound
             if (skipCycleForCaller(graphKey)) {
                 return false;
@@ -285,6 +288,20 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
      * Caller-side cycle handling: in-tree cycles adopt the consistent pinned state (skip update this attempt),
      * foreign cycles are refused retryably. Returns true when the caller must not proceed with the update wait.
      */
+    /**
+     * Re-entrant demand for a key THIS very task is already rebuilding: joining its own future or adopting its
+     * pass state would deadlock or read unpublished partial values - skip the update for this demand; the values
+     * arrive with the in-flight pass (and the forced re-epoch sentinel covers reset passes), so this is a
+     * scheduling decision, not a value decision (see ANALYSIS-precalc-fixedpoint).
+     */
+    private boolean skipSelfServedDemand(final String graphKey) {
+        if (WaitForGraph.isSelfServedKey(graphKey)) {
+            log.warn("Skipping re-entrant self-served update demand of [%s] for [%s]", getElementsName(), getKeyStr());
+            return true;
+        }
+        return false;
+    }
+
     private boolean skipCycleForCaller(final String graphKey) {
         if (!WaitForGraph.wouldCloseCycle(graphKey)) {
             return false;
