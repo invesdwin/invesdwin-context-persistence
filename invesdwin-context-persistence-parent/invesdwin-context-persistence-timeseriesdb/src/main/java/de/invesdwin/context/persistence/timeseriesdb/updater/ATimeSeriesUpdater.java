@@ -8,6 +8,7 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.log.Log;
+import de.invesdwin.context.integration.retry.NonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.RetryLaterPendingRuntimeException;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
@@ -205,8 +206,18 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                         LOG.warn("Deferring update of table [%s] and key [%s]: the blocking heartbeat pin is held inside our own demand tree - continuing on the consistent in-tree state: %s", table.getName(), key, WaitForGraph.describeCycle(graphKey));
                         break;
                     }
-                    //IncompleteUpdateRetryableException (not RetryLater) so the task-level @Retry does not spin: the exception must fail the future, wake the joiner, and let ITS pins close so the chain can converge on a later attempt
-                    throw new IncompleteUpdateRetryableException(
+                    if (!WaitForGraph.shouldFallThroughAsCycleVictim(graphKey)) {
+                        //foreign cycle but not the designated victim edge: the max-key participant yields (see
+                        //WaitForGraph.shouldFallThroughAsCycleVictim), this patience is finite in practice because
+                        //the victim's unwind releases the pins this wait needs
+                        continue;
+                    }
+                    //NonBlockingRetryLater (NOT IncompleteUpdateRetryableException): this wait happens BEFORE this task
+                    //acquired its pin, so it has mutated nothing - a delete/rebuild at this point would destroy the
+                    //concurrent rebuild we are waiting for. fallthrough (scope inherited from the submitting demand
+                    //retry) makes the task-level @Retry propagate this instead of spinning, failing the future,
+                    //waking the joiner and letting its pins close for a clean convergence later
+                    throw new NonBlockingRetryLaterRuntimeException(
                             ATimeSeriesUpdater.class.getSimpleName() + ".trackRemoteUpdate: waiting for the heartbeat"
                                     + " pin of table [" + table.getName() + "] and key [" + key
                                     + "] would close a wait-for cycle inside this JVM - aborting this update attempt"
@@ -257,8 +268,10 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         lookupTable.clearCaches();
         final FDate updatedTo = lookupTable.getLastValueEndTime();
         if (updatedTo == null) {
-            //adoption found an EMPTY store (e.g. the pinning context deleted it for a clean-state recompute): there is nothing to adopt - fail this attempt retryably instead of handing out an empty success
-            throw new IncompleteUpdateRetryableException("Adoption found empty store for table [" + table.getName() + "] and key [" + key + "] - retrying after the pinning update lands");
+            //adoption found an EMPTY store (the pinning context wiped it for a clean-state recompute): nothing to
+            //adopt and this task mutated nothing - plain retryable WITHOUT any delete on our side (wiping here would
+            //race the in-progress rebuild)
+            throw new NonBlockingRetryLaterRuntimeException("Adoption found empty store for table [" + table.getName() + "] and key [" + key + "] - retrying after the pinning update lands");
         }
         onUpdateFinished();
         return new TimeSeriesUpdaterResult(updatedTo, null, null, null, graphKey);

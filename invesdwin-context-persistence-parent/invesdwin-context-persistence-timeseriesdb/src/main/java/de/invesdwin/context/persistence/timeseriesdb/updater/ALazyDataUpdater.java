@@ -294,6 +294,12 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
             log.warn("Skipping update of [%s] for [%s] this attempt: the blocking heartbeat pin is held inside our own demand tree, reading the consistent in-tree state - graph: %s", getElementsName(), getKeyStr(), WaitForGraph.describeCycle(graphKey));
             return true;
         }
+        if (!WaitForGraph.shouldFallThroughAsCycleVictim(graphKey)) {
+            //foreign cycle, but this is NOT the designated victim edge (deterministic max-key tie-break): the
+            //participant wanting the greatest key will abort and unwind its pins - this wait resolves, proceed
+            return false;
+        }
+        log.warn("Falling through as cycle victim for update of [%s] for [%s]: deterministic max-key yield to unwind and let the cycle complete serially: %s", getElementsName(), getKeyStr(), WaitForGraph.describeCycle(graphKey));
         throw new NonBlockingRetryLaterRuntimeException(
                 ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: update of "
                         + getElementsName() + " [" + getKeyStr()
