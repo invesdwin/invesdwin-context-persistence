@@ -36,6 +36,9 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     private final long precedingValueCount;
     private AMemoryFileSummarySerializingCollection summaries;
     private MemoryFileSummary prevSummary;
+    //publish-on-commit: close() without an explicit commit() DISCARDS this attempt's staged index (partial results
+    //of a failed/aborted update must never become visible; the previously published state simply remains)
+    private boolean committed;
 
     public TimeSeriesUpdateTransaction(final TimeSeriesLookupStorageCache<?, V> parent, final FDate updateFrom,
             final List<V> lastValues, final long precedingMemoryOffset, final long memoryOffset,
@@ -119,9 +122,25 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         parent.assertSummary(lastSummary, summary);
     }
 
+    public synchronized void commit() {
+        this.committed = true;
+    }
+
     @Override
     public synchronized void close() {
         if (prevSummary == null) {
+            return;
+        }
+        if (!committed) {
+            //abort path: release the staged collection WITHOUT publishing it into the lookup table and without
+            //touching the update marker - a failed attempt changes nothing observable (epoch design I2)
+            final AMemoryFileSummarySerializingCollection summariesCopy = summaries;
+            if (summariesCopy != null) {
+                summariesCopy.closeWithEmptyWrite();
+                summariesCopy.clear();
+                summaries = null;
+            }
+            prevSummary = null;
             return;
         }
         final AMemoryFileSummarySerializingCollection summariesCopy = summaries;

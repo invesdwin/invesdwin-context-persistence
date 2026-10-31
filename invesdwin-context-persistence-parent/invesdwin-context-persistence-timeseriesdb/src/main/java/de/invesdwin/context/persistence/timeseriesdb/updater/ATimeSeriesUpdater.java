@@ -379,6 +379,9 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                             flatteningSources);
                 }
             }
+            //all values consumed without exception: publish the staged index now (close() alone must not commit a
+            //possibly partial attempt)
+            updateTransaction.commit();
         }
     }
 
