@@ -1215,12 +1215,14 @@ public class TimeSeriesLookupStorageCache<K, V> {
     }
 
     /**
-     * When shouldRedoLastFile=true this deletes the last file in order to create a new updated one (so the files do not
-     * get fragmented too much between updates
+     * When shouldRedoLastFile=true the last file is replaced by a new updated one (so the files do not get fragmented
+     * too much between updates). With epoch local data files the redo writes files of its own and leaves the replaced
+     * file of the previously published generation untouched.
      */
     public synchronized TimeSeriesUpdateTransaction<V> newUpdateTransaction(final boolean shouldRedoLastFile) {
         maybeUpdateIndex();
         final MemoryFileSummary latestSummary = getLastRangeKey();
+        final String epochLocalDataId = newEpochLocalDataId();
         final FDate updateFrom;
         final List<V> lastValues;
         final long precedingMemoryOffset;
@@ -1271,8 +1273,27 @@ public class TimeSeriesLookupStorageCache<K, V> {
             memoryOffset = 0L;
             precedingValueCount = 0L;
         }
-        return new TimeSeriesUpdateTransaction<>(this, updateFrom, lastValues, precedingMemoryOffset, memoryOffset,
-                precedingValueCount);
+        final long transactionPrecedingMemoryOffset;
+        final long transactionMemoryOffset;
+        if (epochLocalDataId == null) {
+            //the shared 'memory.data' of the version directory is continued at its physical end
+            transactionPrecedingMemoryOffset = precedingMemoryOffset;
+            transactionMemoryOffset = memoryOffset;
+        } else {
+            //the attempt writes data files of its own, so its byte space starts at 0 while the preceding offset keeps the running total over the files the published generation references
+            transactionPrecedingMemoryOffset = precedingMemoryOffset + memoryOffset;
+            transactionMemoryOffset = 0L;
+        }
+        return new TimeSeriesUpdateTransaction<>(this, updateFrom, lastValues, transactionPrecedingMemoryOffset,
+                transactionMemoryOffset, precedingValueCount, epochLocalDataId);
+    }
+
+    private String newEpochLocalDataId() {
+        if (TimeSeriesProperties.EPOCH_LOCAL_DATA_FILES) {
+            return MemoryFiles.newEpochLocalDataId();
+        } else {
+            return null;
+        }
     }
 
     public synchronized void maybeUpdateIndex() {

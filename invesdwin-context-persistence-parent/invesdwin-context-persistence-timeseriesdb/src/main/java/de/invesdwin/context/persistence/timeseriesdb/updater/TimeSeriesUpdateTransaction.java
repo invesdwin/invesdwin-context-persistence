@@ -34,6 +34,7 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     private final long precedingMemoryOffset;
     private final long memoryOffset;
     private final long precedingValueCount;
+    private final String epochLocalDataId;
     private AMemoryFileSummarySerializingCollection summaries;
     private MemoryFileSummary prevSummary;
     //publish-on-commit: close() without an explicit commit() DISCARDS this attempt's staged index (partial results
@@ -43,6 +44,12 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     public TimeSeriesUpdateTransaction(final TimeSeriesLookupStorageCache<?, V> parent, final FDate updateFrom,
             final List<V> lastValues, final long precedingMemoryOffset, final long memoryOffset,
             final long precedingValueCount) {
+        this(parent, updateFrom, lastValues, precedingMemoryOffset, memoryOffset, precedingValueCount, null);
+    }
+
+    public TimeSeriesUpdateTransaction(final TimeSeriesLookupStorageCache<?, V> parent, final FDate updateFrom,
+            final List<V> lastValues, final long precedingMemoryOffset, final long memoryOffset,
+            final long precedingValueCount, final String epochLocalDataId) {
         this.parent = parent;
         this.updateFrom = updateFrom;
         Assertions.checkNotNull(lastValues);
@@ -50,7 +57,16 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         this.precedingMemoryOffset = precedingMemoryOffset;
         this.memoryOffset = memoryOffset;
         this.precedingValueCount = precedingValueCount;
+        this.epochLocalDataId = epochLocalDataId;
         MemoryFiles.assertMaybeFirstSummary(precedingMemoryOffset, memoryOffset, precedingValueCount);
+    }
+
+    /**
+     * Identifies the data files this attempt writes, or null when it shares the version directory's
+     * <code>memory.data</code> file (the legacy layout).
+     */
+    public String getEpochLocalDataId() {
+        return epochLocalDataId;
     }
 
     public TimeSeriesLookupStorageCache<?, V> getParent() {

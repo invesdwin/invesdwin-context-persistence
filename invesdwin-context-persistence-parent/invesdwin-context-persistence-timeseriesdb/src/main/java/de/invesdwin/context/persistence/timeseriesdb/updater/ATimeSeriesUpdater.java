@@ -361,6 +361,11 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                     return ATimeSeriesUpdater.this.shouldRedoLastFile();
                 }
 
+                @Override
+                public String getEpochLocalDataId() {
+                    return updateTransaction.getEpochLocalDataId();
+                }
+
             };
             final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues,
                     skippingSource);

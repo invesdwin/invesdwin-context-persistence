@@ -252,29 +252,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                     //continue on the last published (complete) state; the submitter keeps driving the task
                     return false;
                 }
-                WaitForGraph.beginJoinWait(graphKey);
-                try {
-                    if (DatabaseThreads.isThreadBlockingUpdateDatabaseDisabled()) {
-                        try {
-                            Futures.waitNoInterrupt(updateFutureCopy,
-                                    IntegrationProperties.NON_BLOCKING_ASYNC_WAIT_TIMEOUT);
-                            updateFuture = null;
-                        } catch (final TimeoutException e) {
-                            throw new NonBlockingRetryLaterRuntimeException(
-                                    ALazyDataUpdater.class.getSimpleName()
-                                            + ".maybeUpdate: async update " + reason
-                                            + " while operating in non-blocking mode for " + getElementsName() + ": "
-                                            + key,
-                                    e);
-                        }
-                    } else {
-                        //unbounded join by design: cycle edges are refused up front and the task itself aborts retryably on cyclic pin waits (see ATimeSeriesUpdater.trackRemoteUpdate), so a legitimate long-running update is waited out patiently
-                        Futures.waitNoInterrupt(updateFutureCopy);
-                        updateFuture = null;
-                    }
-                } finally {
-                    WaitForGraph.endJoinWait(graphKey);
-                }
+                joinUpdateFuture(graphKey, updateFutureCopy, reason);
                 return true;
             } finally {
                 WaitForGraph.lockReleased(graphKey);
@@ -282,6 +260,32 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
             }
         }
         return false;
+    }
+
+    private void joinUpdateFuture(final String graphKey, final Future<?> updateFutureCopy, final String reason) {
+        WaitForGraph.beginJoinWait(graphKey);
+        try {
+            if (DatabaseThreads.isThreadBlockingUpdateDatabaseDisabled()) {
+                try {
+                    Futures.waitNoInterrupt(updateFutureCopy,
+                            IntegrationProperties.NON_BLOCKING_ASYNC_WAIT_TIMEOUT);
+                    updateFuture = null;
+                } catch (final TimeoutException e) {
+                    throw new NonBlockingRetryLaterRuntimeException(
+                            ALazyDataUpdater.class.getSimpleName()
+                                    + ".maybeUpdate: async update " + reason
+                                    + " while operating in non-blocking mode for " + getElementsName() + ": "
+                                    + key,
+                            e);
+                }
+            } else {
+                //unbounded join by design: cycle edges are refused up front and the task itself aborts retryably on cyclic pin waits (see ATimeSeriesUpdater.trackRemoteUpdate), so a legitimate long-running update is waited out patiently
+                Futures.waitNoInterrupt(updateFutureCopy);
+                updateFuture = null;
+            }
+        } finally {
+            WaitForGraph.endJoinWait(graphKey);
+        }
     }
 
     /**
