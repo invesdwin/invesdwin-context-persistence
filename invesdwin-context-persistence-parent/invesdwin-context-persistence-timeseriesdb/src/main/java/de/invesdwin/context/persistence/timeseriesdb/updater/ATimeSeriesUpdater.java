@@ -7,6 +7,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 
+import de.invesdwin.context.log.Log;
+import de.invesdwin.context.integration.retry.NonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.RetryLaterPendingRuntimeException;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
@@ -25,6 +27,7 @@ import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
 import de.invesdwin.util.concurrent.Executors;
 import de.invesdwin.util.concurrent.lock.ILock;
+import de.invesdwin.util.concurrent.graph.WaitForGraph;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLockRegistry;
 import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
@@ -45,6 +48,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     public static final int DEFAULT_BATCH_FLUSH_INTERVAL = ADelegateRangeTable.DEFAULT_BATCH_FLUSH_INTERVAL;
     public static final int BATCH_QUEUE_SIZE = 500_000 / DEFAULT_BATCH_FLUSH_INTERVAL;
     public static final boolean LARGE_COMPRESSOR = true;
+    private static final Log LOG = new Log(ATimeSeriesUpdater.class);
 
     private final ISerde<V> valueSerde;
     private final ITimeSeriesDBInternals<K, V> table;
@@ -139,6 +143,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                                                 + key + "]. Please ensure all iterators are closed!"));
             }
             final File updateLockFile = new File(updateProgressFile.getAbsolutePath() + ".lock");
+            final String graphKey = WaitForGraph.newKey(table.getName(), newKeyStr());
             final HeartbeatFileChannelLock updateLock = new HeartbeatFileChannelLock(updateLockFile) {
                 @Override
                 protected boolean isThreadLockEnabled() {
@@ -147,8 +152,10 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             };
             try {
                 if (!updateLock.tryLock()) {
-                    return trackRemoteUpdate(updateLock);
+                    return trackRemoteUpdate(updateLock, graphKey);
                 }
+                //register the heartbeat pin in the wait-for graph at acquisition time (not at result construction): the chained-wait danger lives in the doUpdate() below, where nested source demands can otherwise close a cycle onto this very pin
+                WaitForGraph.pinAcquired(graphKey);
                 try {
                     Files.deleteQuietly(updateFinishedFile);
                     Files.deleteQuietly(updateProgressFile);
@@ -158,8 +165,10 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                     doUpdate();
                     onUpdateFinished();
                     writeUpdateProgress(updateProgressFile, true);
-                    return new TimeSeriesUpdaterResult(maxTime, updateLock, updateProgressFile, updateFinishedFile);
+                    return new TimeSeriesUpdaterResult(maxTime, updateLock, updateProgressFile, updateFinishedFile,
+                            graphKey);
                 } catch (final Throwable t) {
+                    WaitForGraph.pinReleased(graphKey, Thread.currentThread());
                     updateLock.close();
                     throw IncompleteUpdateRetryableException.propagateIncompleteUpdateException(t);
                 }
@@ -175,59 +184,97 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         }
     }
 
-    private TimeSeriesUpdaterResult trackRemoteUpdate(final HeartbeatFileChannelLock updateLock) {
+    private TimeSeriesUpdaterResult trackRemoteUpdate(final HeartbeatFileChannelLock updateLock,
+            final String graphKey) throws IncompleteUpdateRetryableException {
         final IMutableReference<TimeSeriesUpdaterProgress> prevProgress = new MutableReference<>(
                 TimeSeriesUpdaterProgress.EMPTY);
         final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(
                 HeartbeatFileChannelLockRegistry.HEARTBEAT_INTERVAL);
-        while (true) {
-            if (updateFinishedFile.exists()) {
-                readUpdateProgress(prevProgress, updateFinishedFile);
-                break;
-            }
-            readUpdateProgress(prevProgress, updateProgressFile);
-            if (loopCheck.checkClockNoInterrupt()) {
-                if (updateLock.tryLock()) {
-                    try {
-                        if (updateFinishedFile.exists()) {
-                            readUpdateProgress(prevProgress, updateFinishedFile);
-                            break;
-                        } else {
-                            throw new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_TAG +
-                                    "Update of another process timed out for table [" + table.getName() + "] and key ["
-                                            + key + "]: " + updateLock.getFile().getAbsolutePath());
-                        }
-                    } finally {
-                        updateLock.close();
-                    }
-                } else if (HeartbeatFileChannelLockRegistry.isLockClaimedByThisJvm(updateLock.getFile())) {
-                    /*
-                     * The beating update lock is claimed by a still-open HeartbeatFileChannelLock instance of this very
-                     * JVM: the owning TimeSeriesUpdaterResult was never closed (leaked). A same-JVM steal can never
-                     * succeed (the leaked instance holds the NIO FileLock and the per-path thread lock while
-                     * HeartbeatFileChannelLockRegistry keeps beating the heartbeat time-based, independent of the owner
-                     * thread's progress), so instead of spinning in this wait loop forever, terminate the wait with a
-                     * named, diagnosable RetryLater. The dominant leak vector (close() throwing before releasing the
-                     * lock) is fixed in TimeSeriesUpdaterResult.close()'s finally - if this fires nonetheless, look for
-                     * a "Finalizing unclosed TimeSeriesUpdaterResult" WARN which carries the creation stack trace of
-                     * the leaked instance.
-                     */
-                    throw new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_TAG + "Update lock of table [" + table.getName() + "] and key ["
-                            + key + "] is beaten by this very JVM (owner ["
-                            + HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER
-                            + "]) although no local update() is active for this key: an unclosed"
-                            + " TimeSeriesUpdaterResult leaked its HeartbeatFileChannelLock at ["
-                            + updateLock.getFile().getAbsolutePath()
-                            + "] - a same-JVM steal can never succeed, see the leaked-result WARNs in the"
-                            + " log for the creation stack trace");
+        //register the pin wait in the wait-for graph and refuse it the moment the chain would close back onto this thread's own lock/pin/task: deterministic cycle abort, no timeout guessing; the caller's @Retry re-attempts the whole update once the chain has unwound
+        WaitForGraph.beginWait(graphKey);
+        try {
+            while (true) {
+                if (WaitForGraph.isSelfServedKey(graphKey)) {
+                    //the task serving this very key pins it and its nested work demands it again: waiting for that
+                    //pin would deadlock onto ourselves - adopt the current published state instead
+                    LOG.warn("Self-served key [%s] pinned by this task: nested demand adopts the in-progress state", key);
+                    break;
                 }
+                if (WaitForGraph.wouldCloseCycle(graphKey)) {
+                    if (WaitForGraph.isCycleOwnedByOwnDemandTree(graphKey)) {
+                        //pin held inside our own demand tree: the pinned store version is the one the tree is consuming; adopt the current state instead of waiting (see ALazyDataUpdater.maybeUpdate for the full rationale)
+                        LOG.warn("Deferring update of table [%s] and key [%s]: the blocking heartbeat pin is held inside our own demand tree - continuing on the consistent in-tree state: %s", table.getName(), key, WaitForGraph.describeCycle(graphKey));
+                        break;
+                    }
+                    if (!WaitForGraph.shouldFallThroughAsCycleVictim(graphKey)) {
+                        //foreign cycle but not the designated victim edge: the max-key participant yields (see
+                        //WaitForGraph.shouldFallThroughAsCycleVictim), this patience is finite in practice because
+                        //the victim's unwind releases the pins this wait needs
+                        continue;
+                    }
+                    //NonBlockingRetryLater (NOT IncompleteUpdateRetryableException): this wait happens BEFORE this task
+                    //acquired its pin, so it has mutated nothing - a delete/rebuild at this point would destroy the
+                    //concurrent rebuild we are waiting for. fallthrough (scope inherited from the submitting demand
+                    //retry) makes the task-level @Retry propagate this instead of spinning, failing the future,
+                    //waking the joiner and letting its pins close for a clean convergence later
+                    throw new NonBlockingRetryLaterRuntimeException(
+                            ATimeSeriesUpdater.class.getSimpleName() + ".trackRemoteUpdate: waiting for the heartbeat"
+                                    + " pin of table [" + table.getName() + "] and key [" + key
+                                    + "] would close a wait-for cycle inside this JVM - aborting this update attempt"
+                                    + " retryably: " + WaitForGraph.describeCycle(graphKey));
+                }
+                if (updateFinishedFile.exists()) {
+                    readUpdateProgress(prevProgress, updateFinishedFile);
+                    break;
+                }
+                readUpdateProgress(prevProgress, updateProgressFile);
+                if (loopCheck.checkClockNoInterrupt()) {
+                    if (updateLock.tryLock()) {
+                        try {
+                            if (updateFinishedFile.exists()) {
+                                readUpdateProgress(prevProgress, updateFinishedFile);
+                                break;
+                            } else {
+                                throw new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_TAG +
+                                        "Update of another process timed out for table [" + table.getName() + "] and key ["
+                                                + key + "]: " + updateLock.getFile().getAbsolutePath());
+                            }
+                        } finally {
+                            updateLock.close();
+                        }
+                    } else if (HeartbeatFileChannelLockRegistry.isLockClaimedByThisJvm(updateLock.getFile())) {
+                        /*
+                         * The beating update lock is claimed by a still-open HeartbeatFileChannelLock instance of this
+                         * very JVM whose holder is not part of a cycle this thread can see (e.g. a long legitimate
+                         * iteration of another run): the graph check above refuses only truly cyclic waits, so this
+                         * patience is safe. If it never resolves anyway, look for the "Finalizing unclosed
+                         * TimeSeriesUpdaterResult" WARN carrying the creation stack trace of the leaked instance.
+                         */
+                        throw new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_TAG + "Update lock of table [" + table.getName() + "] and key ["
+                                + key + "] is beaten by this very JVM (owner ["
+                                + HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER
+                                + "]) although no local update() is active for this key: an unclosed"
+                                + " TimeSeriesUpdaterResult leaked its HeartbeatFileChannelLock at ["
+                                + updateLock.getFile().getAbsolutePath()
+                                + "] - a same-JVM steal can never succeed, see the leaked-result WARNs in the"
+                                + " log for the creation stack trace");
+                    }
+                }
+                ALoggingTimeSeriesUpdater.FLUSH_LOG_INTERVAL.sleepNoInterrupt();
             }
-            ALoggingTimeSeriesUpdater.FLUSH_LOG_INTERVAL.sleepNoInterrupt();
+        } finally {
+            WaitForGraph.endWait(graphKey);
         }
         lookupTable.clearCaches();
         final FDate updatedTo = lookupTable.getLastValueEndTime();
+        if (updatedTo == null) {
+            //adoption found an EMPTY store (the pinning context wiped it for a clean-state recompute): nothing to
+            //adopt and this task mutated nothing - plain retryable WITHOUT any delete on our side (wiping here would
+            //race the in-progress rebuild)
+            throw new NonBlockingRetryLaterRuntimeException("Adoption found empty store for table [" + table.getName() + "] and key [" + key + "] - retrying after the pinning update lands");
+        }
         onUpdateFinished();
-        return new TimeSeriesUpdaterResult(updatedTo, null, null, null);
+        return new TimeSeriesUpdaterResult(updatedTo, null, null, null, graphKey);
     }
 
     private void doUpdate() throws IncompleteUpdateRetryableException {

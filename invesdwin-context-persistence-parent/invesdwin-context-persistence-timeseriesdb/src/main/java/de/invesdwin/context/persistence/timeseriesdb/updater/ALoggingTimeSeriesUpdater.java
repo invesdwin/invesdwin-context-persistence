@@ -93,8 +93,14 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
                 && ELEMENT_LOG_INTERVAL.isLessThanNanos(nowNanos - lastLogElementTimeNanos);
     }
 
+    //updateStart is only set once this instance actually acquired the update pin; progress/logging can also run for
+    //waiters in the remote-update tracking loop (or after an adoption break), so never dereference it unguarded
+    private Duration elapsedOrDefault() {
+        return updateStart != null ? updateStart.toDuration() : Duration.ZERO;
+    }
+
     private void logElements(final long nowNanos, final long elements) {
-        final Duration flushDuration = updateStart.toDuration();
+        final Duration flushDuration = elapsedOrDefault();
         final Percent progress = getProgress(elementMinTime, elementMaxTime);
         if (progress != null) {
             log.info("Persisting %s. %s batch for [%s]. Reached [%s] at time [%s]. Processed [%s] during %s",
@@ -128,7 +134,7 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
         //if we are too fast, only print status once a second
         if (logInterval.isLessThanNanos(nowNanos - lastLogFlushTimeNanos)
                 && logInterval.isLessThanNanos(nowNanos - lastLogElementTimeNanos)) {
-            final Duration flushDuration = updateStart.toDuration();
+            final Duration flushDuration = elapsedOrDefault();
             final Percent progress = getProgress();
             if (progress != null) {
                 log.info("%sPersisted %s. %s batch for [%s]. Reached [%s] at time [%s]. Processed [%s] during %s",
@@ -160,7 +166,7 @@ public abstract class ALoggingTimeSeriesUpdater<K, V> extends ATimeSeriesUpdater
             logFlush(FLUSH_LOG_INTERVAL);
         }
         log.info("%sFinished updating %s %s for [%s] from [%s] to [%s] after %s", newOwnerPrefix(owner),
-                getValueCount(), getElementsName(), getKeyStr(), getMinTime(), getMaxTime(), updateStart.toDuration());
+                getValueCount(), getElementsName(), getKeyStr(), getMinTime(), getMaxTime(), elapsedOrDefault());
     }
 
     protected abstract String getElementsName();
