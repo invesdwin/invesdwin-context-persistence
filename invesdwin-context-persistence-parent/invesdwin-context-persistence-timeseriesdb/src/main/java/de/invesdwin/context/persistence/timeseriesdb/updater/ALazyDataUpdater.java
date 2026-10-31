@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.timeseriesdb.updater;
 
 import java.util.concurrent.Callable;
+import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 
@@ -20,7 +21,9 @@ import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.concurrent.future.Futures;
+import de.invesdwin.util.concurrent.graph.WaitForGraph;
 import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.IReentrantLock;
 import de.invesdwin.util.concurrent.lock.Locks;
@@ -41,6 +44,10 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     public static final String REASON_IS_BEFORE = "is before";
 
     private static final FastThreadLocal<Boolean> SKIP_UPDATE_ON_CURRENT_THREAD_IF_ALREADY_RUNNING = new FastThreadLocal<Boolean>();
+
+    //shares the in-memory update lock between updater instances targeting the SAME physical store key (updaterId embeds the absolute shared version directory path): two contexts racing to update one store is what produced the heartbeat-pin-vs-join cross edges in the precalculated livelock (and it fragments the wait-for graph with multiple owners per key). Single-flight per key inside this JVM removes that class at its source; other JVMs stay serialised by the heartbeat file lock.
+    private static final Map<String, IReentrantLock> SHARED_UPDATE_LOCKS = ILockCollectionFactory.getInstance(true)
+            .newConcurrentMap();
     protected final Log log = new Log(this);
     private final K key;
     @GuardedBy("getUpdateLock()")
@@ -103,7 +110,8 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
 
     private synchronized IReentrantLock getUpdateLock() {
         if (updateLock == null) {
-            updateLock = Locks.newReentrantLock(getUpdaterId() + "_updateLock");
+            updateLock = SHARED_UPDATE_LOCKS.computeIfAbsent(getUpdaterId() + "_updateLock",
+                    k -> Locks.newReentrantLock(k));
         }
         return updateLock;
     }
@@ -156,14 +164,10 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     public final boolean maybeUpdate(final boolean force) {
         final FDate newUpdateCheck = FDate.now();
         if (force || shouldCheckForUpdate(newUpdateCheck)) {
-            final String graphKey = UpdaterWaitGraph.newKey(getTable().getName(), getKeyStr());
+            final String graphKey = WaitForGraph.newKey(getTable().getName(), getKeyStr());
             //Deadlock avoidance: never add a wait edge that closes a wait-for cycle inside this JVM (the permanent precalculated livelock formed exactly like that). If the target update's progress transitively depends on a lock, pin, or task held by this very thread, abort this attempt retryably; later attempts run once the chain has unwound
-            if (UpdaterWaitGraph.wouldCloseCycle(graphKey)) {
-                throw new NonBlockingRetryLaterRuntimeException(
-                        ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: update of "
-                                + getElementsName() + " [" + getKeyStr()
-                                + "] aborted retryably because this thread's wait would close a wait-for cycle: "
-                                + UpdaterWaitGraph.describeCycle(graphKey));
+            if (skipCycleForCaller(graphKey)) {
+                return false;
             }
             final IReentrantLock updateLock = getUpdateLock();
             if (shouldSkipUpdateOnCurrentThreadIfAlreadyRunning()) {
@@ -182,7 +186,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
             } else {
                 updateLock.lock();
             }
-            UpdaterWaitGraph.lockAcquired(graphKey);
+            WaitForGraph.lockAcquired(graphKey);
             try {
                 if (!force && !shouldCheckForUpdate(newUpdateCheck)) {
                     //some sort of double checked locking to skip if someone else came before us
@@ -190,12 +194,13 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 }
                 Future<?> updateFutureCopy = updateFuture;
                 final String reason;
+                final Thread submittingThread = Thread.currentThread();
                 if (updateFutureCopy == null
                         || updateFutureCopy.isDone() && (force || shouldCheckForUpdate(newUpdateCheck))) {
                     updateFutureCopy = getNestedExecutor().getNestedExecutor().submit(new Runnable() {
                         @Override
                         public void run() {
-                            UpdaterWaitGraph.taskStarted(graphKey);
+                            WaitForGraph.taskStarted(graphKey, submittingThread);
                             try {
                                 final ILock writeLock = getTable().getTableLock(key).writeLock();
                                 if (!writeLock.tryLock()) {
@@ -223,7 +228,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                                     writeLock.unlock();
                                 }
                             } finally {
-                                UpdaterWaitGraph.taskFinished(graphKey);
+                                WaitForGraph.taskFinished(graphKey);
                             }
                         }
                     });
@@ -232,7 +237,12 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 } else {
                     reason = "in progress";
                 }
-                UpdaterWaitGraph.beginWait(graphKey);
+                if (refuseDeadlockingJoin(graphKey, "started".equals(reason))) {
+                    //pure joiner of an in-progress task that chains back onto this thread: stop waiting this attempt and
+                    //continue on the last published (complete) state; the submitter keeps driving the task
+                    return false;
+                }
+                WaitForGraph.beginJoinWait(graphKey);
                 try {
                     if (DatabaseThreads.isThreadBlockingUpdateDatabaseDisabled()) {
                         try {
@@ -253,13 +263,49 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                         updateFuture = null;
                     }
                 } finally {
-                    UpdaterWaitGraph.endWait(graphKey);
+                    WaitForGraph.endJoinWait(graphKey);
                 }
                 return true;
             } finally {
-                UpdaterWaitGraph.lockReleased(graphKey);
+                WaitForGraph.lockReleased(graphKey);
                 updateLock.unlock();
             }
+        }
+        return false;
+    }
+
+    /**
+     * Caller-side cycle handling: in-tree cycles adopt the consistent pinned state (skip update this attempt),
+     * foreign cycles are refused retryably. Returns true when the caller must not proceed with the update wait.
+     */
+    private boolean skipCycleForCaller(final String graphKey) {
+        if (!WaitForGraph.wouldCloseCycle(graphKey)) {
+            return false;
+        }
+        if (WaitForGraph.isCycleOwnedByOwnDemandTree(graphKey)) {
+            //The pin blocking this update is held by our own demand tree (a submitter ancestor is iterating the pinned, already-complete version): that version is exactly the data the tree is consuming, so reading it is tree-consistent - skip the update instead of aborting (the store cannot change while pinned; this is what makes mutually nested precalc chains converge instead of retry-spinning)
+            log.warn("Skipping update of [%s] for [%s] this attempt: the blocking heartbeat pin is held inside our own demand tree, reading the consistent in-tree state - graph: %s", getElementsName(), getKeyStr(), WaitForGraph.describeCycle(graphKey));
+            return true;
+        }
+        throw new NonBlockingRetryLaterRuntimeException(
+                ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: update of "
+                        + getElementsName() + " [" + getKeyStr()
+                        + "] aborted retryably because this thread's wait would close a wait-for cycle: "
+                        + WaitForGraph.describeCycle(graphKey));
+    }
+
+    private boolean refuseDeadlockingJoin(final String graphKey, final boolean submitterHere) {
+        //the task serving this key is waiting (directly or transitively) for a heartbeat pin THIS thread holds open: joining it would deadlock our pins closed. Abandon the join retryably - unwinding now closes our pins so the task can proceed, and the demand loop re-attempts cleanly afterwards
+        if (WaitForGraph.joinWouldDeadlockOwnPins(graphKey)) {
+            if (!submitterHere) {
+                log.warn("Not joining update of [%s] for [%s] this attempt: the running task chains back onto this thread - skipping the wait and continuing on the last published state (submitter keeps driving it)", getElementsName(), getKeyStr());
+                return true;
+            }
+            log.warn("Aborting join on update of [%s] for [%s]: the running task chains back onto a heartbeat pin held by this very thread - unwinding to release our pins and retry later", getElementsName(), getKeyStr());
+            throw new NonBlockingRetryLaterRuntimeException(
+                    ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: joining the update of "
+                            + getElementsName() + " [" + getKeyStr()
+                            + "] would deadlock pins held by this thread - retrying after our pins close");
         }
         return false;
     }

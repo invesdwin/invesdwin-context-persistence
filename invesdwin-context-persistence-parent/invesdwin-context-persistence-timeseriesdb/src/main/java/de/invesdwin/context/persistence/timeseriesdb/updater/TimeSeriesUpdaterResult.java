@@ -6,6 +6,7 @@ import java.io.IOException;
 
 import javax.annotation.concurrent.Immutable;
 
+import de.invesdwin.util.concurrent.graph.WaitForGraph;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.finalizer.AWarningFinalizer;
@@ -42,7 +43,7 @@ public class TimeSeriesUpdaterResult implements ISafeCloseable {
 
     private void releasePinCount() {
         if (graphKey != null) {
-            UpdaterWaitGraph.pinReleased(graphKey, pinOwnerThread);
+            WaitForGraph.pinReleased(graphKey, pinOwnerThread);
         }
     }
 
