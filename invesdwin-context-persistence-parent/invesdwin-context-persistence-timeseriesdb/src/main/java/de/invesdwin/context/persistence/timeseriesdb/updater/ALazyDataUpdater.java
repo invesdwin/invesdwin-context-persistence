@@ -1,12 +1,14 @@
 package de.invesdwin.context.persistence.timeseriesdb.updater;
 
 import java.util.concurrent.Callable;
-import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 
 import org.apache.commons.lang3.BooleanUtils;
 
@@ -15,13 +17,13 @@ import de.invesdwin.context.integration.concurrent.DatabaseThreads;
 import de.invesdwin.context.integration.concurrent.nonblocking.ANonBlockingRunnable;
 import de.invesdwin.context.integration.concurrent.nonblocking.DisabledNonBlockingRunnable;
 import de.invesdwin.context.integration.concurrent.nonblocking.INonBlockingRunnable;
+
 import de.invesdwin.context.integration.retry.NonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
-import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.concurrent.future.Futures;
 import de.invesdwin.util.concurrent.graph.WaitForGraph;
 import de.invesdwin.util.concurrent.lock.ILock;
@@ -45,9 +47,8 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
 
     private static final FastThreadLocal<Boolean> SKIP_UPDATE_ON_CURRENT_THREAD_IF_ALREADY_RUNNING = new FastThreadLocal<Boolean>();
 
-    //shares the in-memory update lock between updater instances targeting the SAME physical store key (updaterId embeds the absolute shared version directory path): two contexts racing to update one store is what produced the heartbeat-pin-vs-join cross edges in the precalculated livelock (and it fragments the wait-for graph with multiple owners per key). Single-flight per key inside this JVM removes that class at its source; other JVMs stay serialised by the heartbeat file lock.
-    private static final Map<String, IReentrantLock> SHARED_UPDATE_LOCKS = ILockCollectionFactory.getInstance(true)
-            .newConcurrentMap();
+    //shares the in-memory update lock between updater instances targeting the SAME physical store key (updaterId embeds the absolute shared version directory path): two contexts racing to update one store is what produced the heartbeat-pin-vs-join cross edges in the precalculated livelock (and it fragments the wait-for graph with multiple owners per key). Single-flight per key inside this JVM removes that class at its source; other JVMs stay serialised by the heartbeat file lock. Weak values: ids move with store versions over the lifetime of a process, so entries must vanish once no updater instance or parked thread references the lock anymore (same pattern as the file channel thread locks)
+    private static final Cache<String, IReentrantLock> SHARED_UPDATE_LOCKS = Caffeine.newBuilder().weakValues().build();
     protected final Log log = new Log(this);
     private final K key;
     @GuardedBy("getUpdateLock()")
@@ -110,7 +111,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
 
     private synchronized IReentrantLock getUpdateLock() {
         if (updateLock == null) {
-            updateLock = SHARED_UPDATE_LOCKS.computeIfAbsent(getUpdaterId() + "_updateLock",
+            updateLock = SHARED_UPDATE_LOCKS.get(getUpdaterId() + "_updateLock",
                     k -> Locks.newReentrantLock(k));
         }
         return updateLock;
