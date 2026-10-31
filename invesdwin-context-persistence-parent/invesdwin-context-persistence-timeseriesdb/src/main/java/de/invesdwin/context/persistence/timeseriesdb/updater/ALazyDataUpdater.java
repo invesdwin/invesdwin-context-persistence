@@ -19,6 +19,7 @@ import de.invesdwin.context.integration.concurrent.nonblocking.DisabledNonBlocki
 import de.invesdwin.context.integration.concurrent.nonblocking.INonBlockingRunnable;
 
 import de.invesdwin.context.integration.retry.NonBlockingRetryLaterRuntimeException;
+import de.invesdwin.context.integration.retry.RetryScopes;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
@@ -196,11 +197,15 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 Future<?> updateFutureCopy = updateFuture;
                 final String reason;
                 final Thread submittingThread = Thread.currentThread();
+                //explicit scope inheritance: if this demand call runs inside an outer retry, the task body must
+                //see it (fallThroughToOuterRetry sites) so refusals propagate instead of retrying under the write lock
+                final int outerRetryDepth = RetryScopes.capture();
                 if (updateFutureCopy == null
                         || updateFutureCopy.isDone() && (force || shouldCheckForUpdate(newUpdateCheck))) {
                     updateFutureCopy = getNestedExecutor().getNestedExecutor().submit(new Runnable() {
                         @Override
                         public void run() {
+                            try (RetryScopes.Registration inheritedScopes = RetryScopes.install(outerRetryDepth)) {
                             WaitForGraph.taskStarted(graphKey, submittingThread);
                             try {
                                 final ILock writeLock = getTable().getTableLock(key).writeLock();
@@ -230,6 +235,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                                 }
                             } finally {
                                 WaitForGraph.taskFinished(graphKey);
+                            }
                             }
                         }
                     });

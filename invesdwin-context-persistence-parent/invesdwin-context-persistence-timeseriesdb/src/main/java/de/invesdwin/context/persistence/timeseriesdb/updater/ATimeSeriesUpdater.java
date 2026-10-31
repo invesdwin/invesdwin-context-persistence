@@ -256,6 +256,10 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         }
         lookupTable.clearCaches();
         final FDate updatedTo = lookupTable.getLastValueEndTime();
+        if (updatedTo == null) {
+            //adoption found an EMPTY store (e.g. the pinning context deleted it for a clean-state recompute): there is nothing to adopt - fail this attempt retryably instead of handing out an empty success
+            throw new IncompleteUpdateRetryableException("Adoption found empty store for table [" + table.getName() + "] and key [" + key + "] - retrying after the pinning update lands");
+        }
         onUpdateFinished();
         return new TimeSeriesUpdaterResult(updatedTo, null, null, null, graphKey);
     }
