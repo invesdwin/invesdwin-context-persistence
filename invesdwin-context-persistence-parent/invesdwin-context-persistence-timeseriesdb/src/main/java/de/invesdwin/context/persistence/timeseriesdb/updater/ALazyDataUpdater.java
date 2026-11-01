@@ -480,8 +480,17 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
             final String taskName = "Loading " + getElementsName() + " for " + getKeyStr();
             final Callable<Percent> progress = newProgressCallable(estimatedTo, updater);
             final TimeSeriesUpdaterResult result = TaskInfoCallable.of(taskName, task, progress).call();
-            LazyDataUpdaterProperties.setLastUpdateTo(getUpdaterId(), FDates.max(estimatedTo, result.getUpdatedTo()));
-            return result;
+            try {
+                LazyDataUpdaterProperties.setLastUpdateTo(getUpdaterId(), FDates.max(estimatedTo, result.getUpdatedTo()));
+                return result;
+            } catch (final Throwable t) {
+                //the result (with its live heartbeat pin and the name-keyed thread lock slot) must not depend on GC
+                //finalization: a throw in this hand-over window would otherwise orphan it - on a quiet heap the
+                //warning-finalizer can take arbitrarily long, and the idle pool thread keeps holding the thread
+                //lock, blocking every later attempt for this key (zombie claim forensics, smoke-41/43)
+                result.close();
+                throw t;
+            }
         } catch (final IncompleteUpdateRetryableException e) {
             throw e;
         } catch (final Throwable e) {

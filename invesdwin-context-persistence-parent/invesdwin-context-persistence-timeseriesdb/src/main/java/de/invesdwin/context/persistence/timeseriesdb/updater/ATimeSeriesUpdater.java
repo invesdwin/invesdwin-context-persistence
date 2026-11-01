@@ -280,7 +280,10 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                                     + " pin of table [" + table.getName() + "] and key [" + key
                                     + "] would close a wait-for cycle inside this JVM - aborting this update attempt"
                                     + " retryably: " + WaitForGraph.describeCycle(graphKey)
-                                    + WaitForGraph.describeAll());
+                                    + " localClaim=[" + HeartbeatFileChannelLockRegistry.isLockClaimedByThisJvm(updateLock.getFile())
+                                    + ",marker=" + readLockMarker(updateLock.getFile())
+                                    + ",registered=" + HeartbeatFileChannelLockRegistry.describeLocalClaim(updateLock.getFile())
+                                    + ",threadLock=" + describeThreadLock(updateLock.getFile()) + "] " + WaitForGraph.describeAll());
                 }
                 if (updateFinishedFile.exists()) {
                     readUpdateProgress(prevProgress, updateFinishedFile);
@@ -549,6 +552,31 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                     epochScope.close();
                 }
             }
+        }
+    }
+
+    private String describeThreadLock(final java.io.File lockFile) {
+        try {
+            final de.invesdwin.util.concurrent.lock.ILock nameLock = de.invesdwin.util.concurrent.lock.file.NameKeyedLocks
+                    .get(lockFile.getAbsoluteFile().toPath().toAbsolutePath().toString());
+            return String.valueOf(nameLock.getLockTrace());
+        } catch (final Throwable t2) {
+            return "<unavailable:" + t2.getMessage() + ">";
+        }
+    }
+
+    private String readLockMarker(final java.io.File lockFile) {
+        try {
+            final java.io.File marker = new java.io.File(lockFile.getAbsolutePath()
+                    + HeartbeatFileChannelLockRegistry.HEARTBEAT_EXTENSION);
+            final java.io.File source = marker.exists() ? marker : lockFile;
+            if (!source.exists()) {
+                return "<none>";
+            }
+            final String content = de.invesdwin.util.lang.Files.readFileToString(source);
+            return content.length() > 200 ? content.substring(0, 200) : content;
+        } catch (final Throwable t2) {
+            return "<unreadable:" + t2.getMessage() + ">";
         }
     }
 
