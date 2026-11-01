@@ -151,8 +151,32 @@ public final class EpochScopes {
     public static void recordConsumed(final String key, final String epochId) {
         final EpochScope scope = SCOPE.get();
         if (scope != null) {
-            scope.consumedEntries.add(key + "#" + epochId);
+            scope.consumedEntries.add(consumedEntry(key, epochId));
         }
+    }
+
+    /**
+     * The ledger entry grammar: a consumed epoch is '&lt;key&gt;#&lt;epochId&gt;' (the '#' splits, a key may itself
+     * contain '#', so the LAST one is the separator).
+     */
+    static String consumedEntry(final String key, final String epochId) {
+        return key + "#" + epochId;
+    }
+
+    public static String consumedEntryKey(final String entry) {
+        if (entry == null) {
+            return null;
+        }
+        final int hash = entry.lastIndexOf('#');
+        return hash > 0 ? entry.substring(0, hash) : null;
+    }
+
+    public static String consumedEntryEpochId(final String entry) {
+        if (entry == null) {
+            return null;
+        }
+        final int hash = entry.lastIndexOf('#');
+        return hash > 0 && hash + 1 < entry.length() ? entry.substring(hash + 1) : null;
     }
 
     /**

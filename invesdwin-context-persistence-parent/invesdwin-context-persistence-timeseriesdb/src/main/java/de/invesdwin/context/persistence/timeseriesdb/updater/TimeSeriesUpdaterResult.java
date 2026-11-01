@@ -47,6 +47,13 @@ public class TimeSeriesUpdaterResult implements ISafeCloseable {
         }
     }
 
+    /**
+     * Until when this update guarantees published values, or null: since the M3-cp self-served skip a demand of the
+     * very task that is rebuilding the key proceeds on the CURRENT published state, whatever it is - only that
+     * self-served adoption result may carry a null updatedTo (an as-yet never published store; the pass that will
+     * publish it is this demand tree's own in-flight attempt). Every consumer null-checks it (ALazyDataUpdater does
+     * so before any Duration arithmetic, the trading precalc driver guards it).
+     */
     public FDate getUpdatedTo() {
         return updatedTo;
     }

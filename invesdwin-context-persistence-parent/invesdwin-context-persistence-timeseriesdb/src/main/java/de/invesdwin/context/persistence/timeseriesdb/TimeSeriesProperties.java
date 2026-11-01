@@ -32,6 +32,7 @@ public final class TimeSeriesProperties {
     public static final boolean PERSISTENT_CHRONICLE_MAP_ENABLED;
     public static final Duration RETAIN_OBSOLETE_FILES_THRESHOLD;
     public static final Duration RETAIN_OBSOLETE_VERSIONS_THRESHOLD;
+    public static final Duration RETAIN_OBSOLETE_EPOCHS_THRESHOLD;
     public static final boolean EPOCH_LOCAL_DATA_FILES;
     private static final SystemProperties SYSTEM_PROPERTIES;
 
@@ -52,6 +53,7 @@ public final class TimeSeriesProperties {
         PERSISTENT_CHRONICLE_MAP_ENABLED = determinePersistentChronicleMapEnabled();
         RETAIN_OBSOLETE_FILES_THRESHOLD = SYSTEM_PROPERTIES.getDuration("RETAIN_OBSOLETE_FILES_THRESHOLD");
         RETAIN_OBSOLETE_VERSIONS_THRESHOLD = SYSTEM_PROPERTIES.getDuration("RETAIN_OBSOLETE_VERSIONS_THRESHOLD");
+        RETAIN_OBSOLETE_EPOCHS_THRESHOLD = SYSTEM_PROPERTIES.getDuration("RETAIN_OBSOLETE_EPOCHS_THRESHOLD");
         EPOCH_LOCAL_DATA_FILES = SYSTEM_PROPERTIES.getBoolean("EPOCH_LOCAL_DATA_FILES");
         FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR = null;
     }

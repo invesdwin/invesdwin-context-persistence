@@ -4,7 +4,9 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
+import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
@@ -17,11 +19,13 @@ import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.AMemoryFileSummarySerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.ITimeSeriesMemoryFileLookupTable;
 import de.invesdwin.util.assertions.Assertions;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.concurrent.lock.file.AtomicNioFileChannelContext;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.string.Charsets;
+import de.invesdwin.util.lang.string.Strings;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.streams.closeable.ISafeCloseable;
 import de.invesdwin.util.time.date.FDate;
@@ -146,10 +150,13 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
      * '&lt;versionDir&gt;/epoch-staging/&lt;epochId&gt;/index.snapshot' (temp+rename via AtomicNioFileChannel, the same
      * proven publish primitive as the index generations). Readers that are entitled to see an in-progress epoch (the
      * adoption path of their own demand tree) open this file; it is always a complete, closed collection, never a
-     * partially-appended one. Inert when this attempt has no epoch id (legacy layout or the flag off).
+     * partially-appended one. An epoch that has staged nothing yet still lands an EMPTY snapshot (epoch design
+     * M3-cp start-time write): the staging directory and snapshot exist from attempt start on, so the heartbeat and
+     * snapshot existence gates of adoption and of consumed re-validation can be satisfied before the first flush.
+     * Inert when this attempt has no epoch id (legacy layout or the flag off).
      */
     public void writeEpochIndexSnapshot() {
-        if (epochLocalDataId == null || stagedSummaries.isEmpty()) {
+        if (epochLocalDataId == null) {
             return;
         }
         final File stagingDirectory = getEpochStagingDirectory(parent, epochLocalDataId);
@@ -166,15 +173,17 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
             for (final MemoryFileSummary summary : stagedSummaries) {
                 snapshot.add(summary);
             }
-            //close() of the AtomicNioFileChannel upload stream does the atomic temp+rename publish
+            //close() of the AtomicNioFileChannel upload stream does the atomic temp+rename publish; closeWithEmptyWrite
+            //lands a zero length file when nothing has been staged yet (start-time snapshot)
             snapshot.closeWithEmptyWrite();
         }
     }
 
     /**
-     * Reads all MemoryFileSummary records an epoch has staged so far, or null when the epoch has no snapshot yet (no
-     * flush landed). Tail-safe: the snapshot file only ever appears or is replaced via an atomic rename of a fully
-     * written collection.
+     * Reads all MemoryFileSummary records an epoch has staged so far, or null when the epoch has no snapshot at all
+     * (no attempt started for it). Since M3-cp an attempt writes an empty snapshot at start, so a live epoch without a
+     * landed flush reads back as an EMPTY list (not null); tail-safe either way: the snapshot file only ever appears or
+     * is replaced via an atomic rename of a fully written collection.
      */
     public static List<MemoryFileSummary> readEpochIndexSnapshot(final TimeSeriesLookupStorageCache<?, ?> cache,
             final String epochId) {
@@ -182,11 +191,25 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         if (!snapshotFile.exists()) {
             return null;
         }
+        return readSummariesOf(cache, snapshotFile);
+    }
+
+    /**
+     * Opens one summary collection (an epoch index snapshot or a published '&lt;N&gt;_memory.index' generation) of the
+     * given store cache over the same serde parameters, read only.
+     */
+    public static AMemoryFileSummarySerializingCollection readSummaryCollection(
+            final TimeSeriesLookupStorageCache<?, ?> cache, final File summariesFile) {
+        return newSnapshotCollection(
+                new TextDescription("%s.readSummaryCollection", TimeSeriesUpdateTransaction.class.getSimpleName()),
+                cache, summariesFile, true);
+    }
+
+    private static List<MemoryFileSummary> readSummariesOf(final TimeSeriesLookupStorageCache<?, ?> cache,
+            final File summariesFile) {
         final List<MemoryFileSummary> staged = new ArrayList<>();
-        try (AMemoryFileSummarySerializingCollection snapshot = newSnapshotCollection(
-                new TextDescription("%s.readEpochIndexSnapshot", TimeSeriesUpdateTransaction.class.getSimpleName()),
-                cache, snapshotFile, true);
-                ICloseableIterator<MemoryFileSummary> iterator = snapshot.iterator()) {
+        try (AMemoryFileSummarySerializingCollection collection = readSummaryCollection(cache, summariesFile);
+                ICloseableIterator<MemoryFileSummary> iterator = collection.iterator()) {
             Lists.toListWithoutHasNext(iterator, staged);
         }
         return staged;
@@ -196,9 +219,105 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         Assertions.checkNotNull(epochId);
         final ITimeSeriesDirectoryHashKeyVersion directoryHashKeyVersion = cache.getDirectoryHashKey()
                 .getDirectoryHashKeyVersion();
-        return new File(
-                new File(directoryHashKeyVersion.getDirectoryHashKeyVersionShared(), EPOCH_STAGING_DIRECTORY_NAME),
-                epochId);
+        return getEpochStagingDirectory(directoryHashKeyVersion.getDirectoryHashKeyVersionShared(), epochId);
+    }
+
+    /**
+     * The staging directory of an epoch inside an explicit version directory (file-system level resolution without
+     * creating a lease - used by the reclaim sweep and the consumed re-validation of sibling keys).
+     */
+    public static File getEpochStagingDirectory(final File versionDirectory, final String epochId) {
+        Assertions.checkNotNull(epochId);
+        return new File(new File(versionDirectory, EPOCH_STAGING_DIRECTORY_NAME), epochId);
+    }
+
+    /**
+     * State of a consumed epoch ('&lt;key&gt;#&lt;epochId&gt;' ledger entry) at re-validation time (epoch design
+     * M3-cp, commit-time consumed re-check for the fixed-point driver). Pure observation, no behavior change:
+     * <ul>
+     * <li>{@link ConsumedEpochStatus#PUBLISHED}: the epoch's data files are still named by a published index
+     * generation of that key - the attempt this demand consumed has landed and nothing has superseded its bytes
+     * out of every retained generation;</li>
+     * <li>{@link ConsumedEpochStatus#LIVE}: the epoch's attempt is still in flight (its progress marker names it and
+     * its heartbeat claim is fresh) and its staged index snapshot still exists;</li>
+     * <li>{@link ConsumedEpochStatus#STALE}: neither - the consumed epoch was superseded or aborted, the consuming
+     * pass's derived values are no longer fixed-point-consistent and the driver must re-iterate.</li>
+     * </ul>
+     */
+    @Immutable
+    public enum ConsumedEpochStatus {
+        PUBLISHED,
+        LIVE,
+        STALE;
+    }
+
+    /**
+     * Re-validates a consumed-epoch ledger against the current store state (epoch design M3-cp step 6/8: at commit
+     * time each member re-checks that the sibling epochs it consumed are still committed-published or
+     * live-and-current). The cache may be the consuming key's own store cache - it supplies the table directory and
+     * the serde/compression parameters used to read the consumed keys' published generations; the entry key part is
+     * resolved to that sibling key's version directory on disk without creating a lease. Returns one status per
+     * entry (insertion order), STALE for malformed entries.
+     */
+    public static Map<String, ConsumedEpochStatus> validateConsumedEpochs(
+            final TimeSeriesLookupStorageCache<?, ?> cache, final List<String> entries) {
+        final Map<String, ConsumedEpochStatus> statuses = ILockCollectionFactory.getInstance(false).newLinkedMap();
+        if (entries == null || entries.isEmpty()) {
+            return statuses;
+        }
+        final File sharedRoot = cache.getDirectoryHashKey().getParent().getDirectoryShared();
+        for (final String entry : entries) {
+            statuses.put(entry, validateConsumedEpoch(cache, sharedRoot, entry));
+        }
+        return statuses;
+    }
+
+    private static ConsumedEpochStatus validateConsumedEpoch(final TimeSeriesLookupStorageCache<?, ?> cache,
+            final File sharedRoot, final String entry) {
+        if (Strings.isBlank(entry)) {
+            return ConsumedEpochStatus.STALE;
+        }
+        final String keyStr = EpochScopes.consumedEntryKey(entry);
+        final String epochId = EpochScopes.consumedEntryEpochId(entry);
+        if (keyStr == null || epochId == null) {
+            return ConsumedEpochStatus.STALE;
+        }
+        //the directory name a key's store lives under is the normalized hash key string (ATimeSeriesDB.hashKeyToString)
+        final File keyDirectory = new File(sharedRoot, Files.normalizeFileName(keyStr));
+        final File versionDirectory = latestNumericVersionDirectory(keyDirectory);
+        if (versionDirectory == null) {
+            return ConsumedEpochStatus.STALE;
+        }
+        final File dataDirectory = new File(versionDirectory, TimeSeriesLookupStorageCache.MEMORY_DATA_ID);
+        if (TimeSeriesEpochReclaim.isEpochReferencedByPublishedGenerations(cache, dataDirectory, epochId)) {
+            return ConsumedEpochStatus.PUBLISHED;
+        }
+        final File updateProgressFile = new File(dataDirectory, TimeSeriesLookupStorageCache.UPDATE_PROGRESS_FILE_NAME);
+        if (TimeSeriesEpochReclaim.isEpochLive(updateProgressFile, epochId) && new File(
+                getEpochStagingDirectory(versionDirectory, epochId), EPOCH_INDEX_SNAPSHOT_FILE_NAME).exists()) {
+            return ConsumedEpochStatus.LIVE;
+        }
+        return ConsumedEpochStatus.STALE;
+    }
+
+    private static File latestNumericVersionDirectory(final File keyDirectory) {
+        final File[] children = keyDirectory.listFiles(File::isDirectory);
+        File latest = null;
+        int latestVersion = -1;
+        if (children != null) {
+            for (final File child : children) {
+                try {
+                    final int version = Integer.parseInt(child.getName());
+                    if (version > latestVersion) {
+                        latestVersion = version;
+                        latest = child;
+                    }
+                } catch (final NumberFormatException e) {
+                    //non-numeric entries (epoch-staging at key level, leftovers) are not version directories
+                }
+            }
+        }
+        return latest;
     }
 
     private void assertSummaryBeforeCommit(final MemoryFileSummary summary) {

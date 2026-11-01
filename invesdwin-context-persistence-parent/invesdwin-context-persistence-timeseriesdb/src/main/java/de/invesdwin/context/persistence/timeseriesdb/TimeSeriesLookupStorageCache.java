@@ -96,6 +96,14 @@ public class TimeSeriesLookupStorageCache<K, V> {
     public static final EvictionMode EVICTION_MODE = EvictionMode.ClearConcurrent;
     public static final boolean HIGH_CONCURRENCY = false;
 
+    /**
+     * Name of the data sub directory of a version directory holding the index generations, data files and update
+     * markers of a key's store.
+     */
+    public static final String MEMORY_DATA_ID = "memory";
+    public static final String UPDATE_PROGRESS_FILE_NAME = "update.progress";
+    public static final String UPDATE_FINISHED_FILE_NAME = "update.finished";
+
     private static final String READ_RANGE_VALUES = "readRangeValues";
     private static final String READ_RANGE_VALUES_REVERSE = "readRangeValuesReverse";
     private final TimeSeriesStorage storage;
@@ -211,7 +219,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
         this.hashKey = hashKey;
         this.directoryHashKey = new TimeSeriesDirectoryHashKey(storage.getDirectory(), hashKey);
         this.directoryHashKeyVersionMemory = new TimeSeriesDirectoryHashKeyVersionData(
-                directoryHashKey.getDirectoryHashKeyVersion(), "memory");
+                directoryHashKey.getDirectoryHashKeyVersion(), MEMORY_DATA_ID);
         this.memoryFileLookupTable = new RefreshingTimeSeriesMemoryFileLookupTable<V>(this,
                 directoryHashKeyVersionMemory);
         this.valueSerde = valueSerde;
@@ -278,6 +286,14 @@ public class TimeSeriesLookupStorageCache<K, V> {
         return directoryHashKey;
     }
 
+    /**
+     * The normalized hash key string this cache's store lives under inside the table's shared directory (the
+     * directory name of its key).
+     */
+    public String getHashKey() {
+        return hashKey;
+    }
+
     public TimeSeriesDirectoryHashKeyVersionData getDirectoryHashKeyVersionMemory() {
         return directoryHashKeyVersionMemory;
     }
@@ -287,11 +303,13 @@ public class TimeSeriesLookupStorageCache<K, V> {
     }
 
     public File getUpdateProgressFile() {
-        return new File(directoryHashKeyVersionMemory.getDirectoryHashKeyVersionDataShared(), "update.progress");
+        return new File(directoryHashKeyVersionMemory.getDirectoryHashKeyVersionDataShared(),
+                UPDATE_PROGRESS_FILE_NAME);
     }
 
     public File getUpdateFinishedFile() {
-        return new File(directoryHashKeyVersionMemory.getDirectoryHashKeyVersionDataShared(), "update.finished");
+        return new File(directoryHashKeyVersionMemory.getDirectoryHashKeyVersionDataShared(),
+                UPDATE_FINISHED_FILE_NAME);
     }
 
     public MemoryFileSummary getLastRangeKey() {

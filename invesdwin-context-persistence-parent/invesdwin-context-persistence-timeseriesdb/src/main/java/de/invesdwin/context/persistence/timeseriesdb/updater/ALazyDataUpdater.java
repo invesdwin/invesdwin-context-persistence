@@ -1,6 +1,8 @@
 package de.invesdwin.context.persistence.timeseriesdb.updater;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
@@ -63,6 +65,10 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     private Future<?> updateFuture;
     @GuardedBy("none for performance")
     private String updaterId;
+    //the store updater of this demand's last attempt (epoch design M3-cp): the handle to read the consumed epoch
+    //ledger from after the pass, without reaching into the update internals
+    @GuardedBy("none, volatile handover to the demand's own thread after joinUpdateFuture")
+    private volatile ATimeSeriesUpdater<K, V> lastTimeSeriesUpdater;
     private ANonBlockingRunnable maybeUpdateNonBlocking;
     private ANonBlockingRunnable maybeUpdateNonBlockingForce;
     private String keyStr;
@@ -109,6 +115,30 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
 
     protected String newKeyStr() {
         return getTable().innerHashKeyToString(key);
+    }
+
+    /**
+     * The '&lt;key&gt;#&lt;epochId&gt;' entries consumed by this demand's last attempt (epoch design M3-cp, consumed
+     * re-validation for the fixed-point driver): empty when nothing was epoch-adopted. Re-check them with
+     * {@link TimeSeriesUpdateTransaction#validateConsumedEpochs(TimeSeriesLookupStorageCache, List)} - each entry must
+     * still be PUBLISHED or LIVE for the pass to count as fixed-point consistent; a STALE entry means a consumed
+     * sibling epoch was superseded or aborted and the pass must be re-iterated.
+     */
+    public List<String> getConsumedEpochEntries() {
+        final ATimeSeriesUpdater<K, V> last = lastTimeSeriesUpdater;
+        return last != null ? last.getConsumedEpochEntries() : new ArrayList<>();
+    }
+
+    /**
+     * Convenience over {@link #getConsumedEpochEntries()} +
+     * {@link TimeSeriesUpdateTransaction#validateConsumedEpochs(TimeSeriesLookupStorageCache, List)}: re-validates the
+     * consumed epoch ledger of the last attempt against the current store state (pure observation, no behavior
+     * change).
+     */
+    public Map<String, TimeSeriesUpdateTransaction.ConsumedEpochStatus> validateConsumedEpochs() {
+        final ATimeSeriesUpdater<K, V> last = lastTimeSeriesUpdater;
+        final List<String> entries = last != null ? last.getConsumedEpochEntries() : new ArrayList<>();
+        return TimeSeriesUpdateTransaction.validateConsumedEpochs(getTable().getLookupTableCache(key), entries);
     }
 
     private synchronized IReentrantLock getUpdateLock() {
@@ -427,6 +457,8 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 }
 
             };
+            //epoch design M3-cp: remember the attempt's updater for the consumed epoch ledger (getConsumedEpochEntries)
+            this.lastTimeSeriesUpdater = updater;
             final Callable<TimeSeriesUpdaterResult> task = new Callable<TimeSeriesUpdaterResult>() {
                 @Override
                 public TimeSeriesUpdaterResult call() throws Exception {
