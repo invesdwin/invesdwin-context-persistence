@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.timeseriesdb.updater;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -17,6 +18,7 @@ import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.AMemo
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.ITimeSeriesMemoryFileLookupTable;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
+import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.concurrent.lock.file.AtomicNioFileChannelContext;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.string.Charsets;
@@ -28,6 +30,14 @@ import de.invesdwin.util.time.date.millis.FDateMillis;
 @NotThreadSafe
 public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
 
+    /**
+     * Non-numeric sub directory of a version directory holding the staged index snapshots of live update attempts
+     * (epochs). It must stay outside the version's data directory ('memory') so that neither the generation dir-max
+     * scanner nor the version dir-max scanner can mistake staged content for published content.
+     */
+    public static final String EPOCH_STAGING_DIRECTORY_NAME = "epoch-staging";
+    public static final String EPOCH_INDEX_SNAPSHOT_FILE_NAME = "index.snapshot";
+
     private final TimeSeriesLookupStorageCache<?, V> parent;
     private final FDate updateFrom;
     private final List<V> lastValues;
@@ -35,6 +45,7 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     private final long memoryOffset;
     private final long precedingValueCount;
     private final String epochLocalDataId;
+    private final List<MemoryFileSummary> stagedSummaries;
     private AMemoryFileSummarySerializingCollection summaries;
     private MemoryFileSummary prevSummary;
     //publish-on-commit: close() without an explicit commit() DISCARDS this attempt's staged index (partial results
@@ -58,6 +69,7 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         this.memoryOffset = memoryOffset;
         this.precedingValueCount = precedingValueCount;
         this.epochLocalDataId = epochLocalDataId;
+        this.stagedSummaries = new ArrayList<>();
         MemoryFiles.assertMaybeFirstSummary(precedingMemoryOffset, memoryOffset, precedingValueCount);
     }
 
@@ -125,7 +137,68 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
             };
         }
         summaries.add(summary);
+        stagedSummaries.add(summary);
         prevSummary = summary;
+    }
+
+    /**
+     * Atomically writes the index snapshot of everything this epoch has staged so far into
+     * '&lt;versionDir&gt;/epoch-staging/&lt;epochId&gt;/index.snapshot' (temp+rename via AtomicNioFileChannel, the same
+     * proven publish primitive as the index generations). Readers that are entitled to see an in-progress epoch (the
+     * adoption path of their own demand tree) open this file; it is always a complete, closed collection, never a
+     * partially-appended one. Inert when this attempt has no epoch id (legacy layout or the flag off).
+     */
+    public void writeEpochIndexSnapshot() {
+        if (epochLocalDataId == null || stagedSummaries.isEmpty()) {
+            return;
+        }
+        final File stagingDirectory = getEpochStagingDirectory(parent, epochLocalDataId);
+        try {
+            Files.forceMkdir(stagingDirectory);
+        } catch (final IOException e) {
+            throw new RuntimeException(e);
+        }
+        final File snapshotFile = new File(stagingDirectory, EPOCH_INDEX_SNAPSHOT_FILE_NAME);
+        try (AMemoryFileSummarySerializingCollection snapshot = newSnapshotCollection(
+                new TextDescription("%s.writeEpochIndexSnapshot",
+                        TimeSeriesUpdateTransaction.class.getSimpleName()),
+                parent, snapshotFile, false)) {
+            for (final MemoryFileSummary summary : stagedSummaries) {
+                snapshot.add(summary);
+            }
+            //close() of the AtomicNioFileChannel upload stream does the atomic temp+rename publish
+            snapshot.closeWithEmptyWrite();
+        }
+    }
+
+    /**
+     * Reads all MemoryFileSummary records an epoch has staged so far, or null when the epoch has no snapshot yet (no
+     * flush landed). Tail-safe: the snapshot file only ever appears or is replaced via an atomic rename of a fully
+     * written collection.
+     */
+    public static List<MemoryFileSummary> readEpochIndexSnapshot(final TimeSeriesLookupStorageCache<?, ?> cache,
+            final String epochId) {
+        final File snapshotFile = new File(getEpochStagingDirectory(cache, epochId), EPOCH_INDEX_SNAPSHOT_FILE_NAME);
+        if (!snapshotFile.exists()) {
+            return null;
+        }
+        final List<MemoryFileSummary> staged = new ArrayList<>();
+        try (AMemoryFileSummarySerializingCollection snapshot = newSnapshotCollection(
+                new TextDescription("%s.readEpochIndexSnapshot", TimeSeriesUpdateTransaction.class.getSimpleName()),
+                cache, snapshotFile, true);
+                ICloseableIterator<MemoryFileSummary> iterator = snapshot.iterator()) {
+            Lists.toListWithoutHasNext(iterator, staged);
+        }
+        return staged;
+    }
+
+    public static File getEpochStagingDirectory(final TimeSeriesLookupStorageCache<?, ?> cache, final String epochId) {
+        Assertions.checkNotNull(epochId);
+        final ITimeSeriesDirectoryHashKeyVersion directoryHashKeyVersion = cache.getDirectoryHashKey()
+                .getDirectoryHashKeyVersion();
+        return new File(
+                new File(directoryHashKeyVersion.getDirectoryHashKeyVersionShared(), EPOCH_STAGING_DIRECTORY_NAME),
+                epochId);
     }
 
     private void assertSummaryBeforeCommit(final MemoryFileSummary summary) {
@@ -145,6 +218,7 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     @Override
     public synchronized void close() {
         if (prevSummary == null) {
+            stagedSummaries.clear();
             return;
         }
         if (!committed) {
@@ -156,6 +230,7 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
                 summariesCopy.clear();
                 summaries = null;
             }
+            stagedSummaries.clear();
             prevSummary = null;
             return;
         }
@@ -168,6 +243,7 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
             summariesCopy.clear();
             summaries = null;
         }
+        stagedSummaries.clear();
         parent.clearCaches();
         touchUpdateMarker(parent.getDirectoryHashKey().getDirectoryHashKeyVersion());
         prevSummary = null;
@@ -189,6 +265,30 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         } else {
             updatedMarkerFile.setLastModified(FDateMillis.nowMillis());
         }
+    }
+
+    /**
+     * The snapshot collection over the existing MemoryFileSummarySerde path. The serde parameters must be captured as
+     * locals before the constructor runs: SerializingCollection calls newSerde() virtually from its own constructor,
+     * so a subclass field would still be null there (the anonymous-class pattern mirrors finishFile()).
+     */
+    private static AMemoryFileSummarySerializingCollection newSnapshotCollection(final TextDescription name,
+            final TimeSeriesLookupStorageCache<?, ?> cache, final File snapshotFile, final boolean readOnly) {
+        final Integer valueFixedLength = cache.getValueFixedLength();
+        final ICompressionFactory compressionFactory = cache.getCompressionFactory();
+        return new AMemoryFileSummarySerializingCollection(name,
+                AtomicNioFileChannel.newFile(snapshotFile.toURI()), readOnly) {
+
+            @Override
+            protected MemoryFileSummarySerde newSerde() {
+                return new MemoryFileSummarySerde(valueFixedLength);
+            }
+
+            @Override
+            protected ICompressionFactory getCompressionFactory() {
+                return compressionFactory;
+            }
+        };
     }
 
 }

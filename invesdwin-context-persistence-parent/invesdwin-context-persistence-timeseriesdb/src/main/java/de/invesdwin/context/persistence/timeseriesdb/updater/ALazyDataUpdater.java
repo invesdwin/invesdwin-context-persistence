@@ -1,5 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb.updater;
 
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
@@ -203,12 +204,17 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 //explicit scope inheritance: if this demand call runs inside an outer retry, the task body must
                 //see it (fallThroughToOuterRetry sites) so refusals propagate instead of retrying under the write lock
                 final int outerRetryDepth = RetryScopes.capture();
+                //epoch design M2: the task body must also see the epoch chain visible to this submitting demand
+                //(running attempts and their captured ancestors), so that a nested pass installed on the task thread
+                //inherits the parent epochs as 'visible ancestors' for the adoption gate and the consumed ledger
+                final List<String> outerEpochIds = EpochScopes.capture();
                 if (updateFutureCopy == null
                         || updateFutureCopy.isDone() && (force || shouldCheckForUpdate(newUpdateCheck))) {
                     updateFutureCopy = getNestedExecutor().getNestedExecutor().submit(new Runnable() {
                         @Override
                         public void run() {
-                            try (RetryScopes.Registration inheritedScopes = RetryScopes.install(outerRetryDepth)) {
+                            try (RetryScopes.Registration inheritedScopes = RetryScopes.install(outerRetryDepth);
+                                    EpochScopes.EpochScope inheritedEpochs = EpochScopes.install(outerEpochIds)) {
                             WaitForGraph.taskStarted(graphKey, submittingThread);
                             try {
                                 final ILock writeLock = getTable().getTableLock(key).writeLock();

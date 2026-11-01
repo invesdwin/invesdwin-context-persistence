@@ -16,6 +16,7 @@ import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdateProgress;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdaterInternalMethods;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ParallelUpdateProgress;
@@ -35,6 +36,7 @@ import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
 import de.invesdwin.util.concurrent.reference.IMutableReference;
 import de.invesdwin.util.concurrent.reference.MutableReference;
 import de.invesdwin.util.lang.Files;
+import de.invesdwin.util.lang.string.Charsets;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.streams.buffer.file.IMemoryMappedFile;
@@ -68,6 +70,12 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     private final AtomicLong lastFlushIndex = new AtomicLong();
     private final AtomicLong lastWriteUpdateProgressMillis = new AtomicLong(FDates.MIN_DATE.millisValue());
     private final ILock writeUpdateProgressLock;
+    //the epoch id of this attempt's update transaction (null for the legacy layout); the progress marker carries it as
+    //its optional 7th field so that a demanding pass can see which live epoch owns the in-progress update
+    private volatile String epochId;
+    //epochs consumed by this pass ('<key>#<epochId>' entries), mirrored from the innermost EpochScopes scope while the
+    //attempt runs so that the final marker writes keep them after the scope has been closed
+    private volatile List<String> consumedEpochEntries;
 
     public ATimeSeriesUpdater(final K key, final ITimeSeriesDBInternals<K, V> table) {
         if (key == null) {
@@ -102,6 +110,14 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     @Override
     public String getOwner() {
         return owner;
+    }
+
+    /**
+     * The epoch id minted for this attempt's update transaction (epoch design), or null when this attempt runs on the
+     * legacy shared data layout.
+     */
+    public String getEpochId() {
+        return epochId;
     }
 
     @Override
@@ -190,6 +206,9 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                 TimeSeriesUpdaterProgress.EMPTY);
         final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(
                 HeartbeatFileChannelLockRegistry.HEARTBEAT_INTERVAL);
+        //true when this wait ended on a pin held inside our own demand tree (self-served or ancestor-owned): the epoch
+        //that attempt names is visible to us, so an empty published store can be replaced by its staged snapshot
+        boolean inTreeAdoption = false;
         //register the pin wait in the wait-for graph and refuse it the moment the chain would close back onto this thread's own lock/pin/task: deterministic cycle abort, no timeout guessing; the caller's @Retry re-attempts the whole update once the chain has unwound
         WaitForGraph.beginWait(graphKey);
         try {
@@ -198,12 +217,14 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                     //the task serving this very key pins it and its nested work demands it again: waiting for that
                     //pin would deadlock onto ourselves - adopt the current published state instead
                     LOG.warn("Self-served key [%s] pinned by this task: nested demand adopts the in-progress state", key);
+                    inTreeAdoption = true;
                     break;
                 }
                 if (WaitForGraph.wouldCloseCycle(graphKey)) {
                     if (WaitForGraph.isCycleOwnedByOwnDemandTree(graphKey)) {
                         //pin held inside our own demand tree: the pinned store version is the one the tree is consuming; adopt the current state instead of waiting (see ALazyDataUpdater.maybeUpdate for the full rationale)
                         LOG.warn("Deferring update of table [%s] and key [%s]: the blocking heartbeat pin is held inside our own demand tree - continuing on the consistent in-tree state: %s", table.getName(), key, WaitForGraph.describeCycle(graphKey));
+                        inTreeAdoption = true;
                         break;
                     }
                     if (!WaitForGraph.shouldFallThroughAsCycleVictim(graphKey)) {
@@ -266,7 +287,12 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             WaitForGraph.endWait(graphKey);
         }
         lookupTable.clearCaches();
-        final FDate updatedTo = lookupTable.getLastValueEndTime();
+        //the published store always wins (unchanged legacy adoption); only an empty store may be replaced by the
+        //staged snapshot of a live epoch owned by this thread's demand tree
+        FDate updatedTo = lookupTable.getLastValueEndTime();
+        if (updatedTo == null && inTreeAdoption) {
+            updatedTo = tryAdoptEpochSnapshot(updateLock);
+        }
         if (updatedTo == null) {
             //adoption found an EMPTY store (the pinning context wiped it for a clean-state recompute): nothing to
             //adopt and this task mutated nothing - plain retryable WITHOUT any delete on our side (wiping here would
@@ -277,6 +303,75 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         return new TimeSeriesUpdaterResult(updatedTo, null, null, null, graphKey);
     }
 
+    /**
+     * Epoch-aware adoption (M2): when the adoption above found an empty published store, but the progress marker of
+     * this key names a live epoch whose heartbeat owner is still beating, and that epoch is visible to this thread's
+     * demand tree, then the demanding pass reads the epoch's staged index snapshot instead of throwing. The snapshot
+     * becomes a thread-confined, read-only view on the lookup cache (see
+     * {@link TimeSeriesLookupStorageCache#adoptEpochSnapshot(String, List)} for the honest limits of that view), and
+     * the consumed '&lt;key&gt;#&lt;epochId&gt;' entry is recorded into the current {@link EpochScopes} scope so the
+     * pass's progress marker carries the ledger for the later commit-time re-check (that re-check is a follow-up
+     * milestone, not part of M2). Returns null to fall through to the existing loud NonBlockingRetryLater when
+     * anything about the epoch is not verifiably live - legacy stores without epochs keep today's behaviour exactly.
+     */
+    private FDate tryAdoptEpochSnapshot(final HeartbeatFileChannelLock updateLock) {
+        final TimeSeriesUpdaterProgress progress = TimeSeriesUpdaterProgress.readUpdateProgress(updateProgressFile);
+        if (progress == null || progress.getEpochId() == null) {
+            //no epoch named (legacy marker or no attempt started): unchanged behaviour
+            return null;
+        }
+        final String remoteEpochId = progress.getEpochId();
+        if (!EpochScopes.isEpochVisibleToCurrentThread(remoteEpochId)) {
+            //the epoch is not owned by this thread's demand tree: never expose a foreign epoch
+            return null;
+        }
+        if (!isEpochOwnerLive(progress, updateLock.getFile())) {
+            return null;
+        }
+        final List<MemoryFileSummary> stagedSummaries = TimeSeriesUpdateTransaction.readEpochIndexSnapshot(
+                lookupTable, remoteEpochId);
+        if (stagedSummaries == null || stagedSummaries.isEmpty()) {
+            //the epoch has not landed a flush yet: nothing adoptable, keep the loud refusal
+            return null;
+        }
+        FDate updatedTo = null;
+        for (final MemoryFileSummary summary : stagedSummaries) {
+            final FDate firstValueEndTime = summary.getFirstValueEndTime();
+            if (firstValueEndTime != null && (updatedTo == null || firstValueEndTime.isAfterNotNullSafe(updatedTo))) {
+                updatedTo = firstValueEndTime;
+            }
+        }
+        if (updatedTo == null) {
+            return null;
+        }
+        EpochScopes.recordConsumed(newKeyStr(), remoteEpochId);
+        lookupTable.adoptEpochSnapshot(remoteEpochId, stagedSummaries);
+        LOG.info("Adoption of table [%s] and key [%s] found an empty published store but adopts the staged epoch snapshot of the live in-tree epoch [%s]: %s summaries up to [%s] (in-epoch visibility)", table.getName(), key, remoteEpochId, stagedSummaries.size(), updatedTo);
+        return updatedTo;
+    }
+
+    /**
+     * Lease liveness of the epoch's heartbeat owner, reusing the heartbeat files maintained by
+     * {@link HeartbeatFileChannelLockRegistry}: the lock claim of the in-progress update carries the owner id, its
+     * sibling '.heartbeat' file is touched by the owner's registry while the attempt runs; a crashed owner goes stale
+     * within HEARTBEAT_TIMEOUT and then the epoch is not adoptable.
+     */
+    private boolean isEpochOwnerLive(final TimeSeriesUpdaterProgress progress, final File updateLockFile) {
+        final File heartbeatFile = Files.setExtensionNormalizeFileName(updateLockFile,
+                HeartbeatFileChannelLockRegistry.HEARTBEAT_EXTENSION);
+        final File claimFile = heartbeatFile.exists() ? heartbeatFile : updateLockFile;
+        if (!claimFile.exists()) {
+            return false;
+        }
+        final String claimOwner = Files.readFileToStringNoThrow(claimFile, Charsets.defaultCharset());
+        if (claimOwner != null && !claimOwner.trim().equals(progress.getOwner())) {
+            //the lock moved to another owner since the marker was written: this marker's epoch is not the live one
+            return false;
+        }
+        return !HeartbeatFileChannelLockRegistry.HEARTBEAT_TIMEOUT.isLessThanMillis(
+                FDateMillis.nowMillis() - claimFile.lastModified());
+    }
+
     private void doUpdate() throws IncompleteUpdateRetryableException {
         try (TimeSeriesUpdateTransaction<V> updateTransaction = lookupTable
                 .newUpdateTransaction(shouldRedoLastFile())) {
@@ -285,118 +380,142 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             final long initialPrecedingMemoryOffset = updateTransaction.getPrecedingMemoryOffset();
             final long initialMemoryOffset = updateTransaction.getMemoryOffset();
             final long initialPrecedingValueCount = updateTransaction.getPrecedingValueCount();
-
-            final ICloseableIterable<? extends V> source = getSource(updateFrom);
-            if (source == null) {
-                throw new NullPointerException("source is null");
-            }
-            final ICloseableIterable<? extends V> skippingSource;
-            if (updateFrom != null) {
-                skippingSource = new ASkippingIterable<V>(source) {
-                    @Override
-                    protected boolean skip(final V element) {
-                        final FDate endTime = extractEndTime(element);
-                        //ensure we add no duplicate values
-                        return endTime.isBeforeNotNullSafe(updateFrom);
-                    }
-                };
-            } else {
-                skippingSource = source;
-            }
-
-            final ITimeSeriesUpdaterInternalMethods<K, V> internalMethods = new ITimeSeriesUpdaterInternalMethods<K, V>() {
-
-                @Override
-                public K getKey() {
-                    return key;
+            this.epochId = updateTransaction.getEpochLocalDataId();
+            this.consumedEpochEntries = null;
+            //an epoch-scoped pass (epoch design M2): open the scope so nested demands on this thread inherit the
+            //visible epoch chain, and stamp the progress marker with the epoch id right away, before the first flush,
+            //so a demanding pass can identify the live epoch at any time during the attempt
+            final EpochScopes.EpochScope epochScope = epochId != null ? EpochScopes.openEpoch(epochId) : null;
+            try {
+                if (epochId != null) {
+                    writeUpdateProgress(updateProgressFile, true);
                 }
 
-                @Override
-                public ISerde<V> getValueSerde() {
-                    return valueSerde;
+                final ICloseableIterable<? extends V> source = getSource(updateFrom);
+                if (source == null) {
+                    throw new NullPointerException("source is null");
                 }
-
-                @Override
-                public TimeSeriesLookupStorageCache<K, V> getLookupTable() {
-                    return lookupTable;
-                }
-
-                @Override
-                public ITimeSeriesDB<K, V> getTable() {
-                    return table;
-                }
-
-                @Override
-                public FDate extractStartTime(final V element) {
-                    return ATimeSeriesUpdater.this.extractStartTime(element);
-                }
-
-                @Override
-                public FDate extractEndTime(final V element) {
-                    return ATimeSeriesUpdater.this.extractEndTime(element);
-                }
-
-                @Override
-                public void onFlush(final ITimeSeriesUpdateProgress relativeProgress, final long flushIndex) {
-                    lastFlushIndex.set(flushIndex);
-                    unflushedValueCount.set(0);
-                    flushedValueCount.addAndGet(relativeProgress.getValueCount());
-                    if (minTime == null) {
-                        minTime = relativeProgress.getMinTime();
-                    }
-                    maxTime = relativeProgress.getMaxTime();
-                    ATimeSeriesUpdater.this.onFlush(relativeProgress, flushIndex);
-                    writeUpdateProgress(updateProgressFile, false);
-                }
-
-                @Override
-                public void onElement(final ITimeSeriesUpdateProgress relativeProgress, final long relativeCount) {
-                    unflushedValueCount.addAndGet(relativeCount);
-                    ATimeSeriesUpdater.this.onElement(relativeProgress, relativeCount);
-                    writeUpdateProgress(updateProgressFile, false);
-                }
-
-                @Override
-                public boolean shouldRedoLastFile() {
-                    return ATimeSeriesUpdater.this.shouldRedoLastFile();
-                }
-
-                @Override
-                public String getEpochLocalDataId() {
-                    return updateTransaction.getEpochLocalDataId();
-                }
-
-            };
-            final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues,
-                    skippingSource);
-
-            if (shouldWriteInParallel()) {
-                ParallelUpdateProgress.doUpdate(updateTransaction, internalMethods, initialPrecedingMemoryOffset,
-                        initialMemoryOffset, initialPrecedingValueCount, flatteningSources);
-            } else {
-                if (IMemoryMappedFile.isSegmentSizeExceeded(Long.MAX_VALUE)) {
-                    SequentialChunkedUpdateProgress.doUpdate(updateTransaction, internalMethods,
-                            initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount,
-                            flatteningSources);
+                final ICloseableIterable<? extends V> skippingSource;
+                if (updateFrom != null) {
+                    skippingSource = new ASkippingIterable<V>(source) {
+                        @Override
+                        protected boolean skip(final V element) {
+                            final FDate endTime = extractEndTime(element);
+                            //ensure we add no duplicate values
+                            return endTime.isBeforeNotNullSafe(updateFrom);
+                        }
+                    };
                 } else {
-                    SequentialContinuousUpdateProgress.doUpdate(updateTransaction, internalMethods,
-                            initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount,
-                            flatteningSources);
+                    skippingSource = source;
+                }
+
+                final ITimeSeriesUpdaterInternalMethods<K, V> internalMethods = new ITimeSeriesUpdaterInternalMethods<K, V>() {
+
+                    @Override
+                    public K getKey() {
+                        return key;
+                    }
+
+                    @Override
+                    public ISerde<V> getValueSerde() {
+                        return valueSerde;
+                    }
+
+                    @Override
+                    public TimeSeriesLookupStorageCache<K, V> getLookupTable() {
+                        return lookupTable;
+                    }
+
+                    @Override
+                    public ITimeSeriesDB<K, V> getTable() {
+                        return table;
+                    }
+
+                    @Override
+                    public FDate extractStartTime(final V element) {
+                        return ATimeSeriesUpdater.this.extractStartTime(element);
+                    }
+
+                    @Override
+                    public FDate extractEndTime(final V element) {
+                        return ATimeSeriesUpdater.this.extractEndTime(element);
+                    }
+
+                    @Override
+                    public void onFlush(final ITimeSeriesUpdateProgress relativeProgress, final long flushIndex) {
+                        lastFlushIndex.set(flushIndex);
+                        unflushedValueCount.set(0);
+                        flushedValueCount.addAndGet(relativeProgress.getValueCount());
+                        if (minTime == null) {
+                            minTime = relativeProgress.getMinTime();
+                        }
+                        maxTime = relativeProgress.getMaxTime();
+                        ATimeSeriesUpdater.this.onFlush(relativeProgress, flushIndex);
+                        writeUpdateProgress(updateProgressFile, false);
+                        //epoch design M2: at each flush, atomically re-publish the staged index snapshot of this epoch
+                        //so that adoption in the tree of this attempt can read what has landed so far
+                        updateTransaction.writeEpochIndexSnapshot();
+                    }
+
+                    @Override
+                    public void onElement(final ITimeSeriesUpdateProgress relativeProgress, final long relativeCount) {
+                        unflushedValueCount.addAndGet(relativeCount);
+                        ATimeSeriesUpdater.this.onElement(relativeProgress, relativeCount);
+                        writeUpdateProgress(updateProgressFile, false);
+                    }
+
+                    @Override
+                    public boolean shouldRedoLastFile() {
+                        return ATimeSeriesUpdater.this.shouldRedoLastFile();
+                    }
+
+                    @Override
+                    public String getEpochLocalDataId() {
+                        return updateTransaction.getEpochLocalDataId();
+                    }
+
+                };
+                final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues,
+                        skippingSource);
+
+                if (shouldWriteInParallel()) {
+                    ParallelUpdateProgress.doUpdate(updateTransaction, internalMethods, initialPrecedingMemoryOffset,
+                            initialMemoryOffset, initialPrecedingValueCount, flatteningSources);
+                } else {
+                    if (IMemoryMappedFile.isSegmentSizeExceeded(Long.MAX_VALUE)) {
+                        SequentialChunkedUpdateProgress.doUpdate(updateTransaction, internalMethods,
+                                initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount,
+                                flatteningSources);
+                    } else {
+                        SequentialContinuousUpdateProgress.doUpdate(updateTransaction, internalMethods,
+                                initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount,
+                                flatteningSources);
+                    }
+                }
+                //all values consumed without exception: publish the staged index now (close() alone must not commit a
+                //possibly partial attempt)
+                updateTransaction.commit();
+            } finally {
+                if (epochScope != null) {
+                    epochScope.close();
                 }
             }
-            //all values consumed without exception: publish the staged index now (close() alone must not commit a
-            //possibly partial attempt)
-            updateTransaction.commit();
         }
     }
 
     private void writeUpdateProgress(final File updateProgressFile, final boolean forced) {
+        //the consumed ledger lives in the EpochScopes scope of the running attempt while it is open; mirror it onto
+        //the updater so the final marker writes after the attempt keep the entries
+        final List<String> scopeConsumedEntries = EpochScopes.currentConsumedEntries();
+        if (scopeConsumedEntries != null) {
+            this.consumedEpochEntries = scopeConsumedEntries;
+        }
         if (forced) {
             writeUpdateProgressLock.lock();
             try {
                 final long nowMillis = FDateMillis.nowMillis();
                 TimeSeriesUpdaterProgress.writeUpdateProgress(updateProgressFile, updateStart, lastFlushIndex.get(),
-                        flushedValueCount.get(), minTime, maxTime);
+                        flushedValueCount.get(), minTime, maxTime, epochId, consumedEpochEntries);
                 lastWriteUpdateProgressMillis.set(nowMillis);
             } finally {
                 writeUpdateProgressLock.unlock();
@@ -408,7 +527,8 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                 if (writeUpdateProgressLock.tryLock()) {
                     try {
                         TimeSeriesUpdaterProgress.writeUpdateProgress(updateProgressFile, updateStart,
-                                lastFlushIndex.get(), flushedValueCount.get(), minTime, maxTime);
+                                lastFlushIndex.get(), flushedValueCount.get(), minTime, maxTime, epochId,
+                                consumedEpochEntries);
                         lastWriteUpdateProgressMillis.set(nowMillis);
                     } finally {
                         writeUpdateProgressLock.unlock();
