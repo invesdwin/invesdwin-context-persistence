@@ -180,11 +180,6 @@ public class TimeSeriesLookupStorageCache<K, V> {
             return new LatestValueByIndexCache();
         };
     };
-    /**
-     * Thread-confined, read-only view of the staged index of a live epoch adopted by a demanding pass (epoch design
-     * M2). See {@link #adoptEpochSnapshot(String, List)} for the exact semantics and limits.
-     */
-    private final WeakThreadLocalReference<AdoptedEpochSnapshot> adoptedEpochSnapshotHolder = new WeakThreadLocalReference<AdoptedEpochSnapshot>();
     private final AtomicInteger lastResetIndex = new AtomicInteger();
 
     private final String hashKey;
@@ -1239,8 +1234,8 @@ public class TimeSeriesLookupStorageCache<K, V> {
 
     /**
      * When shouldRedoLastFile=true the last file is replaced by a new updated one (so the files do not get fragmented
-     * too much between updates). With epoch local data files the redo writes files of its own and leaves the replaced
-     * file of the previously published generation untouched.
+     * too much between updates). With attempt local data files (EPOCH_LOCAL_DATA_FILES) the redo writes files of
+     * its own and leaves the replaced file of the previously published generation untouched.
      */
     public synchronized TimeSeriesUpdateTransaction<V> newUpdateTransaction(final boolean shouldRedoLastFile) {
         maybeUpdateIndex();
@@ -1326,51 +1321,6 @@ public class TimeSeriesLookupStorageCache<K, V> {
         clearCaches();
     }
 
-    /**
-     * Installs a thread-confined, read-only view over the staged index snapshot of a live epoch on this calling
-     * thread ONLY (epoch design M2, in-epoch visibility): a demanding pass that adopted a sibling's (or its own
-     * tree's) epoch snapshot reads the staged values through the normal lookup APIs while its demand runs, instead of
-     * seeing the still-empty published store. Honest limits of this view:
-     * <ul>
-     * <li>it never becomes visible to other threads or JVMs - non-participants keep seeing the published max-N
-     * generation (and an empty store stays empty for them);</li>
-     * <li>it is invalidated by the next {@link #clearCaches()} or any commit of a real generation (the reset-index
-     * token below no longer matches), falling back to published state;</li>
-     * <li>it covers the range/summary driven read paths that go through {@link #getAllRangeKeys(ILock)} - the
-     * persistent latest/next/previous range maps in {@link TimeSeriesStorage} are not fed from staged epochs (an
-     * adopted epoch's values arrive in those maps when it commits);</li>
-     * <li>commit-time re-validation of consumed epochs (fixed-point guarantee) is a follow-up milestone; M2 only
-     * records the consumed ledger.</li>
-     * </ul>
-     */
-    public void adoptEpochSnapshot(final String epochId, final List<MemoryFileSummary> stagedSummaries) {
-        final ArrayFileBufferCacheResult<MemoryFileSummary> rangeKeys = new ArrayFileBufferCacheResult<>(
-                new TextDescription("%s[%s].adoptedEpochSnapshot(%s)",
-                        TimeSeriesLookupStorageCache.class.getSimpleName(), hashKey, epochId),
-                new ArrayList<>(stagedSummaries));
-        adoptedEpochSnapshotHolder.set(new AdoptedEpochSnapshot(epochId, lastResetIndex.get(), rangeKeys));
-        //the demand-side caches must not keep 'empty store' answers from before the adoption
-        latestValueIndexLookupCache.clear();
-        nextValueIndexLookupCache.clear();
-        previousValueIndexLookupCache.clear();
-        cachedFirstValue = null;
-        cachedLastValue = null;
-        cachedSize = -1L;
-    }
-
-    private static final class AdoptedEpochSnapshot {
-        private final String epochId;
-        private final int resetIndex;
-        private final ArrayFileBufferCacheResult<MemoryFileSummary> rangeKeys;
-
-        private AdoptedEpochSnapshot(final String epochId, final int resetIndex,
-                final ArrayFileBufferCacheResult<MemoryFileSummary> rangeKeys) {
-            this.epochId = epochId;
-            this.resetIndex = resetIndex;
-            this.rangeKeys = rangeKeys;
-        }
-    }
-
     private void assertShiftUnitsPositiveNonZero(final int shiftUnits) {
         if (shiftUnits < 0) {
             throw new IllegalArgumentException("shiftUnits needs to be a positive or zero value: " + shiftUnits);
@@ -1378,15 +1328,6 @@ public class TimeSeriesLookupStorageCache<K, V> {
     }
 
     private ArrayFileBufferCacheResult<MemoryFileSummary> getAllRangeKeys(final ILock readLock) {
-        //epoch design M2: a demanding pass that adopted a live epoch's staged index snapshot sees those summaries on
-        //its own thread until the store publishes a real generation (reset-index token) or the view is superseded
-        final AdoptedEpochSnapshot adoptedEpochSnapshot = adoptedEpochSnapshotHolder.get();
-        if (adoptedEpochSnapshot != null) {
-            if (adoptedEpochSnapshot.resetIndex == lastResetIndex.get()) {
-                return adoptedEpochSnapshot.rangeKeys;
-            }
-            adoptedEpochSnapshotHolder.remove();
-        }
         ArrayFileBufferCacheResult<MemoryFileSummary> cachedAllRangeKeysCopy = cachedAllRangeKeys.get();
         if (cachedAllRangeKeysCopy == null) {
             readLock.lock();

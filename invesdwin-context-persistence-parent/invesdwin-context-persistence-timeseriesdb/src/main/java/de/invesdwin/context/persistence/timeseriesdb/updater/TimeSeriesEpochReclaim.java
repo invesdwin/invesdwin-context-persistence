@@ -3,42 +3,44 @@ package de.invesdwin.context.persistence.timeseriesdb.updater;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import de.invesdwin.context.integration.compression.ICompressionFactory;
+import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannel;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummarySerde;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.AMemoryFileSummarySerializingCollection;
 import de.invesdwin.util.collections.Collections;
-import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLockRegistry;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
-import de.invesdwin.util.lang.Objects;
 import de.invesdwin.util.lang.string.Charsets;
+import de.invesdwin.util.lang.string.description.TextDescription;
+import de.invesdwin.util.math.Longs;
 import de.invesdwin.util.time.date.millis.FDateMillis;
 
 /**
- * Epoch reclaim (epoch design M3-cp): every update attempt (epoch) leaves epoch local data files
- * ('memory_&lt;epochId&gt;.data[.&lt;offset&gt;]' including its '_incomplete_' variants) in the version's data directory
- * and a staged index snapshot under '&lt;versionDir&gt;/epoch-staging/&lt;epochId&gt;/' behind - M1 removed the
- * cross-attempt '_incomplete_' sweep because it deleted files the published generation references, so without this
- * reclaim every attempt accumulates garbage. Reclaim runs without a new global timer:
+ * Reclaim of the data files an update attempt leaves behind (the M1 attempt-local layout is what makes this a hard
+ * dependency): every attempt writes data files named after itself
+ * ('memory_&lt;attemptId&gt;.data[.&lt;offset&gt;]' including its '_incomplete_' variants) in the version's data
+ * directory - the cross-attempt '_incomplete_' sweep had been removed because it deleted files the published generation
+ * references, so without this reclaim every attempt accumulates garbage. Reclaim runs without a new global timer:
  * <ul>
  * <li>{@link #reclaimAbortedAttemptEpoch(TimeSeriesLookupStorageCache, String)} runs in the failing writer's abort
  * path: the attempt's own transaction was discarded, so its files are provably unpinned garbage (the published
  * generation reference check still guards the rare case where a commit landed inside a throwing close);</li>
  * <li>{@link #reclaimObsoleteEpochs(TimeSeriesLookupStorageCache)} piggybacks on the completion of an update attempt
- * for that key and sweeps that key's version directory only: epochs referenced by no published index generation, not
- * owned by a heartbeat-live progress marker, and older than
+ * for that key and sweeps that key's version directory only: attempt files referenced by no published index
+ * generation, not owned by the heartbeat-live attempt this key's progress marker describes, and older than
  * {@link TimeSeriesProperties#RETAIN_OBSOLETE_EPOCHS_THRESHOLD} go. Whole obsolete version directories (with all the
- * epochs inside) are already swept by the lease janitor's cleanupObsoleteVersions.</li>
+ * attempt files inside) are already swept by the lease janitor's cleanupObsoleteVersions.</li>
  * </ul>
  * The reference set is collected from ALL '&lt;N&gt;_memory.index' generations still present on disk (not just the
  * newest): older generations are retained for the length of the longest backtest (RETAIN_OBSOLETE_FILES_THRESHOLD)
@@ -52,113 +54,116 @@ public final class TimeSeriesEpochReclaim {
     private TimeSeriesEpochReclaim() {}
 
     /**
-     * Best-effort, never throws: delete the given epoch's own artifacts (this attempt just aborted). Kept safe by the
+     * Best-effort, never throws: delete the given attempt's own artifacts (this attempt just aborted). Kept safe by the
      * published-generation reference check, so a commit that landed before a throwing transaction close is not undone.
      */
     public static void reclaimAbortedAttemptEpoch(final TimeSeriesLookupStorageCache<?, ?> cache,
-            final String epochId) {
-        if (epochId == null) {
-            //legacy shared-data attempt: nothing epoch local to reclaim
+            final String attemptId) {
+        if (attemptId == null) {
+            //legacy shared-data attempt: nothing attempt local to reclaim
             return;
         }
         try {
-            final File versionDirectory = getVersionDirectory(cache);
-            if (!versionDirectory.isDirectory()) {
-                return;
-            }
             final File dataDirectory = cache.getDirectoryHashKeyVersionMemory()
                     .getDirectoryHashKeyVersionDataShared();
-            deleteEpochArtifacts(cache, versionDirectory, dataDirectory, epochId);
+            deleteAttemptArtifacts(cache, dataDirectory, attemptId);
         } catch (final Throwable t) {
             //reclaim is an optimization, never a cause of failure
-            LOG.warn("Best-effort reclaim of the aborted attempt epoch [%s] of key [%s] failed: %s", epochId,
+            LOG.warn("Best-effort reclaim of the aborted attempt [%s] of key [%s] failed: %s", attemptId,
                     cache.getHashKey(), Throwables.concatMessages(t));
         }
     }
 
     /**
-     * Best-effort, never throws: sweep the dead epoch garbage of this key's current version directory. Called when an
-     * update attempt for the key finishes (piggyback, no new timer). Candidate epochs come from both the staging
-     * directory names and the epoch local data file names, so bytes orphaned when their generation was aged out are
-     * found too. A candidate goes only when it is not heartbeat-live, older than
-     * {@link TimeSeriesProperties#RETAIN_OBSOLETE_EPOCHS_THRESHOLD}, and its data files are kept while any retained
-     * published generation names them (deleteEpochArtifacts splits staging metadata from referenced bytes).
+     * Best-effort, never throws: sweep the dead attempt garbage of this key's current version directory. Called when an
+     * update attempt for the key finishes (piggyback, no new timer). Candidates are the attempt local data file names
+     * in that directory, so bytes orphaned when their generation was aged out are found too. A candidate goes only when
+     * it is not the attempt the current marker describes with a fresh heartbeat claim, and is older than
+     * {@link TimeSeriesProperties#RETAIN_OBSOLETE_EPOCHS_THRESHOLD}; its files stay while any retained published
+     * generation names them.
      */
     public static void reclaimObsoleteEpochs(final TimeSeriesLookupStorageCache<?, ?> cache) {
         try {
-            final File versionDirectory = getVersionDirectory(cache);
-            final File stagingRoot = new File(versionDirectory,
-                    TimeSeriesUpdateTransaction.EPOCH_STAGING_DIRECTORY_NAME);
             final File dataDirectory = cache.getDirectoryHashKeyVersionMemory()
                     .getDirectoryHashKeyVersionDataShared();
-            final Set<String> candidateEpochs = ILockCollectionFactory.getInstance(false).newLinkedSet();
-            final File[] stagingDirectories = stagingRoot.isDirectory() ? stagingRoot
-                    .listFiles(File::isDirectory) : null;
-            if (stagingDirectories != null) {
-                for (final File stagingDirectory : stagingDirectories) {
-                    candidateEpochs.add(stagingDirectory.getName());
+            final File[] attemptDataFiles = listAttemptDataFiles(dataDirectory, null);
+            final List<String> candidateIds = new ArrayList<>();
+            for (final File attemptDataFile : attemptDataFiles) {
+                final String attemptId = attemptIdOfDataFileName(attemptDataFile.getName());
+                if (attemptId != null && !candidateIds.contains(attemptId)) {
+                    candidateIds.add(attemptId);
                 }
             }
-            final File[] epochDataFiles = dataDirectory.listFiles(
-                    (dir, name) -> MemoryFiles.isEpochLocalDataFile(name));
-            if (epochDataFiles != null) {
-                for (final File epochDataFile : epochDataFiles) {
-                    final String epochId = epochIdOfDataFileName(epochDataFile.getName());
-                    if (epochId != null) {
-                        candidateEpochs.add(epochId);
-                    }
-                }
-            }
-            final File updateProgressFile = cache.getUpdateProgressFile();
-            for (final String epochId : candidateEpochs) {
-                if (isEpochLive(updateProgressFile, epochId)) {
-                    //owned by the heartbeat-live marker of an attempt that is still running: never touch
+            for (final String attemptId : candidateIds) {
+                if (isAttemptLive(cache, attemptId)) {
+                    //owned by the heartbeat-live attempt this key's marker describes: never touch
                     continue;
                 }
+                final File[] dataFiles = listAttemptDataFiles(dataDirectory, attemptId);
                 if (!TimeSeriesProperties.RETAIN_OBSOLETE_EPOCHS_THRESHOLD.isLessThanMillis(
-                        epochAgeMillis(epochId, stagingRoot))) {
-                    //younger than the retention threshold: a demand may still be reading its staged snapshot
+                        attemptAgeMillis(attemptId, dataFiles))) {
+                    //younger than the retention threshold: a reader may still be resolving it
                     continue;
                 }
-                deleteEpochArtifacts(cache, versionDirectory, dataDirectory, epochId);
+                deleteAttemptArtifacts(cache, dataFiles);
             }
         } catch (final Throwable t) {
             //reclaim is an optimization, never a cause of failure
-            LOG.warn("Best-effort epoch reclaim sweep of key [%s] failed: %s", cache.getHashKey(),
+            LOG.warn("Best-effort attempt reclaim sweep of key [%s] failed: %s", cache.getHashKey(),
                     Throwables.concatMessages(t));
         }
     }
 
     /**
-     * The epoch id embedded in an epoch local data file name: 'memory_&lt;epochId&gt;' up to the first dot (the
+     * The attempt id embedded in an attempt local data file name: 'memory_&lt;attemptId&gt;' up to the first dot (the
      * extensions are '.data', '.data.&lt;preceding offset&gt;' and '.data_incomplete_...'), null for names that do not
      * carry one (a legacy shared 'memory.data' never passes {@link MemoryFiles#isEpochLocalDataFile(String)} anyway).
      */
-    private static String epochIdOfDataFileName(final String fileName) {
+    private static String attemptIdOfDataFileName(final String fileName) {
         final int start = MemoryFiles.EPOCH_LOCAL_DATA_FILE_PREFIX.length();
         final int end = fileName.indexOf('.', start);
         return end > start ? fileName.substring(start, end) : null;
     }
 
     /**
-     * True when the epoch is still referenced as a data file source by any '&lt;N&gt;_memory.index' generation that
-     * exists in the version's data directory (the newest published view plus the older generations retained for open
-     * iterations). This is the trap M1 flagged: never delete a file an existing generation's summaries name.
+     * The attempt local data files of the version's data directory, all of them when attemptId is null and only the
+     * ones of that attempt otherwise (exact 'memory_&lt;attemptId&gt;' prefix match, which covers '.data',
+     * '.data.&lt;offset&gt;' and the '_incomplete_' variants of that attempt and can never hit the shared
+     * 'memory.data' or another attempt's files).
      */
-    public static boolean isEpochReferencedByPublishedGenerations(final TimeSeriesLookupStorageCache<?, ?> cache,
-            final File dataDirectory, final String epochId) {
+    private static File[] listAttemptDataFiles(final File dataDirectory, final String attemptId) {
+        final File[] files = dataDirectory.listFiles((dir, name) -> {
+            if (attemptId != null) {
+                return name.startsWith(MemoryFiles.EPOCH_LOCAL_DATA_FILE_PREFIX + attemptId);
+            } else {
+                return MemoryFiles.isEpochLocalDataFile(name);
+            }
+        });
+        return files != null ? files : new File[0];
+    }
+
+    /**
+     * True when the attempt's files are still referenced as a data file source by any '&lt;N&gt;_memory.index'
+     * generation that exists in the version's data directory (the newest published view plus the older generations
+     * retained for open iterations). This is the trap M1 flagged: never delete a file an existing generation's
+     * summaries name.
+     */
+    private static boolean isReferencedByPublishedGenerations(final TimeSeriesLookupStorageCache<?, ?> cache,
+            final File[] attemptDataFiles) {
+        final File dataDirectory = attemptDataFiles[0].getParentFile();
         final File[] generationFiles = dataDirectory.listFiles(
                 (dir, name) -> name.endsWith("_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME));
         if (generationFiles == null) {
             return false;
         }
-        final String epochDataFilePrefix = MemoryFiles.EPOCH_LOCAL_DATA_FILE_PREFIX + epochId;
         for (final File generationFile : generationFiles) {
             final List<MemoryFileSummary> summaries = readIndexGenerationSummaries(cache, generationFile);
             for (final MemoryFileSummary summary : summaries) {
                 final String dataFileName = new File(summary.getMemoryResourceUri()).getName();
-                if (dataFileName.startsWith(epochDataFilePrefix)) {
-                    return true;
+                for (final File attemptDataFile : attemptDataFiles) {
+                    if (attemptDataFile.getName().equals(dataFileName)) {
+                        return true;
+                    }
                 }
             }
         }
@@ -167,14 +172,32 @@ public final class TimeSeriesEpochReclaim {
 
     /**
      * Reads one published index generation ('&lt;N&gt;_memory.index') of this key; a corrupt or concurrently replaced
-     * generation yields no summaries, which only ever makes a reclaim sweep more conservative about that file.
+     * generation yields no summaries, which only ever makes a reclaim sweep more conservative about that file. The
+     * serde parameters are captured as locals before the constructor runs: SerializingCollection calls newSerde()
+     * virtually from its own constructor, so a subclass field would still be null there.
      */
-    public static List<MemoryFileSummary> readIndexGenerationSummaries(final TimeSeriesLookupStorageCache<?, ?> cache,
-            final File generationFile) {
+    private static List<MemoryFileSummary> readIndexGenerationSummaries(
+            final TimeSeriesLookupStorageCache<?, ?> cache, final File generationFile) {
+        final List<MemoryFileSummary> summaries = new ArrayList<>();
         try {
-            final List<MemoryFileSummary> summaries = new ArrayList<>();
-            try (ICloseableIterator<MemoryFileSummary> iterator = TimeSeriesUpdateTransaction
-                    .readSummaryCollection(cache, generationFile).iterator()) {
+            final Integer valueFixedLength = cache.getValueFixedLength();
+            final ICompressionFactory compressionFactory = cache.getCompressionFactory();
+            try (AMemoryFileSummarySerializingCollection collection = new AMemoryFileSummarySerializingCollection(
+                    new TextDescription("%s.readIndexGenerationSummaries",
+                            TimeSeriesEpochReclaim.class.getSimpleName()),
+                    AtomicNioFileChannel.newFile(generationFile.toURI()), true) {
+
+                @Override
+                protected MemoryFileSummarySerde newSerde() {
+                    return new MemoryFileSummarySerde(valueFixedLength);
+                }
+
+                @Override
+                protected ICompressionFactory getCompressionFactory() {
+                    return compressionFactory;
+                }
+            };
+                    ICloseableIterator<MemoryFileSummary> iterator = collection.iterator()) {
                 Lists.toListWithoutHasNext(iterator, summaries);
             }
             return summaries;
@@ -184,23 +207,30 @@ public final class TimeSeriesEpochReclaim {
     }
 
     /**
-     * True when the current progress marker of the key names the epoch AND the marker's heartbeat claim is still
-     * fresh: the attempt is still running (or died within the heartbeat timeout), so its files and snapshot stay.
+     * True while this key's marker describes a running attempt that began no later than the given attempt id was
+     * minted AND that attempt's heartbeat claim is still fresh: an attempt mints its data file id only after it
+     * started, so such a candidate may be the in-flight attempt's own bytes and must stay. The sweep only ever runs
+     * from an update attempt holding this key's pin, so no other attempt of this key can be in flight beside it.
      */
-    public static boolean isEpochLive(final File updateProgressFile, final String epochId) {
+    private static boolean isAttemptLive(final TimeSeriesLookupStorageCache<?, ?> cache, final String attemptId) {
+        final File updateProgressFile = cache.getUpdateProgressFile();
         final TimeSeriesUpdaterProgress progress = TimeSeriesUpdaterProgress.readUpdateProgress(updateProgressFile);
-        if (progress == null || !Objects.equals(progress.getEpochId(), epochId)) {
+        if (progress == null || progress.getUpdateStart() == null) {
             return false;
         }
-        return isEpochOwnerLive(progress.getOwner(), new File(updateProgressFile.getAbsolutePath() + ".lock"));
+        final long createdMillis = attemptCreatedMillis(attemptId);
+        if (createdMillis < progress.getUpdateStart().millisValue()) {
+            //predates the attempt the current marker describes: its files are garbage, not in-flight bytes
+            return false;
+        }
+        return isHeartbeatLive(progress.getOwner(), new File(updateProgressFile.getAbsolutePath() + ".lock"));
     }
 
     /**
      * Heartbeat liveness of a claimed update lock: the '.heartbeat' sibling of the lock file (falling back to the lock
-     * file itself) must carry the marker owner and be touched within HEARTBEAT_TIMEOUT. Shared with the M2 adoption
-     * gate in {@link ATimeSeriesUpdater}.
+     * file itself) must carry the marker owner and be touched within HEARTBEAT_TIMEOUT.
      */
-    static boolean isEpochOwnerLive(final String progressOwner, final File updateLockFile) {
+    private static boolean isHeartbeatLive(final String progressOwner, final File updateLockFile) {
         final File heartbeatFile = Files.setExtensionNormalizeFileName(updateLockFile,
                 HeartbeatFileChannelLockRegistry.HEARTBEAT_EXTENSION);
         final File claimFile = heartbeatFile.exists() ? heartbeatFile : updateLockFile;
@@ -209,7 +239,7 @@ public final class TimeSeriesEpochReclaim {
         }
         final String claimOwner = Files.readFileToStringNoThrow(claimFile, Charsets.defaultCharset());
         if (claimOwner != null && !claimOwner.trim().equals(progressOwner)) {
-            //the lock moved to another owner since the marker was written: this marker's epoch is not the live one
+            //the lock moved to another owner since the marker was written: this marker's attempt is not the live one
             return false;
         }
         return !HeartbeatFileChannelLockRegistry.HEARTBEAT_TIMEOUT.isLessThanMillis(
@@ -217,26 +247,31 @@ public final class TimeSeriesEpochReclaim {
     }
 
     /**
-     * The creation time embedded in the epoch id ('&lt;millis&gt;-&lt;ownerToken&gt;'), falling back to the staging
-     * directory's mtime for ids that do not parse.
+     * The age of an attempt's garbage: the creation time embedded in its id ('&lt;millis&gt;&lt;suffix&gt;'), falling
+     * back to the newest of its data file mtimes for ids that do not parse (then it is treated as young, which keeps
+     * the sweep conservative).
      */
-    private static long epochAgeMillis(final String epochId, final File stagingDirectory) {
-        final long createdMillis = epochCreatedMillis(epochId);
-        final long referenceMillis = createdMillis > 0 ? createdMillis : stagingDirectory.lastModified();
+    private static long attemptAgeMillis(final String attemptId, final File[] attemptDataFiles) {
+        long referenceMillis = attemptCreatedMillis(attemptId);
+        if (referenceMillis <= 0) {
+            for (final File attemptDataFile : attemptDataFiles) {
+                referenceMillis = Longs.max(referenceMillis, attemptDataFile.lastModified());
+            }
+        }
         return FDateMillis.nowMillis() - referenceMillis;
     }
 
     /**
-     * The attempt-start millis carried in an epoch id, or -1 when it does not parse. Epoch ids are monotonised per JVM
-     * (see MemoryFiles.newEpochLocalDataId), so the embedded millis are the cheapest honest age reference - no extra
-     * stat and no clock games.
+     * The attempt-start millis carried in an attempt id, or -1 when it does not parse. Attempt ids are monotonised per
+     * JVM (see MemoryFiles.newEpochLocalDataId), so the embedded millis are the cheapest honest age reference - no
+     * clock games.
      */
-    public static long epochCreatedMillis(final String epochId) {
-        if (epochId == null) {
+    private static long attemptCreatedMillis(final String attemptId) {
+        if (attemptId == null) {
             return -1;
         }
-        final int dash = epochId.indexOf('-');
-        final String millisPart = dash > 0 ? epochId.substring(0, dash) : epochId;
+        final int dash = attemptId.indexOf('-');
+        final String millisPart = dash > 0 ? attemptId.substring(0, dash) : attemptId;
         try {
             return Long.parseLong(millisPart);
         } catch (final NumberFormatException e) {
@@ -244,37 +279,29 @@ public final class TimeSeriesEpochReclaim {
         }
     }
 
-    private static File getVersionDirectory(final TimeSeriesLookupStorageCache<?, ?> cache) {
-        return cache.getDirectoryHashKey().getDirectoryHashKeyVersion().getDirectoryHashKeyVersionShared();
+    /**
+     * Deletes the attempt's data files quietly (they may already be gone or held open on Windows; the next sweep or the
+     * version-directory janitor finishes the job), unless a published generation still names them.
+     */
+    private static void deleteAttemptArtifacts(final TimeSeriesLookupStorageCache<?, ?> cache,
+            final File dataDirectory, final String attemptId) {
+        deleteAttemptArtifacts(cache, listAttemptDataFiles(dataDirectory, attemptId));
     }
 
-    /**
-     * Deletes the staging directory and every data file of the epoch, all quietly (files may already be gone or held
-     * open on Windows; the next sweep or the version-directory janitor finishes the job). Data files are matched by
-     * the exact 'memory_&lt;epochId&gt;' name prefix, which covers '.data', '.data.&lt;offset&gt;' and the
-     * '_incomplete_' variants of that attempt and can never hit the shared 'memory.data' or another epoch's files.
-     */
-    private static void deleteEpochArtifacts(final TimeSeriesLookupStorageCache<?, ?> cache,
-            final File versionDirectory, final File dataDirectory, final String epochId) {
-        final File stagingDirectory = new File(
-                new File(versionDirectory, TimeSeriesUpdateTransaction.EPOCH_STAGING_DIRECTORY_NAME), epochId);
-        final File[] dataFiles = dataDirectory.listFiles(
-                (dir, name) -> name.startsWith(MemoryFiles.EPOCH_LOCAL_DATA_FILE_PREFIX + epochId));
-        if (dataFiles == null || dataFiles.length == 0) {
-            //no data files of this epoch (or the directory is already gone): drop just the staging metadata
-            Files.deleteQuietly(stagingDirectory);
+    private static void deleteAttemptArtifacts(final TimeSeriesLookupStorageCache<?, ?> cache,
+            final File[] attemptDataFiles) {
+        if (attemptDataFiles.length == 0) {
+            //no data files of this attempt left (or the directory is already gone)
             return;
         }
-        if (isEpochReferencedByPublishedGenerations(cache, dataDirectory, epochId)) {
-            //a published generation names this epoch's files: the bytes must stay (M1 trap: deleting files the
-            //published generation references is data loss); the staging snapshot is unreferenced metadata, delete it
-            Files.deleteQuietly(stagingDirectory);
+        if (isReferencedByPublishedGenerations(cache, attemptDataFiles)) {
+            //a published generation names this attempt's files: the bytes must stay (M1 trap: deleting files the
+            //published generation references is data loss)
             return;
         }
-        for (final File dataFile : dataFiles) {
+        for (final File dataFile : attemptDataFiles) {
             Files.deleteQuietly(dataFile);
         }
-        Files.deleteQuietly(stagingDirectory);
     }
 
 }

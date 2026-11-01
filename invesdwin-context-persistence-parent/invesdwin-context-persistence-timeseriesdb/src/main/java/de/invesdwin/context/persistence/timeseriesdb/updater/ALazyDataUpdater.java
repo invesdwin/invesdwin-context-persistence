@@ -1,8 +1,5 @@
 package de.invesdwin.context.persistence.timeseriesdb.updater;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
@@ -65,10 +62,6 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
     private Future<?> updateFuture;
     @GuardedBy("none for performance")
     private String updaterId;
-    //the store updater of this demand's last attempt (epoch design M3-cp): the handle to read the consumed epoch
-    //ledger from after the pass, without reaching into the update internals
-    @GuardedBy("none, volatile handover to the demand's own thread after joinUpdateFuture")
-    private volatile ATimeSeriesUpdater<K, V> lastTimeSeriesUpdater;
     private ANonBlockingRunnable maybeUpdateNonBlocking;
     private ANonBlockingRunnable maybeUpdateNonBlockingForce;
     private String keyStr;
@@ -115,30 +108,6 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
 
     protected String newKeyStr() {
         return getTable().innerHashKeyToString(key);
-    }
-
-    /**
-     * The '&lt;key&gt;#&lt;epochId&gt;' entries consumed by this demand's last attempt (epoch design M3-cp, consumed
-     * re-validation for the fixed-point driver): empty when nothing was epoch-adopted. Re-check them with
-     * {@link TimeSeriesUpdateTransaction#validateConsumedEpochs(TimeSeriesLookupStorageCache, List)} - each entry must
-     * still be PUBLISHED or LIVE for the pass to count as fixed-point consistent; a STALE entry means a consumed
-     * sibling epoch was superseded or aborted and the pass must be re-iterated.
-     */
-    public List<String> getConsumedEpochEntries() {
-        final ATimeSeriesUpdater<K, V> last = lastTimeSeriesUpdater;
-        return last != null ? last.getConsumedEpochEntries() : new ArrayList<>();
-    }
-
-    /**
-     * Convenience over {@link #getConsumedEpochEntries()} +
-     * {@link TimeSeriesUpdateTransaction#validateConsumedEpochs(TimeSeriesLookupStorageCache, List)}: re-validates the
-     * consumed epoch ledger of the last attempt against the current store state (pure observation, no behavior
-     * change).
-     */
-    public Map<String, TimeSeriesUpdateTransaction.ConsumedEpochStatus> validateConsumedEpochs() {
-        final ATimeSeriesUpdater<K, V> last = lastTimeSeriesUpdater;
-        final List<String> entries = last != null ? last.getConsumedEpochEntries() : new ArrayList<>();
-        return TimeSeriesUpdateTransaction.validateConsumedEpochs(getTable().getLookupTableCache(key), entries);
     }
 
     private synchronized IReentrantLock getUpdateLock() {
@@ -234,17 +203,12 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 //explicit scope inheritance: if this demand call runs inside an outer retry, the task body must
                 //see it (fallThroughToOuterRetry sites) so refusals propagate instead of retrying under the write lock
                 final int outerRetryDepth = RetryScopes.capture();
-                //epoch design M2: the task body must also see the epoch chain visible to this submitting demand
-                //(running attempts and their captured ancestors), so that a nested pass installed on the task thread
-                //inherits the parent epochs as 'visible ancestors' for the adoption gate and the consumed ledger
-                final List<String> outerEpochIds = EpochScopes.capture();
                 if (updateFutureCopy == null
                         || updateFutureCopy.isDone() && (force || shouldCheckForUpdate(newUpdateCheck))) {
                     updateFutureCopy = getNestedExecutor().getNestedExecutor().submit(new Runnable() {
                         @Override
                         public void run() {
-                            try (RetryScopes.Registration inheritedScopes = RetryScopes.install(outerRetryDepth);
-                                    EpochScopes.EpochScope inheritedEpochs = EpochScopes.install(outerEpochIds)) {
+                            try (RetryScopes.Registration inheritedScopes = RetryScopes.install(outerRetryDepth)) {
                             WaitForGraph.taskStarted(graphKey, submittingThread);
                             try {
                                 final ILock writeLock = getTable().getTableLock(key).writeLock();
@@ -457,8 +421,6 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 }
 
             };
-            //epoch design M3-cp: remember the attempt's updater for the consumed epoch ledger (getConsumedEpochEntries)
-            this.lastTimeSeriesUpdater = updater;
             final Callable<TimeSeriesUpdaterResult> task = new Callable<TimeSeriesUpdaterResult>() {
                 @Override
                 public TimeSeriesUpdaterResult call() throws Exception {

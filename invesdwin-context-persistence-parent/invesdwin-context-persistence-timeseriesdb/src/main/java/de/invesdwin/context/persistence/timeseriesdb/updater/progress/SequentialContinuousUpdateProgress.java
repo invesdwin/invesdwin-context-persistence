@@ -138,8 +138,8 @@ public class SequentialContinuousUpdateProgress<K, V> implements ITimeSeriesUpda
                 }
                 collection.close();
                 final long memoryLength = out.position() - memoryOffset;
-                //epoch design M2: the bytes of this batch must be visible on the file before its summary is staged,
-                //so an epoch index snapshot written at the following onFlush never names unreadable ranges
+                //the bytes of this batch must be on the file before its summary is staged, so the published index
+                //never names a range that a reader could not resolve
                 out.flush();
                 updateTransaction.finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
                         precedingMemoryOffset, memoryOffset, memoryLength);
@@ -178,7 +178,7 @@ public class SequentialContinuousUpdateProgress<K, V> implements ITimeSeriesUpda
                 }
                 collection.close();
                 final long memoryLength = out.position();
-                //epoch design M2: flush before staging, see above
+                //flush before staging, see above
                 out.flush();
                 updateTransaction.finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
                         precedingMemoryOffset, memoryOffset, memoryLength);

@@ -24,7 +24,7 @@ public final class MemoryFiles {
      */
     public static final String MEMORY_DATA_FILE_NAME = "memory.data";
     /**
-     * Prefix of the data files that belong to a single update attempt (epoch local layout).
+     * Prefix of the data files that belong to a single update attempt (attempt local layout).
      */
     public static final String EPOCH_LOCAL_DATA_FILE_PREFIX = "memory_";
     private static final String MEMORY_DATA_FILE_EXTENSION = ".data";
@@ -73,7 +73,7 @@ public final class MemoryFiles {
                 + "_" + timestampStr + extension;
         final File incompleteFile = new File(memoryFile.getParentFile(), incompleteFilename);
         if (!isEpochLocalDataFile(memoryFile.getName())) {
-            //the shared layout reuses one file per version directory, so this is the only place where its stale incomplete files are kept bounded; an epoch local attempt leaves its own files for the epoch reclaim instead of deleting files that another attempt may have published
+            //the shared layout reuses one file per version directory, so this is the only place where its stale incomplete files are kept bounded; an attempt local write leaves its own files for the reclaim sweep instead of deleting files that another attempt may have published
             cleanUpOldIncompleteFiles(memoryFile);
         }
         return incompleteFile;
@@ -148,7 +148,7 @@ public final class MemoryFiles {
     }
 
     /**
-     * Data files of an epoch local attempt are named after that attempt and are written once and never modified
+     * Data files of an attempt local write are named after that attempt and are written once and never modified
      * afterwards: a redo cannot reach bytes that the currently published index still references (it gets files of its
      * own), and an abandoned attempt leaves nothing but garbage behind. Further chunks of the same attempt are suffixed
      * with the bytes their preceding chunks wrote, mirroring the offset suffix scheme that the shared layout already
@@ -164,7 +164,7 @@ public final class MemoryFiles {
         final File memoryFile = new File(dataDirectory, fileName.toString());
         if (memoryFile.exists()) {
             throw new IllegalStateException(
-                    "Epoch local data file already exists, refusing to write into bytes another update attempt may have published: "
+                    "Attempt local data file already exists, refusing to write into bytes another update attempt may have published: "
                             + memoryFile);
         }
         return memoryFile;
