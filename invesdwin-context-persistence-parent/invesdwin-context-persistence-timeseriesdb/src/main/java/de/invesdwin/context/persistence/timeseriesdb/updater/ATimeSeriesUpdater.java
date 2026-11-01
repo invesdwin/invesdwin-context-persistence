@@ -73,6 +73,8 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     //the epoch id of this attempt's update transaction (null for the legacy layout); the progress marker carries it as
     //its optional 7th field so that a demanding pass can see which live epoch owns the in-progress update
     private volatile String epochId;
+    private volatile long lastLocalGhostFinalizeNudgeMillis;
+    //diagnostic/nudge bookkeeping for orphaned local heartbeat claims (see trackRemoteUpdate)
     //epochs consumed by this pass ('<key>#<epochId>' entries), mirrored from the innermost EpochScopes scope while the
     //attempt runs so that the final marker writes keep them after the scope has been closed
     private volatile List<String> consumedEpochEntries;
@@ -247,6 +249,19 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         WaitForGraph.beginWait(graphKey);
         try {
             while (true) {
+                if (HeartbeatFileChannelLockRegistry.isLockClaimedByThisJvm(updateLock.getFile())
+                        && !HeartbeatFileChannelLockRegistry.hasLiveLocalInstance(updateLock.getFile())) {
+                    //same-JVM claim without a live registered instance: an orphaned result is stuck in the
+                    //finalizer queue (a quiet heap delays it indefinitely) - nudge it so the NEXT tryLock
+                    //iteration can steal the ghost claim instead of refusing the demand as cyclic
+                    final long nowMillis = de.invesdwin.util.time.date.millis.FDateMillis.nowMillis();
+                    if (nowMillis - lastLocalGhostFinalizeNudgeMillis > 60000) {
+                        lastLocalGhostFinalizeNudgeMillis = nowMillis;
+                        LOG.warn("Forcing finalization for orphaned local heartbeat claim of table [%s] key [%s] - an unclosed TimeSeriesUpdaterResult is awaiting the warning finalizer; lastTryLockFailure=[%s]", table.getName(), key, updateLock.getLastTryLockFailureReason());
+                        System.gc();
+                        System.runFinalization();
+                    }
+                }
                 if (WaitForGraph.isOwnPinHeldKey(graphKey)) {
                     //the task serving this very key pins it and its nested work demands it again: waiting for that
                     //pin would deadlock onto ourselves, and adopting or refusing a state this very pass produced
@@ -283,7 +298,8 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                                     + " localClaim=[" + HeartbeatFileChannelLockRegistry.isLockClaimedByThisJvm(updateLock.getFile())
                                     + ",marker=" + readLockMarker(updateLock.getFile())
                                     + ",registered=" + HeartbeatFileChannelLockRegistry.describeLocalClaim(updateLock.getFile())
-                                    + ",threadLock=" + describeThreadLock(updateLock.getFile()) + "] " + WaitForGraph.describeAll());
+                                    + ",threadLock=" + describeThreadLock(updateLock.getFile())
+                                    + ",tryLockFail=[" + updateLock.getLastTryLockFailureReason() + "]] " + WaitForGraph.describeAll());
                 }
                 if (updateFinishedFile.exists()) {
                     readUpdateProgress(prevProgress, updateFinishedFile);
@@ -303,6 +319,18 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                             }
                         } finally {
                             updateLock.close();
+                        }
+                    } else if (HeartbeatFileChannelLockRegistry.isLockClaimedByThisJvm(updateLock.getFile())
+                            && !HeartbeatFileChannelLockRegistry.hasLiveLocalInstance(updateLock.getFile())) {
+                        //same-JVM claim with no live registered instance: an orphaned result awaiting finalization.
+                        //Nudge the phantom through once per key/minute (quiet heaps delay finalization for ages,
+                        //keeping the abandoned heartbeat claim beating and the OS file lock held)
+                        final long nowMillis = de.invesdwin.util.time.date.millis.FDateMillis.nowMillis();
+                        if (nowMillis - lastLocalGhostFinalizeNudgeMillis > 60000) {
+                            lastLocalGhostFinalizeNudgeMillis = nowMillis;
+                            LOG.warn("Forcing finalization for orphaned local heartbeat claim of table [%s] key [%s] - an unclosed TimeSeriesUpdaterResult is awaiting the warning finalizer", table.getName(), key);
+                            System.gc();
+                            System.runFinalization();
                         }
                     } else if (HeartbeatFileChannelLockRegistry.isLockClaimedByThisJvm(updateLock.getFile())) {
                         /*
