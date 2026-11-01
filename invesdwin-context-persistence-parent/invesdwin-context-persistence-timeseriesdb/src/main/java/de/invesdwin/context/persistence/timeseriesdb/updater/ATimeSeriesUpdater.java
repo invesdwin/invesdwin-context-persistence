@@ -247,7 +247,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         WaitForGraph.beginWait(graphKey);
         try {
             while (true) {
-                if (WaitForGraph.isSelfServedKey(graphKey)) {
+                if (WaitForGraph.isOwnPinHeldKey(graphKey)) {
                     //the task serving this very key pins it and its nested work demands it again: waiting for that
                     //pin would deadlock onto ourselves, and adopting or refusing a state this very pass produced
                     //would bootstrap-deadlock the mutual re-entrant demands - the demand simply proceeds with the
@@ -279,7 +279,8 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                             ATimeSeriesUpdater.class.getSimpleName() + ".trackRemoteUpdate: waiting for the heartbeat"
                                     + " pin of table [" + table.getName() + "] and key [" + key
                                     + "] would close a wait-for cycle inside this JVM - aborting this update attempt"
-                                    + " retryably: " + WaitForGraph.describeCycle(graphKey));
+                                    + " retryably: " + WaitForGraph.describeCycle(graphKey)
+                                    + WaitForGraph.describeAll());
                 }
                 if (updateFinishedFile.exists()) {
                     readUpdateProgress(prevProgress, updateFinishedFile);
