@@ -27,11 +27,10 @@ public interface ITimeSeriesUpdaterInternalMethods<K, V> {
 
     /**
      * Identifies the data files that this update attempt writes, or null when the attempt shares the one
-     * <code>memory.data</code> file of the version directory (the legacy layout). Implementations that do not mint an
-     * attempt id keep the legacy layout by returning null.
+     * <code>memory.data</code> file of the version directory (the legacy layout). There is deliberately no default:
+     * every implementation states its position explicitly, so an implementation that does not mint an attempt id opts
+     * into the legacy shared memory.data layout by returning null of its own accord.
      */
-    default String getEpochLocalDataId() {
-        return null;
-    }
+    String getEpochLocalDataId();
 
 }

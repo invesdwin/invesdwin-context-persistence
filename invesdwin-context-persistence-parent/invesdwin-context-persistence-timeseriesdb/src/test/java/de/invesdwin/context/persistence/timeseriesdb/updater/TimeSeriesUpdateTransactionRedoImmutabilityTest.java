@@ -347,6 +347,12 @@ public class TimeSeriesUpdateTransactionRedoImmutabilityTest extends ATest {
             //the default of an incremental updater: its last batch lands in an incomplete file that the next attempt redoes
             return true;
         }
+
+        @Override
+        public String getEpochLocalDataId() {
+            //legacy layout: shares the version directory's memory.data file
+            return null;
+        }
     }
 
 }
