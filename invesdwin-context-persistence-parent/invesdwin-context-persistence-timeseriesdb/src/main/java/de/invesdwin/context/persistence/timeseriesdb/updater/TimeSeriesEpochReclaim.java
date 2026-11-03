@@ -60,7 +60,7 @@ public final class TimeSeriesEpochReclaim {
     public static void reclaimAbortedAttemptEpoch(final TimeSeriesLookupStorageCache<?, ?> cache,
             final String attemptId) {
         if (attemptId == null) {
-            //legacy shared-data attempt: nothing attempt local to reclaim
+            //the attempt failed before its update transaction was created: nothing attempt local to reclaim
             return;
         }
         try {
@@ -117,7 +117,8 @@ public final class TimeSeriesEpochReclaim {
     /**
      * The attempt id embedded in an attempt local data file name: 'memory_&lt;attemptId&gt;' up to the first dot (the
      * extensions are '.data', '.data.&lt;preceding offset&gt;' and '.data_incomplete_...'), null for names that do not
-     * carry one (a legacy shared 'memory.data' never passes {@link MemoryFiles#isEpochLocalDataFile(String)} anyway).
+     * carry one (a data file without an attempt id never passes {@link MemoryFiles#isEpochLocalDataFile(String)}
+     * anyway).
      */
     private static String attemptIdOfDataFileName(final String fileName) {
         final int start = MemoryFiles.EPOCH_LOCAL_DATA_FILE_PREFIX.length();
@@ -128,8 +129,8 @@ public final class TimeSeriesEpochReclaim {
     /**
      * The attempt local data files of the version's data directory, all of them when attemptId is null and only the
      * ones of that attempt otherwise (exact 'memory_&lt;attemptId&gt;' prefix match, which covers '.data',
-     * '.data.&lt;offset&gt;' and the '_incomplete_' variants of that attempt and can never hit the shared
-     * 'memory.data' or another attempt's files).
+     * '.data.&lt;offset&gt;' and the '_incomplete_' variants of that attempt and can never hit another attempt's
+     * files).
      */
     private static File[] listAttemptDataFiles(final File dataDirectory, final String attemptId) {
         final File[] files = dataDirectory.listFiles((dir, name) -> {

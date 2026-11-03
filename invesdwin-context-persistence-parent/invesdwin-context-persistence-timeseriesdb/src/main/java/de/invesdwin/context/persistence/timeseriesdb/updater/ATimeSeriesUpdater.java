@@ -68,7 +68,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     private final AtomicLong lastFlushIndex = new AtomicLong();
     private final AtomicLong lastWriteUpdateProgressMillis = new AtomicLong(FDates.MIN_DATE.millisValue());
     private final ILock writeUpdateProgressLock;
-    //the id of this attempt's update transaction, used by the reclaim hooks (null for the legacy shared layout)
+    //the id of this attempt's update transaction, used by the reclaim hooks (null only before doUpdate mints it)
     private volatile String epochId;
     private volatile long lastLocalGhostFinalizeNudgeMillis;
     //diagnostic/nudge bookkeeping for orphaned local heartbeat claims (see trackRemoteUpdate)
@@ -109,8 +109,8 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     }
 
     /**
-     * The id minted for this attempt's data files (the attempt-local layout), or null when this attempt runs on the
-     * legacy shared data layout.
+     * The id minted for this attempt's data files (the epoch local layout, the only layout of this store); null only
+     * while no update transaction of an attempt exists yet.
      */
     public String getEpochId() {
         return epochId;

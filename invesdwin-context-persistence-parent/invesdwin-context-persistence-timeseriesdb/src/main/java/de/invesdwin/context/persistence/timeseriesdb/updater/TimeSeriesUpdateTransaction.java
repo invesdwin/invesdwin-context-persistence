@@ -43,12 +43,6 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
 
     public TimeSeriesUpdateTransaction(final TimeSeriesLookupStorageCache<?, V> parent, final FDate updateFrom,
             final List<V> lastValues, final long precedingMemoryOffset, final long memoryOffset,
-            final long precedingValueCount) {
-        this(parent, updateFrom, lastValues, precedingMemoryOffset, memoryOffset, precedingValueCount, null);
-    }
-
-    public TimeSeriesUpdateTransaction(final TimeSeriesLookupStorageCache<?, V> parent, final FDate updateFrom,
-            final List<V> lastValues, final long precedingMemoryOffset, final long memoryOffset,
             final long precedingValueCount, final String epochLocalDataId) {
         this.parent = parent;
         this.updateFrom = updateFrom;
@@ -62,13 +56,11 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     }
 
     /**
-     * Identifies the data files this attempt writes, or null when it shares the version directory's
-     * <code>memory.data</code> file (the legacy layout).
+     * Identifies the data files this attempt writes; never null, the epoch local layout is the only supported layout.
      */
     public String getEpochLocalDataId() {
         return epochLocalDataId;
     }
-
 
     public TimeSeriesLookupStorageCache<?, V> getParent() {
         return parent;

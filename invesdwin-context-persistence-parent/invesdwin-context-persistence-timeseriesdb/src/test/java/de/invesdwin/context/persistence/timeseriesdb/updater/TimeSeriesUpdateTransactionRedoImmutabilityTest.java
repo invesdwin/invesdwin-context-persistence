@@ -79,60 +79,78 @@ public class TimeSeriesUpdateTransactionRedoImmutabilityTest extends ATest {
     }
 
     /**
-     * A store published before the epoch local layout (one shared data file per version directory) must stay readable
-     * and byte stable: the following attempt keeps the legacy summaries pointing at the old file, continues the running
-     * byte total, and writes its new values into files of its own.
+     * Every attempt writes data files of its own: a store published by one attempt (here driven straight through an
+     * update transaction instead of an updater) keeps its data files byte stable while a later attempt continues it, so
+     * the published generation stays readable throughout.
      */
     @Test
-    public void testEpochLocalAttemptContinuesLegacySharedDataFileStore() throws Exception {
+    public void testEpochLocalAttemptContinuesExplicitIdAttemptStore() throws Exception {
         final ATimeSeriesDB<String, FDate> table = newTable();
         final TimeSeriesLookupStorageCache<String, FDate> lookupTable = table.getLookupTableCache(KEY);
-        try (TimeSeriesUpdateTransaction<FDate> legacyTransaction = lookupTable.newUpdateTransaction(true)) {
-            //a parent without an epoch local data id is what an older JVM wrote: the shared file of the version directory
-            SequentialChunkedUpdateProgress.doUpdate(legacyTransaction,
-                    new LegacyLayoutInternalMethods(table, lookupTable),
-                    legacyTransaction.getPrecedingMemoryOffset(), legacyTransaction.getMemoryOffset(),
-                    legacyTransaction.getPrecedingValueCount(), WrapperCloseableIterable.maybeWrap(sourceValues));
-            legacyTransaction.commit();
+        try (TimeSeriesUpdateTransaction<FDate> firstTransaction = lookupTable.newUpdateTransaction(true)) {
+            //an attempt that states the epoch local data id of its transaction explicitly: the only layout there is
+            SequentialChunkedUpdateProgress.doUpdate(firstTransaction,
+                    new FixedEpochLocalDataIdInternalMethods(table, lookupTable,
+                            firstTransaction.getEpochLocalDataId()),
+                    firstTransaction.getPrecedingMemoryOffset(), firstTransaction.getMemoryOffset(),
+                    firstTransaction.getPrecedingValueCount(), WrapperCloseableIterable.maybeWrap(sourceValues));
+            firstTransaction.commit();
         }
-        final List<MemoryFileSummary> legacyGeneration = readSummaries(lookupTable);
-        Assertions.checkTrue(legacyGeneration.size() >= 2, "expected several legacy summaries: " + legacyGeneration);
-        final Map<File, byte[]> legacyBytes = ILockCollectionFactory.getInstance(false).newLinkedMap();
-        for (final MemoryFileSummary summary : legacyGeneration) {
+        final List<MemoryFileSummary> firstGeneration = readSummaries(lookupTable);
+        Assertions.checkTrue(firstGeneration.size() >= 2, "expected several published summaries: " + firstGeneration);
+        final Map<File, byte[]> firstGenerationBytes = ILockCollectionFactory.getInstance(false).newLinkedMap();
+        for (final MemoryFileSummary summary : firstGeneration) {
             final File dataFile = new File(summary.getMemoryResourceUri());
-            Assertions.checkFalse(MemoryFiles.isEpochLocalDataFile(dataFile.getName()),
-                    "the legacy layout must have written shared data files, got: " + dataFile);
-            legacyBytes.put(dataFile, readAllBytes(dataFile));
+            Assertions.checkTrue(MemoryFiles.isEpochLocalDataFile(dataFile.getName()),
+                    "an attempt must have written data files of its own, got: " + dataFile);
+            firstGenerationBytes.put(dataFile, readAllBytes(dataFile));
         }
-        final String legacyIncompleteUri = legacyGeneration.get(legacyGeneration.size() - 1).getMemoryResourceUri();
-        Assertions.checkTrue(MemoryFiles.isIncompleteMemoryFile(legacyIncompleteUri),
-                "a legacy attempt redoes its last file, so that one must be an incomplete file: "
-                        + legacyGeneration.get(legacyGeneration.size() - 1));
+        final String firstIncompleteUri = firstGeneration.get(firstGeneration.size() - 1).getMemoryResourceUri();
+        Assertions.checkTrue(MemoryFiles.isIncompleteMemoryFile(firstIncompleteUri),
+                "an attempt redoes its last file, so that one must be an incomplete file: "
+                        + firstGeneration.get(firstGeneration.size() - 1));
 
         addValues(11, 14);
         newUpdater(table, false).update().close();
 
-        for (final Map.Entry<File, byte[]> entry : legacyBytes.entrySet()) {
+        for (final Map.Entry<File, byte[]> entry : firstGenerationBytes.entrySet()) {
             final File dataFile = entry.getKey();
-            Assertions.checkTrue(dataFile.exists(), "the epoch local attempt removed a legacy data file: " + dataFile);
+            Assertions.checkTrue(dataFile.exists(), "the second attempt removed a published data file: " + dataFile);
             Assertions.checkTrue(Arrays.equals(entry.getValue(), readAllBytes(dataFile)),
-                    "the epoch local attempt mutated the legacy data file: " + dataFile);
+                    "the second attempt mutated the data file of a published attempt: " + dataFile);
         }
-        final List<MemoryFileSummary> mixedGeneration = readSummaries(lookupTable);
-        //everything the legacy attempt published as complete keeps its summary and its bytes, only its incomplete last
+        final List<MemoryFileSummary> continuedGeneration = readSummaries(lookupTable);
+        //everything the first attempt published as complete keeps its summary and its bytes, only its incomplete last
         //file is replaced (by files of the new attempt) and stays behind as garbage
-        for (int i = 0; i < legacyGeneration.size() - 1; i++) {
-            Assertions.checkEquals(legacyGeneration.get(i), mixedGeneration.get(i),
-                    i + ": the epoch local attempt must not change an already published summary");
+        for (int i = 0; i < firstGeneration.size() - 1; i++) {
+            Assertions.checkEquals(firstGeneration.get(i), continuedGeneration.get(i),
+                    i + ": the second attempt must not change an already published summary");
         }
-        for (int i = legacyGeneration.size() - 1; i < mixedGeneration.size(); i++) {
-            final MemoryFileSummary summary = mixedGeneration.get(i);
+        for (int i = firstGeneration.size() - 1; i < continuedGeneration.size(); i++) {
+            final MemoryFileSummary summary = continuedGeneration.get(i);
             Assertions.checkTrue(MemoryFiles.isEpochLocalDataFile(new File(summary.getMemoryResourceUri()).getName()),
                     "the new attempt must write data files of its own: " + summary);
         }
         Assertions.checkFalse(lookupTable.isEmptyOrInconsistent(),
-                "the store reports itself inconsistent after continuing a legacy store: " + mixedGeneration);
+                "the store reports itself inconsistent after continuing it: " + continuedGeneration);
         Assertions.assertThat(readValues(table)).isEqualTo(new ArrayList<>(sourceValues));
+    }
+
+    /**
+     * The epoch local data id is a non-null contract: an implementation of ITimeSeriesUpdaterInternalMethods that
+     * returns null is refused before any data file is resolved.
+     */
+    @Test
+    public void testAttemptWithoutEpochLocalDataIdIsRefused() {
+        final FixedEpochLocalDataIdInternalMethods withoutId = new FixedEpochLocalDataIdInternalMethods(null, null,
+                null);
+        try {
+            MemoryFiles.newMemoryFile(withoutId, 0L);
+            Assertions.fail("an attempt without an epoch local data id must be refused");
+        } catch (final IllegalStateException e) {
+            Assertions.checkTrue(e.getMessage().contains("epoch local data id"),
+                    "the refusal must name the broken contract: " + e.getMessage());
+        }
     }
 
     private void checkRedoKeepsPublishedDataFiles(final boolean parallel) throws Exception {
@@ -291,19 +309,22 @@ public class TimeSeriesUpdateTransactionRedoImmutabilityTest extends ATest {
     }
 
     /**
-     * Stands in for an update attempt of an older version of this module: it has no epoch local data id, so its values
-     * are appended to the shared data file of the version directory.
+     * An update attempt that states its epoch local data id explicitly (the way ATimeSeriesUpdater does it through its
+     * update transaction). The id may be null only for the test that checks the refusal of that contract.
      */
     @NotThreadSafe
-    private static final class LegacyLayoutInternalMethods implements ITimeSeriesUpdaterInternalMethods<String, FDate> {
+    private static final class FixedEpochLocalDataIdInternalMethods
+            implements ITimeSeriesUpdaterInternalMethods<String, FDate> {
 
         private final ITimeSeriesDB<String, FDate> table;
         private final TimeSeriesLookupStorageCache<String, FDate> lookupTable;
+        private final String epochLocalDataId;
 
-        private LegacyLayoutInternalMethods(final ATimeSeriesDB<String, FDate> table,
-                final TimeSeriesLookupStorageCache<String, FDate> lookupTable) {
+        private FixedEpochLocalDataIdInternalMethods(final ATimeSeriesDB<String, FDate> table,
+                final TimeSeriesLookupStorageCache<String, FDate> lookupTable, final String epochLocalDataId) {
             this.table = table;
             this.lookupTable = lookupTable;
+            this.epochLocalDataId = epochLocalDataId;
         }
 
         @Override
@@ -350,8 +371,7 @@ public class TimeSeriesUpdateTransactionRedoImmutabilityTest extends ATest {
 
         @Override
         public String getEpochLocalDataId() {
-            //legacy layout: shares the version directory's memory.data file
-            return null;
+            return epochLocalDataId;
         }
     }
 
