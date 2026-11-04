@@ -138,6 +138,9 @@ public class SequentialContinuousUpdateProgress<K, V> implements ITimeSeriesUpda
                 }
                 collection.close();
                 final long memoryLength = out.position() - memoryOffset;
+                //the bytes of this batch must be on the file before its summary is staged, so the published index
+                //never names a range that a reader could not resolve
+                out.flush();
                 updateTransaction.finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
                         precedingMemoryOffset, memoryOffset, memoryLength);
                 memoryOffset += memoryLength;
@@ -175,6 +178,8 @@ public class SequentialContinuousUpdateProgress<K, V> implements ITimeSeriesUpda
                 }
                 collection.close();
                 final long memoryLength = out.position();
+                //flush before staging, see above
+                out.flush();
                 updateTransaction.finishFile(firstElement, lastElement, precedingValueCount, valueCount, memoryFile,
                         precedingMemoryOffset, memoryOffset, memoryLength);
                 precedingValueCount += valueCount;

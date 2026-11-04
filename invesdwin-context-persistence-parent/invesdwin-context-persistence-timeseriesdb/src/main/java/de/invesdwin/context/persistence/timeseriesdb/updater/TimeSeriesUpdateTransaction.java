@@ -34,12 +34,16 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     private final long precedingMemoryOffset;
     private final long memoryOffset;
     private final long precedingValueCount;
+    private final String epochLocalDataId;
     private AMemoryFileSummarySerializingCollection summaries;
     private MemoryFileSummary prevSummary;
+    //publish-on-commit: close() without an explicit commit() DISCARDS this attempt's staged index (partial results
+    //of a failed/aborted update must never become visible; the previously published state simply remains)
+    private boolean committed;
 
     public TimeSeriesUpdateTransaction(final TimeSeriesLookupStorageCache<?, V> parent, final FDate updateFrom,
             final List<V> lastValues, final long precedingMemoryOffset, final long memoryOffset,
-            final long precedingValueCount) {
+            final long precedingValueCount, final String epochLocalDataId) {
         this.parent = parent;
         this.updateFrom = updateFrom;
         Assertions.checkNotNull(lastValues);
@@ -47,7 +51,15 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         this.precedingMemoryOffset = precedingMemoryOffset;
         this.memoryOffset = memoryOffset;
         this.precedingValueCount = precedingValueCount;
+        this.epochLocalDataId = epochLocalDataId;
         MemoryFiles.assertMaybeFirstSummary(precedingMemoryOffset, memoryOffset, precedingValueCount);
+    }
+
+    /**
+     * Identifies the data files this attempt writes; never null, the epoch local layout is the only supported layout.
+     */
+    public String getEpochLocalDataId() {
+        return epochLocalDataId;
     }
 
     public TimeSeriesLookupStorageCache<?, V> getParent() {
@@ -119,9 +131,25 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         parent.assertSummary(lastSummary, summary);
     }
 
+    public synchronized void commit() {
+        this.committed = true;
+    }
+
     @Override
     public synchronized void close() {
         if (prevSummary == null) {
+            return;
+        }
+        if (!committed) {
+            //abort path: release the staged collection WITHOUT publishing it into the lookup table and without
+            //touching the update marker - a failed attempt changes nothing observable (epoch design I2)
+            final AMemoryFileSummarySerializingCollection summariesCopy = summaries;
+            if (summariesCopy != null) {
+                summariesCopy.closeWithEmptyWrite();
+                summariesCopy.clear();
+                summaries = null;
+            }
+            prevSummary = null;
             return;
         }
         final AMemoryFileSummarySerializingCollection summariesCopy = summaries;

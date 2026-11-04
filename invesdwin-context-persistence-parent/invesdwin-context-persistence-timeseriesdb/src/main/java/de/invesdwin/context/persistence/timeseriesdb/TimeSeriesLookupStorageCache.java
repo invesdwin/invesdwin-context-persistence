@@ -96,6 +96,14 @@ public class TimeSeriesLookupStorageCache<K, V> {
     public static final EvictionMode EVICTION_MODE = EvictionMode.ClearConcurrent;
     public static final boolean HIGH_CONCURRENCY = false;
 
+    /**
+     * Name of the data sub directory of a version directory holding the index generations, data files and update
+     * markers of a key's store.
+     */
+    public static final String MEMORY_DATA_ID = "memory";
+    public static final String UPDATE_PROGRESS_FILE_NAME = "update.progress";
+    public static final String UPDATE_FINISHED_FILE_NAME = "update.finished";
+
     private static final String READ_RANGE_VALUES = "readRangeValues";
     private static final String READ_RANGE_VALUES_REVERSE = "readRangeValuesReverse";
     private final TimeSeriesStorage storage;
@@ -206,7 +214,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
         this.hashKey = hashKey;
         this.directoryHashKey = new TimeSeriesDirectoryHashKey(storage.getDirectory(), hashKey);
         this.directoryHashKeyVersionMemory = new TimeSeriesDirectoryHashKeyVersionData(
-                directoryHashKey.getDirectoryHashKeyVersion(), "memory");
+                directoryHashKey.getDirectoryHashKeyVersion(), MEMORY_DATA_ID);
         this.memoryFileLookupTable = new RefreshingTimeSeriesMemoryFileLookupTable<V>(this,
                 directoryHashKeyVersionMemory);
         this.valueSerde = valueSerde;
@@ -273,6 +281,14 @@ public class TimeSeriesLookupStorageCache<K, V> {
         return directoryHashKey;
     }
 
+    /**
+     * The normalized hash key string this cache's store lives under inside the table's shared directory (the
+     * directory name of its key).
+     */
+    public String getHashKey() {
+        return hashKey;
+    }
+
     public TimeSeriesDirectoryHashKeyVersionData getDirectoryHashKeyVersionMemory() {
         return directoryHashKeyVersionMemory;
     }
@@ -282,11 +298,13 @@ public class TimeSeriesLookupStorageCache<K, V> {
     }
 
     public File getUpdateProgressFile() {
-        return new File(directoryHashKeyVersionMemory.getDirectoryHashKeyVersionDataShared(), "update.progress");
+        return new File(directoryHashKeyVersionMemory.getDirectoryHashKeyVersionDataShared(),
+                UPDATE_PROGRESS_FILE_NAME);
     }
 
     public File getUpdateFinishedFile() {
-        return new File(directoryHashKeyVersionMemory.getDirectoryHashKeyVersionDataShared(), "update.finished");
+        return new File(directoryHashKeyVersionMemory.getDirectoryHashKeyVersionDataShared(),
+                UPDATE_FINISHED_FILE_NAME);
     }
 
     public MemoryFileSummary getLastRangeKey() {
@@ -1215,12 +1233,14 @@ public class TimeSeriesLookupStorageCache<K, V> {
     }
 
     /**
-     * When shouldRedoLastFile=true this deletes the last file in order to create a new updated one (so the files do not
-     * get fragmented too much between updates
+     * When shouldRedoLastFile=true the last file is replaced by a new updated one (so the files do not get fragmented
+     * too much between updates). The attempt local data files of this attempt make the redo safe: it writes files of
+     * its own and leaves the replaced file of the previously published generation untouched.
      */
     public synchronized TimeSeriesUpdateTransaction<V> newUpdateTransaction(final boolean shouldRedoLastFile) {
         maybeUpdateIndex();
         final MemoryFileSummary latestSummary = getLastRangeKey();
+        final String epochLocalDataId = MemoryFiles.newEpochLocalDataId();
         final FDate updateFrom;
         final List<V> lastValues;
         final long precedingMemoryOffset;
@@ -1271,8 +1291,12 @@ public class TimeSeriesLookupStorageCache<K, V> {
             memoryOffset = 0L;
             precedingValueCount = 0L;
         }
-        return new TimeSeriesUpdateTransaction<>(this, updateFrom, lastValues, precedingMemoryOffset, memoryOffset,
-                precedingValueCount);
+        //the attempt writes data files of its own, so its byte space starts at 0 while the preceding offset keeps the
+        //running total over the files the published generation references
+        final long transactionPrecedingMemoryOffset = precedingMemoryOffset + memoryOffset;
+        final long transactionMemoryOffset = 0L;
+        return new TimeSeriesUpdateTransaction<>(this, updateFrom, lastValues, transactionPrecedingMemoryOffset,
+                transactionMemoryOffset, precedingValueCount, epochLocalDataId);
     }
 
     public synchronized void maybeUpdateIndex() {

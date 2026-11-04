@@ -167,6 +167,9 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
         final FDate newUpdateCheck = FDate.now();
         if (force || shouldCheckForUpdate(newUpdateCheck)) {
             final String graphKey = WaitForGraph.newKey(getTable().getName(), getKeyStr());
+            if (skipSelfServedDemand(graphKey)) {
+                return false;
+            }
             //Deadlock avoidance: never add a wait edge that closes a wait-for cycle inside this JVM (the permanent precalculated livelock formed exactly like that). If the target update's progress transitively depends on a lock, pin, or task held by this very thread, abort this attempt retryably; later attempts run once the chain has unwound
             if (skipCycleForCaller(graphKey)) {
                 return false;
@@ -249,29 +252,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                     //continue on the last published (complete) state; the submitter keeps driving the task
                     return false;
                 }
-                WaitForGraph.beginJoinWait(graphKey);
-                try {
-                    if (DatabaseThreads.isThreadBlockingUpdateDatabaseDisabled()) {
-                        try {
-                            Futures.waitNoInterrupt(updateFutureCopy,
-                                    IntegrationProperties.NON_BLOCKING_ASYNC_WAIT_TIMEOUT);
-                            updateFuture = null;
-                        } catch (final TimeoutException e) {
-                            throw new NonBlockingRetryLaterRuntimeException(
-                                    ALazyDataUpdater.class.getSimpleName()
-                                            + ".maybeUpdate: async update " + reason
-                                            + " while operating in non-blocking mode for " + getElementsName() + ": "
-                                            + key,
-                                    e);
-                        }
-                    } else {
-                        //unbounded join by design: cycle edges are refused up front and the task itself aborts retryably on cyclic pin waits (see ATimeSeriesUpdater.trackRemoteUpdate), so a legitimate long-running update is waited out patiently
-                        Futures.waitNoInterrupt(updateFutureCopy);
-                        updateFuture = null;
-                    }
-                } finally {
-                    WaitForGraph.endJoinWait(graphKey);
-                }
+                joinUpdateFuture(graphKey, updateFutureCopy, reason);
                 return true;
             } finally {
                 WaitForGraph.lockReleased(graphKey);
@@ -281,10 +262,50 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
         return false;
     }
 
+    private void joinUpdateFuture(final String graphKey, final Future<?> updateFutureCopy, final String reason) {
+        WaitForGraph.beginJoinWait(graphKey);
+        try {
+            if (DatabaseThreads.isThreadBlockingUpdateDatabaseDisabled()) {
+                try {
+                    Futures.waitNoInterrupt(updateFutureCopy,
+                            IntegrationProperties.NON_BLOCKING_ASYNC_WAIT_TIMEOUT);
+                    updateFuture = null;
+                } catch (final TimeoutException e) {
+                    throw new NonBlockingRetryLaterRuntimeException(
+                            ALazyDataUpdater.class.getSimpleName()
+                                    + ".maybeUpdate: async update " + reason
+                                    + " while operating in non-blocking mode for " + getElementsName() + ": "
+                                    + key,
+                            e);
+                }
+            } else {
+                //unbounded join by design: cycle edges are refused up front and the task itself aborts retryably on cyclic pin waits (see ATimeSeriesUpdater.trackRemoteUpdate), so a legitimate long-running update is waited out patiently
+                Futures.waitNoInterrupt(updateFutureCopy);
+                updateFuture = null;
+            }
+        } finally {
+            WaitForGraph.endJoinWait(graphKey);
+        }
+    }
+
     /**
      * Caller-side cycle handling: in-tree cycles adopt the consistent pinned state (skip update this attempt),
      * foreign cycles are refused retryably. Returns true when the caller must not proceed with the update wait.
      */
+    /**
+     * Re-entrant demand for a key THIS very task is already rebuilding: joining its own future or adopting its
+     * pass state would deadlock or read unpublished partial values - skip the update for this demand; the values
+     * arrive with the in-flight pass (and the forced re-epoch sentinel covers reset passes), so this is a
+     * scheduling decision, not a value decision (see ANALYSIS-precalc-fixedpoint).
+     */
+    private boolean skipSelfServedDemand(final String graphKey) {
+        if (WaitForGraph.isSelfServedKey(graphKey)) {
+            log.warn("Skipping re-entrant self-served update demand of [%s] for [%s]", getElementsName(), getKeyStr());
+            return true;
+        }
+        return false;
+    }
+
     private boolean skipCycleForCaller(final String graphKey) {
         if (!WaitForGraph.wouldCloseCycle(graphKey)) {
             return false;
@@ -421,8 +442,17 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
             final String taskName = "Loading " + getElementsName() + " for " + getKeyStr();
             final Callable<Percent> progress = newProgressCallable(estimatedTo, updater);
             final TimeSeriesUpdaterResult result = TaskInfoCallable.of(taskName, task, progress).call();
-            LazyDataUpdaterProperties.setLastUpdateTo(getUpdaterId(), FDates.max(estimatedTo, result.getUpdatedTo()));
-            return result;
+            try {
+                LazyDataUpdaterProperties.setLastUpdateTo(getUpdaterId(), FDates.max(estimatedTo, result.getUpdatedTo()));
+                return result;
+            } catch (final Throwable t) {
+                //the result (with its live heartbeat pin and the name-keyed thread lock slot) must not depend on GC
+                //finalization: a throw in this hand-over window would otherwise orphan it - on a quiet heap the
+                //warning-finalizer can take arbitrarily long, and the idle pool thread keeps holding the thread
+                //lock, blocking every later attempt for this key (zombie claim forensics, smoke-41/43)
+                result.close();
+                throw t;
+            }
         } catch (final IncompleteUpdateRetryableException e) {
             throw e;
         } catch (final Throwable e) {

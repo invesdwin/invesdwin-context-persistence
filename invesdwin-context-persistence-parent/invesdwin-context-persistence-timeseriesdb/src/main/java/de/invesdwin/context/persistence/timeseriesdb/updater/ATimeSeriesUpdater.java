@@ -30,6 +30,7 @@ import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.graph.WaitForGraph;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLockRegistry;
+import de.invesdwin.util.concurrent.lock.file.NameKeyedLocks;
 import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
 import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
 import de.invesdwin.util.concurrent.reference.IMutableReference;
@@ -68,6 +69,10 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     private final AtomicLong lastFlushIndex = new AtomicLong();
     private final AtomicLong lastWriteUpdateProgressMillis = new AtomicLong(FDates.MIN_DATE.millisValue());
     private final ILock writeUpdateProgressLock;
+    //the id of this attempt's update transaction, used by the reclaim hooks (null only before doUpdate mints it)
+    private volatile String epochId;
+    private volatile long lastLocalGhostFinalizeNudgeMillis;
+    //diagnostic/nudge bookkeeping for orphaned local heartbeat claims (see trackRemoteUpdate)
 
     public ATimeSeriesUpdater(final K key, final ITimeSeriesDBInternals<K, V> table) {
         if (key == null) {
@@ -104,6 +109,14 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         return owner;
     }
 
+    /**
+     * The id minted for this attempt's data files (the epoch local layout, the only layout of this store); null only
+     * while no update transaction of an attempt exists yet.
+     */
+    public String getEpochId() {
+        return epochId;
+    }
+
     @Override
     public FDate getMinTime() {
         return minTime;
@@ -138,7 +151,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             if (!segmentWriteLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
                 throw segmentWriteLock.getLockTrace()
                         .handleLockException(segmentWriteLock.getName(),
-                                new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_TAG +
+                                new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_PREFIX +
                                         "Write lock could not be acquired for table [" + table.getName() + "] and key ["
                                                 + key + "]. Please ensure all iterators are closed!"));
             }
@@ -159,17 +172,31 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                 try {
                     Files.deleteQuietly(updateFinishedFile);
                     Files.deleteQuietly(updateProgressFile);
+                    //a reused updater instance must not leak the previous attempt's id into the reclaim hooks before
+                    //doUpdate mints the new one
+                    this.epochId = null;
                     this.updateStart = FDate.now();
                     onUpdateStarted(updateStart);
                     writeUpdateProgress(updateProgressFile, true);
                     doUpdate();
                     onUpdateFinished();
                     writeUpdateProgress(updateProgressFile, true);
+                    //piggyback sweep of this key's dead attempt garbage at attempt finish (no new global timer); this
+                    //attempt's own files are referenced by the generation it just published and stay, everything
+                    //provably unreferenced and older than RETAIN_OBSOLETE_EPOCHS_THRESHOLD goes
+                    TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookupTable);
                     return new TimeSeriesUpdaterResult(maxTime, updateLock, updateProgressFile, updateFinishedFile,
                             graphKey);
                 } catch (final Throwable t) {
                     WaitForGraph.pinReleased(graphKey, Thread.currentThread());
                     updateLock.close();
+                    //this attempt's transaction was discarded on close, so its attempt local data files are garbage
+                    //no reader will ever resolve - reclaim them best effort right away (the published-generation
+                    //reference check still guards the rare case of a commit landing inside a throwing close)
+                    TimeSeriesEpochReclaim.reclaimAbortedAttemptEpoch(lookupTable, epochId);
+                    //and the same piggyback sweep as on the success path: a failed attempt may be the first one since
+                    //a crashed writer left garbage
+                    TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookupTable);
                     throw IncompleteUpdateRetryableException.propagateIncompleteUpdateException(t);
                 }
             } finally {
@@ -190,14 +217,34 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                 TimeSeriesUpdaterProgress.EMPTY);
         final LoopInterruptedCheck loopCheck = new LoopInterruptedCheck(
                 HeartbeatFileChannelLockRegistry.HEARTBEAT_INTERVAL);
+        //true when this very task/pin holder re-demands its own key: the pass must NOT go through adoption-or-refuse,
+        //it proceeds with the current published state, whatever it is
+        boolean selfServedDemand = false;
         //register the pin wait in the wait-for graph and refuse it the moment the chain would close back onto this thread's own lock/pin/task: deterministic cycle abort, no timeout guessing; the caller's @Retry re-attempts the whole update once the chain has unwound
         WaitForGraph.beginWait(graphKey);
         try {
             while (true) {
-                if (WaitForGraph.isSelfServedKey(graphKey)) {
+                if (HeartbeatFileChannelLockRegistry.isLockClaimedByThisJvm(updateLock.getFile())
+                        && !HeartbeatFileChannelLockRegistry.hasLiveLocalInstance(updateLock.getFile())) {
+                    //same-JVM claim without a live registered instance: an orphaned result is stuck in the
+                    //finalizer queue (a quiet heap delays it indefinitely) - nudge it so the NEXT tryLock
+                    //iteration can steal the ghost claim instead of refusing the demand as cyclic
+                    final long nowMillis = FDateMillis.nowMillis();
+                    if (nowMillis - lastLocalGhostFinalizeNudgeMillis > 60000) {
+                        lastLocalGhostFinalizeNudgeMillis = nowMillis;
+                        LOG.warn("Forcing finalization for orphaned local heartbeat claim of table [%s] key [%s] - an unclosed TimeSeriesUpdaterResult is awaiting the warning finalizer; lastTryLockFailure=[%s]", table.getName(), key, updateLock.getLastTryLockFailureReason());
+                        System.gc();
+                        System.runFinalization();
+                    }
+                }
+                if (WaitForGraph.isOwnPinHeldKey(graphKey)) {
                     //the task serving this very key pins it and its nested work demands it again: waiting for that
-                    //pin would deadlock onto ourselves - adopt the current published state instead
-                    LOG.warn("Self-served key [%s] pinned by this task: nested demand adopts the in-progress state", key);
+                    //pin would deadlock onto ourselves, and adopting or refusing a state this very pass produced
+                    //would bootstrap-deadlock the mutual re-entrant demands - the demand simply proceeds with the
+                    //current published state (possibly empty: our own output lands when this pass commits)
+                    LOG.warn("Self-served key [%s] pinned by this task: the nested demand proceeds on the current"
+                            + " published state without adoption", key);
+                    selfServedDemand = true;
                     break;
                 }
                 if (WaitForGraph.wouldCloseCycle(graphKey)) {
@@ -221,7 +268,12 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                             ATimeSeriesUpdater.class.getSimpleName() + ".trackRemoteUpdate: waiting for the heartbeat"
                                     + " pin of table [" + table.getName() + "] and key [" + key
                                     + "] would close a wait-for cycle inside this JVM - aborting this update attempt"
-                                    + " retryably: " + WaitForGraph.describeCycle(graphKey));
+                                    + " retryably: " + WaitForGraph.describeCycle(graphKey)
+                                    + " localClaim=[" + HeartbeatFileChannelLockRegistry.isLockClaimedByThisJvm(updateLock.getFile())
+                                    + ",marker=" + readLockMarker(updateLock.getFile())
+                                    + ",registered=" + HeartbeatFileChannelLockRegistry.describeLocalClaim(updateLock.getFile())
+                                    + ",threadLock=" + describeThreadLock(updateLock.getFile())
+                                    + ",tryLockFail=[" + updateLock.getLastTryLockFailureReason() + "]] " + WaitForGraph.describeAll());
                 }
                 if (updateFinishedFile.exists()) {
                     readUpdateProgress(prevProgress, updateFinishedFile);
@@ -235,12 +287,24 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                                 readUpdateProgress(prevProgress, updateFinishedFile);
                                 break;
                             } else {
-                                throw new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_TAG +
+                                throw new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_PREFIX +
                                         "Update of another process timed out for table [" + table.getName() + "] and key ["
                                                 + key + "]: " + updateLock.getFile().getAbsolutePath());
                             }
                         } finally {
                             updateLock.close();
+                        }
+                    } else if (HeartbeatFileChannelLockRegistry.isLockClaimedByThisJvm(updateLock.getFile())
+                            && !HeartbeatFileChannelLockRegistry.hasLiveLocalInstance(updateLock.getFile())) {
+                        //same-JVM claim with no live registered instance: an orphaned result awaiting finalization.
+                        //Nudge the phantom through once per key/minute (quiet heaps delay finalization for ages,
+                        //keeping the abandoned heartbeat claim beating and the OS file lock held)
+                        final long nowMillis = FDateMillis.nowMillis();
+                        if (nowMillis - lastLocalGhostFinalizeNudgeMillis > 60000) {
+                            lastLocalGhostFinalizeNudgeMillis = nowMillis;
+                            LOG.warn("Forcing finalization for orphaned local heartbeat claim of table [%s] key [%s] - an unclosed TimeSeriesUpdaterResult is awaiting the warning finalizer", table.getName(), key);
+                            System.gc();
+                            System.runFinalization();
                         }
                     } else if (HeartbeatFileChannelLockRegistry.isLockClaimedByThisJvm(updateLock.getFile())) {
                         /*
@@ -250,7 +314,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                          * patience is safe. If it never resolves anyway, look for the "Finalizing unclosed
                          * TimeSeriesUpdaterResult" WARN carrying the creation stack trace of the leaked instance.
                          */
-                        throw new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_TAG + "Update lock of table [" + table.getName() + "] and key ["
+                        throw new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_PREFIX + "Update lock of table [" + table.getName() + "] and key ["
                                 + key + "] is beaten by this very JVM (owner ["
                                 + HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER
                                 + "]) although no local update() is active for this key: an unclosed"
@@ -265,9 +329,26 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         } finally {
             WaitForGraph.endWait(graphKey);
         }
+        return adoptRemoteState(graphKey, selfServedDemand);
+    }
+
+    /**
+     * Completes a remote-tracking wait:
+     * <ul>
+     * <li>the published store always wins (unchanged legacy adoption);</li>
+     * <li>a self-served demand (this very task/pin holder re-demands its own key) proceeds with the current
+     * published state whatever it is - only here a null updatedTo may be reported: the demanding nested read is a
+     * scheduling decision, not a value decision, and this pass's own output lands at its commit; the callers
+     * tolerate a null updatedTo (ALazyDataUpdater.doUpdate null-checks it before use, and the live precalc driver
+     * guards it on the trading side);</li>
+     * <li>anything else keeps the loud 'Adoption found empty store' NonBlockingRetryLater unchanged.</li>
+     * </ul>
+     */
+    private TimeSeriesUpdaterResult adoptRemoteState(final String graphKey, final boolean selfServedDemand)
+            throws NonBlockingRetryLaterRuntimeException {
         lookupTable.clearCaches();
         final FDate updatedTo = lookupTable.getLastValueEndTime();
-        if (updatedTo == null) {
+        if (updatedTo == null && !selfServedDemand) {
             //adoption found an EMPTY store (the pinning context wiped it for a clean-state recompute): nothing to
             //adopt and this task mutated nothing - plain retryable WITHOUT any delete on our side (wiping here would
             //race the in-progress rebuild)
@@ -285,7 +366,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             final long initialPrecedingMemoryOffset = updateTransaction.getPrecedingMemoryOffset();
             final long initialMemoryOffset = updateTransaction.getMemoryOffset();
             final long initialPrecedingValueCount = updateTransaction.getPrecedingValueCount();
-
+            this.epochId = updateTransaction.getEpochLocalDataId();
             final ICloseableIterable<? extends V> source = getSource(updateFrom);
             if (source == null) {
                 throw new NullPointerException("source is null");
@@ -361,6 +442,11 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                     return ATimeSeriesUpdater.this.shouldRedoLastFile();
                 }
 
+                @Override
+                public String getEpochLocalDataId() {
+                    return updateTransaction.getEpochLocalDataId();
+                }
+
             };
             final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues,
                     skippingSource);
@@ -379,6 +465,34 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                             flatteningSources);
                 }
             }
+            //all values consumed without exception: publish the staged index now (close() alone must not commit a
+            //possibly partial attempt)
+            updateTransaction.commit();
+        }
+    }
+
+    private String describeThreadLock(final File lockFile) {
+        try {
+            final ILock nameLock = NameKeyedLocks
+                    .get(lockFile.getAbsoluteFile().toPath().toAbsolutePath().toString());
+            return String.valueOf(nameLock.getLockTrace());
+        } catch (final Throwable t2) {
+            return "<unavailable:" + t2.getMessage() + ">";
+        }
+    }
+
+    private String readLockMarker(final File lockFile) {
+        try {
+            final File marker = new File(lockFile.getAbsolutePath()
+                    + HeartbeatFileChannelLockRegistry.HEARTBEAT_EXTENSION);
+            final File source = marker.exists() ? marker : lockFile;
+            if (!source.exists()) {
+                return "<none>";
+            }
+            final String content = Files.readFileToString(source);
+            return content.length() > 200 ? content.substring(0, 200) : content;
+        } catch (final Throwable t2) {
+            return "<unreadable:" + t2.getMessage() + ">";
         }
     }
 
