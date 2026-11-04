@@ -30,6 +30,7 @@ import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.graph.WaitForGraph;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLockRegistry;
+import de.invesdwin.util.concurrent.lock.file.NameKeyedLocks;
 import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
 import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
 import de.invesdwin.util.concurrent.reference.IMutableReference;
@@ -150,7 +151,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             if (!segmentWriteLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
                 throw segmentWriteLock.getLockTrace()
                         .handleLockException(segmentWriteLock.getName(),
-                                new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_TAG +
+                                new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_PREFIX +
                                         "Write lock could not be acquired for table [" + table.getName() + "] and key ["
                                                 + key + "]. Please ensure all iterators are closed!"));
             }
@@ -228,7 +229,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                     //same-JVM claim without a live registered instance: an orphaned result is stuck in the
                     //finalizer queue (a quiet heap delays it indefinitely) - nudge it so the NEXT tryLock
                     //iteration can steal the ghost claim instead of refusing the demand as cyclic
-                    final long nowMillis = de.invesdwin.util.time.date.millis.FDateMillis.nowMillis();
+                    final long nowMillis = FDateMillis.nowMillis();
                     if (nowMillis - lastLocalGhostFinalizeNudgeMillis > 60000) {
                         lastLocalGhostFinalizeNudgeMillis = nowMillis;
                         LOG.warn("Forcing finalization for orphaned local heartbeat claim of table [%s] key [%s] - an unclosed TimeSeriesUpdaterResult is awaiting the warning finalizer; lastTryLockFailure=[%s]", table.getName(), key, updateLock.getLastTryLockFailureReason());
@@ -286,7 +287,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                                 readUpdateProgress(prevProgress, updateFinishedFile);
                                 break;
                             } else {
-                                throw new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_TAG +
+                                throw new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_PREFIX +
                                         "Update of another process timed out for table [" + table.getName() + "] and key ["
                                                 + key + "]: " + updateLock.getFile().getAbsolutePath());
                             }
@@ -298,7 +299,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                         //same-JVM claim with no live registered instance: an orphaned result awaiting finalization.
                         //Nudge the phantom through once per key/minute (quiet heaps delay finalization for ages,
                         //keeping the abandoned heartbeat claim beating and the OS file lock held)
-                        final long nowMillis = de.invesdwin.util.time.date.millis.FDateMillis.nowMillis();
+                        final long nowMillis = FDateMillis.nowMillis();
                         if (nowMillis - lastLocalGhostFinalizeNudgeMillis > 60000) {
                             lastLocalGhostFinalizeNudgeMillis = nowMillis;
                             LOG.warn("Forcing finalization for orphaned local heartbeat claim of table [%s] key [%s] - an unclosed TimeSeriesUpdaterResult is awaiting the warning finalizer", table.getName(), key);
@@ -313,7 +314,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                          * patience is safe. If it never resolves anyway, look for the "Finalizing unclosed
                          * TimeSeriesUpdaterResult" WARN carrying the creation stack trace of the leaked instance.
                          */
-                        throw new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_TAG + "Update lock of table [" + table.getName() + "] and key ["
+                        throw new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_PREFIX + "Update lock of table [" + table.getName() + "] and key ["
                                 + key + "] is beaten by this very JVM (owner ["
                                 + HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER
                                 + "]) although no local update() is active for this key: an unclosed"
@@ -470,9 +471,9 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         }
     }
 
-    private String describeThreadLock(final java.io.File lockFile) {
+    private String describeThreadLock(final File lockFile) {
         try {
-            final de.invesdwin.util.concurrent.lock.ILock nameLock = de.invesdwin.util.concurrent.lock.file.NameKeyedLocks
+            final ILock nameLock = NameKeyedLocks
                     .get(lockFile.getAbsoluteFile().toPath().toAbsolutePath().toString());
             return String.valueOf(nameLock.getLockTrace());
         } catch (final Throwable t2) {
@@ -480,15 +481,15 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         }
     }
 
-    private String readLockMarker(final java.io.File lockFile) {
+    private String readLockMarker(final File lockFile) {
         try {
-            final java.io.File marker = new java.io.File(lockFile.getAbsolutePath()
+            final File marker = new File(lockFile.getAbsolutePath()
                     + HeartbeatFileChannelLockRegistry.HEARTBEAT_EXTENSION);
-            final java.io.File source = marker.exists() ? marker : lockFile;
+            final File source = marker.exists() ? marker : lockFile;
             if (!source.exists()) {
                 return "<none>";
             }
-            final String content = de.invesdwin.util.lang.Files.readFileToString(source);
+            final String content = Files.readFileToString(source);
             return content.length() > 200 ? content.substring(0, 200) : content;
         } catch (final Throwable t2) {
             return "<unreadable:" + t2.getMessage() + ">";
