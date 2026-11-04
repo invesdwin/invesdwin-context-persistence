@@ -35,6 +35,11 @@ public final class SourceRevisionSupport {
 
     public static final String KEY_SOURCE_REVISION_PREFIX = "SourceRevision.";
     public static final String KEY_SOURCE_WATERMARK_PREFIX = "SourceWatermark.";
+    /**
+     * Prefix of the decision-side counterpart: the source revision a derived store was built from, persisted in
+     * the derived store's own per-hashKey updater properties under this prefix plus the derived store key.
+     */
+    public static final String KEY_DERIVED_SOURCE_REVISION_PREFIX = "DerivedSourceRevision.";
 
     private SourceRevisionSupport() {}
 
@@ -87,12 +92,60 @@ public final class SourceRevisionSupport {
         return properties.getDateOptional(getSourceWatermarkKey(scopeKey));
     }
 
+    /**
+     * The persisted revision of this scope, or null when the source never published one - the absence that lets
+     * a consumer fall back to the stamp comparison instead of comparing against a made-up zero.
+     */
+    public static Long getSourceRevisionOptional(final IProperties properties, final String scopeKey) {
+        return properties.getLongOptional(getSourceRevisionKey(scopeKey));
+    }
+
+    /**
+     * The source revision a derived store recorded itself as built from, null when it never recorded one (a
+     * derived store predating the revision-aware decision).
+     */
+    public static Long getDerivedSourceRevisionOptional(final IProperties properties, final String derivedKey) {
+        return properties.getLongOptional(getDerivedSourceRevisionKey(derivedKey));
+    }
+
+    /**
+     * Records which source revision this derived store was built from, next to its own recalculation stamp, so
+     * the next decision can compare revisions instead of stamps.
+     */
+    public static void setDerivedSourceRevision(final IProperties properties, final String derivedKey,
+            final long revision) {
+        properties.setLong(getDerivedSourceRevisionKey(derivedKey), Long.valueOf(revision));
+    }
+
+    /**
+     * The revision-aware rebuild decision of a derived store: TRUE means the source changed (full rebuild), FALSE
+     * means the source is the same revision the store was built from (no rebuild, even when the wall-clock
+     * recalculation stamps differ - stamps are a property of the machine that last rebuilt the source, not of the
+     * data). Returns null when no verdict is possible: the source publishes no revision (a store predating the
+     * dual-write), so the caller must fall back to the stamp comparison it uses today.
+     */
+    public static Boolean decideRevisionBasedRecalculation(final Long sourceRevision,
+            final Long storedDerivedRevision) {
+        if (sourceRevision == null) {
+            return null;
+        }
+        if (storedDerivedRevision == null) {
+            //never built under revision awareness: sentinel-equivalent, one rebuild, then steady state
+            return Boolean.TRUE;
+        }
+        return Boolean.valueOf(storedDerivedRevision.longValue() != sourceRevision.longValue());
+    }
+
     public static String getSourceRevisionKey(final String scopeKey) {
         return KEY_SOURCE_REVISION_PREFIX + scopeKey;
     }
 
     public static String getSourceWatermarkKey(final String scopeKey) {
         return KEY_SOURCE_WATERMARK_PREFIX + scopeKey;
+    }
+
+    public static String getDerivedSourceRevisionKey(final String derivedKey) {
+        return KEY_DERIVED_SOURCE_REVISION_PREFIX + derivedKey;
     }
 
 }

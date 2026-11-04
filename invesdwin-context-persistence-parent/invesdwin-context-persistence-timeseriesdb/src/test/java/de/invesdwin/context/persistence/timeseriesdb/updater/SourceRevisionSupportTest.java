@@ -103,6 +103,58 @@ public class SourceRevisionSupportTest extends ATest {
         }
     }
 
+    /**
+     * The decision-side counterpart of the source revision: a derived store persists the source revision it was
+     * built from under its own 'DerivedSourceRevision.' key, absent on a store that never did, scoped per derived
+     * store key and namespaced apart from the source-side key.
+     */
+    @Test
+    public void testDerivedSourceRevisionPersistedUnderItsOwnKey() {
+        final ATimeSeriesDB<String, FDate> table = newTable("derivedSourceRevision");
+        final String derivedKey = "CalculatedBarsLastRecalculationDate.FROM_TIME_BARS.INSTRUMENT_BID_1d";
+        try (ICloseableProperties properties = newUpdaterProperties(table)) {
+            //absent on a fresh store: sentinel-equivalent, and a mere read never writes a key
+            Assertions.assertThat(SourceRevisionSupport.getDerivedSourceRevisionOptional(properties, derivedKey))
+                    .isNull();
+            Assertions.assertThat(
+                    properties.containsKey(SourceRevisionSupport.getDerivedSourceRevisionKey(derivedKey))).isFalse();
+            SourceRevisionSupport.setDerivedSourceRevision(properties, derivedKey, 7L);
+            Assertions.assertThat(SourceRevisionSupport.getDerivedSourceRevisionOptional(properties, derivedKey))
+                    .isEqualTo(7L);
+            //namespaced apart from the source-side key of the same string
+            Assertions.assertThat(properties.containsKey(SourceRevisionSupport.KEY_SOURCE_REVISION_PREFIX + derivedKey))
+                    .isFalse();
+        }
+        try (ICloseableProperties properties = newUpdaterProperties(table)) {
+            //survives a reopen of the properties (restart semantics)
+            Assertions.assertThat(SourceRevisionSupport.getDerivedSourceRevisionOptional(properties, derivedKey))
+                    .isEqualTo(7L);
+            //scoped per derived store key: another key of the same properties is untouched
+            Assertions.assertThat(SourceRevisionSupport.getDerivedSourceRevisionOptional(properties,
+                    "SkippingTicksLastRecalculationDate.FROM_TIME_BARS.INSTRUMENT_BID_1d")).isNull();
+        }
+    }
+
+    /**
+     * Truth table of the revision-aware rebuild decision: a null verdict (fall back to the stamp comparison)
+     * whenever the source publishes no revision; equal revisions say no rebuild even where the wall-clock stamps
+     * would differ (the cross-JVM non-determinism case); differing or never-stored revisions say rebuild.
+     */
+    @Test
+    public void testRevisionBasedRecalculationDecisionTruthTable() {
+        //source never published a revision: no verdict, the stamp comparison decides (unchanged old path)
+        Assertions.assertThat(SourceRevisionSupport.decideRevisionBasedRecalculation(null, null)).isNull();
+        Assertions.assertThat(SourceRevisionSupport.decideRevisionBasedRecalculation(null, 3L)).isNull();
+        //revision equal: no rebuild, no matter what the stamps say
+        Assertions.assertThat(SourceRevisionSupport.decideRevisionBasedRecalculation(7L, 7L)).isFalse();
+        //revision differs: rebuild fires
+        Assertions.assertThat(SourceRevisionSupport.decideRevisionBasedRecalculation(8L, 7L)).isTrue();
+        //derived store never built under revision awareness: sentinel-equivalent, one rebuild, then steady state
+        Assertions.assertThat(SourceRevisionSupport.decideRevisionBasedRecalculation(1L, null)).isTrue();
+        //after that rebuild the verdict is stable: re-deciding with the persisted revision says no rebuild
+        Assertions.assertThat(SourceRevisionSupport.decideRevisionBasedRecalculation(1L, 1L)).isFalse();
+    }
+
     private ICloseableProperties newUpdaterProperties(final ATimeSeriesDB<String, FDate> table) {
         return table.getDirectoryVersionHashKey(KEY).getDirectoryHashKeyVersion().getUpdaterPropertiesShared();
     }
