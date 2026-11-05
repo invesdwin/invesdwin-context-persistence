@@ -34,6 +34,7 @@ public final class TimeSeriesProperties {
     public static final Duration RETAIN_OBSOLETE_VERSIONS_THRESHOLD;
     public static final Duration RETAIN_OBSOLETE_EPOCHS_THRESHOLD;
     public static final int UPDATE_COMMIT_SEGMENT_INTERVAL;
+    public static final Duration UPDATE_YIELD_ACQUIRE_WRITE_LOCK_TIMEOUT;
     private static final SystemProperties SYSTEM_PROPERTIES;
 
     static {
@@ -55,6 +56,8 @@ public final class TimeSeriesProperties {
         RETAIN_OBSOLETE_VERSIONS_THRESHOLD = SYSTEM_PROPERTIES.getDuration("RETAIN_OBSOLETE_VERSIONS_THRESHOLD");
         RETAIN_OBSOLETE_EPOCHS_THRESHOLD = SYSTEM_PROPERTIES.getDuration("RETAIN_OBSOLETE_EPOCHS_THRESHOLD");
         UPDATE_COMMIT_SEGMENT_INTERVAL = SYSTEM_PROPERTIES.getInteger("UPDATE_COMMIT_SEGMENT_INTERVAL");
+        UPDATE_YIELD_ACQUIRE_WRITE_LOCK_TIMEOUT = SYSTEM_PROPERTIES
+                .getDuration("UPDATE_YIELD_ACQUIRE_WRITE_LOCK_TIMEOUT");
         FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR = null;
     }
 

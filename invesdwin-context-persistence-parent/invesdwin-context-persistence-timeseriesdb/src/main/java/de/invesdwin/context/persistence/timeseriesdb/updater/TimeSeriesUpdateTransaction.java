@@ -8,6 +8,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannel;
+import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateYieldException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.ITimeSeriesDirectoryHashKeyVersion;
@@ -44,6 +45,9 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     private boolean committed;
     //segments staged since the last publish, the unit a boundary commit publishes
     private int stagedSegmentCount;
+    //the attempt's table write lock lease, attached only by an attempt that holds the key's write lock
+    //(ATimeSeriesUpdater.update); the boundary commit yields it after publishing, see commitSegmentBoundary
+    private TimeSeriesWriteLockYield writeLockYield;
 
     public TimeSeriesUpdateTransaction(final TimeSeriesLookupStorageCache<?, V> parent, final FDate updateFrom,
             final List<V> lastValues, final long precedingMemoryOffset, final long memoryOffset,
@@ -159,13 +163,41 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
      *         and continue in a new one, so that a published file never carries bytes of a segment that was not
      *         published (a file with unpublished trailing bytes would make the store fail its own length check in
      *         {@link TimeSeriesLookupStorageCache#isEmptyOrInconsistent()} and get reset)
+     * @throws IncompleteUpdateYieldException when this attempt holds a table write lock lease
+     *         ({@link #setWriteLockYield}) and could not re-acquire the lock after publishing: the publish-then-yield
+     *         of this boundary ends the attempt CLEANLY, the published prefix being the resume point of the next
+     *         attempt of the key
      */
     public synchronized boolean commitSegmentBoundary() {
         if (committed || stagedSegmentCount < TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL) {
             return false;
         }
         publishStagedSummaries();
+        //publish-then-yield: the store's visible state right now is exactly the published generations and this
+        //attempt holds no data file open mid-segment (the caller rotates onto a fresh file for the next segment), so
+        //releasing the table write lock here gives the readers parked on the key's read side their window while the
+        //single-writer invariant keeps holding for everything unpublished
+        if (writeLockYield != null && !writeLockYield.yieldAndTryReacquire()) {
+            throw new IncompleteUpdateYieldException(
+                    "Update attempt of hash key [" + parent.getHashKey() + "] published a segment boundary and yielded"
+                            + " the table write lock, but readers of the key kept it past the re-acquisition window of"
+                            + " [" + TimeSeriesProperties.UPDATE_YIELD_ACQUIRE_WRITE_LOCK_TIMEOUT + "] - ending the"
+                            + " attempt cleanly at this boundary, the published prefix is the resume point");
+        }
         return true;
+    }
+
+    /**
+     * Attaches the table write lock lease of an attempt that holds the key's table write lock for its pass
+     * ({@link ATimeSeriesUpdater#update()}); every boundary commit of the attempt then yields that lock after
+     * publishing (publish-then-yield). Consumers that drive a transaction without holding a table write lock (the
+     * segmented updater path, index-only writers) leave it unset and their boundary commits keep behaving exactly as
+     * before. Must be attached before the attempt stages its first segment.
+     */
+    void setWriteLockYield(final TimeSeriesWriteLockYield writeLockYield) {
+        Assertions.checkTrue(prevSummary == null && !committed,
+                "the write lock lease must be attached before the attempt stages a segment");
+        this.writeLockYield = writeLockYield;
     }
 
     /**
