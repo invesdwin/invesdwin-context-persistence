@@ -388,6 +388,11 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                 .newUpdateTransaction(shouldRedoLastFile())) {
             //this attempt holds the key's table write lock, so its boundary commits publish and then yield it
             updateTransaction.setWriteLockYield(writeLockYield);
+            //consumers mirroring this store's frontier (if any) hear about every published boundary
+            final ITimeSeriesBoundaryCommitListener boundaryCommitListener = newBoundaryCommitListener();
+            if (boundaryCommitListener != null) {
+                updateTransaction.setBoundaryCommitListener(boundaryCommitListener);
+            }
             final FDate updateFrom = updateTransaction.getUpdateFrom();
             final List<V> lastValues = updateTransaction.getLastValues();
             final long initialPrecedingMemoryOffset = updateTransaction.getPrecedingMemoryOffset();
@@ -589,6 +594,16 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     protected boolean shouldWriteInParallel() {
         //LZ4HC should be compressed in parallel
         return Executors.getCpuThreadPoolCount() > 1;
+    }
+
+    /**
+     * The boundary-commit notification attached to this attempt's update transaction (null = silent, the default):
+     * every segment boundary the attempt publishes reports its new frontier to the listener, so consumers above
+     * the store can advance mirrored frontier keys with each published segment instead of only after a complete
+     * update. The hook is read once per attempt at transaction creation.
+     */
+    protected ITimeSeriesBoundaryCommitListener newBoundaryCommitListener() {
+        return null;
     }
 
     protected boolean shouldRedoLastFile() {

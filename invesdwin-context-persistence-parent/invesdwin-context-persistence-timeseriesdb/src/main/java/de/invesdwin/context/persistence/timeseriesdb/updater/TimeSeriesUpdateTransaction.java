@@ -48,6 +48,9 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     //the attempt's table write lock lease, attached only by an attempt that holds the key's write lock
     //(ATimeSeriesUpdater.update); the boundary commit yields it after publishing, see commitSegmentBoundary
     private TimeSeriesWriteLockYield writeLockYield;
+    //the boundary-commit notification of consumers that mirror this store's frontier (null = none): fired after
+    //every publish, before the publish-then-yield, so frontier keys advance with published segments
+    private ITimeSeriesBoundaryCommitListener boundaryCommitListener;
 
     public TimeSeriesUpdateTransaction(final TimeSeriesLookupStorageCache<?, V> parent, final FDate updateFrom,
             final List<V> lastValues, final long precedingMemoryOffset, final long memoryOffset,
@@ -173,6 +176,12 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
             return false;
         }
         publishStagedSummaries();
+        //the publish just landed, so the store's readable frontier is now the last published value: consumers
+        //mirroring it (downloaded frontier keys of the caching services above) get told before this attempt does
+        //anything else, including yielding the write lock below
+        if (boundaryCommitListener != null) {
+            boundaryCommitListener.onBoundaryCommitPublished(parent.getLastValueEndTime());
+        }
         //publish-then-yield: the store's visible state right now is exactly the published generations and this
         //attempt holds no data file open mid-segment (the caller rotates onto a fresh file for the next segment), so
         //releasing the table write lock here gives the readers parked on the key's read side their window while the
@@ -198,6 +207,17 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         Assertions.checkTrue(prevSummary == null && !committed,
                 "the write lock lease must be attached before the attempt stages a segment");
         this.writeLockYield = writeLockYield;
+    }
+
+    /**
+     * Attaches the boundary-commit notification of a consumer that mirrors this store's published frontier
+     * ({@link ITimeSeriesBoundaryCommitListener}); every boundary commit that publishes then reports its new
+     * frontier to the listener. The final publish of a committed close and the discards of an aborted attempt do
+     * not notify. Must be attached before the attempt's first publish; null leaves the transaction silent
+     * (unchanged behaviour for consumers that do not use the hook).
+     */
+    void setBoundaryCommitListener(final ITimeSeriesBoundaryCommitListener boundaryCommitListener) {
+        this.boundaryCommitListener = boundaryCommitListener;
     }
 
     /**

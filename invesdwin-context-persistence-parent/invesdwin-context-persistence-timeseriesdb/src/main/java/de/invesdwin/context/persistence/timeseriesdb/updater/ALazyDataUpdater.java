@@ -409,6 +409,11 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 }
 
                 @Override
+                protected ITimeSeriesBoundaryCommitListener newBoundaryCommitListener() {
+                    return ALazyDataUpdater.this.newBoundaryCommitListener();
+                }
+
+                @Override
                 public Percent getProgress(final FDate minTime, final FDate maxTime) {
                     if (minTime == null) {
                         return null;
@@ -458,6 +463,16 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
         } catch (final Throwable e) {
             throw Throwables.propagate(e);
         }
+    }
+
+    /**
+     * The boundary-commit notification attached to every update transaction this updater's {@code doUpdate} creates
+     * (null = silent, the default): each segment boundary the attempt publishes reports its new frontier, so a
+     * consumer that mirrors the store's downloaded first/last date keys can advance them with published segments
+     * instead of only after a complete update.
+     */
+    protected ITimeSeriesBoundaryCommitListener newBoundaryCommitListener() {
+        return null;
     }
 
     protected Callable<Percent> newProgressCallable(final FDate estimatedTo,
