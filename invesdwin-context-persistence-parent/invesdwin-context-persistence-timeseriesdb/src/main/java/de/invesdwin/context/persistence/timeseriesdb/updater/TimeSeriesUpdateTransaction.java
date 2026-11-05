@@ -9,6 +9,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannel;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.ITimeSeriesDirectoryHashKeyVersion;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummarySerde;
@@ -35,15 +36,18 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     private final long memoryOffset;
     private final long precedingValueCount;
     private final String epochLocalDataId;
+    private final FDate resumeAfterEndTime;
     private AMemoryFileSummarySerializingCollection summaries;
     private MemoryFileSummary prevSummary;
-    //publish-on-commit: close() without an explicit commit() DISCARDS this attempt's staged index (partial results
-    //of a failed/aborted update must never become visible; the previously published state simply remains)
+    //publish-on-commit: close() without an explicit commit() DISCARDS only what this attempt staged after its last
+    //published boundary; a final commit() publishes the rest
     private boolean committed;
+    //segments staged since the last publish, the unit a boundary commit publishes
+    private int stagedSegmentCount;
 
     public TimeSeriesUpdateTransaction(final TimeSeriesLookupStorageCache<?, V> parent, final FDate updateFrom,
             final List<V> lastValues, final long precedingMemoryOffset, final long memoryOffset,
-            final long precedingValueCount, final String epochLocalDataId) {
+            final long precedingValueCount, final String epochLocalDataId, final FDate resumeAfterEndTime) {
         this.parent = parent;
         this.updateFrom = updateFrom;
         Assertions.checkNotNull(lastValues);
@@ -52,6 +56,7 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         this.memoryOffset = memoryOffset;
         this.precedingValueCount = precedingValueCount;
         this.epochLocalDataId = epochLocalDataId;
+        this.resumeAfterEndTime = resumeAfterEndTime;
         MemoryFiles.assertMaybeFirstSummary(precedingMemoryOffset, memoryOffset, precedingValueCount);
     }
 
@@ -60,6 +65,16 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
      */
     public String getEpochLocalDataId() {
         return epochLocalDataId;
+    }
+
+    /**
+     * The end time of the last value the published generation already holds when this attempt continues it (a resumed
+     * attempt - the previous attempt died after a boundary commit), null when the attempt starts from an empty store or
+     * redoes the incomplete last file instead. A source that hands that value out again must not have it written
+     * twice, so the attempt's writer skips everything up to and including it.
+     */
+    public FDate getResumeAfterEndTime() {
+        return resumeAfterEndTime;
     }
 
     public TimeSeriesLookupStorageCache<?, V> getParent() {
@@ -119,6 +134,7 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         }
         summaries.add(summary);
         prevSummary = summary;
+        stagedSegmentCount++;
     }
 
     private void assertSummaryBeforeCommit(final MemoryFileSummary summary) {
@@ -131,6 +147,31 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         parent.assertSummary(lastSummary, summary);
     }
 
+    /**
+     * Boundary commit of a completed segment: publishes everything this attempt has staged so far as a new index
+     * generation and lets the attempt continue staging into it, so a long backfill publishes incrementally and an
+     * attempt that dies later leaves a readable high-water mark behind instead of nothing. The progress writers call
+     * this after every completed segment; a publish only actually happens once
+     * {@link TimeSeriesProperties#UPDATE_COMMIT_SEGMENT_INTERVAL} segments have piled up, because every publish writes
+     * a new index generation.
+     *
+     * @return true when this call published - the caller must then stop appending to the data file it has been writing
+     *         and continue in a new one, so that a published file never carries bytes of a segment that was not
+     *         published (a file with unpublished trailing bytes would make the store fail its own length check in
+     *         {@link TimeSeriesLookupStorageCache#isEmptyOrInconsistent()} and get reset)
+     */
+    public synchronized boolean commitSegmentBoundary() {
+        if (committed || stagedSegmentCount < TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL) {
+            return false;
+        }
+        publishStagedSummaries();
+        return true;
+    }
+
+    /**
+     * Marks the attempt as finished: its remaining staged segments (the incomplete last file) are published by
+     * {@link #close()}.
+     */
     public synchronized void commit() {
         this.committed = true;
     }
@@ -140,18 +181,23 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         if (prevSummary == null) {
             return;
         }
-        if (!committed) {
-            //abort path: release the staged collection WITHOUT publishing it into the lookup table and without
-            //touching the update marker - a failed attempt changes nothing observable (epoch design I2)
+        if (committed) {
+            publishStagedSummaries();
+        } else {
+            //abort path: only what this attempt staged after its last published boundary is released WITHOUT
+            //publishing it; the boundaries it did publish stay, and the next attempt of this key continues from them
             final AMemoryFileSummarySerializingCollection summariesCopy = summaries;
             if (summariesCopy != null) {
                 summariesCopy.closeWithEmptyWrite();
                 summariesCopy.clear();
                 summaries = null;
+                stagedSegmentCount = 0;
             }
-            prevSummary = null;
-            return;
         }
+        prevSummary = null;
+    }
+
+    private void publishStagedSummaries() {
         final AMemoryFileSummarySerializingCollection summariesCopy = summaries;
         if (summariesCopy != null) {
             summariesCopy.closeWithEmptyWrite();
@@ -160,10 +206,10 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
             memoryFileLookupTable.put(iterator);
             summariesCopy.clear();
             summaries = null;
+            stagedSegmentCount = 0;
         }
         parent.clearCaches();
         touchUpdateMarker(parent.getDirectoryHashKey().getDirectoryHashKeyVersion());
-        prevSummary = null;
     }
 
     public static void touchUpdateMarker(final ITimeSeriesDirectoryHashKeyVersion directoryHashKeyVersion) {

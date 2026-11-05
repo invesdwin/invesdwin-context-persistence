@@ -3,6 +3,7 @@ package de.invesdwin.context.persistence.timeseriesdb.updater;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -16,6 +17,7 @@ import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSu
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.AMemoryFileSummarySerializingCollection;
 import de.invesdwin.util.collections.Collections;
+import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLockRegistry;
@@ -34,8 +36,9 @@ import de.invesdwin.util.time.date.millis.FDateMillis;
  * references, so without this reclaim every attempt accumulates garbage. Reclaim runs without a new global timer:
  * <ul>
  * <li>{@link #reclaimAbortedAttemptEpoch(TimeSeriesLookupStorageCache, String)} runs in the failing writer's abort
- * path: the attempt's own transaction was discarded, so its files are provably unpinned garbage (the published
- * generation reference check still guards the rare case where a commit landed inside a throwing close);</li>
+ * path: what the attempt staged after its last published boundary is provably unpinned garbage (the published
+ * generation reference check still guards the bytes a boundary commit published before the attempt died, and the rare
+ * case of a commit landing inside a throwing close);</li>
  * <li>{@link #reclaimObsoleteEpochs(TimeSeriesLookupStorageCache)} piggybacks on the completion of an update attempt
  * for that key and sweeps that key's version directory only: attempt files referenced by no published index
  * generation, not owned by the heartbeat-live attempt this key's progress marker describes, and older than
@@ -116,13 +119,17 @@ public final class TimeSeriesEpochReclaim {
 
     /**
      * The attempt id embedded in an attempt local data file name: 'memory_&lt;attemptId&gt;' up to the first dot (the
-     * extensions are '.data', '.data.&lt;preceding offset&gt;' and '.data_incomplete_...'), null for names that do not
-     * carry one (a data file without an attempt id never passes {@link MemoryFiles#isEpochLocalDataFile(String)}
-     * anyway).
+     * extensions are '.data', '.data.&lt;preceding offset&gt;') or up to the '_incomplete_' marker (the standalone
+     * file of an attempt has the marker inside the base name, so the id ends there), null for names that do not carry
+     * one (a data file without an attempt id never passes {@link MemoryFiles#isEpochLocalDataFile(String)} anyway).
      */
     private static String attemptIdOfDataFileName(final String fileName) {
         final int start = MemoryFiles.EPOCH_LOCAL_DATA_FILE_PREFIX.length();
-        final int end = fileName.indexOf('.', start);
+        int end = fileName.indexOf('.', start);
+        final int marker = fileName.indexOf(MemoryFiles.INCOMPLETE_MEMORY_FILE_MARKER, start);
+        if (marker > start && (end < 0 || marker < end)) {
+            end = marker;
+        }
         return end > start ? fileName.substring(start, end) : null;
     }
 
@@ -144,31 +151,26 @@ public final class TimeSeriesEpochReclaim {
     }
 
     /**
-     * True when the attempt's files are still referenced as a data file source by any '&lt;N&gt;_memory.index'
-     * generation that exists in the version's data directory (the newest published view plus the older generations
-     * retained for open iterations). This is the trap M1 flagged: never delete a file an existing generation's
-     * summaries name.
+     * The data file names that every '&lt;N&gt;_memory.index' generation still present in the version's data
+     * directory names (the newest published view plus the older generations retained for open iterations). This is the
+     * trap M1 flagged: a file any existing generation names must stay readable, a file no generation names is
+     * garbage.
      */
-    private static boolean isReferencedByPublishedGenerations(final TimeSeriesLookupStorageCache<?, ?> cache,
-            final File[] attemptDataFiles) {
-        final File dataDirectory = attemptDataFiles[0].getParentFile();
+    private static Set<String> collectPublishedDataFileNames(final File dataDirectory,
+            final TimeSeriesLookupStorageCache<?, ?> cache) {
+        final Set<String> referencedNames = ILockCollectionFactory.getInstance(true).newLinkedSet();
         final File[] generationFiles = dataDirectory.listFiles(
                 (dir, name) -> name.endsWith("_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME));
         if (generationFiles == null) {
-            return false;
+            return referencedNames;
         }
         for (final File generationFile : generationFiles) {
             final List<MemoryFileSummary> summaries = readIndexGenerationSummaries(cache, generationFile);
             for (final MemoryFileSummary summary : summaries) {
-                final String dataFileName = new File(summary.getMemoryResourceUri()).getName();
-                for (final File attemptDataFile : attemptDataFiles) {
-                    if (attemptDataFile.getName().equals(dataFileName)) {
-                        return true;
-                    }
-                }
+                referencedNames.add(new File(summary.getMemoryResourceUri()).getName());
             }
         }
-        return false;
+        return referencedNames;
     }
 
     /**
@@ -295,13 +297,13 @@ public final class TimeSeriesEpochReclaim {
             //no data files of this attempt left (or the directory is already gone)
             return;
         }
-        if (isReferencedByPublishedGenerations(cache, attemptDataFiles)) {
-            //a published generation names this attempt's files: the bytes must stay (M1 trap: deleting files the
-            //published generation references is data loss)
-            return;
-        }
+        //per file and not per attempt: an attempt that published boundaries before it died keeps exactly the files a
+        //published generation names, the files it staged after its last publish are unreferenced garbage and go
+        final Set<String> referencedNames = collectPublishedDataFileNames(attemptDataFiles[0].getParentFile(), cache);
         for (final File dataFile : attemptDataFiles) {
-            Files.deleteQuietly(dataFile);
+            if (!referencedNames.contains(dataFile.getName())) {
+                Files.deleteQuietly(dataFile);
+            }
         }
     }
 

@@ -373,10 +373,17 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             }
             final ICloseableIterable<? extends V> skippingSource;
             if (updateFrom != null) {
+                final FDate resumeAfterEndTime = updateTransaction.getResumeAfterEndTime();
                 skippingSource = new ASkippingIterable<V>(source) {
                     @Override
                     protected boolean skip(final V element) {
                         final FDate endTime = extractEndTime(element);
+                        if (resumeAfterEndTime != null && !endTime.isAfterNotNullSafe(resumeAfterEndTime)) {
+                            //this attempt continues a published boundary of an attempt that died mid-pass: the store
+                            //already holds everything up to that value, a source that hands it out again must not
+                            //have it written a second time
+                            return true;
+                        }
                         //ensure we add no duplicate values
                         return endTime.isBeforeNotNullSafe(updateFrom);
                     }
