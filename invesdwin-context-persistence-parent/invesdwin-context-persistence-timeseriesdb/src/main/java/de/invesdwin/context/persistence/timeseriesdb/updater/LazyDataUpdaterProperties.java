@@ -17,9 +17,9 @@ public final class LazyDataUpdaterProperties {
 
     private static final String KEY_UPDATE_LIMIT_TO = "UPDATE_LIMIT_TO";
     private static final AtomicInteger ACTIVE_BACKTEST_RUNS_COUNT = new AtomicInteger();
-    //latch depth of the outer run entries (one per increase/decrease pair, not per task): drives the recalculation stamp below
+    //latch depth of the outer run entries (one per increase/decrease pair, not per task): drives the run as-of date below
     private static final AtomicInteger ACTIVE_RUNS_LATCH_COUNT = new AtomicInteger();
-    private static volatile FDate latchedRecalculationStamp;
+    private static volatile FDate latchedRunAsOfDate;
     private static final FastThreadLocal<FDate> UPDATE_LIMIT_TO_BEFORE = new FastThreadLocal<FDate>();
     private static final Map<String, FDate> UPDATERID_LASTUPDATETO = ILockCollectionFactory.getInstance(true)
             .newConcurrentMap();
@@ -45,7 +45,7 @@ public final class LazyDataUpdaterProperties {
 
     /**
      * Run entry with the run's closed time range: besides the UPDATE_LIMIT_TO handling this also latches the
-     * recalculation stamp of the run (see {@link #recalculationStamp()}); only the outermost entry latches.
+     * run as-of date (see {@link #runAsOfDate()}); only the outermost entry latches.
      */
     public static void increaseActiveBacktestRunsCount(final TimeRange runTimeRange) {
         increaseActiveBacktestRunsCount(1, runTimeRange);
@@ -54,7 +54,7 @@ public final class LazyDataUpdaterProperties {
     public static synchronized void increaseActiveBacktestRunsCount(final int count, final TimeRange runTimeRange) {
         final int latchDepth = ACTIVE_RUNS_LATCH_COUNT.incrementAndGet();
         if (latchDepth == 1) {
-            latchedRecalculationStamp = getRecalculationStampFromRange(runTimeRange);
+            latchedRunAsOfDate = getRunAsOfDateFromRange(runTimeRange);
         }
         final int before = ACTIVE_BACKTEST_RUNS_COUNT.getAndAdd(count);
         if (before == 0) {
@@ -72,7 +72,7 @@ public final class LazyDataUpdaterProperties {
         final int latchDepth = ACTIVE_RUNS_LATCH_COUNT.decrementAndGet();
         if (latchDepth <= 0) {
             ACTIVE_RUNS_LATCH_COUNT.set(0);
-            latchedRecalculationStamp = null;
+            latchedRunAsOfDate = null;
         }
         final int after = ACTIVE_BACKTEST_RUNS_COUNT.addAndGet(-count);
         if (after == 0) {
@@ -157,18 +157,19 @@ public final class LazyDataUpdaterProperties {
     }
 
     /**
-     * The recalculation stamp of the running context: the date stamped into derived table recalculation
-     * metadata (calculated ticks, bars, schema values, exchange rates) and the as-of date at which bars
-     * become the current unfinished ones of the run. While a bounded run is active it is the latched end of
-     * that run's closed time window, so the stamp becomes a property of the replayed window and not of the
-     * machine clock - equal for every run over the same window; while no stamp is latched, the value already
-     * latched as UPDATE_LIMIT_TO by the run-count lifecycle is used, and only if that is absent as well does
-     * this fall back to the wall clock.
+     * The as-of date of the running context: the date at which bars become the current unfinished ones of
+     * the run. It is not the recalculation stamp of any store: those stamps are content commits, persisted
+     * per table and minted monotonically (see {@link SourceCommitSupport}); this clock never leaves the
+     * running JVM and is read only to decide which period is the current unfinished one. While a bounded
+     * run is active it is the latched end of that run's closed time window, so the as-of date becomes a
+     * property of the replayed window and not of the machine clock - equal for every run over the same
+     * window; while nothing is latched, the value already latched as UPDATE_LIMIT_TO by the run-count
+     * lifecycle is used, and only if that is absent as well does this fall back to the wall clock.
      */
-    public static FDate recalculationStamp() {
-        final FDate latchedStamp = latchedRecalculationStamp;
-        if (latchedStamp != null) {
-            return latchedStamp;
+    public static FDate runAsOfDate() {
+        final FDate latchedAsOfDate = latchedRunAsOfDate;
+        if (latchedAsOfDate != null) {
+            return latchedAsOfDate;
         }
         final FDate updateLimitTo = getUpdateLimitTo();
         if (updateLimitTo != null) {
@@ -188,10 +189,10 @@ public final class LazyDataUpdaterProperties {
     }
 
     /**
-     * A run that does not close its time range latches no recalculation stamp and keeps the fallback
-     * described in {@link #recalculationStamp()}.
+     * A run that does not close its time range latches no run as-of date and keeps the fallback
+     * described in {@link #runAsOfDate()}.
      */
-    private static FDate getRecalculationStampFromRange(final TimeRange timeRange) {
+    private static FDate getRunAsOfDateFromRange(final TimeRange timeRange) {
         if (timeRange == null || timeRange.isUnlimited()) {
             return null;
         }
