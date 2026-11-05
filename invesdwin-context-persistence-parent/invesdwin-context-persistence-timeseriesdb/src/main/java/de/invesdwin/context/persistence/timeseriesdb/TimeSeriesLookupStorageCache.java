@@ -1394,13 +1394,13 @@ public class TimeSeriesLookupStorageCache<K, V> {
     }
 
     @SuppressWarnings("rawtypes")
-    private static final class ResultCacheKey {
+    static final class ResultCacheKey {
 
         private final MemoryFileSummary summary;
         private final IFileBufferSource source;
         private final int hashCode;
 
-        private ResultCacheKey(final MemoryFileSummary summary, final IFileBufferSource source) {
+        ResultCacheKey(final MemoryFileSummary summary, final IFileBufferSource source) {
             this.summary = summary;
             this.source = source;
             this.hashCode = Objects.hashCode(ResultCacheKey.class, summary);
@@ -1423,7 +1423,11 @@ public class TimeSeriesLookupStorageCache<K, V> {
         public boolean equals(final Object obj) {
             if (obj instanceof ResultCacheKey) {
                 final ResultCacheKey cObj = (ResultCacheKey) obj;
-                return hashCode == cObj.hashCode;
+                //hashCode alone only identifies the bucket - two different segment summaries must never compare
+                //equal just because their hash codes collide, else one segment's cached result is served for the
+                //other; MemoryFileSummary.equals covers exactly the fields that feed MemoryFileSummary.hashCode,
+                //so value-equal summaries keep equal hashCodes and this stays hashCode-consistent
+                return hashCode == cObj.hashCode && Objects.equals(summary, cObj.summary);
             }
             return false;
         }
