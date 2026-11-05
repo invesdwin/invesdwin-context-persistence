@@ -20,6 +20,9 @@ import de.invesdwin.util.time.range.TimeRange;
  * Derived from the status table's segment ranges only - no row scan, no count probe, no bisection: callers localize
  * holes from the returned gap ranges instead of probing for them. Adjacent ranges of the same bucket are merged into
  * maximal sub-ranges, and all returned sub-ranges are limited to the query range.
+ *
+ * An inverted query range (from after to) never claims coverage: the buckets stay empty and the request itself comes
+ * back as the single gap, so {@link #isFullyCovered()} is false for it.
  */
 @Immutable
 public final class TimeSeriesCoverage {
@@ -36,8 +39,24 @@ public final class TimeSeriesCoverage {
         this.coveredRanges = mergeAdjacent(coveredRanges);
         this.coveredEmptyRanges = mergeAdjacent(coveredEmptyRanges);
         this.initializingRanges = mergeAdjacent(initializingRanges);
-        this.gapRanges = Collections.unmodifiableList(extractGaps(queryRange, this.coveredRanges,
-                this.coveredEmptyRanges, this.initializingRanges));
+        if (isInverted(queryRange)) {
+            /*
+             * An inverted query range (from after to) is a caller-side inversion: coverage never claims anything
+             * covers it. The request itself is reported back verbatim as the single gap, so isFullyCovered()
+             * stays false instead of a vacuously empty gap list pretending the query is satisfied.
+             */
+            final List<TimeRange> invertedGap = new ArrayList<>(1);
+            invertedGap.add(queryRange);
+            this.gapRanges = Collections.unmodifiableList(invertedGap);
+        } else {
+            this.gapRanges = Collections.unmodifiableList(extractGaps(queryRange, this.coveredRanges,
+                    this.coveredEmptyRanges, this.initializingRanges));
+        }
+    }
+
+    private static boolean isInverted(final TimeRange range) {
+        return range != null && range.getFrom() != null && range.getTo() != null
+                && range.getFrom().isAfterNotNullSafe(range.getTo());
     }
 
     public TimeRange getQueryRange() {
@@ -115,7 +134,8 @@ public final class TimeSeriesCoverage {
         final List<TimeRange> covered = new ArrayList<TimeRange>();
         final List<TimeRange> coveredEmpty = new ArrayList<TimeRange>();
         final List<TimeRange> initializing = new ArrayList<TimeRange>();
-        //an inverted query range intersects nothing and leaves nothing uncovered: an empty coverage
+        //an inverted query range intersects nothing at all: all buckets stay empty, and the constructor
+        //reports the inverted request itself as the single gap so full coverage is never claimed for it
         final boolean invertedQueryRange = queryFrom.isAfterNotNullSafe(queryTo);
         if (!invertedQueryRange) {
             if (declaredRanges != null) {

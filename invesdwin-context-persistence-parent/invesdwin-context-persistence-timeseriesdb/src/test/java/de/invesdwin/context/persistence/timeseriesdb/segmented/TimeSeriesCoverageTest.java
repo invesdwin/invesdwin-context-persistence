@@ -190,6 +190,29 @@ public class TimeSeriesCoverageTest extends ATest {
         }
     }
 
+    /**
+     * An inverted query range (from after to) must never be reported as covered: the declared COMPLETE segments
+     * intersect nothing for it, the buckets stay empty, and the inverted request itself comes back as the single
+     * gap, so isFullyCovered() is false - the safe direction of the audit contract.
+     */
+    @Test
+    public void testInvertedQueryRangeNeverClaimsFullCoverage() {
+        final VersionedTimeSeriesSegmentStatusTable statusTable = newStatusTableFixture();
+        statusTable.put(yearRange(2020), SegmentStatus.COMPLETE);
+        statusTable.put(yearRange(2021), SegmentStatus.COMPLETE);
+        statusTable.put(yearRange(2022), SegmentStatus.COMPLETE);
+        statusTable.put(yearRange(2023), SegmentStatus.COMPLETE);
+
+        final FDate queryFrom = FDateBuilder.newDate(2023, 6, 15);
+        final FDate queryTo = FDateBuilder.newDate(2020, 6, 1);
+        final TimeSeriesCoverage coverage = statusTable.coverage(queryFrom, queryTo);
+        Assertions.assertThat(coverage.getCoveredRanges()).isEmpty();
+        Assertions.assertThat(coverage.getCoveredEmptyRanges()).isEmpty();
+        Assertions.assertThat(coverage.getInitializingRanges()).isEmpty();
+        Assertions.assertThat(coverage.getGapRanges()).containsExactly(new TimeRange(queryFrom, queryTo));
+        Assertions.assertThat(coverage.isFullyCovered()).isFalse();
+    }
+
     private static VersionedTimeSeriesSegmentStatusTable newStatusTableFixture() {
         final File directory = new File(ContextProperties.TEMP_DIRECTORY,
                 TimeSeriesCoverageTest.class.getSimpleName() + "_" + FDateNanos.elapsedNanos());
