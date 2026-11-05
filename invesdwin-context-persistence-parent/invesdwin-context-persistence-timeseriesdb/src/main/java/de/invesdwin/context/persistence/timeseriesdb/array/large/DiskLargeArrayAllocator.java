@@ -167,7 +167,7 @@ public class DiskLargeArrayAllocator implements ILargeArrayAllocator, Closeable 
     public boolean equals(final Object obj) {
         if (obj instanceof DiskLargeArrayAllocator) {
             final DiskLargeArrayAllocator cObj = (DiskLargeArrayAllocator) obj;
-            return Objects.equals(finalizer.map.getName(), cObj.finalizer.map.getDirectory())
+            return Objects.equals(finalizer.map.getName(), cObj.finalizer.map.getName())
                     && Objects.equals(getDirectory(), cObj.getDirectory());
         } else {
             return false;

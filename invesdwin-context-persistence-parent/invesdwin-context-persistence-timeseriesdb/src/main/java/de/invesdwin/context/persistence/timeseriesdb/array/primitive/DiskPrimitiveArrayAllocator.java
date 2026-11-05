@@ -168,7 +168,7 @@ public class DiskPrimitiveArrayAllocator implements IPrimitiveArrayAllocator, Cl
     public boolean equals(final Object obj) {
         if (obj instanceof DiskPrimitiveArrayAllocator) {
             final DiskPrimitiveArrayAllocator cObj = (DiskPrimitiveArrayAllocator) obj;
-            return Objects.equals(finalizer.map.getName(), cObj.finalizer.map.getDirectory())
+            return Objects.equals(finalizer.map.getName(), cObj.finalizer.map.getName())
                     && Objects.equals(getDirectory(), cObj.getDirectory());
         } else {
             return false;
