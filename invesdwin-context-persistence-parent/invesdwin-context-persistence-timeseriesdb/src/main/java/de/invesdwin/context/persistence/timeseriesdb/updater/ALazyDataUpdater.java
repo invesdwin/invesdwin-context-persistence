@@ -12,6 +12,8 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 
 import org.apache.commons.lang3.BooleanUtils;
 
+import org.springframework.retry.backoff.BackOffPolicy;
+
 import de.invesdwin.context.integration.IntegrationProperties;
 import de.invesdwin.context.integration.concurrent.DatabaseThreads;
 import de.invesdwin.context.integration.concurrent.nonblocking.ANonBlockingRunnable;
@@ -20,6 +22,9 @@ import de.invesdwin.context.integration.concurrent.nonblocking.INonBlockingRunna
 
 import de.invesdwin.context.integration.retry.NonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.RetryScopes;
+import de.invesdwin.context.integration.retry.task.ARetryCallable;
+import de.invesdwin.context.integration.retry.task.BackOffPolicies;
+import de.invesdwin.context.integration.retry.task.RetryOriginator;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
@@ -45,6 +50,11 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
 
     public static final String REASON_DOES_NOT_EQUAL = "does not equal";
     public static final String REASON_IS_BEFORE = "is before";
+
+    //the wait the update attempt loop takes between attempts; it is always applied with the table write lock released,
+    //and by default it is the same exponential schedule the retry aspect of an update body used before
+    private static final Duration UPDATE_ATTEMPT_BACK_OFF_MIN = Duration.ONE_MILLISECOND;
+    private static final Duration UPDATE_ATTEMPT_BACK_OFF_MAX = Duration.ONE_MINUTE;
 
     private static final FastThreadLocal<Boolean> SKIP_UPDATE_ON_CURRENT_THREAD_IF_ALREADY_RUNNING = new FastThreadLocal<Boolean>();
 
@@ -209,36 +219,12 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                         @Override
                         public void run() {
                             try (RetryScopes.Registration inheritedScopes = RetryScopes.install(outerRetryDepth)) {
-                            WaitForGraph.taskStarted(graphKey, submittingThread);
-                            try {
-                                final ILock writeLock = getTable().getTableLock(key).writeLock();
-                                if (!writeLock.tryLock()) {
-                                    //don't try to update if currently a backtest is running which is keeping iterators
-                                    //open - but do NOT let the caller proceed believing the update happened: it would
-                                    //read interior holes that the still-running update of another context will fill
-                                    //later, making the run's result depend on thread scheduling (cold vs warm drift in
-                                    //the feed's gap-close counters). Surface it as a retry so the demand read waits
-                                    //until the iterators close and the data actually lands.
-                                    throw new NonBlockingRetryLaterRuntimeException(
-                                            ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: update of "
-                                                    + getElementsName() + " [" + getKeyStr()
-                                                    + "] skipped because the table write lock is held by active"
-                                                    + " iterators of another run - retrying instead of reading an"
-                                                    + " incomplete store");
-                                }
+                                WaitForGraph.taskStarted(graphKey, submittingThread);
                                 try {
-                                    getTable().getLookupTableCache(key).maybeUpdateIndex();
-                                    innerMaybeUpdate(key);
-                                    LazyDataUpdaterProperties.maybeUpdateFinished(getUpdaterId());
-                                    //update timestamp only at the end if successful
-                                    lastUpdateCheck = newUpdateCheck;
-                                    lastResetIndex = getTable().getLastResetIndex();
+                                    maybeUpdateRetryingOutsideWriteLock(newUpdateCheck);
                                 } finally {
-                                    writeLock.unlock();
+                                    WaitForGraph.taskFinished(graphKey);
                                 }
-                            } finally {
-                                WaitForGraph.taskFinished(graphKey);
-                            }
                             }
                         }
                     });
@@ -260,6 +246,96 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
             }
         }
         return false;
+    }
+
+    /**
+     * The update attempt loop of the submitted task: every attempt takes the key's table write lock, runs the update
+     * body once and releases the lock again BEFORE any waiting happens, so a failing updater never sleeps with the
+     * table locked. Demand readers of that key take the table read side with a zero-wait tryLock, so an updater
+     * backing off with the write lock held does not only delay itself - it refuses every reader of the table for the
+     * whole sleep, and a source that keeps refusing (a frontier that never advances) keeps refusing them for as long as
+     * it keeps retrying. With the lock released between attempts the back-off window is a window for readers, and the
+     * next attempt resumes from the published high-water of the previous one (segment boundaries are publish points),
+     * so a re-attempt costs the unpublished tail only.
+     *
+     * <p>
+     * The loop is a fall-through site: when the submitting demand already runs inside an outer retry, a retryable
+     * failure propagates to it after one attempt (that retry re-submits and re-attempts the whole operation), exactly
+     * as the single-attempt task body did before; without an enclosing outer retry this loop IS the retry, waiting with
+     * the table free. A consumer's own retry annotation on its update body that does NOT declare fall-through keeps
+     * retrying inside its own call - under the write lock - and has to opt into this loop instead.
+     */
+    private void maybeUpdateRetryingOutsideWriteLock(final FDate newUpdateCheck) {
+        //zero-wait probe of the table write lock before the first attempt: the skip-if-readers verdict must reach the
+        //caller as it always did - before any attempt and before any back-off of this loop is entered
+        final ILock probedWriteLock = getTable().getTableLock(getKey()).writeLock();
+        if (!probedWriteLock.tryLock()) {
+            throw newUpdateSkippedForActiveIterators();
+        }
+        probedWriteLock.unlock();
+        new ARetryCallable<Void>(new RetryOriginator(this, "innerMaybeUpdate", getKey())) {
+
+            @Override
+            protected Void callRetry() {
+                runUpdateAttemptUnderWriteLock(newUpdateCheck);
+                return null;
+            }
+
+            @Override
+            protected boolean isFallthrough() {
+                //this loop is the retry of the task body: a site inside the attempt that declines to retry in place
+                //because an outer retry already covers it hands the attempt to THIS loop (see Retry#fallthrough)
+                return true;
+            }
+
+            @Override
+            protected BackOffPolicy getBackOffPolicyOverride() {
+                return newUpdateAttemptBackOffPolicy();
+            }
+        }.call();
+    }
+
+    /**
+     * One update attempt: acquire the key's table write lock, run the update body, release the lock again. A failure
+     * always leaves the table unlocked, so the loop's back-off happens while readers of the key are free to land.
+     */
+    private void runUpdateAttemptUnderWriteLock(final FDate newUpdateCheck) {
+        final ILock writeLock = getTable().getTableLock(getKey()).writeLock();
+        if (!writeLock.tryLock()) {
+            //don't try to update if currently a backtest is running which is keeping iterators
+            //open - but do NOT let the caller proceed believing the update happened: it would
+            //read interior holes that the still-running update of another context will fill
+            //later, making the run's result depend on thread scheduling (cold vs warm drift in
+            //the feed's gap-close counters). Surface it as a retry so the demand read waits
+            //until the iterators close and the data actually lands.
+            throw newUpdateSkippedForActiveIterators();
+        }
+        try {
+            getTable().getLookupTableCache(getKey()).maybeUpdateIndex();
+            innerMaybeUpdate(getKey());
+            LazyDataUpdaterProperties.maybeUpdateFinished(getUpdaterId());
+            //update timestamp only at the end if successful
+            lastUpdateCheck = newUpdateCheck;
+            lastResetIndex = getTable().getLastResetIndex();
+        } finally {
+            writeLock.unlock();
+        }
+    }
+
+    private NonBlockingRetryLaterRuntimeException newUpdateSkippedForActiveIterators() {
+        return new NonBlockingRetryLaterRuntimeException(
+                ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: update of " + getElementsName() + " ["
+                        + getKeyStr() + "] skipped because the table write lock is held by active iterators of another"
+                        + " run - retrying instead of reading an incomplete store");
+    }
+
+    /**
+     * The schedule the update attempt loop sleeps on between attempts. It is always applied with the table write lock
+     * RELEASED (the loop lives outside the locked region), which is the whole point of the restructure. The default is
+     * the exponential schedule the retry aspect of an update body used: 1 ms growing to one minute.
+     */
+    protected BackOffPolicy newUpdateAttemptBackOffPolicy() {
+        return BackOffPolicies.exponentialBackOff(UPDATE_ATTEMPT_BACK_OFF_MIN, UPDATE_ATTEMPT_BACK_OFF_MAX);
     }
 
     private void joinUpdateFuture(final String graphKey, final Future<?> updateFutureCopy, final String reason) {
