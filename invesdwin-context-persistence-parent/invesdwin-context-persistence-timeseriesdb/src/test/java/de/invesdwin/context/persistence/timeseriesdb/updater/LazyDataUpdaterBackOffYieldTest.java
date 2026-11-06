@@ -65,6 +65,10 @@ public class LazyDataUpdaterBackOffYieldTest extends ATest {
      * Long enough that a reader spinning on the write lock always lands inside the window between two attempts.
      */
     private static final Duration ATTEMPT_BACK_OFF = new Duration(500, FTimeUnit.MILLISECONDS);
+    /**
+     * Bounded stand-in for UPDATE_ATTEMPT_ACQUIRE_WRITE_LOCK_TIMEOUT so the refusal case stays fast in the fixture.
+     */
+    private static final Duration ATTEMPT_WRITE_LOCK_WAIT = new Duration(300, FTimeUnit.MILLISECONDS);
 
     private File baseDirectory;
     private ANestedExecutor nestedExecutor;
@@ -127,15 +131,30 @@ public class LazyDataUpdaterBackOffYieldTest extends ATest {
     }
 
     /**
-     * The skip-if-readers verdict is not swallowed by the attempt loop: while another run keeps the key's read side,
-     * the caller gets the refusal as it always did - the update body never ran and no back-off was started.
+     * The skip-if-readers verdict is not swallowed by the attempt loop: while ANOTHER run keeps the key's read side, the
+     * caller gets the refusal once the attempt's bounded write-lock wait runs out - the update body never ran and no
+     * back-off was started. (The holder is a separate on purpose: the demanding thread's own read holds are no longer a
+     * refusal reason, they are parked for the wait - see LazyDataUpdaterDemandIteratorLivelockTest.)
      */
     @Test
     public void testActiveIteratorsStillRefuseWithoutBackingOff() throws Exception {
         final ATimeSeriesDB<String, FDate> table = newTable("backOffSkip");
         final List<FDate> values = newValues(2 * BATCH_FLUSH_INTERVAL);
         final ILock readLock = table.getTableLock(KEY).readLock();
-        Assertions.checkTrue(readLock.tryLock(), "the competing run's iterators must hold the key's read side");
+        final CountDownLatch held = new CountDownLatch(1);
+        final Thread foreignIterator = new Thread(() -> {
+            readLock.lock();
+            try {
+                held.countDown();
+                while (!Thread.currentThread().isInterrupted()) {
+                    Duration.ONE_MILLISECOND.sleepNoInterrupt();
+                }
+            } finally {
+                readLock.unlock();
+            }
+        }, "test-back-off-yield-foreign-iterator");
+        foreignIterator.setDaemon(true);
+        foreignIterator.start();
         final AtomicInteger attempts = new AtomicInteger();
         final CountDownLatch firstAttemptFailed = new CountDownLatch(1);
         final TestUpdater updater = new TestUpdater(table, values, 1, false,
@@ -143,12 +162,15 @@ public class LazyDataUpdaterBackOffYieldTest extends ATest {
                 firstAttemptFailed);
         Throwable thrown;
         try {
+            Assertions.checkTrue(held.await(10, TimeUnit.SECONDS),
+                    "the competing run's iterators must hold the key's read side before the attempt");
             updater.maybeUpdate(true);
             thrown = null;
         } catch (final Throwable t) {
             thrown = t;
         } finally {
-            readLock.unlock();
+            foreignIterator.interrupt();
+            foreignIterator.join(30000);
         }
 
         Assertions.checkNotNull(thrown, "a table held by active iterators must not let the update pass");
@@ -156,7 +178,7 @@ public class LazyDataUpdaterBackOffYieldTest extends ATest {
                 NonBlockingRetryLaterRuntimeException.class);
         Assertions.checkNotNull(refusal, "the skip-if-readers verdict must reach the caller: " + thrown);
         Assertions.assertThat(refusal.getMessage()).contains(
-                "skipped because the table write lock is held by active iterators of another run");
+                "skipped because the table write lock is held by active iterators");
         Assertions.checkEquals(0, attempts.get(),
                 "the refusal must be immediate - no attempt ran and no back-off loop started");
     }
@@ -251,6 +273,13 @@ public class LazyDataUpdaterBackOffYieldTest extends ATest {
         @Override
         protected BackOffPolicy newUpdateAttemptBackOffPolicy() {
             return BackOffPolicies.fixedBackOff(ATTEMPT_BACK_OFF);
+        }
+
+        @Override
+        protected Duration newUpdateAttemptWriteLockWait() {
+            //the fixture stays fast: the foreign-holder case only has to prove the refusal still arrives, not that it
+            //waits out the production ceiling of UPDATE_ATTEMPT_ACQUIRE_WRITE_LOCK_TIMEOUT
+            return ATTEMPT_WRITE_LOCK_WAIT;
         }
 
         @Override
