@@ -21,7 +21,6 @@ import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSerie
 import de.invesdwin.context.system.properties.ICloseableProperties;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
-import de.invesdwin.util.collections.Arrays;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
@@ -34,29 +33,31 @@ import de.invesdwin.util.math.Longs;
 import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
-import de.invesdwin.util.time.date.FDates;
 
 /**
- * The redo of an incomplete last file may legitimately publish FEWER bytes than the file it replaces: the redo drops
- * the last value of that file (it might be an incomplete bar) and a source that no longer hands that value back leaves
- * the replaced region shorter than the discarded file was. That is a shrink of the store's byte high-water, not a
- * corruption, and the publish must land: the new index generation names the shorter file, the metadata expectation
- * follows the published chain down to the new high-water, and the store keeps reporting itself consistent.
- * <p>
- * The lookup table used to read its persisted expectation as monotonically growing and refused every lower value with
- * an IllegalStateException, which fail-loops the updater of such a key forever - each retry redoes the same file,
- * re-produces the same shorter region and dies again before publishing anything. The live signature is
- * 'prevMemoryFileSize[4193405] should be less than expectedMemoryFileFize[4193368]': 37 bytes, one one-minute bar's
- * worth of compressed bytes, and the published files on disk carry exactly their summaries' bytes (the overhang is in
- * the re-derived extent of the redo, not in the data files). The refusal is only right when the incoming summary does
- * NOT replace the last published file, so the last case pins that half of the invariant: a byte space regression that
- * is not a replacement stays refused.
+ * The byte high-water a published generation carries (EXPECTED_MEMORY_FILE_SIZE in properties/memory.properties, the
+ * number {@link TimeSeriesLookupStorageCache#isEmptyOrInconsistent()} later demands to equal both the chain-calculated
+ * extent and the bytes on disk) is that generation's high-water, not a monotonically growing counter. Two halves, both
+ * pinned here:
+ * <ul>
+ * <li>a new generation may legitimately end BELOW it when its first summary REPLACES the last summary of the previous
+ * generation - the redo of the standalone '_incomplete_' last file, whose replacement region re-serializes to fewer
+ * bytes than the file it replaces. Refusing that used to fail-loop the updater of the key: every retry redoes the same
+ * file, re-produces the same shorter region and dies before publishing (the live signature is
+ * 'prevMemoryFileSize[4193405] should be less than expectedMemoryFileFize[4193368]'). The expectation must follow the
+ * chain down, or the store's own length check resets the key forever.</li>
+ * <li>a summary that is NOT such a replacement may not fall back below the published high-water: that means its offsets
+ * were computed against an older generation, and it stays refused - without the refusal moving the expectation.</li>
+ * </ul>
+ * The replacement is applied to the lookup table directly here (the redo path itself is pinned by
+ * {@link TimeSeriesRedoTailPreservationTest}), so the guard is exercised on a chain whose replacement region really is
+ * shorter than the file it replaces.
  */
 @NotThreadSafe
-public class TimeSeriesRedoShrinkingLastFileTest extends ATest {
+public class TimeSeriesPublishedChainHighWaterGuardTest extends ATest {
 
     private static final int BATCH_FLUSH_INTERVAL = 4;
-    private static final String KEY = "shrinkingRedoKey";
+    private static final String KEY = "chainHighWaterKey";
 
     private File baseDirectory;
 
@@ -64,7 +65,7 @@ public class TimeSeriesRedoShrinkingLastFileTest extends ATest {
     public void setUp() throws Exception {
         super.setUp();
         baseDirectory = new File(ContextProperties.TEMP_DIRECTORY,
-                TimeSeriesRedoShrinkingLastFileTest.class.getSimpleName());
+                TimeSeriesPublishedChainHighWaterGuardTest.class.getSimpleName());
         Files.deleteQuietly(baseDirectory);
         Files.forceMkdir(baseDirectory);
     }
@@ -76,102 +77,42 @@ public class TimeSeriesRedoShrinkingLastFileTest extends ATest {
     }
 
     /**
-     * The minimal shape: pass 1 publishes one complete batch plus a standalone '_incomplete_' file of two values; pass
-     * 2 redoes that file and its source no longer serves the value the redo dropped, so the replacement holds one value
-     * and strictly fewer bytes. The publish must land and the store must read the shorter chain.
+     * Minimal shape: a published complete batch plus a standalone '_incomplete_' last file; the replacement of that
+     * last file re-serializes shorter and must be published, with the expectation following it down and the store
+     * still reporting itself consistent.
      */
     @Test
-    public void testRedoPublishesTheShorterLastFileInsteadOfFailing() throws Exception {
-        final ATimeSeriesDB<String, FDate> table = newTable("shrinkingRedo");
+    public void testReplacementSummaryWithALowerExtentIsPublished() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("chainHighWaterReplace");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
-        final List<FDate> firstPass = newValues(1, BATCH_FLUSH_INTERVAL + 2);
-        newUpdater(table, firstPass).update().close();
-
-        final List<MemoryFileSummary> publishedFirst = readPublishedSummaries(lookup);
-        Assertions.assertThat(publishedFirst).as("pass 1 summaries").hasSize(2);
-        final MemoryFileSummary publishedLast = publishedFirst.get(publishedFirst.size() - 1);
-        Assertions.checkTrue(MemoryFiles.isIncompleteMemoryFile(publishedLast.getMemoryResourceUri()),
-                "the scenario needs a published '_incomplete_' last file: " + publishedLast);
-        final long firstHighWater = readExpectedMemoryFileSize(lookup);
-        Assertions.assertThat(firstHighWater).as("pass 1 byte high-water").isEqualTo(extentOf(publishedLast));
-        final File replacedFile = new File(publishedLast.getMemoryResourceUri());
-        final byte[] replacedBytes = readAllBytes(replacedFile);
-
-        //pass 2: the supply shrank, the value the redo drops is not served again
-        newUpdater(table, firstPass.subList(0, firstPass.size() - 1)).update().close();
-
-        final List<MemoryFileSummary> publishedSecond = readPublishedSummaries(lookup);
-        Assertions.assertThat(publishedSecond).as("pass 2 summaries").hasSize(2);
-        final MemoryFileSummary republishedLast = publishedSecond.get(publishedSecond.size() - 1);
-        Assertions.checkNotEquals(republishedLast.getMemoryResourceUri(), publishedLast.getMemoryResourceUri(),
-                "the redo must name a data file of its own attempt");
-        Assertions.checkTrue(republishedLast.getMemoryLength() < publishedLast.getMemoryLength(),
-                "the redo must carry fewer bytes than the file it replaces: " + publishedLast + " vs "
-                        + republishedLast);
-        final long secondHighWater = readExpectedMemoryFileSize(lookup);
-        Assertions.assertThat(secondHighWater).as("pass 2 byte high-water after the shrink")
-                .isLessThan(firstHighWater);
-        Assertions.assertThat(secondHighWater).as("the metadata expectation must follow the published chain")
-                .isEqualTo(extentOf(republishedLast));
-        assertPublishedBytesMatchNamedFiles(lookup, publishedSecond);
-        Assertions.checkTrue(replacedFile.exists(), "the redo must not delete a previously published file: "
-                + replacedFile);
-        Assertions.checkTrue(Arrays.equals(replacedBytes, readAllBytes(replacedFile)),
-                "the redo must not mutate bytes of the file it replaces: " + replacedFile);
-        Assertions.assertThat(readValues(table, KEY)).as("readable content of the shorter chain")
-                .isEqualTo(new ArrayList<>(firstPass.subList(0, firstPass.size() - 1)));
+        publishReplacementWithLowerExtent(table, lookup, newValues(1, BATCH_FLUSH_INTERVAL + 2));
     }
 
     /**
-     * The shape a live key showed with the resumable rails in place: a boundary commit publishes and rotates the writer
-     * onto a fresh file, the attempt then lands its last (short) segment in a standalone '_incomplete_' file, and the
-     * NEXT attempt's redo of that file produces fewer bytes - the refusal then fires at the final publish (a committed
-     * close), which is exactly where the live fail-loop died, 1620 times on one key.
+     * The shape a live key showed with the resumable rails: a boundary commit publishes and rotates the writer onto a
+     * fresh file, the attempt lands its last short segment in the standalone '_incomplete_' file, and the replacement
+     * of that file is shorter. The refusal then fires at the final publish, which is where the live fail-loop died.
      */
     @Test
-    public void testRedoAfterBoundaryCommitPublishesTheShorterLastFile() throws Exception {
-        final ATimeSeriesDB<String, FDate> table = newTable("shrinkingRedoBoundary");
+    public void testReplacementAfterABoundaryCommitIsPublished() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("chainHighWaterReplaceBoundary");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
         final int boundaryValues = TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL * BATCH_FLUSH_INTERVAL;
-        final List<FDate> firstPass = newValues(1, boundaryValues + 2);
-        newUpdater(table, firstPass).update().close();
-        Assertions.checkTrue(lookup.getMemoryFileLookupTable().getCurrentIndexNumber() >= 1,
-                "a boundary commit must have published a generation before the final one");
-
-        final List<MemoryFileSummary> publishedFirst = readPublishedSummaries(lookup);
-        Assertions.assertThat(publishedFirst).as("pass 1 summaries")
-                .hasSize(TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL + 1);
-        final MemoryFileSummary publishedLast = publishedFirst.get(publishedFirst.size() - 1);
-        Assertions.checkTrue(MemoryFiles.isIncompleteMemoryFile(publishedLast.getMemoryResourceUri()),
-                "the scenario needs a published '_incomplete_' last file: " + publishedLast);
-        final long firstHighWater = readExpectedMemoryFileSize(lookup);
-        Assertions.assertThat(firstHighWater).as("pass 1 byte high-water").isEqualTo(extentOf(publishedLast));
-
-        newUpdater(table, firstPass.subList(0, firstPass.size() - 1)).update().close();
-
-        final List<MemoryFileSummary> publishedSecond = readPublishedSummaries(lookup);
-        final MemoryFileSummary republishedLast = publishedSecond.get(publishedSecond.size() - 1);
-        Assertions.checkTrue(republishedLast.getMemoryLength() < publishedLast.getMemoryLength(),
-                "the redo must carry fewer bytes than the file it replaces: " + publishedLast + " vs "
-                        + republishedLast);
-        final long secondHighWater = readExpectedMemoryFileSize(lookup);
-        Assertions.assertThat(secondHighWater).as("pass 2 byte high-water after the shrink")
-                .isLessThan(firstHighWater);
-        Assertions.assertThat(secondHighWater).as("the metadata expectation must follow the published chain")
-                .isEqualTo(extentOf(republishedLast));
-        assertPublishedBytesMatchNamedFiles(lookup, publishedSecond);
-        Assertions.assertThat(readValues(table, KEY)).as("readable content of the shorter chain")
-                .isEqualTo(new ArrayList<>(firstPass.subList(0, firstPass.size() - 1)));
+        Assertions.checkTrue(lookup.getMemoryFileLookupTable().getCurrentIndexNumber() == -1,
+                "the key starts without an index generation");
+        publishReplacementWithLowerExtent(table, lookup, newValues(1, boundaryValues + 2));
+        Assertions.checkTrue(lookup.getMemoryFileLookupTable().getCurrentIndexNumber() >= 2,
+                "a boundary commit and the replacement mean at least three generations");
     }
 
     /**
-     * The other half of the invariant, unchanged: a summary that is NOT the replacement of the last published file may
-     * not fall back below the published byte high-water even when it stays above the chain's second-to-last extent -
-     * such a byte range means the attempt computed its offsets against an older generation, and it stays refused.
+     * The other half of the invariant: a summary that is NOT the replacement of the last published file and whose byte
+     * range falls back below the published high-water is a byte space regression and stays refused, and the refusal
+     * must not move the expectation.
      */
     @Test
     public void testNonReplacingByteSpaceRegressionIsStillRefused() throws Exception {
-        final ATimeSeriesDB<String, FDate> table = newTable("shrinkingRedoRegression");
+        final ATimeSeriesDB<String, FDate> table = newTable("chainHighWaterRegression");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
         final List<FDate> values = newValues(1, BATCH_FLUSH_INTERVAL + 2);
         newUpdater(table, values).update().close();
@@ -202,6 +143,51 @@ public class TimeSeriesRedoShrinkingLastFileTest extends ATest {
         }
         Assertions.assertThat(readExpectedMemoryFileSize(lookup)).as("the refusal must not move the high-water")
                 .isEqualTo(highWater);
+    }
+
+    /**
+     * Publishes a chain, then replaces its last summary with one that claims FEWER bytes for the same position (backed
+     * by a data file carrying exactly those bytes) and asserts the publish landed: the expectation followed the chain
+     * down, the chain is contiguous and every named file still carries exactly its published bytes.
+     */
+    private void publishReplacementWithLowerExtent(final ATimeSeriesDB<String, FDate> table,
+            final TimeSeriesLookupStorageCache<String, FDate> lookup, final List<FDate> firstPass) throws Exception {
+        newUpdater(table, firstPass).update().close();
+        final List<MemoryFileSummary> publishedFirst = readPublishedSummaries(lookup);
+        final MemoryFileSummary replaced = publishedFirst.get(publishedFirst.size() - 1);
+        Assertions.checkTrue(MemoryFiles.isIncompleteMemoryFile(replaced.getMemoryResourceUri()),
+                "the scenario needs a published '_incomplete_' last file: " + replaced);
+        final long highWaterFirst = readExpectedMemoryFileSize(lookup);
+        Assertions.assertThat(highWaterFirst).as("pass 1 byte high-water").isEqualTo(extentOf(replaced));
+
+        //the same period, re-serialized shorter than the file it replaces
+        final long replacedLength = replaced.getMemoryLength();
+        final long shrunkLength = replacedLength - 10;
+        final File replacedFile = new File(replaced.getMemoryResourceUri());
+        final File replacementFile = new File(replacedFile.getParentFile(),
+                "replacement_shorter_of_" + replacedFile.getName());
+        //java.nio is used deliberately: de.invesdwin.util.lang.Files is imported here and writes no byte[]
+        java.nio.file.Files.write(replacementFile.toPath(), new byte[(int) shrunkLength]);
+        final MemoryFileSummary replacement = new MemoryFileSummary(replaced.getFirstValueEndTime(), FDateSerde.GET,
+                firstPass.get(firstPass.size() - 2), firstPass.get(firstPass.size() - 1),
+                replaced.getPrecedingValueCount(), replaced.getValueCount(), replacementFile.getAbsolutePath(),
+                replaced.getPrecedingMemoryOffset(), replaced.getMemoryOffset(), shrunkLength);
+
+        lookup.getMemoryFileLookupTable().put(new SingleSummaryIterator(replacement));
+
+        final long highWaterSecond = readExpectedMemoryFileSize(lookup);
+        Assertions.assertThat(highWaterSecond).as("expectation after a legitimately shorter replacement")
+                .isLessThan(highWaterFirst);
+        Assertions.assertThat(highWaterSecond).as("the metadata expectation must follow the published chain")
+                .isEqualTo(extentOf(replacement));
+        final List<MemoryFileSummary> publishedSecond = readPublishedSummaries(lookup);
+        Assertions.assertThat(publishedSecond).as("summaries after the replacement")
+                .hasSize(publishedFirst.size());
+        Assertions.checkNotEquals(publishedSecond.get(publishedSecond.size() - 1).getMemoryResourceUri(),
+                replaced.getMemoryResourceUri(), "the replacement must name a data file of its own");
+        assertPublishedBytesMatchNamedFiles(lookup, publishedSecond);
+        Assertions.checkTrue(replacedFile.exists(), "a replacement must not delete the file it replaces: "
+                + replacedFile);
     }
 
     /**
@@ -259,11 +245,6 @@ public class TimeSeriesRedoShrinkingLastFileTest extends ATest {
         }
     }
 
-    private static byte[] readAllBytes(final File file) throws Exception {
-        //java.nio is used deliberately: de.invesdwin.util.lang.Files is imported here and has no byte[] read
-        return java.nio.file.Files.readAllBytes(file.toPath());
-    }
-
     private static List<FDate> newValues(final int fromDay, final int toDay) {
         final List<FDate> values = new ArrayList<>();
         for (int day = fromDay; day <= toDay; day++) {
@@ -279,14 +260,6 @@ public class TimeSeriesRedoShrinkingLastFileTest extends ATest {
             Lists.toListWithoutHasNext(it, summaries);
         }
         return summaries;
-    }
-
-    private static List<FDate> readValues(final ATimeSeriesDB<String, FDate> table, final String key) {
-        final List<FDate> values = new ArrayList<>();
-        try (ICloseableIterator<FDate> it = table.rangeValues(key, FDates.MIN_DATE, FDates.MAX_DATE).iterator()) {
-            Lists.toListWithoutHasNext(it, values);
-        }
-        return values;
     }
 
     private static final class SingleSummaryIterator implements ICloseableIterator<MemoryFileSummary> {

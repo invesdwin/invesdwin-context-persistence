@@ -489,19 +489,30 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             };
             final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues,
                     skippingSource);
+            //A redo of the '_incomplete_' last file drops that file's last value and expects the source to hand that
+            //position back. The source is not obliged to: when it stops short of it, the redo must not delete a value
+            //the store has already published and validated - the published value is written again instead.
+            final V redoDroppedTailValue = updateTransaction.getRedoDroppedTailValue();
+            final ICloseableIterable<? extends V> writeSource;
+            if (redoDroppedTailValue != null) {
+                writeSource = new RedoTailPreservingIterable<>(flatteningSources, redoDroppedTailValue, updateFrom,
+                        this::extractEndTime);
+            } else {
+                writeSource = flatteningSources;
+            }
 
             if (shouldWriteInParallel()) {
                 ParallelUpdateProgress.doUpdate(updateTransaction, internalMethods, initialPrecedingMemoryOffset,
-                        initialMemoryOffset, initialPrecedingValueCount, flatteningSources);
+                        initialMemoryOffset, initialPrecedingValueCount, writeSource);
             } else {
                 if (IMemoryMappedFile.isSegmentSizeExceeded(Long.MAX_VALUE)) {
                     SequentialChunkedUpdateProgress.doUpdate(updateTransaction, internalMethods,
                             initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount,
-                            flatteningSources);
+                            writeSource);
                 } else {
                     SequentialContinuousUpdateProgress.doUpdate(updateTransaction, internalMethods,
                             initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount,
-                            flatteningSources);
+                            writeSource);
                 }
             }
             //all values consumed without exception: publish the staged index now (close() alone must not commit a

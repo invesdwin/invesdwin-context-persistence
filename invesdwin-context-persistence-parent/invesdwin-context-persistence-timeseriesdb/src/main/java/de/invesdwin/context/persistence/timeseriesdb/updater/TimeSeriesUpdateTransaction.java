@@ -51,10 +51,17 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     //the boundary-commit notification of consumers that mirror this store's frontier (null = none): fired after
     //every publish, before the publish-then-yield, so frontier keys advance with published segments
     private ITimeSeriesBoundaryCommitListener boundaryCommitListener;
+    //The value the redo of a standalone '_incomplete_' last file dropped from the published chain (null when this
+    //attempt does not redo such a file). The redo drops it because it MIGHT be an incomplete bar and expects the
+    //source to hand that position back - an expectation, not a guarantee. The value was validated when it was first
+    //published, so doubt alone must not delete it: when the source never answers that position again, the writer
+    //re-publishes this value as-is (see RedoTailPreservingIterable).
+    private final V redoDroppedTailValue;
 
     public TimeSeriesUpdateTransaction(final TimeSeriesLookupStorageCache<?, V> parent, final FDate updateFrom,
             final List<V> lastValues, final long precedingMemoryOffset, final long memoryOffset,
-            final long precedingValueCount, final String epochLocalDataId, final FDate resumeAfterEndTime) {
+            final long precedingValueCount, final String epochLocalDataId, final FDate resumeAfterEndTime,
+            final V redoDroppedTailValue) {
         this.parent = parent;
         this.updateFrom = updateFrom;
         Assertions.checkNotNull(lastValues);
@@ -64,6 +71,7 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         this.precedingValueCount = precedingValueCount;
         this.epochLocalDataId = epochLocalDataId;
         this.resumeAfterEndTime = resumeAfterEndTime;
+        this.redoDroppedTailValue = redoDroppedTailValue;
         MemoryFiles.assertMaybeFirstSummary(precedingMemoryOffset, memoryOffset, precedingValueCount);
     }
 
@@ -82,6 +90,17 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
      */
     public FDate getResumeAfterEndTime() {
         return resumeAfterEndTime;
+    }
+
+    /**
+     * The value this attempt's redo of a standalone '_incomplete_' last file dropped from the published chain, or null
+     * when this attempt does not redo such a file. Its end time is {@link #getUpdateFrom()} - the position the source
+     * is asked from. A published value is never lost by the mere fact that the redo dropped it: if the source does not
+     * answer that position again, the writer re-publishes this value as-is, so the published chain stays a function of
+     * the previous generation plus what the source answered rather than of which attempt ran when.
+     */
+    public V getRedoDroppedTailValue() {
+        return redoDroppedTailValue;
     }
 
     public TimeSeriesLookupStorageCache<?, V> getParent() {
