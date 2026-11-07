@@ -15,12 +15,14 @@ import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSer
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.TimeSeriesCoverage;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment.ILiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment.ReadLockedLiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment.SwitchingLiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.ISkipMemoryFileSummaryFunction;
 import de.invesdwin.util.collections.Arrays;
+import de.invesdwin.util.collections.Collections;
 import de.invesdwin.util.collections.iterable.FlatteningIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
@@ -283,6 +285,31 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
         } else {
             return historicalSegmentTable.size(key, from, to) + liveSegment.size(from, to);
         }
+    }
+
+    /**
+     * Declared coverage for [from,to] - see {@link TimeSeriesCoverage}. The historical part comes from the segment
+     * status table ranges; the live segment contributes its actual value span [firstValueKey,lastValueKey] as covered,
+     * since that data is present before its segment gets status-declared COMPLETE.
+     */
+    public TimeSeriesCoverage coverage(final FDate from, final FDate to) {
+        return historicalSegmentLookupTableCache.getSegmentStatusTable().coverage(from, to,
+                collectLiveCoveredRanges());
+    }
+
+    private List<TimeRange> collectLiveCoveredRanges() {
+        final ReadLockedLiveSegment<K, V> liveSegmentCopy = liveSegment;
+        if (liveSegmentCopy == null) {
+            return null;
+        }
+        final FDate firstLiveValueKey = liveSegmentCopy.getFirstValueKey();
+        final FDate lastLiveValueKey = liveSegmentCopy.getLastValueKey();
+        if (firstLiveValueKey == null || lastLiveValueKey == null
+                || lastLiveValueKey.isBeforeNotNullSafe(firstLiveValueKey)) {
+            //empty live segment: holds no data and declares nothing
+            return null;
+        }
+        return Collections.singletonList(new TimeRange(firstLiveValueKey, lastLiveValueKey));
     }
 
     public V getPreviousValue(final FDate date, final int shiftBackUnits) {

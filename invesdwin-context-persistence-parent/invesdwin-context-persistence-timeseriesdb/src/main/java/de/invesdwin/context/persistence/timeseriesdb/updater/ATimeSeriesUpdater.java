@@ -14,6 +14,7 @@ import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
+import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateYieldException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdateProgress;
@@ -35,6 +36,7 @@ import de.invesdwin.util.concurrent.lock.readwrite.IReentrantReadWriteLock;
 import de.invesdwin.util.concurrent.loop.LoopInterruptedCheck;
 import de.invesdwin.util.concurrent.reference.IMutableReference;
 import de.invesdwin.util.concurrent.reference.MutableReference;
+import de.invesdwin.util.error.Throwables;
 import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.math.decimal.scaled.Percent;
@@ -155,6 +157,12 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                                         "Write lock could not be acquired for table [" + table.getName() + "] and key ["
                                                 + key + "]. Please ensure all iterators are closed!"));
             }
+            //publish-then-yield: the attempt owns the table write lock for its pass, but every boundary commit of its
+            //update transaction releases it (bounded re-acquisition) so iterators parked on the key's read side get a
+            //window instead of freezing this writer's frontier; a failed re-acquisition ends the attempt cleanly at
+            //the published boundary, and the lease keeps the end path releasing the lock exactly once
+            final TimeSeriesWriteLockYield writeLockYield = new TimeSeriesWriteLockYield(segmentWriteLock,
+                    TimeSeriesProperties.UPDATE_YIELD_ACQUIRE_WRITE_LOCK_TIMEOUT);
             final File updateLockFile = new File(updateProgressFile.getAbsolutePath() + ".lock");
             final String graphKey = WaitForGraph.newKey(table.getName(), newKeyStr());
             final HeartbeatFileChannelLock updateLock = new HeartbeatFileChannelLock(updateLockFile) {
@@ -178,7 +186,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                     this.updateStart = FDate.now();
                     onUpdateStarted(updateStart);
                     writeUpdateProgress(updateProgressFile, true);
-                    doUpdate();
+                    doUpdate(writeLockYield);
                     onUpdateFinished();
                     writeUpdateProgress(updateProgressFile, true);
                     //piggyback sweep of this key's dead attempt garbage at attempt finish (no new global timer); this
@@ -197,10 +205,27 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                     //and the same piggyback sweep as on the success path: a failed attempt may be the first one since
                     //a crashed writer left garbage
                     TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookupTable);
+                    final IncompleteUpdateYieldException yielded = Throwables.getCauseByType(t,
+                            IncompleteUpdateYieldException.class);
+                    if (yielded != null) {
+                        //clean end of a publish-then-yield, not a failure: the attempt published its boundary, gave
+                        //the readers their window and could not re-acquire the write lock - the published prefix is
+                        //the resume point, so this attempt lost nothing and rides the same retryable rails as an
+                        //aborted (source-death) attempt
+                        throw new IncompleteUpdateRetryableException(
+                                "Update attempt of table [" + table.getName() + "] and key [" + key
+                                        + "] ended cleanly at a published segment boundary: it yielded the table write"
+                                        + " lock for the readers of the key and could not re-acquire it within ["
+                                        + TimeSeriesProperties.UPDATE_YIELD_ACQUIRE_WRITE_LOCK_TIMEOUT
+                                        + "] - the next attempt of this key resumes from the published prefix",
+                                yielded);
+                    }
                     throw IncompleteUpdateRetryableException.propagateIncompleteUpdateException(t);
                 }
             } finally {
-                segmentWriteLock.unlock();
+                //the lease may already have released the write lock at a boundary commit and failed to take it back
+                //(clean attempt end), so release through the lease, never blindly
+                writeLockYield.releaseIfHeld();
             }
         } catch (final InterruptedException e) {
             throw new RuntimeException(e);
@@ -358,9 +383,16 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
         return new TimeSeriesUpdaterResult(updatedTo, null, null, null, graphKey);
     }
 
-    private void doUpdate() throws IncompleteUpdateRetryableException {
+    private void doUpdate(final TimeSeriesWriteLockYield writeLockYield) throws IncompleteUpdateRetryableException {
         try (TimeSeriesUpdateTransaction<V> updateTransaction = lookupTable
                 .newUpdateTransaction(shouldRedoLastFile())) {
+            //this attempt holds the key's table write lock, so its boundary commits publish and then yield it
+            updateTransaction.setWriteLockYield(writeLockYield);
+            //consumers mirroring this store's frontier (if any) hear about every published boundary
+            final ITimeSeriesBoundaryCommitListener boundaryCommitListener = newBoundaryCommitListener();
+            if (boundaryCommitListener != null) {
+                updateTransaction.setBoundaryCommitListener(boundaryCommitListener);
+            }
             final FDate updateFrom = updateTransaction.getUpdateFrom();
             final List<V> lastValues = updateTransaction.getLastValues();
             final long initialPrecedingMemoryOffset = updateTransaction.getPrecedingMemoryOffset();
@@ -373,10 +405,17 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             }
             final ICloseableIterable<? extends V> skippingSource;
             if (updateFrom != null) {
+                final FDate resumeAfterEndTime = updateTransaction.getResumeAfterEndTime();
                 skippingSource = new ASkippingIterable<V>(source) {
                     @Override
                     protected boolean skip(final V element) {
                         final FDate endTime = extractEndTime(element);
+                        if (resumeAfterEndTime != null && !endTime.isAfterNotNullSafe(resumeAfterEndTime)) {
+                            //this attempt continues a published boundary of an attempt that died mid-pass: the store
+                            //already holds everything up to that value, a source that hands it out again must not
+                            //have it written a second time
+                            return true;
+                        }
                         //ensure we add no duplicate values
                         return endTime.isBeforeNotNullSafe(updateFrom);
                     }
@@ -555,6 +594,16 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     protected boolean shouldWriteInParallel() {
         //LZ4HC should be compressed in parallel
         return Executors.getCpuThreadPoolCount() > 1;
+    }
+
+    /**
+     * The boundary-commit notification attached to this attempt's update transaction (null = silent, the default):
+     * every segment boundary the attempt publishes reports its new frontier to the listener, so consumers above
+     * the store can advance mirrored frontier keys with each published segment instead of only after a complete
+     * update. The hook is read once per attempt at transaction creation.
+     */
+    protected ITimeSeriesBoundaryCommitListener newBoundaryCommitListener() {
+        return null;
     }
 
     protected boolean shouldRedoLastFile() {

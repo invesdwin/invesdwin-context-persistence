@@ -8,7 +8,9 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannel;
+import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateYieldException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.ITimeSeriesDirectoryHashKeyVersion;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummarySerde;
@@ -35,15 +37,24 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     private final long memoryOffset;
     private final long precedingValueCount;
     private final String epochLocalDataId;
+    private final FDate resumeAfterEndTime;
     private AMemoryFileSummarySerializingCollection summaries;
     private MemoryFileSummary prevSummary;
-    //publish-on-commit: close() without an explicit commit() DISCARDS this attempt's staged index (partial results
-    //of a failed/aborted update must never become visible; the previously published state simply remains)
+    //publish-on-commit: close() without an explicit commit() DISCARDS only what this attempt staged after its last
+    //published boundary; a final commit() publishes the rest
     private boolean committed;
+    //segments staged since the last publish, the unit a boundary commit publishes
+    private int stagedSegmentCount;
+    //the attempt's table write lock lease, attached only by an attempt that holds the key's write lock
+    //(ATimeSeriesUpdater.update); the boundary commit yields it after publishing, see commitSegmentBoundary
+    private TimeSeriesWriteLockYield writeLockYield;
+    //the boundary-commit notification of consumers that mirror this store's frontier (null = none): fired after
+    //every publish, before the publish-then-yield, so frontier keys advance with published segments
+    private ITimeSeriesBoundaryCommitListener boundaryCommitListener;
 
     public TimeSeriesUpdateTransaction(final TimeSeriesLookupStorageCache<?, V> parent, final FDate updateFrom,
             final List<V> lastValues, final long precedingMemoryOffset, final long memoryOffset,
-            final long precedingValueCount, final String epochLocalDataId) {
+            final long precedingValueCount, final String epochLocalDataId, final FDate resumeAfterEndTime) {
         this.parent = parent;
         this.updateFrom = updateFrom;
         Assertions.checkNotNull(lastValues);
@@ -52,6 +63,7 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         this.memoryOffset = memoryOffset;
         this.precedingValueCount = precedingValueCount;
         this.epochLocalDataId = epochLocalDataId;
+        this.resumeAfterEndTime = resumeAfterEndTime;
         MemoryFiles.assertMaybeFirstSummary(precedingMemoryOffset, memoryOffset, precedingValueCount);
     }
 
@@ -60,6 +72,16 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
      */
     public String getEpochLocalDataId() {
         return epochLocalDataId;
+    }
+
+    /**
+     * The end time of the last value the published generation already holds when this attempt continues it (a resumed
+     * attempt - the previous attempt died after a boundary commit), null when the attempt starts from an empty store or
+     * redoes the incomplete last file instead. A source that hands that value out again must not have it written
+     * twice, so the attempt's writer skips everything up to and including it.
+     */
+    public FDate getResumeAfterEndTime() {
+        return resumeAfterEndTime;
     }
 
     public TimeSeriesLookupStorageCache<?, V> getParent() {
@@ -119,6 +141,7 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         }
         summaries.add(summary);
         prevSummary = summary;
+        stagedSegmentCount++;
     }
 
     private void assertSummaryBeforeCommit(final MemoryFileSummary summary) {
@@ -131,6 +154,76 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         parent.assertSummary(lastSummary, summary);
     }
 
+    /**
+     * Boundary commit of a completed segment: publishes everything this attempt has staged so far as a new index
+     * generation and lets the attempt continue staging into it, so a long backfill publishes incrementally and an
+     * attempt that dies later leaves a readable high-water mark behind instead of nothing. The progress writers call
+     * this after every completed segment; a publish only actually happens once
+     * {@link TimeSeriesProperties#UPDATE_COMMIT_SEGMENT_INTERVAL} segments have piled up, because every publish writes
+     * a new index generation.
+     *
+     * @return true when this call published - the caller must then stop appending to the data file it has been writing
+     *         and continue in a new one, so that a published file never carries bytes of a segment that was not
+     *         published (a file with unpublished trailing bytes would make the store fail its own length check in
+     *         {@link TimeSeriesLookupStorageCache#isEmptyOrInconsistent()} and get reset)
+     * @throws IncompleteUpdateYieldException when this attempt holds a table write lock lease
+     *         ({@link #setWriteLockYield}) and could not re-acquire the lock after publishing: the publish-then-yield
+     *         of this boundary ends the attempt CLEANLY, the published prefix being the resume point of the next
+     *         attempt of the key
+     */
+    public synchronized boolean commitSegmentBoundary() {
+        if (committed || stagedSegmentCount < TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL) {
+            return false;
+        }
+        publishStagedSummaries();
+        //the publish just landed, so the store's readable frontier is now the last published value: consumers
+        //mirroring it (downloaded frontier keys of the caching services above) get told before this attempt does
+        //anything else, including yielding the write lock below
+        if (boundaryCommitListener != null) {
+            boundaryCommitListener.onBoundaryCommitPublished(parent.getLastValueEndTime());
+        }
+        //publish-then-yield: the store's visible state right now is exactly the published generations and this
+        //attempt holds no data file open mid-segment (the caller rotates onto a fresh file for the next segment), so
+        //releasing the table write lock here gives the readers parked on the key's read side their window while the
+        //single-writer invariant keeps holding for everything unpublished
+        if (writeLockYield != null && !writeLockYield.yieldAndTryReacquire()) {
+            throw new IncompleteUpdateYieldException(
+                    "Update attempt of hash key [" + parent.getHashKey() + "] published a segment boundary and yielded"
+                            + " the table write lock, but readers of the key kept it past the re-acquisition window of"
+                            + " [" + TimeSeriesProperties.UPDATE_YIELD_ACQUIRE_WRITE_LOCK_TIMEOUT + "] - ending the"
+                            + " attempt cleanly at this boundary, the published prefix is the resume point");
+        }
+        return true;
+    }
+
+    /**
+     * Attaches the table write lock lease of an attempt that holds the key's table write lock for its pass
+     * ({@link ATimeSeriesUpdater#update()}); every boundary commit of the attempt then yields that lock after
+     * publishing (publish-then-yield). Consumers that drive a transaction without holding a table write lock (the
+     * segmented updater path, index-only writers) leave it unset and their boundary commits keep behaving exactly as
+     * before. Must be attached before the attempt stages its first segment.
+     */
+    void setWriteLockYield(final TimeSeriesWriteLockYield writeLockYield) {
+        Assertions.checkTrue(prevSummary == null && !committed,
+                "the write lock lease must be attached before the attempt stages a segment");
+        this.writeLockYield = writeLockYield;
+    }
+
+    /**
+     * Attaches the boundary-commit notification of a consumer that mirrors this store's published frontier
+     * ({@link ITimeSeriesBoundaryCommitListener}); every boundary commit that publishes then reports its new
+     * frontier to the listener. The final publish of a committed close and the discards of an aborted attempt do
+     * not notify. Must be attached before the attempt's first publish; null leaves the transaction silent
+     * (unchanged behaviour for consumers that do not use the hook).
+     */
+    void setBoundaryCommitListener(final ITimeSeriesBoundaryCommitListener boundaryCommitListener) {
+        this.boundaryCommitListener = boundaryCommitListener;
+    }
+
+    /**
+     * Marks the attempt as finished: its remaining staged segments (the incomplete last file) are published by
+     * {@link #close()}.
+     */
     public synchronized void commit() {
         this.committed = true;
     }
@@ -140,18 +233,23 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         if (prevSummary == null) {
             return;
         }
-        if (!committed) {
-            //abort path: release the staged collection WITHOUT publishing it into the lookup table and without
-            //touching the update marker - a failed attempt changes nothing observable (epoch design I2)
+        if (committed) {
+            publishStagedSummaries();
+        } else {
+            //abort path: only what this attempt staged after its last published boundary is released WITHOUT
+            //publishing it; the boundaries it did publish stay, and the next attempt of this key continues from them
             final AMemoryFileSummarySerializingCollection summariesCopy = summaries;
             if (summariesCopy != null) {
                 summariesCopy.closeWithEmptyWrite();
                 summariesCopy.clear();
                 summaries = null;
+                stagedSegmentCount = 0;
             }
-            prevSummary = null;
-            return;
         }
+        prevSummary = null;
+    }
+
+    private void publishStagedSummaries() {
         final AMemoryFileSummarySerializingCollection summariesCopy = summaries;
         if (summariesCopy != null) {
             summariesCopy.closeWithEmptyWrite();
@@ -160,10 +258,10 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
             memoryFileLookupTable.put(iterator);
             summariesCopy.clear();
             summaries = null;
+            stagedSegmentCount = 0;
         }
         parent.clearCaches();
         touchUpdateMarker(parent.getDirectoryHashKey().getDirectoryHashKeyVersion());
-        prevSummary = null;
     }
 
     public static void touchUpdateMarker(final ITimeSeriesDirectoryHashKeyVersion directoryHashKeyVersion) {

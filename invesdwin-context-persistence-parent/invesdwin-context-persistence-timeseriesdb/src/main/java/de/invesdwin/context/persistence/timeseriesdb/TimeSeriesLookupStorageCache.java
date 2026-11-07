@@ -1246,6 +1246,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
         final long precedingMemoryOffset;
         final long memoryOffset;
         final long precedingValueCount;
+        final FDate resumeAfterEndTime;
         if (latestSummary != null) {
             final FDate latestRangeKey;
             if (shouldRedoLastFile && MemoryFiles.isIncompleteMemoryFile(latestSummary.getMemoryResourceUri())) {
@@ -1261,20 +1262,30 @@ public class TimeSeriesLookupStorageCache<K, V> {
                     memoryOffset = latestSummary.getMemoryOffset();
                     precedingValueCount = latestSummary.getPrecedingValueCount();
                     updateFrom = extractEndTime(lastValue);
+                    //the removed last value comes back from the source, everything before it is re-written from
+                    //lastValues, so nothing is excluded by its end time
+                    resumeAfterEndTime = null;
                     latestRangeKey = latestSummary.getFirstValueEndTime();
                 } else {
                     precedingMemoryOffset = latestSummary.getPrecedingMemoryOffset();
                     memoryOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength();
                     precedingValueCount = latestSummary.getPrecedingValueCount() + latestSummary.getValueCount();
                     updateFrom = latestSummary.getFirstValueEndTime();
+                    resumeAfterEndTime = null;
                     latestRangeKey = latestSummary.getFirstValueEndTime().addPicoseconds(1);
                 }
             } else {
+                //the last published file is a complete one: a boundary commit publishes complete segments only, so an
+                //attempt that continues such a store resumes a previous attempt that died mid-pass. The resume point
+                //is the last value the store holds, not the first value of the last file - continuing at the first
+                //value would hand the already stored values back to the writer and break the summary chain.
+                final FDate lastPublishedValueEndTime = extractEndTime(latestSummary.getLastValue(valueSerde));
                 lastValues = Collections.emptyList();
                 precedingMemoryOffset = latestSummary.getPrecedingMemoryOffset();
                 memoryOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength();
                 precedingValueCount = latestSummary.getPrecedingValueCount() + latestSummary.getValueCount();
-                updateFrom = latestSummary.getFirstValueEndTime();
+                updateFrom = lastPublishedValueEndTime;
+                resumeAfterEndTime = lastPublishedValueEndTime;
                 latestRangeKey = latestSummary.getFirstValueEndTime().addPicoseconds(1);
             }
             storage.deleteRange_latestValueLookupTable(hashKey, latestRangeKey);
@@ -1290,13 +1301,14 @@ public class TimeSeriesLookupStorageCache<K, V> {
             precedingMemoryOffset = 0L;
             memoryOffset = 0L;
             precedingValueCount = 0L;
+            resumeAfterEndTime = null;
         }
         //the attempt writes data files of its own, so its byte space starts at 0 while the preceding offset keeps the
         //running total over the files the published generation references
         final long transactionPrecedingMemoryOffset = precedingMemoryOffset + memoryOffset;
         final long transactionMemoryOffset = 0L;
         return new TimeSeriesUpdateTransaction<>(this, updateFrom, lastValues, transactionPrecedingMemoryOffset,
-                transactionMemoryOffset, precedingValueCount, epochLocalDataId);
+                transactionMemoryOffset, precedingValueCount, epochLocalDataId, resumeAfterEndTime);
     }
 
     public synchronized void maybeUpdateIndex() {

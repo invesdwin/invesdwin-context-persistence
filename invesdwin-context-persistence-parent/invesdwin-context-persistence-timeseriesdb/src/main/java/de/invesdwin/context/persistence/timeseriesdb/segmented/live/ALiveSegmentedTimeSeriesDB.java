@@ -15,6 +15,7 @@ import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSer
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDBInternals;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedTimeSeriesStorage;
+import de.invesdwin.context.persistence.timeseriesdb.segmented.TimeSeriesCoverage;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.finder.ISegmentFinder;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment.ILiveSegment;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
@@ -472,6 +473,17 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
         readLock.lock();
         try {
             return getLiveSegmentedLookupTableCache(key).size(from, to);
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    @Override
+    public TimeSeriesCoverage coverage(final K key, final FDate from, final FDate to) {
+        final ILock readLock = getTableLock(key).readLock();
+        readLock.lock();
+        try {
+            return getLiveSegmentedLookupTableCache(key).coverage(from, to);
         } finally {
             readLock.unlock();
         }

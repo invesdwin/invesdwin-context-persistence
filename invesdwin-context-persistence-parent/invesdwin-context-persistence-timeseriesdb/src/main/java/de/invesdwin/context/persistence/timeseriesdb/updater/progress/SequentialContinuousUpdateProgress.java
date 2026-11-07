@@ -42,6 +42,8 @@ public class SequentialContinuousUpdateProgress<K, V> implements ITimeSeriesUpda
     private V lastElement;
     private FDate maxTime;
     private BufferedFileDataOutputStream out;
+    //true when the last published boundary ended this data file: the next chunk goes into a file of its own
+    private boolean publishedBoundary;
 
     private final Object[] batch;
 
@@ -130,6 +132,16 @@ public class SequentialContinuousUpdateProgress<K, V> implements ITimeSeriesUpda
         }
         try {
             if (complete) {
+                if (publishedBoundary) {
+                    //everything this file holds is published: finish it and continue in a file of its own, so that a
+                    //published file never carries trailing bytes of a segment that was not published
+                    precedingMemoryOffset += memoryOffset;
+                    memoryFile = newMemoryFile();
+                    out.close();
+                    out = new BufferedFileDataOutputStream(memoryFile);
+                    memoryOffset = 0;
+                    publishedBoundary = false;
+                }
                 final ConfiguredSerializingCollection collection = new ConfiguredSerializingCollection(
                         FileChannelRegistry.newFile(memoryFile), out);
                 for (int i = 0; i < valueCount; i++) {
@@ -161,6 +173,7 @@ public class SequentialContinuousUpdateProgress<K, V> implements ITimeSeriesUpda
                     out = new BufferedFileDataOutputStream(memoryFile);
                     memoryOffset = 0;
                 }
+                publishedBoundary = updateTransaction.commitSegmentBoundary();
             } else {
                 // Route incomplete segment to isolated standalone file
                 precedingMemoryOffset += memoryOffset;
