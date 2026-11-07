@@ -91,6 +91,10 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
 
                 // Buffer exactly one element to allow replacement of the final element if required
                 MemoryFileSummary lastWritten = null;
+                //The byte high-water of the existing chain BELOW its last summary: every old summary that is written
+                //into the new index keeps its bytes in the new chain, so this is the floor a new summary may not fall
+                //below when it replaces the last summary of the previous generation.
+                long retainedChainHighWater = 0L;
 
                 // 1. Stream existing index elements to the new file, maintaining the 1-element buffer
                 if (currentIndexFile != null && currentIndexFile.exists()) {
@@ -103,6 +107,7 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
                             final MemoryFileSummary oldSummary = oldIt.next();
                             if (lastWritten != null) {
                                 newCollection.add(lastWritten);
+                                retainedChainHighWater = memoryFileSizeOf(lastWritten);
                             }
                             lastWritten = oldSummary;
                         }
@@ -122,8 +127,25 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
                         final long precedingMemoryOffset = newSummary.getPrecedingMemoryOffset();
                         final long memoryOffset = newSummary.getMemoryOffset();
                         final long memoryLength = newSummary.getMemoryLength();
-                        final long expectedMemoryFileSize = precedingMemoryOffset + memoryOffset + memoryLength;
-                        final long prevMemoryFileSize = metadata.getExpectedMemoryFileSize(properties);
+                        final long expectedMemoryFileSize = memoryFileSizeOf(newSummary);
+                        //EXPECTED_MEMORY_FILE_SIZE is the byte high-water of the published generation, not a
+                        //monotonically growing counter. A new generation may legitimately end BELOW it exactly when its
+                        //first summary replaces the last summary of the previous generation - the redo of the
+                        //standalone '_incomplete_' last file, whose last value might be an incomplete bar: that value
+                        //is dropped, a source that no longer hands it back re-serializes the region shorter than the
+                        //discarded file was, and the replaced file's bytes leave the chain with the summary that named
+                        //it. Refusing that shrink fail-loops the updater of the key (every retry redoes the same file,
+                        //re-produces the same shorter region and dies before publishing): the live signature is
+                        //'prevMemoryFileSize[4193405] should be less than expectedMemoryFileFize[4193368]' - one bar's
+                        //worth of compressed bytes. Anything that is NOT such a replacement keeps being measured
+                        //against the persisted high-water, so a byte space regression stays refused.
+                        final boolean replacesLastSummary = firstNewSummary && lastWritten != null
+                                && lastWritten.getFirstValueEndTime() != null
+                                && lastWritten.getFirstValueEndTime()
+                                        .equalsNotNullSafe(newSummary.getFirstValueEndTime());
+                        final long prevMemoryFileSize = replacesLastSummary
+                                ? retainedChainHighWater
+                                : metadata.getExpectedMemoryFileSize(properties);
 
                         if (prevMemoryFileSize > expectedMemoryFileSize) {
                             throw new IllegalStateException("prevMemoryFileSize[" + prevMemoryFileSize
@@ -153,8 +175,7 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
                             final FDate lastFirstEndTime = lastWritten.getFirstValueEndTime();
                             final FDate newFirstEndTime = newSummary.getFirstValueEndTime();
 
-                            if (firstNewSummary && lastFirstEndTime != null
-                                    && lastFirstEndTime.equalsNotNullSafe(newFirstEndTime)) {
+                            if (replacesLastSummary) {
                                 // Valid single replacement: discard lastWritten (last from old) and buffer newSummary (first from iterator)
                                 lastWritten = newSummary;
                             } else if (lastFirstEndTime != null && (lastFirstEndTime.isAfter(newFirstEndTime)
@@ -266,5 +287,14 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
     @Override
     public int getCurrentIndexNumber() {
         return currentIndexNumber.get();
+    }
+
+    /**
+     * The byte extent this summary claims for the data file it names: the running total of the bytes the chain holds up
+     * to it plus its own range. A published generation's high-water is that value for its last summary, and
+     * {@link MemoryFileMetadata#getExpectedMemoryFileSize} keeps exactly that number.
+     */
+    private static long memoryFileSizeOf(final MemoryFileSummary summary) {
+        return summary.getPrecedingMemoryOffset() + summary.getMemoryOffset() + summary.getMemoryLength();
     }
 }
