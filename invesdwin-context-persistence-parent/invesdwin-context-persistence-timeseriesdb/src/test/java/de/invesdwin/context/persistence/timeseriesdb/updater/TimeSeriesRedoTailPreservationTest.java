@@ -14,6 +14,7 @@ import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCach
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdateProgress;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
@@ -31,17 +32,15 @@ import de.invesdwin.util.time.date.FDateBuilder;
 import de.invesdwin.util.time.date.FDates;
 
 /**
- * A redo of the standalone '_incomplete_' last file drops that file's last value (it might be an incomplete bar) and
- * expects the source to hand it back. That expectation is not a guarantee - a source whose advertised end stops short
- * of that position never answers it - and then the redo used to DELETE a value the store had already published and
- * validated. Doubt about a value is not grounds for dropping it: a published value is only replaced by a better answer
- * for the same position, never by the absence of one.
+ * The standalone '_incomplete_' file is deliberately the provisional shard: each pass redoes it so that it either FILLS
+ * up to a full batch (and becomes a final immutable shard) or gets its LAST BAR updated. Full shards are never redone -
+ * that boundary is the trust model, and these tests keep it.
  * <p>
- * So the replacement pass re-publishes the dropped value as-is whenever the source does not serve that position again
- * (and keeps the source's answer when it does). The published chain becomes a function of the previous generation plus
- * what the source answered, and stops drifting with attempt order - the live signature this pins is the tail of a
- * derived-bars key moving 2025-01-31T20:59 -> 20:58 -> 20:59 -> 20:57 across four consecutive attempts of the same
- * key, with the byte high-water following it down.
+ * The normal redo path is checkless by design: the pass starts in front of the last bar's first constituent, replays
+ * the same input and regenerates that bar, so replacing it blind is correct. Only one branch is new - the ANOMALY, the
+ * redo window not being reproducible because the source no longer re-serves the required constituents - and it is
+ * decided by the validated-final watermark (the {@code FINAL_END_TIME} property of the key), raised by two
+ * attestations: a successor observed in the chain, and a pass that consumed its source inside a requested range.
  */
 @NotThreadSafe
 public class TimeSeriesRedoTailPreservationTest extends ATest {
@@ -67,97 +66,147 @@ public class TimeSeriesRedoTailPreservationTest extends ATest {
     }
 
     /**
-     * The series-20 shape: attempt N's supply serves the tail value, attempt N+1's supply stops one value short of it.
-     * The published content must not change between them - the tail is re-published from the published state - and the
-     * chain's value count and byte high-water must not creep down.
+     * Normal path, unchanged: the source re-serves the dropped position (the last-bar update) and brings more values
+     * that FILL the provisional shard to a full one. Its answer wins even though the previous pass sealed that value -
+     * sealing protects against loss, never against an update - and each value is written exactly once.
      */
     @Test
-    public void testRedoRepublishesTheTailTheSourceNoLongerServes() throws Exception {
-        final ATimeSeriesDB<String, FDate> table = newTable("redoTailShort");
+    public void testNormalReplayReplaceOfTheTailIsUnchangedAndFillsTheShard() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("redoTailServed");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
         final List<FDate> firstPass = newValues(1, BATCH_FLUSH_INTERVAL + 2);
-        newUpdater(table, firstPass).update().close();
-
-        final List<FDate> publishedFirst = readValues(table, KEY);
+        newUpdater(table, firstPass, newDate(BATCH_FLUSH_INTERVAL + 5)).update().close();
+        //the pass consumed its source inside a requested range: its last value is sealed
+        Assertions.assertThat(lookup.getFinalEndTime()).as("watermark after the sealed pass")
+                .isEqualTo(firstPass.get(firstPass.size() - 1));
         final long highWaterFirst = chainHighWater(lookup);
-        Assertions.assertThat(publishedFirst).as("pass 1 content").isEqualTo(new ArrayList<>(firstPass));
 
-        //pass 2: the supply no longer reaches the value the redo drops
-        newUpdater(table, firstPass.subList(0, firstPass.size() - 1)).update().close();
+        //the redo's dropped tail comes back from the source, plus new values behind it that fill a full shard
+        final List<FDate> secondPass = newValues(1, BATCH_FLUSH_INTERVAL * 3 + 2);
+        newUpdater(table, secondPass, newDate(BATCH_FLUSH_INTERVAL * 3 + 5)).update().close();
 
-        Assertions.assertThat(readValues(table, KEY)).as("content after a redo whose supply stops short of the tail")
-                .isEqualTo(new ArrayList<>(firstPass));
-        Assertions.assertThat(chainHighWater(lookup)).as("byte high-water must not creep down")
-                .isEqualTo(highWaterFirst);
-        Assertions.checkFalse(lookup.isEmptyOrInconsistent(), "the store must stay consistent: "
-                + readPublishedSummaries(lookup));
+        Assertions.assertThat(readValues(table, KEY)).as("content must be the source answer, each value exactly once")
+                .isEqualTo(new ArrayList<>(secondPass));
+        Assertions.assertThat(chainHighWater(lookup)).as("byte high-water must grow with the extra values")
+                .isGreaterThan(highWaterFirst);
+        final List<MemoryFileSummary> published = readPublishedSummaries(lookup);
+        int fullShards = 0;
+        MemoryFileSummary provisionalTail = null;
+        for (final MemoryFileSummary summary : published) {
+            if (MemoryFiles.isIncompleteMemoryFile(summary.getMemoryResourceUri())) {
+                provisionalTail = summary;
+            } else {
+                fullShards++;
+            }
+        }
+        Assertions.assertThat(fullShards).as("the filled region produced full shards: " + published)
+                .isGreaterThanOrEqualTo(3);
+        Assertions.assertThat(provisionalTail).as("a new provisional tail holds the newest values: " + published)
+                .isNotNull();
+        Assertions.assertThat(provisionalTail.getValueCount())
+                .as("only the values behind the last full batch stay provisional: " + published).isEqualTo(2);
+        Assertions.assertThat(lookup.getFinalEndTime()).as("watermark follows the newly written values")
+                .isEqualTo(secondPass.get(secondPass.size() - 1));
+        Assertions.checkFalse(lookup.isEmptyOrInconsistent(), "the store must stay consistent: " + published);
     }
 
     /**
-     * Repeating the short-supply attempt must not move the tail either - the published chain is a function of the
-     * previous generation plus the source answer, not of how many attempts ran or in which order.
+     * The pair's shape: closed history, the pass works a requested range and its source runs dry inside it, so the tail
+     * is sealed; a later attempt whose supply no longer re-serves that position (the anomaly) must not lose it. The
+     * published chain stays identical across alternating short / complete attempts - a function of the previous
+     * generation plus the attestation, not of which attempt ran.
      */
     @Test
-    public void testTailStaysStableAcrossRepeatedRedoAttempts() throws Exception {
-        final ATimeSeriesDB<String, FDate> table = newTable("redoTailRepeat");
+    public void testAnomalyWithSealedTailRepublishesItStably() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("redoTailSealed");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
         final List<FDate> full = newValues(1, BATCH_FLUSH_INTERVAL + 2);
         final List<FDate> shortSupply = full.subList(0, full.size() - 1);
-        newUpdater(table, full).update().close();
+        final FDate requestedUpdateTo = newDate(BATCH_FLUSH_INTERVAL + 5);
+        newUpdater(table, full, requestedUpdateTo).update().close();
         final long highWaterFirst = chainHighWater(lookup);
+        Assertions.assertThat(readValues(table, KEY)).as("pass 1 content").isEqualTo(new ArrayList<>(full));
 
         for (int attempt = 1; attempt <= 3; attempt++) {
-            //alternating supply answers: short, complete, short again
             final List<FDate> supply = attempt % 2 == 1 ? shortSupply : full;
-            newUpdater(table, supply).update().close();
-            Assertions.assertThat(readValues(table, KEY)).as("content after attempt " + attempt)
+            newUpdater(table, supply, requestedUpdateTo).update().close();
+            Assertions.assertThat(readValues(table, KEY)).as("content after anomaly attempt " + attempt)
                     .isEqualTo(new ArrayList<>(full));
-            Assertions.assertThat(chainHighWater(lookup)).as("byte high-water after attempt " + attempt)
+            Assertions.assertThat(chainHighWater(lookup)).as("byte high-water after anomaly attempt " + attempt)
                     .isEqualTo(highWaterFirst);
+            Assertions.checkFalse(lookup.isEmptyOrInconsistent(),
+                    "the store must stay consistent: " + readPublishedSummaries(lookup));
         }
     }
 
     /**
-     * When the source does answer that position again, its answer is the one that gets written - the re-published tail
-     * must not duplicate or shadow it.
+     * The anomaly with the tail ABOVE the watermark (no attestation: no requested range end, no successor behind it):
+     * the shrink is legal - that is the provisional bar being left out for the next pass to recompute - and the next
+     * pass whose supply reaches the position fills it back in.
      */
     @Test
-    public void testSourceAnswerForTheTailPositionWinsWithoutDuplicating() throws Exception {
-        final ATimeSeriesDB<String, FDate> table = newTable("redoTailServed");
+    public void testAnomalyWithProvisionalTailShrinksLegallyAndRecomputes() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("redoTailProvisional");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
-        final List<FDate> firstPass = newValues(1, BATCH_FLUSH_INTERVAL + 2);
-        newUpdater(table, firstPass).update().close();
-        final long highWaterFirst = chainHighWater(lookup);
+        final List<FDate> full = newValues(1, BATCH_FLUSH_INTERVAL + 2);
+        newUpdater(table, full, null).update().close();
+        //only the successor attestation applies: the value before the trailing provisional one is sealed
+        Assertions.assertThat(lookup.getFinalEndTime()).as("watermark covers the successor-sealed shard only")
+                .isEqualTo(newDate(BATCH_FLUSH_INTERVAL));
 
-        //pass 2: the redo's dropped tail comes back from the source, plus a new value behind it
-        final List<FDate> secondPass = newValues(1, BATCH_FLUSH_INTERVAL + 3);
-        newUpdater(table, secondPass).update().close();
+        //pass 2: the supply does not re-serve the tail, which sits above the watermark -> shrink legal
+        newUpdater(table, full.subList(0, full.size() - 1), null).update().close();
+        Assertions.assertThat(readValues(table, KEY)).as("a provisional tail above the watermark may still shrink")
+                .isEqualTo(new ArrayList<>(full.subList(0, full.size() - 1)));
 
-        final List<FDate> content = readValues(table, KEY);
-        Assertions.assertThat(content).as("content must be the source answer, each value exactly once")
-                .isEqualTo(new ArrayList<>(secondPass));
-        Assertions.assertThat(chainHighWater(lookup)).as("byte high-water must grow with the extra value")
-                .isGreaterThan(highWaterFirst);
-        Assertions.checkFalse(lookup.isEmptyOrInconsistent(), "the store must stay consistent: "
-                + readPublishedSummaries(lookup));
+        //pass 3: the supply reaches the position again -> the provisional shard recomputes and fills
+        newUpdater(table, full, null).update().close();
+        Assertions.assertThat(readValues(table, KEY)).as("the provisional region must recompute on the next pass")
+                .isEqualTo(new ArrayList<>(full));
+        Assertions.checkFalse(lookup.isEmptyOrInconsistent(),
+                "the store must stay consistent: " + readPublishedSummaries(lookup));
     }
 
     /**
-     * A source that answers only positions BEHIND the dropped tail (it skipped the tail itself) must not push the
-     * published chain out of order: the re-published tail goes between the values the redo re-wrote and the later
-     * answers.
+     * The successor attestation advances the watermark mid-chain: a shard that gains a later shard seals the value that
+     * preceded it, and the next arrival seals the one before that. Nothing here depends on periods or on a requested
+     * range - a later distinct bar at or after a value's end is the whole attestation.
      */
     @Test
-    public void testRedoReinsertsTailBeforeLaterSourceAnswers() throws Exception {
+    public void testSuccessorArrivalAdvancesTheWatermarkMidChain() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("redoTailSuccessor");
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
+        newUpdater(table, newValues(1, BATCH_FLUSH_INTERVAL), null).update().close();
+        Assertions.assertThat(lookup.getFinalEndTime()).as("a single shard with no successor seals nothing")
+                .isNull();
+
+        newUpdater(table, newValues(1, BATCH_FLUSH_INTERVAL * 2), null).update().close();
+        Assertions.assertThat(lookup.getFinalEndTime()).as("the second shard seals the value that precedes it")
+                .isEqualTo(newDate(BATCH_FLUSH_INTERVAL));
+
+        newUpdater(table, newValues(1, BATCH_FLUSH_INTERVAL * 3), null).update().close();
+        Assertions.assertThat(lookup.getFinalEndTime()).as("the third shard seals the value that precedes it")
+                .isEqualTo(newDate(BATCH_FLUSH_INTERVAL * 2));
+        Assertions.checkFalse(lookup.isEmptyOrInconsistent(),
+                "the store must stay consistent: " + readPublishedSummaries(lookup));
+    }
+
+    /**
+     * The anomaly whose supply skipped the sealed position and answered LATER positions must keep the re-published
+     * value in time order - in front of those answers, with the chain strictly ascending.
+     */
+    @Test
+    public void testAnomalyWithSealedTailKeepsItInTimeOrderBeforeLaterAnswers() throws Exception {
         final ATimeSeriesDB<String, FDate> table = newTable("redoTailGap");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
+        final FDate requestedUpdateTo = newDate(BATCH_FLUSH_INTERVAL + 9);
         final List<FDate> firstPass = newValues(1, BATCH_FLUSH_INTERVAL + 2);
-        newUpdater(table, firstPass).update().close();
+        newUpdater(table, firstPass, requestedUpdateTo).update().close();
 
-        //pass 2: the supply stops short of the tail and then answers a later position
+        //the supply stops short of the sealed tail and then answers later positions
         final List<FDate> secondPass = new ArrayList<>(firstPass.subList(0, firstPass.size() - 1));
         secondPass.addAll(newValues(BATCH_FLUSH_INTERVAL + 5, BATCH_FLUSH_INTERVAL + 6));
-        newUpdater(table, secondPass).update().close();
+        newUpdater(table, secondPass, requestedUpdateTo).update().close();
 
         final List<FDate> expected = new ArrayList<>(firstPass);
         expected.addAll(newValues(BATCH_FLUSH_INTERVAL + 5, BATCH_FLUSH_INTERVAL + 6));
@@ -168,23 +217,27 @@ public class TimeSeriesRedoTailPreservationTest extends ATest {
             Assertions.checkTrue(content.get(i - 1).isBeforeNotNullSafe(content.get(i)),
                     "the chain must stay strictly ascending: " + content);
         }
-        Assertions.checkFalse(lookup.isEmptyOrInconsistent(), "the store must stay consistent: "
-                + readPublishedSummaries(lookup));
+        Assertions.checkFalse(lookup.isEmptyOrInconsistent(),
+                "the store must stay consistent: " + readPublishedSummaries(lookup));
     }
 
     private static long chainHighWater(final TimeSeriesLookupStorageCache<String, FDate> lookup) {
         long highest = 0L;
         for (final MemoryFileSummary summary : readPublishedSummaries(lookup)) {
-            highest = Longs.max(highest, summary.getPrecedingMemoryOffset() + summary.getMemoryOffset()
-                    + summary.getMemoryLength());
+            highest = Longs.max(highest,
+                    summary.getPrecedingMemoryOffset() + summary.getMemoryOffset() + summary.getMemoryLength());
         }
         return highest;
+    }
+
+    private static FDate newDate(final int day) {
+        return FDateBuilder.newDate(2020, 1, 1).addDays(day);
     }
 
     private static List<FDate> newValues(final int fromDay, final int toDay) {
         final List<FDate> values = new ArrayList<>();
         for (int day = fromDay; day <= toDay; day++) {
-            values.add(FDateBuilder.newDate(2020, 1, 1).addDays(day));
+            values.add(newDate(day));
         }
         return values;
     }
@@ -247,12 +300,17 @@ public class TimeSeriesRedoTailPreservationTest extends ATest {
     }
 
     private ATimeSeriesUpdater<String, FDate> newUpdater(final ATimeSeriesDB<String, FDate> table,
-            final List<FDate> values) {
+            final List<FDate> values, final FDate requestedUpdateTo) {
         return new ATimeSeriesUpdater<String, FDate>(KEY, table) {
 
             @Override
             protected ICloseableIterable<? extends FDate> getSource(final FDate updateFrom) {
                 return WrapperCloseableIterable.maybeWrap(values);
+            }
+
+            @Override
+            protected FDate getRequestedUpdateTo() {
+                return requestedUpdateTo;
             }
 
             @Override

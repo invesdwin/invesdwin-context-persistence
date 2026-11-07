@@ -21,6 +21,7 @@ public class MemoryFileMetadata {
 
     public static final long MISSING_EXPECTED_MEMORY_FILE_SIZE = -1L;
     private static final String KEY_EXPECTED_MEMORY_FILE_SIZE = "EXPECTED_MEMORY_FILE_SIZE";
+    private static final String KEY_FINAL_END_TIME = "FINAL_END_TIME";
     private final File dataDirectory;
     private final File logFile;
     private AtomicNioFileChannel propertiesPath;
@@ -52,6 +53,21 @@ public class MemoryFileMetadata {
 
     public long getExpectedMemoryFileSize(final IProperties properties) {
         return properties.getLongOptional(KEY_EXPECTED_MEMORY_FILE_SIZE, MISSING_EXPECTED_MEMORY_FILE_SIZE);
+    }
+
+    /**
+     * The end time up to which this key's published chain is validated-final. A redo of the provisional '_incomplete_'
+     * file may rewrite values above it, but a value at or below it that the redo cannot re-obtain must be re-published
+     * as it was - see the two attestations that raise it in {@code TimeSeriesUpdateTransaction}: a successor observed
+     * in the chain, and a pass that reached the end of its requested range with the source consumed. Null when nothing
+     * is validated yet; stored as a date-time property value, so it keeps the exact end time of the value it seals.
+     */
+    public FDate getFinalEndTime(final IProperties properties) {
+        return properties.getDateOptional(KEY_FINAL_END_TIME, null);
+    }
+
+    public void setFinalEndTime(final IProperties properties, final FDate finalEndTime) {
+        properties.setDate(KEY_FINAL_END_TIME, finalEndTime);
     }
 
     public void logSummary(final FDate fistValueEndTime, final FDate lastValueEndTime, final long precedingValueCount,

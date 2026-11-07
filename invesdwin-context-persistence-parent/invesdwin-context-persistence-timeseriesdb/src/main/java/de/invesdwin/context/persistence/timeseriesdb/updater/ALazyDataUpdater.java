@@ -595,6 +595,14 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 }
 
                 @Override
+                protected FDate getRequestedUpdateTo() {
+                    //the range this pass was asked to work through, the same bound the progress and the
+                    //updatedTo sanity check use: values inside it (strictly in front of this end) sit in a range the
+                    //pass completed, which is what validates a trailing position a redo cannot re-obtain
+                    return estimatedTo;
+                }
+
+                @Override
                 public Percent getProgress(final FDate minTime, final FDate maxTime) {
                     if (minTime == null) {
                         return null;

@@ -10,17 +10,17 @@ import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.time.date.FDate;
 
 /**
- * Write-side guard for the redo of a standalone '_incomplete_' last file: that redo drops the file's last value (it
- * might be an incomplete bar) and asks the source from that value's end time, expecting it back. When the source stops
- * short of that position (its advertised end or its own content does not reach it), the dropped value would simply
- * vanish from the published chain - a value the store had already published and validated, deleted by a pass that
- * merely failed to re-obtain it.
+ * The anomaly branch of the redo of a standalone '_incomplete_' last file. That redo drops the file's last value and
+ * asks the source from that value's end time, expecting it back; normally it gets it back (the pass replays the same
+ * input and regenerates the bar, so the source's answer replaces the published one blindly - unchanged semantics).
+ * The anomaly is the source not serving that position at all: its answer starts behind it, or it runs dry. For a value
+ * the store's validated-final watermark already seals, losing it there would delete published content on nothing but
+ * the supply's silence, and this iterable keeps it.
  * <p>
- * This iterable keeps the published value: a source answer for exactly the dropped position wins (the normal redo
- * path, unchanged), a source answer for a LATER position gets the published value re-written in front of it (chain
- * order preserved), and a source that never answers the position gets the published value appended. The written chain
- * is thereby a function of the previous generation plus what the source answered, not of the fact that a redo happened
- * to drop a value it could not get back.
+ * A source answer for exactly the dropped position wins, a source answer for a LATER position gets the published value
+ * re-written in front of it (chain order preserved), and a source that never answers the position gets the published
+ * value appended. The written chain is thereby a function of the previous generation plus what the source answered,
+ * not of the fact that a redo happened to drop a value it could not get back.
  */
 @NotThreadSafe
 final class RedoTailPreservingIterable<V> implements ICloseableIterable<V> {

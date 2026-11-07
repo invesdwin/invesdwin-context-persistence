@@ -297,6 +297,35 @@ public class TimeSeriesLookupStorageCache<K, V> {
         return memoryFileLookupTable;
     }
 
+    /**
+     * The end time up to which this key's published chain is validated-final (null when nothing is validated yet): a
+     * redo of the provisional '_incomplete_' file may rewrite values above it, and must re-publish a value at or below
+     * it that it cannot re-obtain.
+     */
+    public FDate getFinalEndTime() {
+        final MemoryFileMetadata metadata = memoryFileLookupTable.getMetadata();
+        try (ICloseableProperties properties = metadata.getProperties()) {
+            return metadata.getFinalEndTime(properties);
+        }
+    }
+
+    /**
+     * Raises this key's validated-final watermark monotonically: a null argument or one not behind the current
+     * watermark leaves the stored value untouched.
+     */
+    public void raiseFinalEndTime(final FDate finalEndTime) {
+        if (finalEndTime == null) {
+            return;
+        }
+        final MemoryFileMetadata metadata = memoryFileLookupTable.getMetadata();
+        try (ICloseableProperties properties = metadata.getProperties()) {
+            final FDate currentFinalEndTime = metadata.getFinalEndTime(properties);
+            if (currentFinalEndTime == null || currentFinalEndTime.isBeforeNotNullSafe(finalEndTime)) {
+                metadata.setFinalEndTime(properties, finalEndTime);
+            }
+        }
+    }
+
     public File getUpdateProgressFile() {
         return new File(directoryHashKeyVersionMemory.getDirectoryHashKeyVersionDataShared(),
                 UPDATE_PROGRESS_FILE_NAME);
