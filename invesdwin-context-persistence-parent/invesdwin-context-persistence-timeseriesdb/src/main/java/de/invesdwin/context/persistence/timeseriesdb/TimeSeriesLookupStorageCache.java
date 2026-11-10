@@ -297,35 +297,6 @@ public class TimeSeriesLookupStorageCache<K, V> {
         return memoryFileLookupTable;
     }
 
-    /**
-     * The end time up to which this key's published chain is validated-final (null when nothing is validated yet): a
-     * redo of the provisional '_incomplete_' file may rewrite values above it, and must re-publish a value at or below
-     * it that it cannot re-obtain.
-     */
-    public FDate getFinalEndTime() {
-        final MemoryFileMetadata metadata = memoryFileLookupTable.getMetadata();
-        try (ICloseableProperties properties = metadata.getProperties()) {
-            return metadata.getFinalEndTime(properties);
-        }
-    }
-
-    /**
-     * Raises this key's validated-final watermark monotonically: a null argument or one not behind the current
-     * watermark leaves the stored value untouched.
-     */
-    public void raiseFinalEndTime(final FDate finalEndTime) {
-        if (finalEndTime == null) {
-            return;
-        }
-        final MemoryFileMetadata metadata = memoryFileLookupTable.getMetadata();
-        try (ICloseableProperties properties = metadata.getProperties()) {
-            final FDate currentFinalEndTime = metadata.getFinalEndTime(properties);
-            if (currentFinalEndTime == null || currentFinalEndTime.isBeforeNotNullSafe(finalEndTime)) {
-                metadata.setFinalEndTime(properties, finalEndTime);
-            }
-        }
-    }
-
     public File getUpdateProgressFile() {
         return new File(directoryHashKeyVersionMemory.getDirectoryHashKeyVersionDataShared(),
                 UPDATE_PROGRESS_FILE_NAME);
@@ -1276,10 +1247,6 @@ public class TimeSeriesLookupStorageCache<K, V> {
         final long memoryOffset;
         final long precedingValueCount;
         final FDate resumeAfterEndTime;
-        //the value the redo of the '_incomplete_' last file drops: handed to the transaction so the writer can keep it
-        //when the source does not answer that position again (a published value is not lost by a redo that could not
-        //re-obtain it)
-        final V redoDroppedTailValue;
         if (latestSummary != null) {
             final FDate latestRangeKey;
             if (shouldRedoLastFile && MemoryFiles.isIncompleteMemoryFile(latestSummary.getMemoryResourceUri())) {
@@ -1296,9 +1263,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
                     precedingValueCount = latestSummary.getPrecedingValueCount();
                     updateFrom = extractEndTime(lastValue);
                     //the removed last value comes back from the source, everything before it is re-written from
-                    //lastValues, so nothing is excluded by its end time - and if the source does not hand it back, the
-                    //writer re-publishes it rather than losing a value the store already published
-                    redoDroppedTailValue = lastValue;
+                    //lastValues, so nothing is excluded by its end time
                     resumeAfterEndTime = null;
                     latestRangeKey = latestSummary.getFirstValueEndTime();
                 } else {
@@ -1307,7 +1272,6 @@ public class TimeSeriesLookupStorageCache<K, V> {
                     precedingValueCount = latestSummary.getPrecedingValueCount() + latestSummary.getValueCount();
                     updateFrom = latestSummary.getFirstValueEndTime();
                     resumeAfterEndTime = null;
-                    redoDroppedTailValue = null;
                     latestRangeKey = latestSummary.getFirstValueEndTime().addPicoseconds(1);
                 }
             } else {
@@ -1322,7 +1286,6 @@ public class TimeSeriesLookupStorageCache<K, V> {
                 precedingValueCount = latestSummary.getPrecedingValueCount() + latestSummary.getValueCount();
                 updateFrom = lastPublishedValueEndTime;
                 resumeAfterEndTime = lastPublishedValueEndTime;
-                redoDroppedTailValue = null;
                 latestRangeKey = latestSummary.getFirstValueEndTime().addPicoseconds(1);
             }
             storage.deleteRange_latestValueLookupTable(hashKey, latestRangeKey);
@@ -1339,15 +1302,13 @@ public class TimeSeriesLookupStorageCache<K, V> {
             memoryOffset = 0L;
             precedingValueCount = 0L;
             resumeAfterEndTime = null;
-            redoDroppedTailValue = null;
         }
         //the attempt writes data files of its own, so its byte space starts at 0 while the preceding offset keeps the
         //running total over the files the published generation references
         final long transactionPrecedingMemoryOffset = precedingMemoryOffset + memoryOffset;
         final long transactionMemoryOffset = 0L;
         return new TimeSeriesUpdateTransaction<>(this, updateFrom, lastValues, transactionPrecedingMemoryOffset,
-                transactionMemoryOffset, precedingValueCount, epochLocalDataId, resumeAfterEndTime,
-                redoDroppedTailValue);
+                transactionMemoryOffset, precedingValueCount, epochLocalDataId, resumeAfterEndTime);
     }
 
     public synchronized void maybeUpdateIndex() {

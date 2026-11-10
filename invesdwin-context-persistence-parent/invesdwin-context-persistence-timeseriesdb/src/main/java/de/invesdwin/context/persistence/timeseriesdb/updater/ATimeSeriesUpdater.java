@@ -393,9 +393,6 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             if (boundaryCommitListener != null) {
                 updateTransaction.setBoundaryCommitListener(boundaryCommitListener);
             }
-            //the range this pass was asked to work through, when its owner knows one: the attestation this attempt's
-            //commit uses to mark what it wrote validated-final (source consumed inside a requested range)
-            updateTransaction.setRequestedUpdateTo(getRequestedUpdateTo());
             final FDate updateFrom = updateTransaction.getUpdateFrom();
             final List<V> lastValues = updateTransaction.getLastValues();
             final long initialPrecedingMemoryOffset = updateTransaction.getPrecedingMemoryOffset();
@@ -490,36 +487,24 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                 }
 
             };
+            //A redo of the standalone '_incomplete_' shard drops that shard's last value and expects the source to
+            //answer that position again: the pass replays the same input and regenerates that bar, so the redo path is
+            //deliberately checkless - whatever the source answers for the position is what gets published.
             final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues,
                     skippingSource);
-            //A redo of the standalone '_incomplete_' shard drops that shard's last value and expects the source to
-            //answer that position again. The normal path stays checkless: the pass replays the same input and
-            //regenerates that bar, so the source's answer replaces it blindly. The new branch is only the anomaly -
-            //the source not re-serving the position at all - and it is decided by the validated-final watermark
-            //(isRedoDroppedTailValidated): at or below the watermark the value is re-published verbatim, above it the
-            //shrink is legal, which is how a provisional trailing bar is recomputed and how the shard fills to a full
-            //immutable one.
-            final V redoDroppedTailValue = updateTransaction.getRedoDroppedTailValue();
-            final ICloseableIterable<? extends V> writeSource;
-            if (redoDroppedTailValue != null && isRedoDroppedTailValidated(redoDroppedTailValue)) {
-                writeSource = new RedoTailPreservingIterable<>(flatteningSources, redoDroppedTailValue, updateFrom,
-                        this::extractEndTime);
-            } else {
-                writeSource = flatteningSources;
-            }
 
             if (shouldWriteInParallel()) {
                 ParallelUpdateProgress.doUpdate(updateTransaction, internalMethods, initialPrecedingMemoryOffset,
-                        initialMemoryOffset, initialPrecedingValueCount, writeSource);
+                        initialMemoryOffset, initialPrecedingValueCount, flatteningSources);
             } else {
                 if (IMemoryMappedFile.isSegmentSizeExceeded(Long.MAX_VALUE)) {
                     SequentialChunkedUpdateProgress.doUpdate(updateTransaction, internalMethods,
                             initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount,
-                            writeSource);
+                            flatteningSources);
                 } else {
                     SequentialContinuousUpdateProgress.doUpdate(updateTransaction, internalMethods,
                             initialPrecedingMemoryOffset, initialMemoryOffset, initialPrecedingValueCount,
-                            writeSource);
+                            flatteningSources);
                 }
             }
             //all values consumed without exception: publish the staged index now (close() alone must not commit a
@@ -627,45 +612,6 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     protected boolean shouldRedoLastFile() {
         //redo last file so that we can update an incomplete last bar
         return true;
-    }
-
-    /**
-     * The end of the range this pass was asked to work through, when its owner knows one - the lazy data updaters hand
-     * their own decision bound ({@code estimatedTo}, the min of their update limit and their download frontier)
-     * through here. Null when the pass has no requested end. It is an attestation input, not a filter: the source is
-     * still free to answer less than that range.
-     */
-    protected FDate getRequestedUpdateTo() {
-        return null;
-    }
-
-    /**
-     * Whether the value a redo of the provisional '_incomplete_' shard dropped is validated-final, which is decided by
-     * the store's validated-final watermark (the {@code FINAL_END_TIME} property of the key, maintained by
-     * {@link TimeSeriesUpdateTransaction}) and never by the position's own period or position in the chain:
-     * <ul>
-     * <li>at or below the watermark the value was attested by an earlier pass - a successor bar at or after its end was
-     * observed, or a pass consumed its source inside a requested range - so the anomaly of a redo whose source no
-     * longer re-serves it must re-publish the value verbatim rather than lose published content,</li>
-     * <li>above the watermark the value is genuinely provisional: the redo's shrink is legal and the next pass
-     * recomputes it, which is how a provisional trailing bar is completed and how the shard fills to a full immutable
-     * one.</li>
-     * </ul>
-     * The normal redo path is untouched by this decision: whenever the source does re-serve the position, its answer
-     * replaces the published value blindly, because the pass replays the same input and regenerates that bar.
-     * <p>
-     * The two attestations are functions of the supplied range and of what the chain contains, not of which attempt
-     * runs or when it runs, which is what keeps the published chain deterministic across retries. They are also the
-     * general form the fleet converges on: a trailing bar is trusted when its own rule attests it is finished (a
-     * successor, or the requested range having been served), not because of where it sits.
-     */
-    protected boolean isRedoDroppedTailValidated(final V redoDroppedTailValue) {
-        final FDate finalEndTime = lookupTable.getFinalEndTime();
-        if (finalEndTime == null) {
-            //nothing validated yet: the redo keeps its drop-and-recompute
-            return false;
-        }
-        return !extractEndTime(redoDroppedTailValue).isAfterNotNullSafe(finalEndTime);
     }
 
     protected abstract ICloseableIterable<? extends V> getSource(FDate updateFrom)

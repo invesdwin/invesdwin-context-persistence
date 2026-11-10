@@ -49,9 +49,8 @@ import de.invesdwin.util.time.date.FDateBuilder;
  * <li>a summary that is NOT such a replacement may not fall back below the published high-water: that means its offsets
  * were computed against an older generation, and it stays refused - without the refusal moving the expectation.</li>
  * </ul>
- * The replacement is applied to the lookup table directly here (the redo path itself is pinned by
- * {@link TimeSeriesRedoTailPreservationTest}), so the guard is exercised on a chain whose replacement region really is
- * shorter than the file it replaces.
+ * The replacement is applied to the lookup table directly here, so the guard is exercised on a chain whose replacement
+ * region really is shorter than the file it replaces.
  */
 @NotThreadSafe
 public class TimeSeriesPublishedChainHighWaterGuardTest extends ATest {

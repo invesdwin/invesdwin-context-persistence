@@ -51,25 +51,10 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     //the boundary-commit notification of consumers that mirror this store's frontier (null = none): fired after
     //every publish, before the publish-then-yield, so frontier keys advance with published segments
     private ITimeSeriesBoundaryCommitListener boundaryCommitListener;
-    //The value the redo of a standalone '_incomplete_' last file dropped from the published chain (null when this
-    //attempt does not redo such a file). The normal redo path is deliberately CHECKLESS: the pass starts in front of
-    //the last bar's first constituent, replays the same input and regenerates that bar, so replacing it blind is
-    //correct (reproducibility by construction). The dropped value only matters on the anomaly - the redo window could
-    //not be reproduced because the source did not re-serve its constituents; whether it is then re-published is
-    //decided by the validated-final watermark below (at or below it: re-publish; above it: the shrink is legal).
-    private final V redoDroppedTailValue;
-    //The end of the range this attempt was asked to work through (null when its owner has no requested end): the
-    //attestation behind the range-end raise of the watermark.
-    private FDate requestedUpdateTo;
-    //The validated-final watermark raised by this attempt: the end time of the last value whose successor it observed
-    //in the chain, or - when the pass consumed its source inside a requested range - of its own last written value.
-    //Persisted monotonically with the generation this attempt publishes; never persisted for an aborted attempt.
-    private FDate finalEndTimeSeal;
 
     public TimeSeriesUpdateTransaction(final TimeSeriesLookupStorageCache<?, V> parent, final FDate updateFrom,
             final List<V> lastValues, final long precedingMemoryOffset, final long memoryOffset,
-            final long precedingValueCount, final String epochLocalDataId, final FDate resumeAfterEndTime,
-            final V redoDroppedTailValue) {
+            final long precedingValueCount, final String epochLocalDataId, final FDate resumeAfterEndTime) {
         this.parent = parent;
         this.updateFrom = updateFrom;
         Assertions.checkNotNull(lastValues);
@@ -79,7 +64,6 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         this.precedingValueCount = precedingValueCount;
         this.epochLocalDataId = epochLocalDataId;
         this.resumeAfterEndTime = resumeAfterEndTime;
-        this.redoDroppedTailValue = redoDroppedTailValue;
         MemoryFiles.assertMaybeFirstSummary(precedingMemoryOffset, memoryOffset, precedingValueCount);
     }
 
@@ -98,33 +82,6 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
      */
     public FDate getResumeAfterEndTime() {
         return resumeAfterEndTime;
-    }
-
-    /**
-     * The value this attempt's redo of a standalone '_incomplete_' last file dropped from the published chain, or null
-     * when this attempt does not redo such a file. Its end time is {@link #getUpdateFrom()} - the position the source
-     * is asked from. A published value is never lost by the mere fact that the redo dropped it: if the source does not
-     * answer that position again, the writer re-publishes this value as-is, so the published chain stays a function of
-     * the previous generation plus what the source answered rather than of which attempt ran when.
-     */
-    public V getRedoDroppedTailValue() {
-        return redoDroppedTailValue;
-    }
-
-    /**
-     * Tells this attempt the end of the range its updater was asked to work through, when the owner knows one
-     * (null = no attestation available). A pass that consumed its source inside such a range attests that what it
-     * wrote is the complete answer for that range, which is what makes its last written value validated-final.
-     */
-    void setRequestedUpdateTo(final FDate requestedUpdateTo) {
-        this.requestedUpdateTo = requestedUpdateTo;
-    }
-
-    /**
-     * The validated-final watermark raised so far by this attempt (null when it observed neither attestation).
-     */
-    FDate getFinalEndTimeSeal() {
-        return finalEndTimeSeal;
     }
 
     public TimeSeriesLookupStorageCache<?, V> getParent() {
@@ -183,55 +140,8 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
             };
         }
         summaries.add(summary);
-        raiseSuccessorSeal(summary);
         prevSummary = summary;
         stagedSegmentCount++;
-    }
-
-    /**
-     * SUCCESSOR OBSERVED: this summary follows another one in the chain, which seals the value that came before it -
-     * a distinct later bar at or after that value's end exists, and the store's own ordering check
-     * ({@link TimeSeriesLookupStorageCache#assertSummary}) is what proves that relation for every published pair. A
-     * first summary that REPLACES the last summary of the previous generation (the redo of the standalone
-     * '_incomplete_' file rewriting the same region) is not a successor, so nothing is sealed by it.
-     */
-    private void raiseSuccessorSeal(final MemoryFileSummary summary) {
-        final MemoryFileSummary predecessor;
-        if (prevSummary != null) {
-            predecessor = prevSummary;
-        } else {
-            predecessor = parent.getLastRangeKey();
-        }
-        if (predecessor == null || predecessor.getFirstValueEndTime() == null
-                || predecessor.getFirstValueEndTime().equalsNotNullSafe(summary.getFirstValueEndTime())) {
-            return;
-        }
-        raiseFinalEndTime(parent.extractEndTime(predecessor.getLastValue(parent.getValueSerde())));
-    }
-
-    /**
-     * RANGE-END REACHED: the writers only get here after consuming their source to the end without an exception, and
-     * if the pass knows the end of the range it was asked to work through, then what it wrote is the supply's complete
-     * answer inside that range (the closed-history case). Its last written value is therefore validated-final. Without
-     * a requested range end nothing attests the position and the trailing value stays provisional.
-     */
-    private void raiseRangeEndSeal() {
-        if (requestedUpdateTo == null || prevSummary == null) {
-            return;
-        }
-        final FDate lastWrittenEndTime = parent.extractEndTime(prevSummary.getLastValue(parent.getValueSerde()));
-        if (!lastWrittenEndTime.isAfterNotNullSafe(requestedUpdateTo)) {
-            raiseFinalEndTime(lastWrittenEndTime);
-        }
-    }
-
-    private void raiseFinalEndTime(final FDate finalEndTime) {
-        if (finalEndTime == null) {
-            return;
-        }
-        if (finalEndTimeSeal == null || finalEndTimeSeal.isBeforeNotNullSafe(finalEndTime)) {
-            finalEndTimeSeal = finalEndTime;
-        }
     }
 
     private void assertSummaryBeforeCommit(final MemoryFileSummary summary) {
@@ -316,8 +226,6 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
      */
     public synchronized void commit() {
         this.committed = true;
-        //the source of every writer of this attempt was consumed to its end without an exception to get here
-        raiseRangeEndSeal();
     }
 
     @Override
@@ -348,9 +256,6 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
             final ITimeSeriesMemoryFileLookupTable memoryFileLookupTable = parent.getMemoryFileLookupTable();
             final ICloseableIterator<MemoryFileSummary> iterator = summariesCopy.iterator();
             memoryFileLookupTable.put(iterator);
-            //the watermark travels with the generation it describes: from now on the store knows that everything at
-            //or below it is validated-final, so a later redo that cannot re-obtain such a value re-publishes it
-            parent.raiseFinalEndTime(finalEndTimeSeal);
             summariesCopy.clear();
             summaries = null;
             stagedSegmentCount = 0;
