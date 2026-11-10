@@ -1713,14 +1713,6 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         }
     }
 
-    /**
-     * Declared coverage of the segment status table ranges for [from,to] - see {@link TimeSeriesCoverage}. No row
-     * scan: this only reads the status ranges, so hole localization stays cheap.
-     */
-    public TimeSeriesCoverage coverage(final FDate from, final FDate to) {
-        return segmentStatusTable.coverage(from, to);
-    }
-
     private long sizeByValue(final FDate from, final FDate to) {
         final FDate firstAvailableSegmentFrom = getFirstAvailableSegmentFrom(key);
         if (firstAvailableSegmentFrom == null) {
