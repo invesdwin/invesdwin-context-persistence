@@ -107,7 +107,7 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
                             final MemoryFileSummary oldSummary = oldIt.next();
                             if (lastWritten != null) {
                                 newCollection.add(lastWritten);
-                                retainedChainHighWater = memoryFileSizeOf(lastWritten);
+                                retainedChainHighWater = lastWritten.getCombinedMemoryFileSize();
                             }
                             lastWritten = oldSummary;
                         }
@@ -127,7 +127,7 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
                         final long precedingMemoryOffset = newSummary.getPrecedingMemoryOffset();
                         final long memoryOffset = newSummary.getMemoryOffset();
                         final long memoryLength = newSummary.getMemoryLength();
-                        final long expectedMemoryFileSize = memoryFileSizeOf(newSummary);
+                        final long expectedMemoryFileSize = newSummary.getCombinedMemoryFileSize();
                         //EXPECTED_MEMORY_FILE_SIZE is the byte high-water of the published generation, not a
                         //monotonically growing counter. A new generation may legitimately end BELOW it exactly when its
                         //first summary replaces the last summary of the previous generation - the redo of the
@@ -287,14 +287,5 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
     @Override
     public int getCurrentIndexNumber() {
         return currentIndexNumber.get();
-    }
-
-    /**
-     * The byte extent this summary claims for the data file it names: the running total of the bytes the chain holds up
-     * to it plus its own range. A published generation's high-water is that value for its last summary, and
-     * {@link MemoryFileMetadata#getExpectedMemoryFileSize} keeps exactly that number.
-     */
-    private static long memoryFileSizeOf(final MemoryFileSummary summary) {
-        return summary.getPrecedingMemoryOffset() + summary.getMemoryOffset() + summary.getMemoryLength();
     }
 }

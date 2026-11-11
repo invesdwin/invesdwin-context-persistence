@@ -1115,8 +1115,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
                 final MemoryFileSummary summary = summaries.next();
                 final File memoryFile = new File(summary.getMemoryResourceUri());
                 final long memoryFileLength = memoryFile.length();
-                calculatedMemoryFileSize = summary.getPrecedingMemoryOffset() + summary.getMemoryOffset()
-                        + summary.getMemoryLength();
+                calculatedMemoryFileSize = summary.getCombinedMemoryFileSize();
                 if (!Objects.equals(prevMemoryFile, memoryFile)) {
                     actualMemoryFileSize += memoryFileLength;
                 }
@@ -1213,8 +1212,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
             }
 
             final long memoryOffset = summary.getPrecedingMemoryOffset() + summary.getMemoryOffset();
-            final long expectedMemoryOffset = prevSummary.getPrecedingMemoryOffset() + prevSummary.getMemoryOffset()
-                    + prevSummary.getMemoryLength();
+            final long expectedMemoryOffset = prevSummary.getCombinedMemoryFileSize();
             if (memoryOffset != expectedMemoryOffset) {
                 throw new IllegalStateException(
                         "memoryOffset[" + memoryOffset + "] != expectedMemoryOffset[" + expectedMemoryOffset + "]");
