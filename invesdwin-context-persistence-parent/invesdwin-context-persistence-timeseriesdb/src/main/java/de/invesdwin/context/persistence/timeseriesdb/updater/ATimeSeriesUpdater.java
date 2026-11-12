@@ -10,6 +10,8 @@ import javax.annotation.concurrent.NotThreadSafe;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.integration.retry.NonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.RetryLaterPendingRuntimeException;
+import de.invesdwin.context.integration.retry.fast.FastNonBlockingRetryLaterRuntimeException;
+import de.invesdwin.context.integration.retry.fast.FastRetryLaterPendingRuntimeException;
 import de.invesdwin.context.persistence.ezdb.table.range.ADelegateRangeTable;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDBInternals;
@@ -153,7 +155,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             if (!segmentWriteLock.tryLock(TimeSeriesProperties.ACQUIRE_WRITE_LOCK_TIMEOUT)) {
                 throw segmentWriteLock.getLockTrace()
                         .handleLockException(segmentWriteLock.getName(),
-                                new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_PREFIX +
+                                new FastRetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_PREFIX +
                                         "Write lock could not be acquired for table [" + table.getName() + "] and key ["
                                                 + key + "]. Please ensure all iterators are closed!"));
             }
@@ -289,7 +291,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                     //concurrent rebuild we are waiting for. fallthrough (scope inherited from the submitting demand
                     //retry) makes the task-level @Retry propagate this instead of spinning, failing the future,
                     //waking the joiner and letting its pins close for a clean convergence later
-                    throw new NonBlockingRetryLaterRuntimeException(
+                    throw new FastNonBlockingRetryLaterRuntimeException(
                             ATimeSeriesUpdater.class.getSimpleName() + ".trackRemoteUpdate: waiting for the heartbeat"
                                     + " pin of table [" + table.getName() + "] and key [" + key
                                     + "] would close a wait-for cycle inside this JVM - aborting this update attempt"
@@ -312,7 +314,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                                 readUpdateProgress(prevProgress, updateFinishedFile);
                                 break;
                             } else {
-                                throw new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_PREFIX +
+                                throw new FastRetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_PREFIX +
                                         "Update of another process timed out for table [" + table.getName() + "] and key ["
                                                 + key + "]: " + updateLock.getFile().getAbsolutePath());
                             }
@@ -339,7 +341,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                          * patience is safe. If it never resolves anyway, look for the "Finalizing unclosed
                          * TimeSeriesUpdaterResult" WARN carrying the creation stack trace of the leaked instance.
                          */
-                        throw new RetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_PREFIX + "Update lock of table [" + table.getName() + "] and key ["
+                        throw new FastRetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_PREFIX + "Update lock of table [" + table.getName() + "] and key ["
                                 + key + "] is beaten by this very JVM (owner ["
                                 + HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER
                                 + "]) although no local update() is active for this key: an unclosed"
@@ -377,7 +379,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             //adoption found an EMPTY store (the pinning context wiped it for a clean-state recompute): nothing to
             //adopt and this task mutated nothing - plain retryable WITHOUT any delete on our side (wiping here would
             //race the in-progress rebuild)
-            throw new NonBlockingRetryLaterRuntimeException("Adoption found empty store for table [" + table.getName() + "] and key [" + key + "] - retrying after the pinning update lands");
+            throw new FastNonBlockingRetryLaterRuntimeException("Adoption found empty store for table [" + table.getName() + "] and key [" + key + "] - retrying after the pinning update lands");
         }
         onUpdateFinished();
         return new TimeSeriesUpdaterResult(updatedTo, null, null, null, graphKey);

@@ -22,6 +22,7 @@ import de.invesdwin.context.integration.concurrent.nonblocking.INonBlockingRunna
 
 import de.invesdwin.context.integration.retry.NonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.RetryScopes;
+import de.invesdwin.context.integration.retry.fast.FastNonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.task.ARetryCallable;
 import de.invesdwin.context.integration.retry.task.BackOffPolicies;
 import de.invesdwin.context.integration.retry.task.RetryOriginator;
@@ -214,7 +215,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
             try {
                 if (!updateLock.tryLock(TimeSeriesProperties.ACQUIRE_UPDATE_LOCK_TIMEOUT)) {
                     //do NOT let the caller proceed believing the update happened when another context holds the update lock past the timeout: that reads interior holes the pending update fills later, making results depend on thread scheduling - surface it as a retry instead (same policy as the table write-lock case below)
-                    throw new NonBlockingRetryLaterRuntimeException(
+                    throw new FastNonBlockingRetryLaterRuntimeException(
                             ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: update of "
                                     + getElementsName() + " [" + getKeyStr()
                                     + "] blocked because the update lock is held by another context past the"
@@ -427,7 +428,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
         //the demanding readers themselves (the blocker-5 convoy, fixed by the demand parking its own iterators)
         final String holders = "readHolders[" + tableLock.getReadLockCount() + "], ownReadHolds["
                 + tableLock.getReadHoldCount() + "], queuedThreads[" + tableLock.getQueueLength() + "]";
-        return new NonBlockingRetryLaterRuntimeException(
+        return new FastNonBlockingRetryLaterRuntimeException(
                 ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: update of " + getElementsName() + " ["
                         + getKeyStr() + "] skipped because the table write lock is held by active iterators past ["
                         + newUpdateAttemptWriteLockWait() + "] (" + holders
@@ -452,7 +453,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                             IntegrationProperties.NON_BLOCKING_ASYNC_WAIT_TIMEOUT);
                     updateFuture = null;
                 } catch (final TimeoutException e) {
-                    throw new NonBlockingRetryLaterRuntimeException(
+                    throw new FastNonBlockingRetryLaterRuntimeException(
                             ALazyDataUpdater.class.getSimpleName()
                                     + ".maybeUpdate: async update " + reason
                                     + " while operating in non-blocking mode for " + getElementsName() + ": "
@@ -502,7 +503,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
             return false;
         }
         log.warn("Falling through as cycle victim for update of [%s] for [%s]: deterministic max-key yield to unwind and let the cycle complete serially: %s", getElementsName(), getKeyStr(), WaitForGraph.describeCycle(graphKey));
-        throw new NonBlockingRetryLaterRuntimeException(
+        throw new FastNonBlockingRetryLaterRuntimeException(
                 ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: update of "
                         + getElementsName() + " [" + getKeyStr()
                         + "] aborted retryably because this thread's wait would close a wait-for cycle: "
@@ -517,7 +518,7 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
                 return true;
             }
             log.warn("Aborting join on update of [%s] for [%s]: the running task chains back onto a heartbeat pin held by this very thread - unwinding to release our pins and retry later", getElementsName(), getKeyStr());
-            throw new NonBlockingRetryLaterRuntimeException(
+            throw new FastNonBlockingRetryLaterRuntimeException(
                     ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: joining the update of "
                             + getElementsName() + " [" + getKeyStr()
                             + "] would deadlock pins held by this thread - retrying after our pins close");
