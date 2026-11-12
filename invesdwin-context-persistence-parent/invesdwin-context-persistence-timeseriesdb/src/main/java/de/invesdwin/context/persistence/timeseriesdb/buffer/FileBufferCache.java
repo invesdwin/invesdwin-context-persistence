@@ -322,14 +322,14 @@ public final class FileBufferCache {
         PRELOAD_EXECUTOR.execute(() -> getResult(hashKey, summary, source));
     }
 
-    private static final class ResultCacheKey {
+    static final class ResultCacheKey {
 
         private final String hashKey;
         private final MemoryFileSummary summary;
         private IFileBufferSource source;
         private final int hashCode;
 
-        private ResultCacheKey(final String hashKey, final MemoryFileSummary summary, final IFileBufferSource source) {
+        ResultCacheKey(final String hashKey, final MemoryFileSummary summary, final IFileBufferSource source) {
             this.hashKey = hashKey;
             this.summary = summary;
             this.source = source;
@@ -361,7 +361,11 @@ public final class FileBufferCache {
         public boolean equals(final Object obj) {
             if (obj instanceof ResultCacheKey) {
                 final ResultCacheKey cObj = (ResultCacheKey) obj;
-                return hashCode == cObj.hashCode;
+                //hashCode alone only identifies the bucket - hashKey and summary decide identity (the source is
+                //deliberately not part of the identity, it is re-set via setSource on the shared entry); value-equal
+                //hashKey/summary keep equal hashCodes, so this stays hashCode-consistent
+                return hashCode == cObj.hashCode && Objects.equals(hashKey, cObj.hashKey)
+                        && Objects.equals(summary, cObj.summary);
             }
             return false;
         }

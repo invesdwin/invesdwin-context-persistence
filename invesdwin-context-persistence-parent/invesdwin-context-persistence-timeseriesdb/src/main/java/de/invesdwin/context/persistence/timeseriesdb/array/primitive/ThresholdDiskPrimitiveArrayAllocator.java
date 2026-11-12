@@ -222,7 +222,7 @@ public class ThresholdDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllo
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(ThresholdDiskPrimitiveArrayAllocator.class, heap, disk, getDirectory());
+        return Objects.hashCode(ThresholdDiskPrimitiveArrayAllocator.class, heap, disk);
     }
 
     @Override
