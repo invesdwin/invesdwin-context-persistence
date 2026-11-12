@@ -177,8 +177,11 @@ public class TimeSeriesEpochReclaimTest extends ATest {
     }
 
     /**
-     * The sweep needs no dedicated timer: the next successful attempt for the key piggybacks it and takes the crashed
-     * writer's garbage with it.
+     * The sweep needs no dedicated timer: the next successful attempt for the key submits it and the version-cleanup
+     * thread takes the crashed writer's garbage with it. Submitting instead of sweeping on the update thread is the
+     * point - a sweep parses every retained index generation of the key (~865 MB measured for one live key's directory
+     * on ptstaging) and must not run under the cache update lock. The drain happens on another thread, so this waits
+     * for its effect instead of asserting about a thread it does not own.
      */
     @Test
     public void testNextSuccessfulAttemptSweepsPlantedGarbage() throws Exception {
@@ -190,12 +193,47 @@ public class TimeSeriesEpochReclaimTest extends ATest {
         plantAttemptArtifacts(lookup, deadAttempt);
         Assertions.checkFalse(findAttemptDataFiles(lookup, deadAttempt).isEmpty(), "planted garbage must exist first");
 
-        //the next attempt for the key finishes successfully -> its piggyback sweep takes the garbage
+        //the next attempt for the key finishes successfully -> it submits the sweep to the janitor
         newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, 12)), false).update().close();
 
+        for (int i = 0; i < 100 && !findAttemptDataFiles(lookup, deadAttempt).isEmpty(); i++) {
+            TimeUnit.MILLISECONDS.sleep(100);
+        }
         Assertions.checkTrue(findAttemptDataFiles(lookup, deadAttempt).isEmpty(),
-                "the piggybacked sweep must have removed the planted data files");
+                "the submitted sweep must have removed the planted data files");
         Assertions.assertThat(readValues(table, KEY)).isEqualTo(new ArrayList<>(newValues(1, 12)));
+    }
+
+    /**
+     * Queue semantics of the submission: finished attempts of one key coalesce into one queued sweep, enqueueing does
+     * not sweep on the calling thread, and the drain the janitor runs consumes the queue. Enqueued directly here, so
+     * nothing asks the janitor for a drain and the assertions cannot race it (the other tests' drains have completed
+     * by the time this runs, each having waited for its own garbage to disappear).
+     */
+    @Test
+    public void testSubmissionsCoalescePerDirectoryAndTheDrainConsumesThem() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("attemptQueue");
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
+        newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, 8)), false).update().close();
+
+        final String deadAttempt = attemptIdOf(FDateMillis.nowMillis() - TimeUnit.HOURS.toMillis(2), "queue000");
+        plantAttemptArtifacts(lookup, deadAttempt);
+        Assertions.checkFalse(findAttemptDataFiles(lookup, deadAttempt).isEmpty(), "planted garbage must exist first");
+
+        Assertions.checkTrue(TimeSeriesEpochReclaim.enqueueObsoleteEpochsReclaim(lookup),
+                "the first submission of a data directory must queue");
+        Assertions.checkFalse(TimeSeriesEpochReclaim.enqueueObsoleteEpochsReclaim(lookup),
+                "a further submission of the same data directory must coalesce into it");
+        Assertions.assertThat(TimeSeriesEpochReclaim.getPendingObsoleteEpochsReclaimCount()).isEqualTo(1);
+        Assertions.checkFalse(findAttemptDataFiles(lookup, deadAttempt).isEmpty(),
+                "enqueueing alone must not sweep on the calling thread");
+
+        TimeSeriesEpochReclaim.runPendingObsoleteEpochsReclaims();
+
+        Assertions.checkTrue(findAttemptDataFiles(lookup, deadAttempt).isEmpty(),
+                "the drain must have removed the planted data files");
+        Assertions.assertThat(TimeSeriesEpochReclaim.getPendingObsoleteEpochsReclaimCount()).isZero();
+        Assertions.assertThat(readValues(table, KEY)).isEqualTo(new ArrayList<>(newValues(1, 8)));
     }
 
     /**

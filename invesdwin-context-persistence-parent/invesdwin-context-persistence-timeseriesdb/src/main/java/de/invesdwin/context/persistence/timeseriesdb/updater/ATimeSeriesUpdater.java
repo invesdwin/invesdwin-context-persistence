@@ -191,10 +191,12 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                     doUpdate(writeLockYield);
                     onUpdateFinished();
                     writeUpdateProgress(updateProgressFile, true);
-                    //piggyback sweep of this key's dead attempt garbage at attempt finish (no new global timer); this
-                    //attempt's own files are referenced by the generation it just published and stay, everything
-                    //provably unreferenced and older than RETAIN_OBSOLETE_EPOCHS_THRESHOLD goes
-                    TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookupTable);
+                    //submit this key's dead-attempt garbage sweep to the version-cleanup thread (still no new global
+                    //timer): a sweep parses every retained index generation of the key, measured at ~865 MB for one
+                    //live key's directory, so it must not run here under the cache update lock. This attempt's own
+                    //files are referenced by the generation it just published and stay; everything provably
+                    //unreferenced and older than RETAIN_OBSOLETE_EPOCHS_THRESHOLD goes when the janitor gets to it.
+                    TimeSeriesEpochReclaim.scheduleObsoleteEpochsReclaim(lookupTable);
                     return new TimeSeriesUpdaterResult(maxTime, updateLock, updateProgressFile, updateFinishedFile,
                             graphKey);
                 } catch (final Throwable t) {
@@ -204,9 +206,9 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                     //no reader will ever resolve - reclaim them best effort right away (the published-generation
                     //reference check still guards the rare case of a commit landing inside a throwing close)
                     TimeSeriesEpochReclaim.reclaimAbortedAttemptEpoch(lookupTable, epochId);
-                    //and the same piggyback sweep as on the success path: a failed attempt may be the first one since
-                    //a crashed writer left garbage
-                    TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookupTable);
+                    //and the same submission as on the success path: a failed attempt may be the first one since a
+                    //crashed writer left garbage
+                    TimeSeriesEpochReclaim.scheduleObsoleteEpochsReclaim(lookupTable);
                     final IncompleteUpdateYieldException yielded = Throwables.getCauseByType(t,
                             IncompleteUpdateYieldException.class);
                     if (yielded != null) {

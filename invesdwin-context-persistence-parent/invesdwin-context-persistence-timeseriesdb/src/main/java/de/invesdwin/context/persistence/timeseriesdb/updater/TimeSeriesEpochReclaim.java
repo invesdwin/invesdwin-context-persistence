@@ -3,6 +3,7 @@ package de.invesdwin.context.persistence.timeseriesdb.updater;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -12,6 +13,7 @@ import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChan
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.lease.TimeSeriesDirectoryHashKeyVersionLeaseRegistry;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummarySerde;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
@@ -39,20 +41,34 @@ import de.invesdwin.util.time.date.millis.FDateMillis;
  * path: what the attempt staged after its last published boundary is provably unpinned garbage (the published
  * generation reference check still guards the bytes a boundary commit published before the attempt died, and the rare
  * case of a commit landing inside a throwing close);</li>
- * <li>{@link #reclaimObsoleteEpochs(TimeSeriesLookupStorageCache)} piggybacks on the completion of an update attempt
- * for that key and sweeps that key's version directory only: attempt files referenced by no published index
- * generation, not owned by the heartbeat-live attempt this key's progress marker describes, and older than
- * {@link TimeSeriesProperties#RETAIN_OBSOLETE_EPOCHS_THRESHOLD} go. Whole obsolete version directories (with all the
- * attempt files inside) are already swept by the lease janitor's cleanupObsoleteVersions.</li>
+ * <li>{@link #scheduleObsoleteEpochsReclaim(TimeSeriesLookupStorageCache)} is what the completion of an update attempt
+ * calls: it records the key's data directory and hands the sweep to the version-cleanup thread of
+ * {@link TimeSeriesDirectoryHashKeyVersionLeaseRegistry}, which already has its own single thread and lifecycle. That
+ * is not a cosmetic move: a sweep reads every '&lt;N&gt;_memory.index' generation of the key to learn which data files
+ * are still referenced, and a live key's directory holds generations back to
+ * {@link TimeSeriesProperties#RETAIN_OBSOLETE_FILES_THRESHOLD} - measured on ptstaging with 1,496 generations of
+ * ~578 KB in one live key's directory, so one sweep decompresses ~865 MB. Doing that inline held the live cache update
+ * lock for minutes while every demand of that key answered retry-later.</li>
  * </ul>
  * The reference set is collected from ALL '&lt;N&gt;_memory.index' generations still present on disk (not just the
  * newest): older generations are retained for the length of the longest backtest (RETAIN_OBSOLETE_FILES_THRESHOLD)
- * and open iterations resolve one of them, so a file named by any existing generation must stay readable.
+ * and open iterations resolve one of them, so a file named by any existing generation must stay readable. The sweep
+ * builds that set and the directory listing ONCE for all candidate attempts of the directory, because both depend on
+ * the directory and not on the attempt.
  */
 @ThreadSafe
 public final class TimeSeriesEpochReclaim {
 
     private static final Log LOG = new Log(TimeSeriesEpochReclaim.class);
+
+    /**
+     * The data directories a finished update attempt asked to have swept, keyed by the directory itself (a File
+     * compares by path, so repeated attempts on one key coalesce into one sweep). The values carry everything the sweep
+     * needs, taken from the cache while the calling thread still owns it: {@link TimeSeriesLookupStorageCache} is
+     * &#64;NotThreadSafe and the sweep runs on another thread.
+     */
+    private static final Map<File, PendingReclaim> PENDING_RECLAIMS = ILockCollectionFactory.getInstance(true)
+            .newConcurrentMap();
 
     private TimeSeriesEpochReclaim() {}
 
@@ -69,7 +85,9 @@ public final class TimeSeriesEpochReclaim {
         try {
             final File dataDirectory = cache.getDirectoryHashKeyVersionMemory()
                     .getDirectoryHashKeyVersionDataShared();
-            deleteAttemptArtifacts(cache, dataDirectory, attemptId);
+            deleteAttemptArtifacts(listAttemptDataFiles(dataDirectory, attemptId),
+                    collectPublishedDataFileNames(dataDirectory, cache.getValueFixedLength(),
+                            cache.getCompressionFactory()));
         } catch (final Throwable t) {
             //reclaim is an optimization, never a cause of failure
             LOG.warn("Best-effort reclaim of the aborted attempt [%s] of key [%s] failed: %s", attemptId,
@@ -78,41 +96,125 @@ public final class TimeSeriesEpochReclaim {
     }
 
     /**
-     * Best-effort, never throws: sweep the dead attempt garbage of this key's current version directory. Called when an
-     * update attempt for the key finishes (piggyback, no new timer). Candidates are the attempt local data file names
-     * in that directory, so bytes orphaned when their generation was aged out are found too. A candidate goes only when
-     * it is not the attempt the current marker describes with a fresh heartbeat claim, and is older than
-     * {@link TimeSeriesProperties#RETAIN_OBSOLETE_EPOCHS_THRESHOLD}; its files stay while any retained published
-     * generation names them.
+     * The synchronous form of the sweep - one data directory, all dead attempts of it. The update path calls
+     * {@link #scheduleObsoleteEpochsReclaim(TimeSeriesLookupStorageCache)} instead; this stays the entry point for a
+     * caller that must have the garbage gone before it returns (and for the tests).
      */
     public static void reclaimObsoleteEpochs(final TimeSeriesLookupStorageCache<?, ?> cache) {
+        reclaimObsoleteEpochs(newPendingReclaim(cache));
+    }
+
+    /**
+     * Best-effort, never throws: record this key's data directory for the next sweep on the version-cleanup thread and
+     * ask that thread to run. Cheap on the calling thread by design: one directory listing is left to the sweeper,
+     * which is the point (see the class javadoc for what a sweep costs).
+     */
+    public static void scheduleObsoleteEpochsReclaim(final TimeSeriesLookupStorageCache<?, ?> cache) {
+        if (enqueueObsoleteEpochsReclaim(cache)) {
+            TimeSeriesDirectoryHashKeyVersionLeaseRegistry.requestEpochReclaim();
+        }
+    }
+
+    /**
+     * Records the sweep without asking for it: the queue is keyed by data directory, so any number of finished attempts
+     * of one key coalesce into one sweep.
+     *
+     * @return true when this submission is what made the directory pending
+     */
+    static boolean enqueueObsoleteEpochsReclaim(final TimeSeriesLookupStorageCache<?, ?> cache) {
         try {
-            final File dataDirectory = cache.getDirectoryHashKeyVersionMemory()
-                    .getDirectoryHashKeyVersionDataShared();
-            final File[] attemptDataFiles = listAttemptDataFiles(dataDirectory, null);
-            final List<String> candidateIds = new ArrayList<>();
-            for (final File attemptDataFile : attemptDataFiles) {
+            final PendingReclaim pending = newPendingReclaim(cache);
+            return pending != null && PENDING_RECLAIMS.putIfAbsent(pending.getDataDirectory(), pending) == null;
+        } catch (final Throwable t) {
+            //reclaim is an optimization, never a cause of failure
+            LOG.warn("Best-effort reclaim scheduling of key [%s] failed: %s", cache.getHashKey(),
+                    Throwables.concatMessages(t));
+            return false;
+        }
+    }
+
+    static int getPendingObsoleteEpochsReclaimCount() {
+        return PENDING_RECLAIMS.size();
+    }
+
+    /**
+     * Sweeps every data directory submitted since the last run: the entry is removed BEFORE its sweep, so a submission
+     * made while this runs is not lost (it simply queues for the next run). Called from the version-cleanup thread.
+     */
+    public static void runPendingObsoleteEpochsReclaims() {
+        if (PENDING_RECLAIMS.isEmpty()) {
+            return;
+        }
+        for (final File dataDirectory : new ArrayList<>(PENDING_RECLAIMS.keySet())) {
+            final PendingReclaim pending = PENDING_RECLAIMS.remove(dataDirectory);
+            if (pending == null) {
+                //another drain took this directory already
+                continue;
+            }
+            reclaimObsoleteEpochs(pending);
+        }
+    }
+
+    public static boolean hasPendingObsoleteEpochsReclaims() {
+        return !PENDING_RECLAIMS.isEmpty();
+    }
+
+    /**
+     * Everything a sweep needs of one key's data directory, read off the cache on the submitting thread.
+     */
+    private static PendingReclaim newPendingReclaim(final TimeSeriesLookupStorageCache<?, ?> cache) {
+        final File dataDirectory = cache.getDirectoryHashKeyVersionMemory()
+                .getDirectoryHashKeyVersionDataShared();
+        if (dataDirectory == null) {
+            return null;
+        }
+        return new PendingReclaim(cache.getHashKey(), dataDirectory, cache.getUpdateProgressFile(),
+                cache.getValueFixedLength(), cache.getCompressionFactory());
+    }
+
+    private static void reclaimObsoleteEpochs(final PendingReclaim pending) {
+        try {
+            final File dataDirectory = pending.getDataDirectory();
+            //ONE listing for the whole sweep: the attempt local files bucketed by the attempt id they carry. Listing
+            //per attempt made the sweep quadratic in the directory's file count (measured: 2,992 entries in one live
+            //key's directory).
+            final Map<String, List<File>> filesByAttemptId = ILockCollectionFactory.getInstance(false).newLinkedMap();
+            for (final File attemptDataFile : listAttemptDataFiles(dataDirectory, null)) {
                 final String attemptId = attemptIdOfDataFileName(attemptDataFile.getName());
-                if (attemptId != null && !candidateIds.contains(attemptId)) {
-                    candidateIds.add(attemptId);
+                if (attemptId != null) {
+                    filesByAttemptId.computeIfAbsent(attemptId, k -> new ArrayList<>()).add(attemptDataFile);
                 }
             }
-            for (final String attemptId : candidateIds) {
-                if (isAttemptLive(cache, attemptId)) {
+            if (filesByAttemptId.isEmpty()) {
+                return;
+            }
+            //ONE reference set for the whole sweep, built lazily: it depends on the directory, not on the attempt, and
+            //reading it decompresses every retained index generation of the key.
+            Set<String> referencedNames = null;
+            //ONE read of this key's progress marker and heartbeat claim for the same reason.
+            final TimeSeriesUpdaterProgress progress = TimeSeriesUpdaterProgress.readUpdateProgress(
+                    pending.getUpdateProgressFile());
+            for (final Map.Entry<String, List<File>> entry : filesByAttemptId.entrySet()) {
+                final String attemptId = entry.getKey();
+                if (isAttemptLive(pending, progress, attemptId)) {
                     //owned by the heartbeat-live attempt this key's marker describes: never touch
                     continue;
                 }
-                final File[] dataFiles = listAttemptDataFiles(dataDirectory, attemptId);
+                final File[] dataFiles = entry.getValue().toArray(new File[0]);
                 if (!TimeSeriesProperties.RETAIN_OBSOLETE_EPOCHS_THRESHOLD.isLessThanMillis(
                         attemptAgeMillis(attemptId, dataFiles))) {
                     //younger than the retention threshold: a reader may still be resolving it
                     continue;
                 }
-                deleteAttemptArtifacts(cache, dataFiles);
+                if (referencedNames == null) {
+                    referencedNames = collectPublishedDataFileNames(dataDirectory, pending.getValueFixedLength(),
+                            pending.getCompressionFactory());
+                }
+                deleteAttemptArtifacts(dataFiles, referencedNames);
             }
         } catch (final Throwable t) {
             //reclaim is an optimization, never a cause of failure
-            LOG.warn("Best-effort attempt reclaim sweep of key [%s] failed: %s", cache.getHashKey(),
+            LOG.warn("Best-effort attempt reclaim sweep of key [%s] failed: %s", pending.getHashKey(),
                     Throwables.concatMessages(t));
         }
     }
@@ -157,7 +259,7 @@ public final class TimeSeriesEpochReclaim {
      * garbage.
      */
     private static Set<String> collectPublishedDataFileNames(final File dataDirectory,
-            final TimeSeriesLookupStorageCache<?, ?> cache) {
+            final Integer valueFixedLength, final ICompressionFactory compressionFactory) {
         final Set<String> referencedNames = ILockCollectionFactory.getInstance(true).newLinkedSet();
         final File[] generationFiles = dataDirectory.listFiles(
                 (dir, name) -> name.endsWith("_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME));
@@ -165,7 +267,8 @@ public final class TimeSeriesEpochReclaim {
             return referencedNames;
         }
         for (final File generationFile : generationFiles) {
-            final List<MemoryFileSummary> summaries = readIndexGenerationSummaries(cache, generationFile);
+            final List<MemoryFileSummary> summaries = readIndexGenerationSummaries(valueFixedLength, compressionFactory,
+                    generationFile);
             for (final MemoryFileSummary summary : summaries) {
                 referencedNames.add(new File(summary.getMemoryResourceUri()).getName());
             }
@@ -179,12 +282,10 @@ public final class TimeSeriesEpochReclaim {
      * serde parameters are captured as locals before the constructor runs: SerializingCollection calls newSerde()
      * virtually from its own constructor, so a subclass field would still be null there.
      */
-    private static List<MemoryFileSummary> readIndexGenerationSummaries(
-            final TimeSeriesLookupStorageCache<?, ?> cache, final File generationFile) {
+    private static List<MemoryFileSummary> readIndexGenerationSummaries(final Integer valueFixedLength,
+            final ICompressionFactory compressionFactory, final File generationFile) {
         final List<MemoryFileSummary> summaries = new ArrayList<>();
         try {
-            final Integer valueFixedLength = cache.getValueFixedLength();
-            final ICompressionFactory compressionFactory = cache.getCompressionFactory();
             try (AMemoryFileSummarySerializingCollection collection = new AMemoryFileSummarySerializingCollection(
                     new TextDescription("%s.readIndexGenerationSummaries",
                             TimeSeriesEpochReclaim.class.getSimpleName()),
@@ -212,12 +313,11 @@ public final class TimeSeriesEpochReclaim {
     /**
      * True while this key's marker describes a running attempt that began no later than the given attempt id was
      * minted AND that attempt's heartbeat claim is still fresh: an attempt mints its data file id only after it
-     * started, so such a candidate may be the in-flight attempt's own bytes and must stay. The sweep only ever runs
-     * from an update attempt holding this key's pin, so no other attempt of this key can be in flight beside it.
+     * started, so such a candidate may be the in-flight attempt's own bytes and must stay. The marker and its
+     * heartbeat claim are read once per sweep (the progress argument), not once per candidate.
      */
-    private static boolean isAttemptLive(final TimeSeriesLookupStorageCache<?, ?> cache, final String attemptId) {
-        final File updateProgressFile = cache.getUpdateProgressFile();
-        final TimeSeriesUpdaterProgress progress = TimeSeriesUpdaterProgress.readUpdateProgress(updateProgressFile);
+    private static boolean isAttemptLive(final PendingReclaim pending, final TimeSeriesUpdaterProgress progress,
+            final String attemptId) {
         if (progress == null || progress.getUpdateStart() == null) {
             return false;
         }
@@ -226,7 +326,8 @@ public final class TimeSeriesEpochReclaim {
             //predates the attempt the current marker describes: its files are garbage, not in-flight bytes
             return false;
         }
-        return isHeartbeatLive(progress.getOwner(), new File(updateProgressFile.getAbsolutePath() + ".lock"));
+        return isHeartbeatLive(progress.getOwner(),
+                new File(pending.getUpdateProgressFile().getAbsolutePath() + ".lock"));
     }
 
     /**
@@ -286,24 +387,57 @@ public final class TimeSeriesEpochReclaim {
      * Deletes the attempt's data files quietly (they may already be gone or held open on Windows; the next sweep or the
      * version-directory janitor finishes the job), unless a published generation still names them.
      */
-    private static void deleteAttemptArtifacts(final TimeSeriesLookupStorageCache<?, ?> cache,
-            final File dataDirectory, final String attemptId) {
-        deleteAttemptArtifacts(cache, listAttemptDataFiles(dataDirectory, attemptId));
-    }
-
-    private static void deleteAttemptArtifacts(final TimeSeriesLookupStorageCache<?, ?> cache,
-            final File[] attemptDataFiles) {
+    private static void deleteAttemptArtifacts(final File[] attemptDataFiles, final Set<String> referencedNames) {
         if (attemptDataFiles.length == 0) {
             //no data files of this attempt left (or the directory is already gone)
             return;
         }
         //per file and not per attempt: an attempt that published boundaries before it died keeps exactly the files a
         //published generation names, the files it staged after its last publish are unreferenced garbage and go
-        final Set<String> referencedNames = collectPublishedDataFileNames(attemptDataFiles[0].getParentFile(), cache);
         for (final File dataFile : attemptDataFiles) {
             if (!referencedNames.contains(dataFile.getName())) {
                 Files.deleteQuietly(dataFile);
             }
+        }
+    }
+
+    /**
+     * A submitted sweep: what the caller's cache pointed at, captured on the caller's thread.
+     */
+    private static final class PendingReclaim {
+        private final String hashKey;
+        private final File dataDirectory;
+        private final File updateProgressFile;
+        private final Integer valueFixedLength;
+        private final ICompressionFactory compressionFactory;
+
+        private PendingReclaim(final String hashKey, final File dataDirectory, final File updateProgressFile,
+                final Integer valueFixedLength, final ICompressionFactory compressionFactory) {
+            this.hashKey = hashKey;
+            this.dataDirectory = dataDirectory;
+            this.updateProgressFile = updateProgressFile;
+            this.valueFixedLength = valueFixedLength;
+            this.compressionFactory = compressionFactory;
+        }
+
+        private File getDataDirectory() {
+            return dataDirectory;
+        }
+
+        private String getHashKey() {
+            return hashKey;
+        }
+
+        private File getUpdateProgressFile() {
+            return updateProgressFile;
+        }
+
+        private Integer getValueFixedLength() {
+            return valueFixedLength;
+        }
+
+        private ICompressionFactory getCompressionFactory() {
+            return compressionFactory;
         }
     }
 
