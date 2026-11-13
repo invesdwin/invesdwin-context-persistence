@@ -312,7 +312,10 @@ public final class TimeSeriesEpochReclaim {
                 }
                 //An unreadable OLDER generation is tolerable because every publish streams the previous chain into the
                 //new file, so the newest view carries the older generations' file names; only their offsets and sizes
-                //get re-written. Kept visible because several such files in one directory is store damage.
+                //get re-written. Kept visible because several such files in one directory is store damage. NOTE this
+                //tolerance is a property of the CUMULATIVE layout, not of this method: if the index ever becomes a set
+                //of delta segments, an unreadable member names data that nothing else names, and this branch has to
+                //become the fatal one (raised by the design panel's verdict on the segment proposals).
                 LOG.warn("Reclaim of data directory [%s] proceeds despite an unreadable older generation [%s]",
                         dataDirectory, generationFile.getName());
                 continue;
