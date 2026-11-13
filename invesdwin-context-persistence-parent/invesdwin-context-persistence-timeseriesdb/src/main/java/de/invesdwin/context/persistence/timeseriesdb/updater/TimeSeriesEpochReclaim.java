@@ -18,7 +18,6 @@ import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSu
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummarySerde;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.AMemoryFileSummarySerializingCollection;
-import de.invesdwin.util.collections.Collections;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.list.Lists;
@@ -85,9 +84,20 @@ public final class TimeSeriesEpochReclaim {
         try {
             final File dataDirectory = cache.getDirectoryHashKeyVersionMemory()
                     .getDirectoryHashKeyVersionDataShared();
-            deleteAttemptArtifacts(listAttemptDataFiles(dataDirectory, attemptId),
-                    collectPublishedDataFileNames(dataDirectory, cache.getValueFixedLength(),
-                            cache.getCompressionFactory()));
+            final File[] attemptDataFiles = listAttemptDataFiles(dataDirectory, attemptId);
+            if (attemptDataFiles.length == 0) {
+                return;
+            }
+            final ReferenceSet referencedNames = collectPublishedDataFileNames(dataDirectory,
+                    cache.getValueFixedLength(), cache.getCompressionFactory());
+            if (!referencedNames.isReliable() && referencedNames.isGenerationsPresent()) {
+                //The protection this method claims ("a commit that landed before a throwing transaction close is not
+                //undone") IS the reference set, so an incomplete one must stop the delete rather than permit it.
+                LOG.warn("Not reclaiming the aborted attempt [%s] of key [%s]: %s", attemptId, cache.getHashKey(),
+                        referencedNames.getUnreliableReason());
+                return;
+            }
+            deleteAttemptArtifacts(attemptDataFiles, referencedNames.getNames());
         } catch (final Throwable t) {
             //reclaim is an optimization, never a cause of failure
             LOG.warn("Best-effort reclaim of the aborted attempt [%s] of key [%s] failed: %s", attemptId,
@@ -190,7 +200,7 @@ public final class TimeSeriesEpochReclaim {
             }
             //ONE reference set for the whole sweep, built lazily: it depends on the directory, not on the attempt, and
             //reading it decompresses every retained index generation of the key.
-            Set<String> referencedNames = null;
+            ReferenceSet referencedNames = null;
             //ONE read of this key's progress marker and heartbeat claim for the same reason.
             final TimeSeriesUpdaterProgress progress = TimeSeriesUpdaterProgress.readUpdateProgress(
                     pending.getUpdateProgressFile());
@@ -210,7 +220,16 @@ public final class TimeSeriesEpochReclaim {
                     referencedNames = collectPublishedDataFileNames(dataDirectory, pending.getValueFixedLength(),
                             pending.getCompressionFactory());
                 }
-                deleteAttemptArtifacts(dataFiles, referencedNames);
+                if (!referencedNames.isReliable()) {
+                    //Fail closed here rather than best-effort: the reference set is the ONLY evidence of what the
+                    //published index still names, and every published payload file carries an attempt id, so an
+                    //incomplete set does not merely skip protection - it deletes payload the store believes it
+                    //published. The next completed attempt re-submits this key, so skipping costs a delay only.
+                    LOG.warn("Skipping the attempt reclaim of key [%s]: %s - %s attempt group(s) left in place",
+                            pending.getHashKey(), referencedNames.getUnreliableReason(), filesByAttemptId.size());
+                    return;
+                }
+                deleteAttemptArtifacts(dataFiles, referencedNames.getNames());
             }
         } catch (final Throwable t) {
             //reclaim is an optimization, never a cause of failure
@@ -256,31 +275,147 @@ public final class TimeSeriesEpochReclaim {
      * The data file names that every '&lt;N&gt;_memory.index' generation still present in the version's data
      * directory names (the newest published view plus the older generations retained for open iterations). This is the
      * trap M1 flagged: a file any existing generation names must stay readable, a file no generation names is
-     * garbage.
+     * garbage. The result also carries whether that picture came out COMPLETE, because the caller deletes on it: the
+     * name set is the only record of what the published index refers to, and every payload file of the store carries
+     * an attempt id, so a name that is missing from the set does not read as "unknown" but as garbage.
      */
-    private static Set<String> collectPublishedDataFileNames(final File dataDirectory,
+    private static ReferenceSet collectPublishedDataFileNames(final File dataDirectory,
             final Integer valueFixedLength, final ICompressionFactory compressionFactory) {
         final Set<String> referencedNames = ILockCollectionFactory.getInstance(true).newLinkedSet();
         final File[] generationFiles = dataDirectory.listFiles(
                 (dir, name) -> name.endsWith("_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME));
-        if (generationFiles == null) {
-            return referencedNames;
+        if (generationFiles == null || generationFiles.length == 0) {
+            //An index-less directory whose payload still carries attempt ids is damage or a build that writes another
+            //layout; either way "names nothing" must not become "delete everything".
+            return ReferenceSet.unreliable(referencedNames, "no '"
+                    + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME + "' generation is present",
+                    false);
+        }
+        File newestGeneration = null;
+        int newestGenerationNumber = Integer.MIN_VALUE;
+        for (final File generationFile : generationFiles) {
+            final int number = indexNumberOf(generationFile.getName());
+            if (number > newestGenerationNumber) {
+                newestGenerationNumber = number;
+                newestGeneration = generationFile;
+            }
         }
         for (final File generationFile : generationFiles) {
             final List<MemoryFileSummary> summaries = readIndexGenerationSummaries(valueFixedLength, compressionFactory,
                     generationFile);
+            if (summaries == null) {
+                if (generationFile == newestGeneration) {
+                    //The newest generation is the only record of the most recent publishes - older ones cannot name
+                    //what the newest has not written yet - so losing it makes the set incomplete rather than smaller.
+                    return ReferenceSet.unreliable(referencedNames, "the newest generation ["
+                            + generationFile.getName() + "] does not parse", true);
+                }
+                //An unreadable OLDER generation is tolerable because every publish streams the previous chain into the
+                //new file, so the newest view carries the older generations' file names; only their offsets and sizes
+                //get re-written. Kept visible because several such files in one directory is store damage.
+                LOG.warn("Reclaim of data directory [%s] proceeds despite an unreadable older generation [%s]",
+                        dataDirectory, generationFile.getName());
+                continue;
+            }
             for (final MemoryFileSummary summary : summaries) {
                 referencedNames.add(new File(summary.getMemoryResourceUri()).getName());
             }
         }
-        return referencedNames;
+        if (referencedNames.isEmpty() && hasPublishedBytesWithoutIndex(dataDirectory)) {
+            //Published payload that no index names is damage (a truncated newest generation that still parses as an
+            //empty collection, or a build writing another layout), and deleting on that reading is the fail-open case.
+            return ReferenceSet.unreliable(referencedNames,
+                    "no generation names any of the published data files present", true);
+        }
+        return ReferenceSet.reliable(referencedNames);
     }
 
     /**
-     * Reads one published index generation ('&lt;N&gt;_memory.index') of this key; a corrupt or concurrently replaced
-     * generation yields no summaries, which only ever makes a reclaim sweep more conservative about that file. The
-     * serde parameters are captured as locals before the constructor runs: SerializingCollection calls newSerde()
-     * virtually from its own constructor, so a subclass field would still be null there.
+     * True when the directory holds attempt local data files that are not the incomplete marker of an interrupted
+     * write - i.e. bytes a publish is supposed to have named somewhere.
+     */
+    private static boolean hasPublishedBytesWithoutIndex(final File dataDirectory) {
+        for (final File attemptDataFile : listAttemptDataFiles(dataDirectory, null)) {
+            if (!attemptDataFile.getName().contains(MemoryFiles.INCOMPLETE_MEMORY_FILE_MARKER)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The generation number a file name carries ('&lt;N&gt;_memory.index'), Integer.MIN_VALUE for a malformed prefix,
+     * which is how the lookup table treats those names too.
+     */
+    private static int indexNumberOf(final String generationFileName) {
+        final int underscoreIdx = generationFileName.indexOf('_');
+        if (underscoreIdx <= 0) {
+            return Integer.MIN_VALUE;
+        }
+        try {
+            return Integer.parseInt(generationFileName.substring(0, underscoreIdx));
+        } catch (final NumberFormatException e) {
+            return Integer.MIN_VALUE;
+        }
+    }
+
+    /**
+     * The published name set of one data directory plus whether reading it produced the complete picture. A sweep may
+     * delete only on a complete picture; on an incomplete one it leaves the directory alone and the next completed
+     * attempt re-submits it, which delays reclaim without risking payload.
+     */
+    private static final class ReferenceSet {
+
+        private final Set<String> names;
+        private final boolean reliable;
+        private final String unreliableReason;
+        private final boolean generationsPresent;
+
+        private ReferenceSet(final Set<String> names, final boolean reliable, final String unreliableReason,
+                final boolean generationsPresent) {
+            this.names = names;
+            this.reliable = reliable;
+            this.unreliableReason = unreliableReason;
+            this.generationsPresent = generationsPresent;
+        }
+
+        private static ReferenceSet reliable(final Set<String> names) {
+            return new ReferenceSet(names, true, null, true);
+        }
+
+        private static ReferenceSet unreliable(final Set<String> names, final String unreliableReason,
+                final boolean generationsPresent) {
+            return new ReferenceSet(names, false, unreliableReason, generationsPresent);
+        }
+
+        private Set<String> getNames() {
+            return names;
+        }
+
+        private boolean isReliable() {
+            return reliable;
+        }
+
+        private String getUnreliableReason() {
+            return unreliableReason;
+        }
+
+        /**
+         * Whether the directory had an index generation to read at all. It separates "this key never published" (its
+         * own staged files are garbage and may go) from "an index exists but cannot be trusted" (nothing may go).
+         */
+        private boolean isGenerationsPresent() {
+            return generationsPresent;
+        }
+    }
+
+    /**
+     * Reads one published index generation ('&lt;N&gt;_memory.index') of this key, or null when it cannot be read.
+     * Null is deliberately not an empty list: the caller's reference set decides which payload files are garbage, so
+     * "could not read" must not be reported as "names nothing" - that reading would delete the files this generation
+     * was the last remaining record of. The serde parameters are captured as locals before the constructor runs:
+     * SerializingCollection calls newSerde() virtually from its own constructor, so a subclass field would still be
+     * null there.
      */
     private static List<MemoryFileSummary> readIndexGenerationSummaries(final Integer valueFixedLength,
             final ICompressionFactory compressionFactory, final File generationFile) {
@@ -306,7 +441,9 @@ public final class TimeSeriesEpochReclaim {
             }
             return summaries;
         } catch (final Throwable t) {
-            return Collections.emptyList();
+            //Not an empty list: see the javadoc - the caller treats an unreadable generation as an incomplete
+            //reference set and leaves the directory alone, instead of deleting what it could not see.
+            return null;
         }
     }
 

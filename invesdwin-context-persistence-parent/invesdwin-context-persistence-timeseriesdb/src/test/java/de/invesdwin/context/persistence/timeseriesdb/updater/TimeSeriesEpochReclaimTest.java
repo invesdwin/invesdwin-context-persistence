@@ -17,6 +17,7 @@ import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesB
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.AMemoryFileSummarySerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdateProgress;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
@@ -234,6 +235,107 @@ public class TimeSeriesEpochReclaimTest extends ATest {
                 "the drain must have removed the planted data files");
         Assertions.assertThat(TimeSeriesEpochReclaim.getPendingObsoleteEpochsReclaimCount()).isZero();
         Assertions.assertThat(readValues(table, KEY)).isEqualTo(new ArrayList<>(newValues(1, 8)));
+    }
+
+    /**
+     * The reference set is the ONLY evidence of what the published index still names, and every payload file carries an
+     * attempt id, so an unreadable newest generation must make the sweep skip the directory rather than delete the
+     * files it can no longer see. Without the fail-closed rule this assertion is the data-loss case: a newest
+     * generation truncated by a crash un-references the store's own most recent publish.
+     */
+    @Test
+    public void testUnreadableNewestGenerationMakesTheSweepSkipTheDirectory() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("reclaimCorruptNewest");
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
+        newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, 8)), false).update().close();
+        newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, 12)), false).update().close();
+
+        final String deadAttempt = attemptIdOf(FDateMillis.nowMillis() - TimeUnit.HOURS.toMillis(2), "crpt0001");
+        plantAttemptArtifacts(lookup, deadAttempt);
+        final File corrupted = corruptGeneration(lookup, true);
+
+        TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookup);
+
+        Assertions.checkFalse(findAttemptDataFiles(lookup, deadAttempt).isEmpty(),
+                "an unreadable newest generation [" + corrupted.getName()
+                        + "] must stop the sweep rather than let it delete what it cannot name");
+    }
+
+    /**
+     * The tolerated tier: each publish streams the previous chain into the new file, so a generation that is not the
+     * newest adds no names the newest lacks - losing it must not stall reclaim forever.
+     */
+    @Test
+    public void testUnreadableOlderGenerationIsTolerated() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("reclaimCorruptOlder");
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
+        newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, 8)), false).update().close();
+        newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, 12)), false).update().close();
+
+        final String deadAttempt = attemptIdOf(FDateMillis.nowMillis() - TimeUnit.HOURS.toMillis(2), "tolr0001");
+        plantAttemptArtifacts(lookup, deadAttempt);
+        corruptGeneration(lookup, false);
+
+        TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookup);
+
+        Assertions.checkTrue(findAttemptDataFiles(lookup, deadAttempt).isEmpty(),
+                "an unreadable older generation must not block the reclaim of un-named garbage");
+        Assertions.assertThat(readValues(table, KEY)).isEqualTo(new ArrayList<>(newValues(1, 12)));
+    }
+
+    /**
+     * Published bytes that no index generation names are damage, not garbage: with the index gone the sweep must refuse,
+     * because "names nothing" would otherwise read as "every payload file is reclaimable".
+     */
+    @Test
+    public void testPublishedBytesWithoutAnyIndexGenerationSurviveTheSweep() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("reclaimNoIndex");
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
+        newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, 8)), false).update().close();
+
+        final String deadAttempt = attemptIdOf(FDateMillis.nowMillis() - TimeUnit.HOURS.toMillis(2), "noidx001");
+        plantAttemptArtifacts(lookup, deadAttempt);
+        final File dataDirectory = lookup.getDirectoryHashKeyVersionMemory()
+                .getDirectoryHashKeyVersionDataShared();
+        final File[] generations = dataDirectory.listFiles((dir, name) -> name.endsWith(
+                "_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME));
+        Assertions.checkTrue(generations != null && generations.length > 0,
+                "the published attempt must have left an index generation to remove");
+        for (final File generation : generations) {
+            Assertions.checkTrue(generation.delete(), "index generation must be removable: " + generation);
+        }
+
+        TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookup);
+
+        Assertions.checkFalse(findAttemptDataFiles(lookup, deadAttempt).isEmpty(),
+                "a directory whose published payload no index names must be left alone, not cleared");
+    }
+
+    /**
+     * Writes garbage over one published index generation - the highest-numbered one when newest, otherwise the lowest,
+     * so the two reliability tiers can be told apart.
+     */
+    private static File corruptGeneration(final TimeSeriesLookupStorageCache<String, FDate> lookup,
+            final boolean newest) throws Exception {
+        final File dataDirectory = lookup.getDirectoryHashKeyVersionMemory()
+                .getDirectoryHashKeyVersionDataShared();
+        final File[] generations = dataDirectory.listFiles((dir, name) -> name.endsWith(
+                "_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME));
+        Assertions.checkTrue(generations != null && generations.length >= 2,
+                "the scenario needs at least two published generations, got: "
+                        + (generations == null ? 0 : generations.length));
+        File target = null;
+        int best = newest ? Integer.MIN_VALUE : Integer.MAX_VALUE;
+        for (final File generation : generations) {
+            final int number = Integer.parseInt(
+                    generation.getName().substring(0, generation.getName().indexOf('_')));
+            if (newest ? number > best : number < best) {
+                best = number;
+                target = generation;
+            }
+        }
+        Files.writeStringToFile(target, "not-a-collection-anymore", Charsets.defaultCharset());
+        return target;
     }
 
     /**
