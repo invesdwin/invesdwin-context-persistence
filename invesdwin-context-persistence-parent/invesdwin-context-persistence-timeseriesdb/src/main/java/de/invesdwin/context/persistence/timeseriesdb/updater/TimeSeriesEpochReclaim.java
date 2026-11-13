@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.timeseriesdb.updater;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -18,6 +19,9 @@ import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSu
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummarySerde;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.AMemoryFileSummarySerializingCollection;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.MemoryFileMetadata;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.VersionedTimeSeriesMemoryFileLookupTable;
+import de.invesdwin.context.system.properties.ICloseableProperties;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.list.Lists;
@@ -54,9 +58,34 @@ import de.invesdwin.util.time.date.millis.FDateMillis;
  * and open iterations resolve one of them, so a file named by any existing generation must stay readable. The sweep
  * builds that set and the directory listing ONCE for all candidate attempts of the directory, because both depend on
  * the directory and not on the attempt.
+ * <p>
+ * The same walk also prunes index generations (this is the class that owns generation deletion;
+ * {@link VersionedTimeSeriesMemoryFileLookupTable}'s constructor no longer deletes anything, because it sits on the
+ * read path of every cache miss and a generation it removed from under a live instance made that instance read an
+ * empty chain). The rule is coverage, not age: generations are walked newest-first, the newest
+ * {@link #INDEX_GENERATIONS_KEEP_FLOOR} are always kept as the recovery margin for a publish that died mid-write, and
+ * an older one is deleted only when every data file it names is already named by a generation that stays - where
+ * "names" is filtered to the files that actually exist, because every pass also names the '_incomplete_' marker of the
+ * file it is writing and a completed pass renames that marker away, which would otherwise leave every generation
+ * holding one name nothing else has and make nothing prunable (measured on a five-generation test store: prunable=0,
+ * covered=false at every step, before the filter). That makes
+ * the deleted set provably name-redundant under the cumulative layout (each publish streams the previous chain into
+ * the new file), while the generations that still carry a name nothing else carries - the redo of a standalone
+ * '_incomplete_' shard replaces one summary, and the replaced file leaves the chain with it - stay. A generation
+ * younger than {@link TimeSeriesProperties#RETAIN_OBSOLETE_EPOCHS_THRESHOLD} is never deleted here: a publisher may
+ * still be writing it, and a generation whose write is interrupted by an unlink does not come back (the writer keeps
+ * the unlinked inode, so its publish vanishes). As with the attempt sweep, an unreliable walk deletes nothing.
+ * </p>
  */
 @ThreadSafe
 public final class TimeSeriesEpochReclaim {
+
+    /**
+     * The number of newest index generations that are never pruned, whatever they name. A publish writes the new
+     * generation and only then becomes the current view, so the generation before it is the last intact chain a store
+     * can fall back to when a publish dies mid-write; below this floor there is nothing left to fall back to.
+     */
+    static final int INDEX_GENERATIONS_KEEP_FLOOR = 2;
 
     private static final Log LOG = new Log(TimeSeriesEpochReclaim.class);
 
@@ -88,8 +117,20 @@ public final class TimeSeriesEpochReclaim {
             if (attemptDataFiles.length == 0) {
                 return;
             }
-            final ReferenceSet referencedNames = collectPublishedDataFileNames(dataDirectory,
-                    cache.getValueFixedLength(), cache.getCompressionFactory());
+            final File[] directoryFiles = dataDirectory.listFiles();
+            if (directoryFiles == null) {
+                return;
+            }
+            final List<File> generationFiles = new ArrayList<>();
+            final Set<String> existingNames = ILockCollectionFactory.getInstance(false).newLinkedSet();
+            for (final File directoryFile : directoryFiles) {
+                existingNames.add(directoryFile.getName());
+                if (AMemoryFileSummarySerializingCollection.isIndexGenerationFileName(directoryFile.getName())) {
+                    generationFiles.add(directoryFile);
+                }
+            }
+            final ReferenceSet referencedNames = collectPublishedDataFileNames(dataDirectory, generationFiles,
+                    existingNames, cache.getValueFixedLength(), cache.getCompressionFactory());
             if (!referencedNames.isReliable() && referencedNames.isGenerationsPresent()) {
                 //The protection this method claims ("a commit that landed before a throwing transaction close is not
                 //undone") IS the reference set, so an incomplete one must stop the delete rather than permit it.
@@ -185,17 +226,37 @@ public final class TimeSeriesEpochReclaim {
     private static void reclaimObsoleteEpochs(final PendingReclaim pending) {
         try {
             final File dataDirectory = pending.getDataDirectory();
-            //ONE listing for the whole sweep: the attempt local files bucketed by the attempt id they carry. Listing
-            //per attempt made the sweep quadratic in the directory's file count (measured: 2,992 entries in one live
-            //key's directory).
+            //ONE listing for the whole directory, bucketed in memory: the attempt garbage grouped by the attempt id it
+            //carries, the index generations, and the set of names that actually exist. Listing per attempt made the
+            //sweep quadratic in the directory's file count (measured: 2,992 entries in one live key's directory). A
+            //null listing means the directory is gone - the version janitor rm -rf's whole version directories on this
+            //very thread (TimeSeriesDirectoryHashKeyVersionLease:184,:190) - and that reads as "keep everything",
+            //never as "names nothing".
+            final File[] directoryFiles = dataDirectory.listFiles();
+            if (directoryFiles == null) {
+                LOG.debug("Data directory [%s] of key [%s] is gone, nothing to sweep", dataDirectory,
+                        pending.getHashKey());
+                return;
+            }
+            final Set<String> existingNames = ILockCollectionFactory.getInstance(true).newLinkedSet();
+            final List<File> generationFiles = new ArrayList<>();
             final Map<String, List<File>> filesByAttemptId = ILockCollectionFactory.getInstance(false).newLinkedMap();
-            for (final File attemptDataFile : listAttemptDataFiles(dataDirectory, null)) {
-                final String attemptId = attemptIdOfDataFileName(attemptDataFile.getName());
-                if (attemptId != null) {
-                    filesByAttemptId.computeIfAbsent(attemptId, k -> new ArrayList<>()).add(attemptDataFile);
+            for (final File directoryFile : directoryFiles) {
+                final String name = directoryFile.getName();
+                existingNames.add(name);
+                if (AMemoryFileSummarySerializingCollection.isIndexGenerationFileName(name)) {
+                    generationFiles.add(directoryFile);
+                    continue;
+                }
+                if (MemoryFiles.isEpochLocalDataFile(name)) {
+                    final String attemptId = attemptIdOfDataFileName(name);
+                    if (attemptId != null) {
+                        filesByAttemptId.computeIfAbsent(attemptId, k -> new ArrayList<>()).add(directoryFile);
+                    }
                 }
             }
-            if (filesByAttemptId.isEmpty()) {
+            final boolean generationsToPrune = generationFiles.size() > INDEX_GENERATIONS_KEEP_FLOOR;
+            if (filesByAttemptId.isEmpty() && !generationsToPrune) {
                 return;
             }
             //ONE reference set for the whole sweep, built lazily: it depends on the directory, not on the attempt, and
@@ -204,6 +265,13 @@ public final class TimeSeriesEpochReclaim {
             //ONE read of this key's progress marker and heartbeat claim for the same reason.
             final TimeSeriesUpdaterProgress progress = TimeSeriesUpdaterProgress.readUpdateProgress(
                     pending.getUpdateProgressFile());
+            if (generationsToPrune) {
+                referencedNames = collectPublishedDataFileNames(dataDirectory, generationFiles, existingNames,
+                        pending.getValueFixedLength(), pending.getCompressionFactory());
+                //First the generations, so that the payload names a pruned generation was the last record of are
+                //visible to the garbage sweep in this same pass instead of surviving until the next one.
+                pruneRedundantIndexGenerations(pending, progress, referencedNames, generationFiles.size());
+            }
             for (final Map.Entry<String, List<File>> entry : filesByAttemptId.entrySet()) {
                 final String attemptId = entry.getKey();
                 if (isAttemptLive(pending, progress, attemptId)) {
@@ -217,8 +285,8 @@ public final class TimeSeriesEpochReclaim {
                     continue;
                 }
                 if (referencedNames == null) {
-                    referencedNames = collectPublishedDataFileNames(dataDirectory, pending.getValueFixedLength(),
-                            pending.getCompressionFactory());
+                    referencedNames = collectPublishedDataFileNames(dataDirectory, generationFiles, existingNames,
+                            pending.getValueFixedLength(), pending.getCompressionFactory());
                 }
                 if (!referencedNames.isReliable()) {
                     //Fail closed here rather than best-effort: the reference set is the ONLY evidence of what the
@@ -236,6 +304,56 @@ public final class TimeSeriesEpochReclaim {
             LOG.warn("Best-effort attempt reclaim sweep of key [%s] failed: %s", pending.getHashKey(),
                     Throwables.concatMessages(t));
         }
+    }
+
+    /**
+     * Deletes the index generations the walk proved redundant. Never on an unreliable walk, and never while an attempt
+     * of this key is live: a generation that is unlinked while its writer holds it is not re-created, so the publish
+     * that was being written into it vanishes (the writer keeps the unlinked inode). A refused unlink is treated as a
+     * retention miss and retried by the next sweep, not as damage. NOTE for the Windows side of this store: java.nio
+     * opens with FILE_SHARE_DELETE by default (JDK 17 WindowsChannelFactory.java:80-82 set shareRead/shareWrite/
+     * shareDelete true, :114-122 only turn them off for explicit sharing options, :245-250 map them to the Win32
+     * flags), so a delete of a generation some process still has open does NOT fail there - the name goes away and
+     * the open handle keeps working. The protection is therefore the coverage rule and the in-flight guard above, not
+     * any expectation of a sharing violation.
+     */
+    private static void pruneRedundantIndexGenerations(final PendingReclaim pending,
+            final TimeSeriesUpdaterProgress progress, final ReferenceSet referenceSet, final int generationCount) {
+        final List<File> prunable = referenceSet.getPrunableGenerations();
+        if (prunable.isEmpty()) {
+            return;
+        }
+        if (!referenceSet.isReliable()) {
+            LOG.warn("Not pruning index generations of key [%s]: %s", pending.getHashKey(),
+                    referenceSet.getUnreliableReason());
+            return;
+        }
+        if (isKeyAttemptLive(pending, progress)) {
+            LOG.debug("Not pruning index generations of key [%s]: an update attempt of this key is live",
+                    pending.getHashKey());
+            return;
+        }
+        int deleted = 0;
+        for (final File prunedGeneration : prunable) {
+            if (Files.deleteQuietly(prunedGeneration)) {
+                deleted++;
+            }
+        }
+        LOG.info("Pruned %s redundant index generation(s) of key [%s], %s of %s kept", deleted, pending.getHashKey(),
+                generationCount - deleted, generationCount);
+    }
+
+    /**
+     * Whether this key's progress marker describes an update attempt whose heartbeat is still fresh, regardless of
+     * which attempt produced the candidate file - the generation prune must not overlap any live publisher of the key,
+     * not merely one that postdates a given attempt id.
+     */
+    private static boolean isKeyAttemptLive(final PendingReclaim pending, final TimeSeriesUpdaterProgress progress) {
+        if (progress == null || progress.getUpdateStart() == null) {
+            return false;
+        }
+        return isHeartbeatLive(progress.getOwner(),
+                new File(pending.getUpdateProgressFile().getAbsolutePath() + ".lock"));
     }
 
     /**
@@ -280,57 +398,135 @@ public final class TimeSeriesEpochReclaim {
      * an attempt id, so a name that is missing from the set does not read as "unknown" but as garbage.
      */
     private static ReferenceSet collectPublishedDataFileNames(final File dataDirectory,
-            final Integer valueFixedLength, final ICompressionFactory compressionFactory) {
+            final List<File> generationFiles, final Set<String> existingNames, final Integer valueFixedLength,
+            final ICompressionFactory compressionFactory) {
         final Set<String> referencedNames = ILockCollectionFactory.getInstance(true).newLinkedSet();
-        final File[] generationFiles = dataDirectory.listFiles(
-                (dir, name) -> name.endsWith("_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME));
-        if (generationFiles == null || generationFiles.length == 0) {
+        if (generationFiles.isEmpty()) {
             //An index-less directory whose payload still carries attempt ids is damage or a build that writes another
             //layout; either way "names nothing" must not become "delete everything".
             return ReferenceSet.unreliable(referencedNames, "no '"
                     + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME + "' generation is present",
-                    false);
+                    false, List.of());
         }
-        File newestGeneration = null;
-        int newestGenerationNumber = Integer.MIN_VALUE;
-        for (final File generationFile : generationFiles) {
-            final int number = indexNumberOf(generationFile.getName());
-            if (number > newestGenerationNumber) {
-                newestGenerationNumber = number;
-                newestGeneration = generationFile;
-            }
-        }
-        for (final File generationFile : generationFiles) {
+        //Walked newest generation first, so that 'referencedNames' is always the name set of what the sweep KEEPS: an
+        //older generation whose names are already in it adds nothing the store needs, and it is the one entry whose
+        //removal the walk can therefore justify. An older generation that still names a file nothing kept names
+        //stays, which is what protects the redo case (a publish that replaces the last summary of its predecessor
+        //drops that file from its own chain, so the older chain is the only remaining record of it).
+        final List<File> orderedGenerations = new ArrayList<>(generationFiles);
+        orderedGenerations.sort(Comparator.comparingInt(
+                (File f) -> AMemoryFileSummarySerializingCollection.indexNumberOf(f.getName())).reversed());
+        final long nowMillis = FDateMillis.nowMillis();
+        final List<File> prunable = new ArrayList<>();
+        final Set<String> newestGenerationNames = ILockCollectionFactory.getInstance(false).newLinkedSet();
+        int kept = 0;
+        for (int i = 0; i < orderedGenerations.size(); i++) {
+            final File generationFile = orderedGenerations.get(i);
             final List<MemoryFileSummary> summaries = readIndexGenerationSummaries(valueFixedLength, compressionFactory,
                     generationFile);
             if (summaries == null) {
-                if (generationFile == newestGeneration) {
+                if (i == 0) {
                     //The newest generation is the only record of the most recent publishes - older ones cannot name
                     //what the newest has not written yet - so losing it makes the set incomplete rather than smaller.
                     return ReferenceSet.unreliable(referencedNames, "the newest generation ["
-                            + generationFile.getName() + "] does not parse", true);
+                            + generationFile.getName() + "] does not parse", true, prunable);
                 }
-                //An unreadable OLDER generation is tolerable because every publish streams the previous chain into the
-                //new file, so the newest view carries the older generations' file names; only their offsets and sizes
-                //get re-written. Kept visible because several such files in one directory is store damage. NOTE this
-                //tolerance is a property of the CUMULATIVE layout, not of this method: if the index ever becomes a set
-                //of delta segments, an unreadable member names data that nothing else names, and this branch has to
-                //become the fatal one (raised by the design panel's verdict on the segment proposals).
+                //An unreadable OLDER generation is tolerable for the name set because every publish streams the
+                //previous chain into the new file, so the newest view carries the older generations' file names; only
+                //their offsets and sizes get re-written. Kept visible because several such files in one directory is
+                //store damage. NOTE this tolerance is a property of the CUMULATIVE layout, not of this method: if the
+                //index ever becomes a set of delta segments, an unreadable member names data that nothing else names,
+                //and this branch has to become the fatal one (raised by the design panel's verdict on the segment
+                //proposals). It is never prunable either: an unreadable chain is not a proven-redundant one.
                 LOG.warn("Reclaim of data directory [%s] proceeds despite an unreadable older generation [%s]",
                         dataDirectory, generationFile.getName());
+                kept++;
                 continue;
             }
-            for (final MemoryFileSummary summary : summaries) {
-                referencedNames.add(new File(summary.getMemoryResourceUri()).getName());
+            if (i == 0 && !newestGenerationReachesTheAttestedHighWater(dataDirectory, summaries)) {
+                //A newest generation truncated at a record boundary still parses as a valid, shorter collection, so
+                //neither of the two tiers above fires on it and the walk would name less than the store published.
+                //The store already persists the byte high-water of the chain it published on every put
+                //(EXPECTED_MEMORY_FILE_SIZE, read back by isEmptyOrInconsistent), so a chain that does not reach it is
+                //not the published chain, and pruning or reclaiming on it is the fail-open case this class exists to
+                //close.
+                return ReferenceSet.unreliable(referencedNames, "the newest generation ["
+                        + generationFile.getName() + "] does not reach the attested byte high-water", true, prunable);
+            }
+            if (kept < INDEX_GENERATIONS_KEEP_FLOOR) {
+                addSummaryNames(referencedNames, summaries);
+                if (i == 0) {
+                    //the current view: an '_incomplete_' name it carries belongs to a chunk the store still points at,
+                    //so it keeps the generation that names it irreplaceable
+                    addSummaryNames(newestGenerationNames, summaries);
+                }
+                kept++;
+                continue;
+            }
+            final Set<String> ownNames = ILockCollectionFactory.getInstance(false).newLinkedSet();
+            addSummaryNames(ownNames, summaries);
+            //Only a name that still exists on disk can make a generation irreplaceable, and an '_incomplete_' name
+            //counts only while the current view still carries it. An in-flight chunk is written under its
+            //'_incomplete_' name (MemoryFiles.newIncompleteMemoryFile) and moves to its final name when the chunk
+            //closes, so an '_incomplete_' name held only by OLDER chains is the residue of a dead pass. Measured on a
+            //five-generation append store: every generation's unique name is exactly its own pass's '_incomplete_'
+            //file, and all of those files are still on disk - without this filter nothing is ever prunable.
+            ownNames.retainAll(existingNames);
+            ownNames.removeIf(name -> MemoryFiles.isIncompleteMemoryFile(name)
+                    && !newestGenerationNames.contains(name));
+            final boolean coveredByKept = referencedNames.containsAll(ownNames);
+            final boolean tooYoungToTouch = !TimeSeriesProperties.RETAIN_OBSOLETE_EPOCHS_THRESHOLD
+                    .isLessThanMillis(nowMillis - generationFile.lastModified());
+            if (coveredByKept && !tooYoungToTouch) {
+                prunable.add(generationFile);
+            } else {
+                //either it still names something the kept set does not, or a publisher may be in it: keep it, and keep
+                //naming what it names so a later sweep's coverage test sees it
+                referencedNames.addAll(ownNames);
+                kept++;
             }
         }
         if (referencedNames.isEmpty() && hasPublishedBytesWithoutIndex(dataDirectory)) {
             //Published payload that no index names is damage (a truncated newest generation that still parses as an
             //empty collection, or a build writing another layout), and deleting on that reading is the fail-open case.
             return ReferenceSet.unreliable(referencedNames,
-                    "no generation names any of the published data files present", true);
+                    "no generation names any of the published data files present", true, List.of());
         }
-        return ReferenceSet.reliable(referencedNames);
+        return ReferenceSet.reliable(referencedNames, prunable);
+    }
+
+    /**
+     * Whether the chain of the newest generation reaches the byte high-water this key's metadata attests - the same
+     * equality {@link TimeSeriesLookupStorageCache#isEmptyOrInconsistent()} uses as its own integrity test, applied
+     * here to the file the walk is about to trust. A store that never published has no attestation, which is not a
+     * mismatch; a read failure answers false, because the caller deletes nothing unless the walk is reliable.
+     */
+    private static boolean newestGenerationReachesTheAttestedHighWater(final File dataDirectory,
+            final List<MemoryFileSummary> summaries) {
+        final MemoryFileMetadata metadata = new MemoryFileMetadata(dataDirectory);
+        try (ICloseableProperties properties = metadata.getProperties()) {
+            final long attestedHighWater = metadata.getExpectedMemoryFileSize(properties);
+            if (attestedHighWater == MemoryFileMetadata.MISSING_EXPECTED_MEMORY_FILE_SIZE) {
+                return true;
+            }
+            final long chainHighWater = summaries.isEmpty() ? 0L
+                    : summaries.get(summaries.size() - 1).getCombinedMemoryFileSize();
+            if (chainHighWater != attestedHighWater) {
+                LOG.warn("The newest index generation of data directory [%s] ends at [%s] bytes, the key attests [%s]",
+                        dataDirectory, chainHighWater, attestedHighWater);
+            }
+            return chainHighWater == attestedHighWater;
+        } catch (final Throwable t) {
+            LOG.warn("The byte attestation of data directory [%s] cannot be read: %s", dataDirectory,
+                    Throwables.concatMessages(t));
+            return false;
+        }
+    }
+
+    private static void addSummaryNames(final Set<String> names, final List<MemoryFileSummary> summaries) {
+        for (final MemoryFileSummary summary : summaries) {
+            names.add(new File(summary.getMemoryResourceUri()).getName());
+        }
     }
 
     /**
@@ -346,21 +542,6 @@ public final class TimeSeriesEpochReclaim {
         return false;
     }
 
-    /**
-     * The generation number a file name carries ('&lt;N&gt;_memory.index'), Integer.MIN_VALUE for a malformed prefix,
-     * which is how the lookup table treats those names too.
-     */
-    private static int indexNumberOf(final String generationFileName) {
-        final int underscoreIdx = generationFileName.indexOf('_');
-        if (underscoreIdx <= 0) {
-            return Integer.MIN_VALUE;
-        }
-        try {
-            return Integer.parseInt(generationFileName.substring(0, underscoreIdx));
-        } catch (final NumberFormatException e) {
-            return Integer.MIN_VALUE;
-        }
-    }
 
     /**
      * The published name set of one data directory plus whether reading it produced the complete picture. A sweep may
@@ -373,22 +554,24 @@ public final class TimeSeriesEpochReclaim {
         private final boolean reliable;
         private final String unreliableReason;
         private final boolean generationsPresent;
+        private final List<File> prunableGenerations;
 
         private ReferenceSet(final Set<String> names, final boolean reliable, final String unreliableReason,
-                final boolean generationsPresent) {
+                final boolean generationsPresent, final List<File> prunableGenerations) {
             this.names = names;
             this.reliable = reliable;
             this.unreliableReason = unreliableReason;
             this.generationsPresent = generationsPresent;
+            this.prunableGenerations = prunableGenerations;
         }
 
-        private static ReferenceSet reliable(final Set<String> names) {
-            return new ReferenceSet(names, true, null, true);
+        private static ReferenceSet reliable(final Set<String> names, final List<File> prunableGenerations) {
+            return new ReferenceSet(names, true, null, true, prunableGenerations);
         }
 
         private static ReferenceSet unreliable(final Set<String> names, final String unreliableReason,
-                final boolean generationsPresent) {
-            return new ReferenceSet(names, false, unreliableReason, generationsPresent);
+                final boolean generationsPresent, final List<File> prunableGenerations) {
+            return new ReferenceSet(names, false, unreliableReason, generationsPresent, prunableGenerations);
         }
 
         private Set<String> getNames() {
@@ -409,6 +592,14 @@ public final class TimeSeriesEpochReclaim {
          */
         private boolean isGenerationsPresent() {
             return generationsPresent;
+        }
+
+        /**
+         * The generations the walk proved redundant: every data file they name is named by a generation the walk kept,
+         * and none of them is young enough to be an in-flight publish. Only a reliable set may have these deleted.
+         */
+        private List<File> getPrunableGenerations() {
+            return prunableGenerations;
         }
     }
 

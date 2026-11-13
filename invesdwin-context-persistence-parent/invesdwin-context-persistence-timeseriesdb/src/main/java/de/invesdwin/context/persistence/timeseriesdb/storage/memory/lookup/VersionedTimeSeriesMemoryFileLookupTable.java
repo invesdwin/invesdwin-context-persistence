@@ -10,8 +10,8 @@ import javax.annotation.concurrent.ThreadSafe;
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.filechannel.info.path.FileChannelPath;
 import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannel;
+import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
-import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummarySerde;
 import de.invesdwin.context.system.properties.ICloseableProperties;
@@ -19,10 +19,11 @@ import de.invesdwin.util.collections.iterable.EmptyCloseableIterator;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.time.date.FDate;
-import de.invesdwin.util.time.date.millis.FDateMillis;
 
 @ThreadSafe
 public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesMemoryFileLookupTable {
+
+    private static final Log LOG = new Log(VersionedTimeSeriesMemoryFileLookupTable.class);
 
     private final TimeSeriesLookupStorageCache<?, V> parent;
     private final File directory;
@@ -41,34 +42,32 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
         this.baseChannel = new AtomicNioFileChannel(FileChannelPath.newDirectory(directory));
         this.version = version;
 
-        // Read the latest index defined by the highest number before the actual file name
-        final File[] files = directory.listFiles(
-                (dir, name) -> name.endsWith("_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME));
-
-        if (files != null && files.length > 0) {
-            final long nowMillis = FDateMillis.nowMillis();
-            for (int i = 0; i < files.length; i++) {
-                final File f = files[i];
-                final String name = f.getName();
-                final int underscoreIdx = name.indexOf('_');
-                if (underscoreIdx > 0) {
-                    try {
-                        final int num = Integer.parseInt(name.substring(0, underscoreIdx));
-                        if (num >= currentIndexNumber.get()) {
-                            if (currentIndexFile != null && TimeSeriesProperties.RETAIN_OBSOLETE_FILES_THRESHOLD
-                                    .isLessThanMillis(nowMillis - currentIndexFile.lastModified())) {
-                                // Delete the older index files
-                                currentIndexFile.delete();
-                            }
-                            currentIndexNumber.set(num);
-                            currentIndexFile = f;
-                        }
-                    } catch (final NumberFormatException e) {
-                        // ignore malformed prefixes
-                    }
-                }
+        // Read the latest index defined by the highest number before the actual file name.
+        // Nothing is deleted here: this constructor sits on the read path of every cache miss, and a generation that
+        // another live instance of this key still resolves is that instance's view of the store - removing it here
+        // made the instance answer an empty chain, which is what a re-resolving reader does to a store the trading
+        // side then reports as inconsistent. Generation deletion lives in TimeSeriesEpochReclaim, which proves the
+        // retained set covers what a deleted generation names before it removes anything.
+        final File[] files = listIndexGenerations(directory);
+        for (final File f : files) {
+            final int num = AMemoryFileSummarySerializingCollection.indexNumberOf(f.getName());
+            if (num > currentIndexNumber.get()) {
+                currentIndexNumber.set(num);
+                currentIndexFile = f;
             }
         }
+    }
+
+    /**
+     * The index generations of a key's version data directory, every one of them named
+     * {@code <N>_memory.index}. One listing helper for the three places that need it (this table's constructor, its
+     * update probe, and the reclaim sweep), because a directory with ~1,500 generations makes an unfiltered listing
+     * and a second parse pass expensive.
+     */
+    public static File[] listIndexGenerations(final File directory) {
+        final File[] files = directory
+                .listFiles((dir, name) -> AMemoryFileSummarySerializingCollection.isIndexGenerationFileName(name));
+        return files != null ? files : new File[0];
     }
 
     public int getVersion() {
@@ -80,7 +79,7 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
         try {
             final int newIndexNumber = currentIndexNumber.get() + 1;
             final File newIndexFile = new File(directory,
-                    newIndexNumber + "_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME);
+                    AMemoryFileSummarySerializingCollection.newIndexGenerationFileName(newIndexNumber));
 
             baseChannel.setFileName(newIndexFile.getName());
 
@@ -217,6 +216,9 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
     @Override
     public synchronized ICloseableIterator<MemoryFileSummary> range() {
         // Read index via AMemoryFileSummarySerializingCollection
+        if (currentIndexFile != null && !currentIndexFile.exists()) {
+            moveToNewestGenerationPresent();
+        }
         if (currentIndexFile != null && currentIndexFile.exists()) {
             final IndexSerializingCollection collection = new IndexSerializingCollection(
                     new TextDescription("%s: range: read %s",
@@ -225,6 +227,32 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
             return collection.iterator();
         }
         return EmptyCloseableIterator.getInstance();
+    }
+
+    /**
+     * A generation this instance resolved can be reclaimed while it lives: the reclaim runs on another thread, and on
+     * shared storage another process's reclaim can outrun this one's notion of what is current. Re-resolving the newest
+     * generation present is the recovery, and it is a strictly better answer than the empty chain this method used to
+     * return - an empty chain reads as "the store holds nothing", which the trading derived-store guards take as
+     * licence to delete and rebuild the key.
+     */
+    private void moveToNewestGenerationPresent() {
+        final File lostGeneration = currentIndexFile;
+        File newest = null;
+        int newestNumber = Integer.MIN_VALUE;
+        for (final File f : listIndexGenerations(directory)) {
+            final int num = AMemoryFileSummarySerializingCollection.indexNumberOf(f.getName());
+            if (num > newestNumber) {
+                newestNumber = num;
+                newest = f;
+            }
+        }
+        LOG.warn("Index generation [%s] of directory [%s] is gone - this table moves to the newest generation present [%s]",
+                lostGeneration.getName(), directory, newest != null ? newest.getName() : "none");
+        currentIndexFile = newest;
+        if (newest != null) {
+            currentIndexNumber.set(newestNumber);
+        }
     }
 
     @Override
@@ -262,23 +290,10 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
 
     @Override
     public boolean isUpdatedIndexAvailable() {
-        final File[] files = directory.listFiles(
-                (dir, name) -> name.endsWith("_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME));
-
-        if (files != null && files.length > 0) {
-            for (int i = 0; i < files.length; i++) {
-                final String name = files[i].getName();
-                final int underscoreIdx = name.indexOf('_');
-                if (underscoreIdx > 0) {
-                    try {
-                        final int num = Integer.parseInt(name.substring(0, underscoreIdx));
-                        if (num > currentIndexNumber.get()) {
-                            return true;
-                        }
-                    } catch (final NumberFormatException e) {
-                        // ignore malformed prefixes
-                    }
-                }
+        final int currentNumber = currentIndexNumber.get();
+        for (final File f : listIndexGenerations(directory)) {
+            if (AMemoryFileSummarySerializingCollection.indexNumberOf(f.getName()) > currentNumber) {
+                return true;
             }
         }
         return false;
