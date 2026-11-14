@@ -45,6 +45,11 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     private boolean committed;
     //segments staged since the last publish, the unit a boundary commit publishes
     private int stagedSegmentCount;
+    //what this attempt landed and published, reported ONCE when its transaction closes - whatever the outcome
+    private int dataFilesStaged;
+    private int publishes;
+    private MemoryFileSummary lastPublishedSummary;
+    private long publishedChainHighWater;
     //the attempt's table write lock lease, attached only by an attempt that holds the key's write lock
     //(ATimeSeriesUpdater.update); the boundary commit yields it after publishing, see commitSegmentBoundary
     private TimeSeriesWriteLockYield writeLockYield;
@@ -142,6 +147,7 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         summaries.add(summary);
         prevSummary = summary;
         stagedSegmentCount++;
+        dataFilesStaged++;
     }
 
     private void assertSummaryBeforeCommit(final MemoryFileSummary summary) {
@@ -246,6 +252,16 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
                 stagedSegmentCount = 0;
             }
         }
+        //ONE record for the attempt, written after the outcome is settled so it states what the store now holds. The
+        //early return above - an attempt that staged nothing never gets here - is what implements "nothing added,
+        //nothing written", and testEachAttemptLeavesOneLogRecordStatingWhatTheStoreHolds pins it. See
+        //MemoryFileMetadata.logTransaction for why this is one record per attempt, not per publish or per summary.
+        final FDate lastPublishedValueEndTime = lastPublishedSummary != null
+                ? parent.extractEndTime(parent.getValueSerde().fromBytes(lastPublishedSummary.getLastValue()))
+                : null;
+        parent.getMemoryFileLookupTable().getMetadata().logTransaction(getEpochLocalDataId(), committed,
+                dataFilesStaged, publishes, lastPublishedSummary, lastPublishedValueEndTime,
+                publishedChainHighWater);
         prevSummary = null;
     }
 
@@ -256,6 +272,11 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
             final ITimeSeriesMemoryFileLookupTable memoryFileLookupTable = parent.getMemoryFileLookupTable();
             final ICloseableIterator<MemoryFileSummary> iterator = summariesCopy.iterator();
             memoryFileLookupTable.put(iterator);
+            publishes++;
+            lastPublishedSummary = prevSummary;
+            if (prevSummary != null) {
+                publishedChainHighWater = prevSummary.getCombinedMemoryFileSize();
+            }
             summariesCopy.clear();
             summaries = null;
             stagedSegmentCount = 0;
