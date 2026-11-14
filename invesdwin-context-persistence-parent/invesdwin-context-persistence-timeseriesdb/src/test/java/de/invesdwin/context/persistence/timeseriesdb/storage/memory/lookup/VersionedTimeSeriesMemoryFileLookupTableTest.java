@@ -2,10 +2,13 @@ package de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup;
 
 import java.io.BufferedInputStream;
 import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.io.FileInputStream;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -22,6 +25,7 @@ import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.error.FastNoSuchElementException;
 import de.invesdwin.util.lang.Files;
+import de.invesdwin.util.lang.string.Charsets;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.time.date.FDate;
@@ -134,6 +138,80 @@ public class VersionedTimeSeriesMemoryFileLookupTableTest extends ATest {
         Assertions.assertThat(findGenerations(directory)).hasSize(3);
     }
 
+    /**
+     * The window between the directory listing and the publish, closed: a second writer that takes the name in that
+     * window must be answered with an error, not with a rename over its chain. The fixture is an iterator that creates
+     * the generation name the publish is about to claim while it is being drained, which is what another process does
+     * to that name; nothing in production code is aware of the fixture.
+     */
+    @Test
+    public void testPublishIntoANameClaimedInsideTheWindowFailsLoudly() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("generationRace");
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
+        final File directory = lookup.getDirectoryHashKeyVersionMemory().getDirectoryHashKeyVersionDataShared();
+        Files.forceMkdir(directory);
+
+        final VersionedTimeSeriesMemoryFileLookupTable<FDate> winner = new VersionedTimeSeriesMemoryFileLookupTable<>(
+                lookup, directory, 0);
+        winner.put(new SingleSummaryIterator(summary(1, 10L)));
+        final int takenNumber = newestGenerationNumber(directory) + 1;
+        final String takenName = AMemoryFileSummarySerializingCollection.newIndexGenerationFileName(takenNumber);
+
+        final VersionedTimeSeriesMemoryFileLookupTable<FDate> loser = new VersionedTimeSeriesMemoryFileLookupTable<>(
+                lookup, directory, 0);
+        final byte[] winnerBytes = "the other writer published this name first".getBytes(Charsets.UTF_8);
+        try {
+            loser.put(new ClaimStealingIterator(summary(2, 20L), new File(directory, takenName), winnerBytes));
+            Assertions.fail("publishing into a generation another writer claimed must fail, not replace it");
+        } catch (final IllegalStateException e) {
+            Assertions.assertThat(e.getMessage())
+                    .as("the failure must name the directory it could not claim in")
+                    .contains(takenName).contains(directory.getName());
+        }
+
+        Assertions.assertThat(readBytes(new File(directory, takenName)))
+                .as("the winner's chain must survive the refused publish untouched")
+                .isEqualTo(digest(winnerBytes));
+        Assertions.assertThat(newestGenerationNumber(directory))
+                .as("the refused publish must not have added a generation of its own")
+                .isEqualTo(takenNumber);
+    }
+
+    private static byte[] digest(final byte[] bytes) throws Exception {
+        return MessageDigest.getInstance("SHA-256").digest(bytes);
+    }
+
+    /**
+     * Serves one summary and creates {@code steal} on the call that ends the iteration - after the lookup table has
+     * already picked its generation name, before it publishes it.
+     */
+    private static final class ClaimStealingIterator extends SingleSummaryIterator {
+
+        private final File steal;
+        private final byte[] bytes;
+
+        private ClaimStealingIterator(final MemoryFileSummary summary, final File steal, final byte[] bytes) {
+            super(summary);
+            this.steal = steal;
+            this.bytes = bytes;
+        }
+
+        @Override
+        public MemoryFileSummary next() {
+            try {
+                return super.next();
+            } catch (final NoSuchElementException e) {
+                //the iteration ends here, and the publish of the generation name follows it
+                try {
+                    Files.write(steal.toPath(), bytes);
+                } catch (final IOException io) {
+                    throw new UncheckedIOException(io);
+                }
+                throw e;
+            }
+        }
+    }
+
     private static MemoryFileSummary summary(final int year, final long length) {
         final FDate value = FDateBuilder.newDate(year, 1, 1);
         return new MemoryFileSummary(value, FDateSerde.GET, value, value, 0L, 1, "memory_" + year + "-gene0001.data",
@@ -223,12 +301,12 @@ public class VersionedTimeSeriesMemoryFileLookupTableTest extends ATest {
         };
     }
 
-    private static final class SingleSummaryIterator implements ICloseableIterator<MemoryFileSummary> {
+    private static class SingleSummaryIterator implements ICloseableIterator<MemoryFileSummary> {
 
         private final MemoryFileSummary summary;
         private boolean served;
 
-        private SingleSummaryIterator(final MemoryFileSummary summary) {
+        SingleSummaryIterator(final MemoryFileSummary summary) {
             this.summary = summary;
         }
 

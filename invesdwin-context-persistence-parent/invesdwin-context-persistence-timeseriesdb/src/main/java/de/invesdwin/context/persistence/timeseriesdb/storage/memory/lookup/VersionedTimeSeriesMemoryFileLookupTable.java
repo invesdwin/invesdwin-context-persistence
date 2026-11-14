@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup;
 
 import java.io.File;
+import java.nio.file.FileAlreadyExistsException;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -10,6 +11,8 @@ import javax.annotation.concurrent.ThreadSafe;
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.filechannel.info.path.FileChannelPath;
 import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChannel;
+import de.invesdwin.util.concurrent.lock.file.AtomicNioFileChannelContext;
+import de.invesdwin.util.error.Throwables;
 import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
@@ -46,7 +49,10 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
             final File directory, final int version) {
         this.parent = parent;
         this.directory = directory;
-        this.baseChannel = new AtomicNioFileChannel(FileChannelPath.newDirectory(directory));
+        //Claim mode, not replace mode: a generation name belongs to one writer. Replace mode here is what let two
+        //instances of one key publish the same '&lt;N&gt;_memory.index' and have the later rename delete the earlier chain.
+        this.baseChannel = new AtomicNioFileChannel(FileChannelPath.newDirectory(directory),
+                new AtomicNioFileChannelContext(true));
         this.version = version;
 
         // Read the latest index defined by the highest number before the actual file name.
@@ -214,6 +220,20 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
 
             currentIndexFile = newIndexFile;
             currentIndexNumber.set(newIndexNumber);
+        } catch (final RuntimeException e) {
+            final FileAlreadyExistsException claimRefused = Throwables.getCauseByType(e,
+                    FileAlreadyExistsException.class);
+            if (claimRefused != null) {
+                //The listing said the name was free and the publish said it was taken: a second writer of this key won
+                //the window. This cannot be retried in place - the summaries iterator is already drained - but the
+                //updater's own retry re-runs the pass against a fresh listing, so the cost is one wasted pass and no
+                //lost generation, whereas in replace mode the same race silently deleted the other writer's chain.
+                throw new IllegalStateException("Index generation [" + baseChannel.getFileName() + "] of directory ["
+                        + directory + "] was claimed by another writer between the listing and the publish - this key"
+                        + " is being published by more than one process while the update claim that should exclude them"
+                        + " is held or stale", claimRefused);
+            }
+            throw e;
         } finally {
             summaries.close();
         }
