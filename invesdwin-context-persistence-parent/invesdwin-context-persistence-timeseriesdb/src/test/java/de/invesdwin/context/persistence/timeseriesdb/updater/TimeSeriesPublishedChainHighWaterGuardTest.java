@@ -109,6 +109,36 @@ public class TimeSeriesPublishedChainHighWaterGuardTest extends ATest {
      * range falls back below the published high-water is a byte space regression and stays refused, and the refusal
      * must not move the expectation.
      */
+    /**
+     * The whole point of the delta chain: inside one attempt, every boundary-commit publish CONTINUES the chain, so it
+     * writes only its own records and the base stays the attempt's first generation. The live shape this bounds is 781
+     * generations per attempt on the worst ptstaging key (measured 2026-11-14 from lap-mid over ssh) - if each of those
+     * publishes rewrote the chain, the layout would buy nothing and the index would keep costing ~54 % of the key.
+     */
+    @Test
+    public void testABoundaryCommitPassAppendsInsteadOfRewritingTheChain() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("chainAppendBoundary");
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
+        //three boundary-commit intervals worth of values, so the pass publishes several generations
+        final int boundaryValues = 3 * TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL * BATCH_FLUSH_INTERVAL;
+        newUpdater(table, newValues(1, boundaryValues + 2)).update().close();
+
+        final int newestGeneration = lookup.getMemoryFileLookupTable().getCurrentIndexNumber();
+        Assertions.checkTrue(newestGeneration >= 2,
+                "the scenario needs a pass that published several generations by boundary commits, got: "
+                        + newestGeneration);
+        final MemoryFileMetadata metadata = lookup.getMemoryFileLookupTable().getMetadata();
+        try (ICloseableProperties properties = metadata.getProperties()) {
+            Assertions.assertThat(metadata.getChainBase(properties))
+                    .as("a continuing publish appends, so the base stays the first generation of the pass")
+                    .isZero();
+        }
+        final List<MemoryFileSummary> published = readPublishedSummaries(lookup);
+        Assertions.assertThat(published).as("the assembled chain still holds every record of the pass").hasSize(
+                (boundaryValues + 2 + BATCH_FLUSH_INTERVAL - 1) / BATCH_FLUSH_INTERVAL);
+        assertPublishedBytesMatchNamedFiles(lookup, published);
+    }
+
     @Test
     public void testNonReplacingByteSpaceRegressionIsStillRefused() throws Exception {
         final ATimeSeriesDB<String, FDate> table = newTable("chainHighWaterRegression");
