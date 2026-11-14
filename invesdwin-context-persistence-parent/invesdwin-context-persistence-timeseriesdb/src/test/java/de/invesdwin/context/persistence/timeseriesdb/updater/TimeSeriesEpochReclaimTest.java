@@ -81,11 +81,12 @@ public class TimeSeriesEpochReclaimTest extends ATest {
     }
 
     /**
-     * The failing writer reclaims its own garbage in the abort path: the attempt data files (including the
-     * '_incomplete_' variants) are gone when update() throws, and nothing was published.
+     * The failing writer reclaims its own garbage in the abort path - and only its garbage: the batch it was still
+     * writing when the source died is gone when update() throws, while every file it FINISHED is published content the
+     * sweep has to keep.
      */
     @Test
-    public void testAbortedAttemptReclaimsOwnArtifacts() throws Exception {
+    public void testAbortedAttemptKeepsWhatItFinishedAndReclaimsTheRest() throws Exception {
         final ATimeSeriesDB<String, FDate> table = newTable("attemptAbortReclaim");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
         final List<FDate> values = newValues(1, 8);
@@ -131,10 +132,26 @@ public class TimeSeriesEpochReclaimTest extends ATest {
         Assertions.checkTrue(aborted, "the abort must propagate");
         final String attemptId = updater.getEpochId();
         Assertions.checkNotNull(attemptId, "the attempt must have minted its data file id");
-        Assertions.checkTrue(findAttemptDataFiles(lookup, attemptId).isEmpty(),
-                "the aborted attempt must have reclaimed its data files");
-        Assertions.checkTrue(readPublishedSummaries(lookup).isEmpty(),
-                "the aborted attempt must not have published anything");
+        //An aborted attempt publishes every file it FINISHED, so those files became chain content and the sweep must
+        //keep them; the only thing this attempt owns that no published generation names is the batch it was writing
+        //when the source died, and that is exactly what the abort reclaim deletes. Counting both sides is what makes
+        //the deletion visible: one survivor more than the chain names means the garbage survived.
+        final List<MemoryFileSummary> published = readPublishedSummaries(lookup);
+        Assertions.checkTrue(!published.isEmpty(),
+                "an aborted attempt must keep the segments it finished");
+        final List<String> publishedNames = new ArrayList<>();
+        for (final MemoryFileSummary summary : published) {
+            publishedNames.add(new File(summary.getMemoryResourceUri()).getName());
+        }
+        final List<File> ownFiles = findAttemptDataFiles(lookup, attemptId);
+        for (final File own : ownFiles) {
+            Assertions.checkTrue(publishedNames.contains(own.getName()),
+                    "the abort left an unreferenced data file behind: " + own);
+            Assertions.checkFalse(MemoryFiles.isIncompleteMemoryFile(own.getName()),
+                    "an aborted attempt must not leave '_incomplete_' litter behind: " + own);
+        }
+        Assertions.assertThat(ownFiles).as("only the files the published chain names may survive the abort reclaim")
+                .hasSize(publishedNames.size());
     }
 
     /**

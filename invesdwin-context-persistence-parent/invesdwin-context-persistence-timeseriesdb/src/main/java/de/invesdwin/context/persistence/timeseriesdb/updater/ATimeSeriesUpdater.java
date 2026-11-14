@@ -202,9 +202,10 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                 } catch (final Throwable t) {
                     WaitForGraph.pinReleased(graphKey, Thread.currentThread());
                     updateLock.close();
-                    //this attempt's transaction was discarded on close, so its attempt local data files are garbage
-                    //no reader will ever resolve - reclaim them best effort right away (the published-generation
-                    //reference check still guards the rare case of a commit landing inside a throwing close)
+                    //this attempt's transaction published everything it FINISHED when it closed, so the abort leaves
+                    //exactly one kind of garbage: the data file that was still open when the source died, which no
+                    //published generation names. Reclaim it best effort right away; the published-generation reference
+                    //check inside keeps every segment the aborted attempt landed.
                     TimeSeriesEpochReclaim.reclaimAbortedAttemptEpoch(lookupTable, epochId);
                     //and the same submission as on the success path: a failed attempt may be the first one since a
                     //crashed writer left garbage

@@ -41,9 +41,10 @@ import de.invesdwin.util.time.date.millis.FDateMillis;
  * references, so without this reclaim every attempt accumulates garbage. Reclaim runs without a new global timer:
  * <ul>
  * <li>{@link #reclaimAbortedAttemptEpoch(TimeSeriesLookupStorageCache, String)} runs in the failing writer's abort
- * path: what the attempt staged after its last published boundary is provably unpinned garbage (the published
- * generation reference check still guards the bytes a boundary commit published before the attempt died, and the rare
- * case of a commit landing inside a throwing close);</li>
+ * path: an aborted attempt's transaction published every data file it FINISHED (see
+ * {@link TimeSeriesUpdateTransaction#close()}), so the only thing that attempt leaves which no published generation
+ * names is the file that was still open when its source died - the reference check keeps every segment the abort
+ * landed, and this reclaims the one file it did not;</li>
  * <li>{@link #scheduleObsoleteEpochsReclaim(TimeSeriesLookupStorageCache)} is what the completion of an update attempt
  * calls: it records the key's data directory and hands the sweep to the version-cleanup thread of
  * {@link TimeSeriesDirectoryHashKeyVersionLeaseRegistry}, which already has its own single thread and lifecycle. That
