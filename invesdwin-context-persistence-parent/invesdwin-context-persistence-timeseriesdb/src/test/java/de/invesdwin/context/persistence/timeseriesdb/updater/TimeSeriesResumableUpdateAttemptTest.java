@@ -195,8 +195,9 @@ public class TimeSeriesResumableUpdateAttemptTest extends ATest {
         final List<FDate> allValues = newValues(1, 3 * boundaryValues);
 
         boolean aborted = false;
+        //stays below the commit interval, so the ONLY publish this attempt makes is the one its abort forces at close
         try {
-            newUpdater(table, KEY, abortingSource(allValues, boundaryValues), false).update().close();
+            newUpdater(table, KEY, abortingSource(allValues, 2 * BATCH_FLUSH_INTERVAL), false).update().close();
         } catch (final IncompleteUpdateRetryableException e) {
             aborted = true;
         }
@@ -208,6 +209,19 @@ public class TimeSeriesResumableUpdateAttemptTest extends ATest {
         Assertions.assertThat(log)
                 .as("and that record states the outcome and what was landed")
                 .contains("OUTCOME=ABORTED").contains("DATA_FILES_STAGED=").contains("EPOCH_LOCAL_DATA_ID=");
+        //The record is written AFTER the outcome is settled, so what an abort published is in it: OUTCOME=ABORTED
+        //together with the publish count and the frontier the store now reads. Read back from the store rather than
+        //hard-coded - the exact batch boundary the writer closed is the writer's business.
+        final FDate frontierAfterAbort = lookup.getLastValueEndTime();
+        Assertions.assertThat(frontierAfterAbort)
+                .as("the abort must have landed something for this assertion to mean anything")
+                .isNotNull();
+        Assertions.assertThat(log)
+                .as("an aborted attempt that published says so, with the frontier it landed")
+                .contains("PUBLISHES=1")
+                .contains("LAST_PUBLISHED_VALUE_END_TIME=" + frontierAfterAbort)
+                .contains("MEMORY_RESOURCE_URI=")
+                .contains("CHAIN_HIGH_WATER_BYTES=");
 
         newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(allValues), false).update().close();
         log = Files.readFileToString(logFile, Charsets.UTF_8);
