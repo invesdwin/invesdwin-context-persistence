@@ -19,6 +19,7 @@ import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesB
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.VersionedTimeSeriesMemoryFileLookupTable;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdateProgress;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdaterInternalMethods;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.SequentialChunkedUpdateProgress;
@@ -32,6 +33,7 @@ import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
 import de.invesdwin.util.collections.iterable.skip.ASkippingIterable;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.lang.Files;
+import de.invesdwin.util.lang.string.Charsets;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.math.decimal.scaled.Percent;
@@ -156,6 +158,67 @@ public class TimeSeriesResumableUpdateAttemptTest extends ATest {
      * boundary published before stays visible, and continuing the store with a new attempt lands every value exactly
      * once.
      */
+    /**
+     * One {@code memory.log} record per update attempt - committed OR aborted - stating what the store holds when the
+     * attempt closes, and nothing at all for an attempt that lands nothing new. The per-summary shape this replaces
+     * measured 3,139 MB across 6,535 keys on ptstaging (largest single file 42.2 MB with 73,139 records), which answers
+     * far less than one attempt record does: the attempt id, the outcome, how many data files it staged, how many times
+     * it published and the published frontier.
+     */
+    @Test
+    public void testEachAttemptLeavesOneLogRecordStatingWhatTheStoreHolds() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("logPerAttempt");
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
+        final File memoryDir = lookup.getDirectoryHashKeyVersionMemory().getDirectoryHashKeyVersionDataShared();
+        final File logFile = new File(memoryDir, "memory.log");
+        final int boundaryValues = TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL * BATCH_FLUSH_INTERVAL;
+        final List<FDate> allValues = newValues(1, 3 * boundaryValues);
+
+        boolean aborted = false;
+        try {
+            newUpdater(table, KEY, abortingSource(allValues, boundaryValues), false).update().close();
+        } catch (final IncompleteUpdateRetryableException e) {
+            aborted = true;
+        }
+        Assertions.checkTrue(aborted, "the pass has to die mid-way for this test to mean anything");
+        String log = Files.readFileToString(logFile, Charsets.UTF_8);
+        Assertions.assertThat(countAttemptRecords(log))
+                .as("an attempt that dies mid-pass leaves exactly one record")
+                .isEqualTo(1);
+        Assertions.assertThat(log)
+                .as("and that record states the outcome and what was landed")
+                .contains("OUTCOME=ABORTED").contains("DATA_FILES_STAGED=").contains("EPOCH_LOCAL_DATA_ID=");
+
+        newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(allValues), false).update().close();
+        log = Files.readFileToString(logFile, Charsets.UTF_8);
+        Assertions.assertThat(countAttemptRecords(log))
+                .as("the attempt that finishes the job adds exactly one more")
+                .isEqualTo(2);
+        Assertions.assertThat(log).as("with the committed outcome recorded").contains("OUTCOME=COMMITTED");
+
+        //The "nothing was added" case, stated where it is deterministic: an attempt that stages nothing must leave no
+        //record and no index generation. (An updater pass over a store that looks complete is NOT that case - it re-
+        //derives the '_incomplete_' tail and legitimately publishes what it lands - which is why this is asserted on
+        //the transaction, the unit the record belongs to.)
+        final int generationsBefore = VersionedTimeSeriesMemoryFileLookupTable.listIndexGenerations(memoryDir).length;
+        lookup.newUpdateTransaction(false).close();
+        log = Files.readFileToString(logFile, Charsets.UTF_8);
+        Assertions.assertThat(countAttemptRecords(log))
+                .as("an attempt that staged nothing writes no log record")
+                .isEqualTo(2);
+        Assertions.assertThat(VersionedTimeSeriesMemoryFileLookupTable.listIndexGenerations(memoryDir).length)
+                .as("and no index generation either")
+                .isEqualTo(generationsBefore);
+    }
+
+    private static int countAttemptRecords(final String log) {
+        int count = 0;
+        for (int i = log.indexOf("\nTRANSACTION\n"); i >= 0; i = log.indexOf("\nTRANSACTION\n", i + 1)) {
+            count++;
+        }
+        return count;
+    }
+
     @Test
     public void testCloseWithoutCommitKeepsOnlyPublishedBoundaries() throws Exception {
         final ATimeSeriesDB<String, FDate> table = newTable("boundaryCommit");
