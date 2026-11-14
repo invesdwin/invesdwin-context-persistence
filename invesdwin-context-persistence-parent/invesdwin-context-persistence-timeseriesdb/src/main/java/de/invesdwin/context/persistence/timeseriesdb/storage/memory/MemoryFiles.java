@@ -22,6 +22,11 @@ public final class MemoryFiles {
      * store).
      */
     public static final String EPOCH_LOCAL_DATA_FILE_PREFIX = "memory_";
+    /**
+     * Marks the standalone file an attempt writes for its incomplete last segment; it sits inside the attempt local
+     * data file name, so an attempt id ends at it.
+     */
+    public static final String INCOMPLETE_MEMORY_FILE_MARKER = "_incomplete_";
     private static final String MEMORY_DATA_FILE_EXTENSION = ".data";
     private static final int EPOCH_LOCAL_DATA_ID_TOKEN_LENGTH = 8;
     private static final String EPOCH_LOCAL_DATA_ID_OWNER_TOKEN = newEpochLocalDataIdOwnerToken();
@@ -65,8 +70,8 @@ public final class MemoryFiles {
     public static File newIncompleteMemoryFile(final File memoryFile, final long memoryOffset) {
         final String timestampStr = FDate.now().toString(FDate.FORMAT_NUMBER_DATE_TIME_PS);
         final String extension = Files.getExtension(memoryFile);
-        final String incompleteFilename = Files.removeExtension(memoryFile.getName()) + "_incomplete_" + memoryOffset
-                + "_" + timestampStr + extension;
+        final String incompleteFilename = Files.removeExtension(memoryFile.getName()) + INCOMPLETE_MEMORY_FILE_MARKER
+                + memoryOffset + "_" + timestampStr + extension;
         //an attempt local write leaves its own incomplete files for the reclaim sweep (TimeSeriesEpochReclaim) instead
         //of deleting files that another attempt may have published
         return new File(memoryFile.getParentFile(), incompleteFilename);
@@ -77,7 +82,7 @@ public final class MemoryFiles {
     }
 
     public static boolean isIncompleteMemoryFile(final String memoryFileName) {
-        return memoryFileName.contains("_incomplete_");
+        return memoryFileName.contains(INCOMPLETE_MEMORY_FILE_MARKER);
     }
 
     /**

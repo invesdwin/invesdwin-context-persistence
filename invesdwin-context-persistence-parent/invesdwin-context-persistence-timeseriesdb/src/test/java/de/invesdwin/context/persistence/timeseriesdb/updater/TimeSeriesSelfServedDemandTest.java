@@ -45,8 +45,8 @@ import de.invesdwin.util.time.date.FDates;
  * <li>a foreign pin holder with an empty store keeps the loud 'Adoption found empty store' NonBlockingRetryLater
  * refusal byte for byte (zero regression) and publishes nothing itself;</li>
  * <li>a published store always wins: a demand that breaks its pin wait while the store holds a complete generation
- * adopts that published state, and an aborted attempt of the same key changes nothing observable (publish-on-commit
- * plus the reclaim of its own attempt local data files).</li>
+ * adopts that published state, and an in-progress attempt of the same key is never read; once that attempt is aborted
+ * it publishes what it FINISHED and the reclaim takes only the batch it never finished.</li>
  * </ul>
  */
 @NotThreadSafe
@@ -196,9 +196,9 @@ public class TimeSeriesSelfServedDemandTest extends ATest {
 
     /**
      * A published store always wins: with a complete generation on disk, the demand adopts the published state (never
-     * what an in-progress attempt of the same key has staged so far), and the attempt that is aborted afterwards
-     * changes nothing observable - its own attempt local data files are reclaimed, the bytes the surviving generation
-     * references stay.
+     * what an in-progress attempt of the same key has staged so far). The attempt that is aborted afterwards keeps what
+     * it FINISHED and the reclaim takes only its unfinished batch - the adopted generation's bytes stay untouched, and
+     * a demand that breaks its pin wait mid-pass still reads only what was published at that moment.
      */
     @Test
     public void testPublishedGenerationIsPreferredOverInProgressAttempt() throws Exception {
@@ -273,14 +273,25 @@ public class TimeSeriesSelfServedDemandTest extends ATest {
                 .readUpdateProgress(observations.consumerUpdater.get().getUpdateFinishedFile());
         Assertions.checkNotNull(consumerMarker, "the consumer attempt must have left its finished marker");
 
-        //and the aborted second attempt changed nothing observable - it also reclaimed its own attempt local files
-        Assertions.assertThat(readValues(table, PRODUCER_KEY)).isEqualTo(newValues(1, 4));
+        //What the aborted second attempt FINISHED is store content once its transaction closes: the nested demand saw
+        //the published days 1-4 while the attempt was in progress, and after the abort the store reads the finished file
+        //the attempt landed as well (days 9-12 were still in flight when the source died, so that batch is reclaimed).
+        //The generation the demand adopted is untouched.
+        Assertions.assertThat(readValues(table, PRODUCER_KEY)).isEqualTo(newValues(1, 8));
         final List<MemoryFileSummary> published = readPublishedSummaries(producerLookup);
         Assertions.checkFalse(published.isEmpty());
         final String abortedAttemptId = producer.getEpochId();
         Assertions.checkNotNull(abortedAttemptId, "the attempt must have minted its data file id");
-        Assertions.checkTrue(findAttemptDataFiles(producerLookup, abortedAttemptId).isEmpty(),
-                "the aborted attempt must have reclaimed its own data files");
+        final List<String> publishedNames = new ArrayList<>();
+        for (final MemoryFileSummary summary : published) {
+            publishedNames.add(new File(summary.getMemoryResourceUri()).getName());
+        }
+        for (final File own : findAttemptDataFiles(producerLookup, abortedAttemptId)) {
+            Assertions.checkTrue(publishedNames.contains(own.getName()),
+                    "the aborted attempt left an unreferenced data file behind: " + own);
+            Assertions.checkFalse(MemoryFiles.isIncompleteMemoryFile(own.getName()),
+                    "an aborted attempt must not leave '_incomplete_' litter behind: " + own);
+        }
         //and every data file the surviving published generation references is still there with its bytes
         for (final MemoryFileSummary summary : published) {
             final File dataFile = new File(summary.getMemoryResourceUri());

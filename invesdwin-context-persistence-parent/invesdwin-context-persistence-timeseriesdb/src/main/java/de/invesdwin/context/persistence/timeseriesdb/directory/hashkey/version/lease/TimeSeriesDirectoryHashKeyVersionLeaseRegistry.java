@@ -16,6 +16,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.IntegrationProperties;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.ITimeSeriesDirectoryHashKey;
+import de.invesdwin.context.persistence.timeseriesdb.updater.TimeSeriesEpochReclaim;
 import de.invesdwin.instrument.DynamicInstrumentationProperties;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.fast.IFastIterableMap;
@@ -46,6 +47,11 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
 
     private static ScheduledExecutorService heartbeatExecutor;
     private static ScheduledExecutorService cleanupExecutor;
+    /**
+     * Coalescing of the epoch-reclaim drain: one queued drain is enough, because the drain itself iterates every
+     * directory submitted in the meantime.
+     */
+    private static final AtomicBoolean EPOCH_RECLAIM_SCHEDULED = new AtomicBoolean(false);
 
     private TimeSeriesDirectoryHashKeyVersionLeaseRegistry() {}
 
@@ -120,9 +126,34 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
 
     private static void stopCleanupExecutorIfNeeded() {
         synchronized (TimeSeriesDirectoryHashKeyVersionLeaseRegistry.class) {
-            if (DIRECTORY_CONTEXTS.isEmpty() && cleanupExecutor != null && !cleanupExecutor.isShutdown()) {
+            if (DIRECTORY_CONTEXTS.isEmpty() && !TimeSeriesEpochReclaim.hasPendingObsoleteEpochsReclaims()
+                    && cleanupExecutor != null && !cleanupExecutor.isShutdown()) {
                 cleanupExecutor.shutdown();
                 cleanupExecutor = null;
+            }
+        }
+    }
+
+    /**
+     * Runs the epoch-reclaim drain on this registry's cleanup thread: one single-threaded janitor for both sweeps
+     * (obsolete versions and the attempt-local garbage of finished update attempts), with the lifecycle of the
+     * executor already handling start-on-demand and shutdown-on-idle. Not routed through the version cleanup's marker
+     * file throttle - that gate is {@link AtomicNioFileChannelContext#TMP_CLEANUP_INTERVAL} (a day), while the epoch
+     * retention this sweep obeys is an hour.
+     */
+    public static void requestEpochReclaim() {
+        if (EPOCH_RECLAIM_SCHEDULED.compareAndSet(false, true)) {
+            startCleanupExecutorIfNeeded();
+            if (cleanupExecutor != null && !cleanupExecutor.isShutdown()) {
+                cleanupExecutor.execute(() -> {
+                    //cleared before the sweep: a submission made during it queues the next one instead of being lost
+                    EPOCH_RECLAIM_SCHEDULED.set(false);
+                    TimeSeriesEpochReclaim.runPendingObsoleteEpochsReclaims();
+                });
+            } else {
+                //the executor went away between the start attempt and here; the submission stays pending and the next
+                //update attempt for that key asks again
+                EPOCH_RECLAIM_SCHEDULED.set(false);
             }
         }
     }

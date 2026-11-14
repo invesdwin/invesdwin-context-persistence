@@ -19,8 +19,8 @@ import org.springframework.retry.backoff.BackOffPolicy;
 
 import de.invesdwin.context.integration.IntegrationProperties;
 import de.invesdwin.context.integration.concurrent.DatabaseThreads;
-import de.invesdwin.context.integration.retry.NonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
+import de.invesdwin.context.integration.retry.fast.FastNonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.task.ARetryCallable;
 import de.invesdwin.context.integration.retry.task.BackOffPolicies;
 import de.invesdwin.context.integration.retry.task.RetryOriginator;
@@ -396,7 +396,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         final IReadWriteLock segmentTableLock = segmentedTable.getTableLock(segmentedKey);
         final ILock segmentReadLock = segmentTableLock.readLock();
         if (!segmentReadLock.tryLockNoInterrupt(IntegrationProperties.NON_BLOCKING_ASYNC_WAIT_TIMEOUT)) {
-            throw new NonBlockingRetryLaterRuntimeException(ASegmentedTimeSeriesLookupStorageCache.class.getSimpleName()
+            throw new FastNonBlockingRetryLaterRuntimeException(ASegmentedTimeSeriesLookupStorageCache.class.getSimpleName()
                     + ".maybeInitSegmentAsync: readlock could not be acquired for async update check while operating in non-blocking mode for segment "
                     + getElementsName() + ": " + segmentedKey);
         }
@@ -444,7 +444,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
                 //make sure entry is removed even if async task finished before the put operation happened
                 segmentedKey_maybeInitSegmentAsyncFuture.remove(segmentedKey);
             } catch (final TimeoutException e) {
-                throw new NonBlockingRetryLaterRuntimeException(
+                throw new FastNonBlockingRetryLaterRuntimeException(
                         ASegmentedTimeSeriesLookupStorageCache.class.getSimpleName()
                                 + ".maybeInitSegmentAsync: async update " + reason
                                 + " while operating in non-blocking mode for segment " + getElementsName() + ": "
@@ -831,12 +831,10 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
             updater = new ALoggingTimeSeriesUpdater<SegmentedKey<K>, V>(segmentedKey, segmentedTable, log) {
 
                 @Override
-                protected ICloseableIterable<? extends V> getSource(final FDate updateFrom)
-                        throws IncompleteUpdateRetryableException {
-                    if (updateFrom != null) {
-                        throw new IncompleteUpdateRetryableException(
-                                segmentedKey + ": updateFrom should be null: " + updateFrom);
-                    }
+                protected ICloseableIterable<? extends V> getSource(final FDate updateFrom) {
+                    //a segment is always produced as a whole, so an attempt that continues a segment a previous
+                    //attempt died in (it published a boundary first) gets that same whole-segment iterable: the update
+                    //transaction's resume guard drops the values the store already holds
                     return source.apply(segmentedKey);
                 }
 

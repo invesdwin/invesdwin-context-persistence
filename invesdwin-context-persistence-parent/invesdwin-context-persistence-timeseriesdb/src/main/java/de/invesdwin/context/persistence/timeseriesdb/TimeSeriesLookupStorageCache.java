@@ -1100,8 +1100,10 @@ public class TimeSeriesLookupStorageCache<K, V> {
         }
         final MemoryFileMetadata metadata = memoryFileLookupTable.getMetadata();
         final long expectedMemoryFileSize;
+        final Integer attestedIndexNumber;
         try (ICloseableProperties properties = metadata.getProperties()) {
             expectedMemoryFileSize = metadata.getExpectedMemoryFileSize(properties);
+            attestedIndexNumber = metadata.getExpectedMemoryFileGeneration(properties);
         }
         long calculatedMemoryFileSize = 0;
         long actualMemoryFileSize = 0;
@@ -1115,8 +1117,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
                 final MemoryFileSummary summary = summaries.next();
                 final File memoryFile = new File(summary.getMemoryResourceUri());
                 final long memoryFileLength = memoryFile.length();
-                calculatedMemoryFileSize = summary.getPrecedingMemoryOffset() + summary.getMemoryOffset()
-                        + summary.getMemoryLength();
+                calculatedMemoryFileSize = summary.getCombinedMemoryFileSize();
                 if (!Objects.equals(prevMemoryFile, memoryFile)) {
                     actualMemoryFileSize += memoryFileLength;
                 }
@@ -1141,17 +1142,29 @@ public class TimeSeriesLookupStorageCache<K, V> {
                 return true;
             }
             if (expectedMemoryFileSize != MemoryFileMetadata.MISSING_EXPECTED_MEMORY_FILE_SIZE) {
-                if (expectedMemoryFileSize != calculatedMemoryFileSize) {
-                    log.warn(
-                            "Table data for [%s] is inconsistent and needs to be reset. ExpectedMemoryFileSize[%s] != CalculatedMemoryFileSize[%s]",
-                            hashKey, expectedMemoryFileSize, calculatedMemoryFileSize);
-                    return true;
-                }
-                if (actualMemoryFileSize != expectedMemoryFileSize) {
-                    log.warn(
-                            "Table data for [%s] is inconsistent and needs to be reset. ActualMemoryFileSize[%s] != ExpectedMemoryFileSize[%s]",
-                            hashKey, actualMemoryFileSize, expectedMemoryFileSize);
-                    return true;
+                final int currentIndexNumber = memoryFileLookupTable.getCurrentIndexNumber();
+                if (attestedIndexNumber != null && attestedIndexNumber.intValue() != currentIndexNumber) {
+                    //The attestation names an index generation that is not the chain being read: the publish that
+                    //wrote it was interrupted between the properties upload and the generation rename, so the
+                    //high-water describes bytes this store never held. The chain that IS present has already been
+                    //checked record by record against the files it names above; comparing it against another
+                    //generation's attestation is a false positive, and its cost is a wiped key and a re-download.
+                    log.debug(
+                            "Skipping the ExpectedMemoryFileSize comparison for [%s]: the attestation names index generation [%s], the newest generation present is [%s]",
+                            hashKey, attestedIndexNumber, currentIndexNumber);
+                } else {
+                    if (expectedMemoryFileSize != calculatedMemoryFileSize) {
+                        log.warn(
+                                "Table data for [%s] is inconsistent and needs to be reset. ExpectedMemoryFileSize[%s] != CalculatedMemoryFileSize[%s]",
+                                hashKey, expectedMemoryFileSize, calculatedMemoryFileSize);
+                        return true;
+                    }
+                    if (actualMemoryFileSize != expectedMemoryFileSize) {
+                        log.warn(
+                                "Table data for [%s] is inconsistent and needs to be reset. ActualMemoryFileSize[%s] != ExpectedMemoryFileSize[%s]",
+                                hashKey, actualMemoryFileSize, expectedMemoryFileSize);
+                        return true;
+                    }
                 }
             }
             return false;
@@ -1213,8 +1226,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
             }
 
             final long memoryOffset = summary.getPrecedingMemoryOffset() + summary.getMemoryOffset();
-            final long expectedMemoryOffset = prevSummary.getPrecedingMemoryOffset() + prevSummary.getMemoryOffset()
-                    + prevSummary.getMemoryLength();
+            final long expectedMemoryOffset = prevSummary.getCombinedMemoryFileSize();
             if (memoryOffset != expectedMemoryOffset) {
                 throw new IllegalStateException(
                         "memoryOffset[" + memoryOffset + "] != expectedMemoryOffset[" + expectedMemoryOffset + "]");
@@ -1246,6 +1258,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
         final long precedingMemoryOffset;
         final long memoryOffset;
         final long precedingValueCount;
+        final FDate resumeAfterEndTime;
         if (latestSummary != null) {
             final FDate latestRangeKey;
             if (shouldRedoLastFile && MemoryFiles.isIncompleteMemoryFile(latestSummary.getMemoryResourceUri())) {
@@ -1261,20 +1274,30 @@ public class TimeSeriesLookupStorageCache<K, V> {
                     memoryOffset = latestSummary.getMemoryOffset();
                     precedingValueCount = latestSummary.getPrecedingValueCount();
                     updateFrom = extractEndTime(lastValue);
+                    //the removed last value comes back from the source, everything before it is re-written from
+                    //lastValues, so nothing is excluded by its end time
+                    resumeAfterEndTime = null;
                     latestRangeKey = latestSummary.getFirstValueEndTime();
                 } else {
                     precedingMemoryOffset = latestSummary.getPrecedingMemoryOffset();
                     memoryOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength();
                     precedingValueCount = latestSummary.getPrecedingValueCount() + latestSummary.getValueCount();
                     updateFrom = latestSummary.getFirstValueEndTime();
+                    resumeAfterEndTime = null;
                     latestRangeKey = latestSummary.getFirstValueEndTime().addPicoseconds(1);
                 }
             } else {
+                //the last published file is a complete one: a boundary commit publishes complete segments only, so an
+                //attempt that continues such a store resumes a previous attempt that died mid-pass. The resume point
+                //is the last value the store holds, not the first value of the last file - continuing at the first
+                //value would hand the already stored values back to the writer and break the summary chain.
+                final FDate lastPublishedValueEndTime = extractEndTime(latestSummary.getLastValue(valueSerde));
                 lastValues = Collections.emptyList();
                 precedingMemoryOffset = latestSummary.getPrecedingMemoryOffset();
                 memoryOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength();
                 precedingValueCount = latestSummary.getPrecedingValueCount() + latestSummary.getValueCount();
-                updateFrom = latestSummary.getFirstValueEndTime();
+                updateFrom = lastPublishedValueEndTime;
+                resumeAfterEndTime = lastPublishedValueEndTime;
                 latestRangeKey = latestSummary.getFirstValueEndTime().addPicoseconds(1);
             }
             storage.deleteRange_latestValueLookupTable(hashKey, latestRangeKey);
@@ -1290,13 +1313,14 @@ public class TimeSeriesLookupStorageCache<K, V> {
             precedingMemoryOffset = 0L;
             memoryOffset = 0L;
             precedingValueCount = 0L;
+            resumeAfterEndTime = null;
         }
         //the attempt writes data files of its own, so its byte space starts at 0 while the preceding offset keeps the
         //running total over the files the published generation references
         final long transactionPrecedingMemoryOffset = precedingMemoryOffset + memoryOffset;
         final long transactionMemoryOffset = 0L;
         return new TimeSeriesUpdateTransaction<>(this, updateFrom, lastValues, transactionPrecedingMemoryOffset,
-                transactionMemoryOffset, precedingValueCount, epochLocalDataId);
+                transactionMemoryOffset, precedingValueCount, epochLocalDataId, resumeAfterEndTime);
     }
 
     public synchronized void maybeUpdateIndex() {
