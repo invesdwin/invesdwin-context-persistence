@@ -177,6 +177,88 @@ public class VersionedTimeSeriesMemoryFileLookupTableTest extends ATest {
                 .isEqualTo(takenNumber);
     }
 
+    /**
+     * The key's {@code memory.log} is an operator-facing trail, not dead weight: it is what dated the last real tick
+     * write during the 2026-11-11 iqfeed outage. But it used to carry one record PER SUMMARY, which on the live store
+     * measured 73,139 records / 42 MB for a key with 22 generations (and 3,139 MB across 6,535 keys on ptstaging) for
+     * no information a publish record does not already hold. One record per publish, with the publish's own count,
+     * high-water and head-of-chain summary, is what this pins.
+     */
+    @Test
+    public void testOneLogRecordPerPublishNotOnePerSummary() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("publishLog");
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
+        final File directory = lookup.getDirectoryHashKeyVersionMemory().getDirectoryHashKeyVersionDataShared();
+        Files.forceMkdir(directory);
+        final File logFile = new File(directory, "memory.log");
+
+        final VersionedTimeSeriesMemoryFileLookupTable<FDate> publisher = new VersionedTimeSeriesMemoryFileLookupTable<>(
+                lookup, directory, 0);
+        publisher.put(new ListSummaryIterator(List.of(summary(1, 10L), summary(2, 20L), summary(3, 30L))));
+
+        String log = Files.readFileToString(logFile, Charsets.UTF_8);
+        Assertions.assertThat(countOccurrences(log, "PUBLISHED_SUMMARY_COUNT="))
+                .as("one publish writes one record, whatever the batch size")
+                .isEqualTo(1);
+        Assertions.assertThat(log).as("the record names the batch it published")
+                .contains("PUBLISHED_SUMMARY_COUNT=3");
+        Assertions.assertThat(log).as("and the byte high-water the publish leaves behind")
+                .contains("CHAIN_HIGH_WATER_BYTES=30");
+        Assertions.assertThat(log).as("and the head of the new chain, which is the frontier an operator asks for")
+                .contains("LAST_SUMMARY_LAST_VALUE_END_TIME=0003-01-01")
+                .contains("MEMORY_RESOURCE_URI=memory_3-gene0001.data");
+
+        publisher.put(new ListSummaryIterator(List.of(summary(4, 40L))));
+        log = Files.readFileToString(logFile, Charsets.UTF_8);
+        Assertions.assertThat(countOccurrences(log, "PUBLISHED_SUMMARY_COUNT="))
+                .as("a second publish adds a second record")
+                .isEqualTo(2);
+        Assertions.assertThat(countOccurrences(log, "MemoryFileSummary"))
+                .as("the per-summary record shape is gone")
+                .isZero();
+    }
+
+    private static int countOccurrences(final String text, final String needle) {
+        int count = 0;
+        for (int i = text.indexOf(needle); i >= 0; i = text.indexOf(needle, i + needle.length())) {
+            count++;
+        }
+        return count;
+    }
+
+    private static final class ListSummaryIterator implements ICloseableIterator<MemoryFileSummary> {
+
+        private final List<MemoryFileSummary> summaries;
+        private int index;
+
+        private ListSummaryIterator(final List<MemoryFileSummary> summaries) {
+            this.summaries = summaries;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return index < summaries.size();
+        }
+
+        @Override
+        public MemoryFileSummary next() {
+            if (index >= summaries.size()) {
+                throw FastNoSuchElementException.getInstance("end reached");
+            }
+            return summaries.get(index++);
+        }
+
+        @Override
+        public void remove() {
+            throw FastNoSuchElementException.getInstance("unsupported");
+        }
+
+        @Override
+        public void close() {
+            //nothing to release
+        }
+    }
+
     private static byte[] digest(final byte[] bytes) throws Exception {
         return MessageDigest.getInstance("SHA-256").digest(bytes);
     }

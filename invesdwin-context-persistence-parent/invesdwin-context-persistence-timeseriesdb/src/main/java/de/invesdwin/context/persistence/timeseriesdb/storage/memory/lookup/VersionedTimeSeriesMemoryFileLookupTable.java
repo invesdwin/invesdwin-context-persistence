@@ -127,17 +127,16 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
                     }
                 }
 
-                // 2. Stream incoming summaries, log metadata, and directly merge/append via the buffer
+                // 2. Stream incoming summaries, track the chain high-water, and directly merge/append via the buffer
                 boolean firstNewSummary = true;
+                int publishedSummaryCount = 0;
+                long publishedChainHighWater = 0L;
                 final MemoryFileMetadata metadata = getMetadata();
                 try (ICloseableProperties properties = metadata.getProperties()) {
                     while (true) {
                         final MemoryFileSummary newSummary = summaries.next();
 
-                        // --- Part A: Metadata Logging ---
-                        final long precedingMemoryOffset = newSummary.getPrecedingMemoryOffset();
-                        final long memoryOffset = newSummary.getMemoryOffset();
-                        final long memoryLength = newSummary.getMemoryLength();
+                        // --- Part A: chain high-water bookkeeping ---
                         final long expectedMemoryFileSize = newSummary.getCombinedMemoryFileSize();
                         //EXPECTED_MEMORY_FILE_SIZE is the byte high-water of the published generation, not a
                         //monotonically growing counter. A new generation may legitimately end BELOW it exactly when its
@@ -163,8 +162,9 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
                                     + "] should be less than expectedMemoryFileFize[" + expectedMemoryFileSize + "]");
                         }
                         metadata.setExpectedMemoryFileSize(properties, expectedMemoryFileSize);
+                        publishedSummaryCount++;
+                        publishedChainHighWater = expectedMemoryFileSize;
 
-                        final V lastValue = parent.getValueSerde().fromBytes(newSummary.getLastValue());
                         final FDate firstValueEndTime = parent
                                 .extractEndTime(parent.getValueSerde().fromBytes(newSummary.getFirstValue()));
 
@@ -172,14 +172,6 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
                             throw new IllegalStateException("summary.firstValue.endTime[" + firstValueEndTime
                                     + "] != summary.getFirstValueEndTime[" + newSummary.getFirstValueEndTime() + "]");
                         }
-
-                        final FDate lastValueEndTime = parent.extractEndTime(lastValue);
-                        final long precedingValueCount = newSummary.getPrecedingValueCount();
-                        final int valueCount = newSummary.getValueCount();
-                        final String memoryResourceUri = newSummary.getMemoryResourceUri();
-
-                        metadata.logSummary(firstValueEndTime, lastValueEndTime, precedingValueCount, valueCount,
-                                memoryResourceUri, precedingMemoryOffset, memoryOffset, memoryLength);
 
                         // --- Part B: Direct Streaming Merge ---
                         if (lastWritten != null) {
@@ -213,6 +205,10 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
                 // Flush the final remaining item to the new file
                 if (lastWritten != null) {
                     newCollection.add(lastWritten);
+                    //One record for the whole publish, after the generation's head is known - see
+                    //MemoryFileMetadata.logPublish for why it is not one per summary.
+                    metadata.logPublish(publishedSummaryCount, lastWritten, publishedChainHighWater, parent
+                            .extractEndTime(parent.getValueSerde().fromBytes(lastWritten.getLastValue())));
                 }
 
                 newCollection.closeWithEmptyWrite();
