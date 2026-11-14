@@ -40,8 +40,9 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     private final FDate resumeAfterEndTime;
     private AMemoryFileSummarySerializingCollection summaries;
     private MemoryFileSummary prevSummary;
-    //publish-on-commit: close() without an explicit commit() DISCARDS only what this attempt staged after its last
-    //published boundary; a final commit() publishes the rest
+    //the outcome of the pass: true when the source was consumed to the end without an exception. It does NOT decide
+    //whether the staged work lands - close() publishes what this attempt FINISHED on either path - it only decides
+    //what the attempt's one memory.log record states
     private boolean committed;
     //segments staged since the last publish, the unit a boundary commit publishes
     private int stagedSegmentCount;
@@ -162,9 +163,11 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
 
     /**
      * Boundary commit of a completed segment: publishes everything this attempt has staged so far as a new index
-     * generation and lets the attempt continue staging into it, so a long backfill publishes incrementally and an
-     * attempt that dies later leaves a readable high-water mark behind instead of nothing. The progress writers call
-     * this after every completed segment; a publish only actually happens once
+     * generation and lets the attempt continue staging into it. What a boundary commit buys over the publish
+     * {@link #close()} does anyway is (1) a readable high-water mark DURING a pass that may run for hours, so the
+     * frontier consumers attached through {@link #setBoundaryCommitListener} advance while the attempt is still
+     * running, and (2) the publish-then-yield point that gives readers parked on the key their window. The progress
+     * writers call this after every completed segment; a publish only actually happens once
      * {@link TimeSeriesProperties#UPDATE_COMMIT_SEGMENT_INTERVAL} segments have piled up, because every publish writes
      * a new index generation.
      *
@@ -217,40 +220,42 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
 
     /**
      * Attaches the boundary-commit notification of a consumer that mirrors this store's published frontier
-     * ({@link ITimeSeriesBoundaryCommitListener}); every boundary commit that publishes then reports its new
-     * frontier to the listener. The final publish of a committed close and the discards of an aborted attempt do
-     * not notify. Must be attached before the attempt's first publish; null leaves the transaction silent
-     * (unchanged behaviour for consumers that do not use the hook).
+     * ({@link ITimeSeriesBoundaryCommitListener}); every publish reports its new frontier to the listener, including
+     * the one {@link #close()} does with whatever the attempt staged after its last boundary - committed or aborted,
+     * because the frontier the consumer mirrors is what the store now reads. Must be attached before the attempt's
+     * first publish; null leaves the transaction silent (unchanged behaviour for consumers that do not use the hook).
      */
     void setBoundaryCommitListener(final ITimeSeriesBoundaryCommitListener boundaryCommitListener) {
         this.boundaryCommitListener = boundaryCommitListener;
     }
 
     /**
-     * Marks the attempt as finished: its remaining staged segments (the incomplete last file) are published by
-     * {@link #close()}.
+     * Marks the pass as having consumed its source to the end. What the attempt staged lands either way - see
+     * {@link #close()} - so this records the OUTCOME for the attempt's log record and for the callers that report a
+     * completed pass; it is not a commit point.
      */
     public synchronized void commit() {
         this.committed = true;
     }
 
+    /**
+     * Ends the transaction: whatever this attempt FINISHED lands in the published chain, committed or aborted. Every
+     * summary in the staged batch names a data file the writer completed - {@link #finishFile} runs only once that file
+     * is flushed and closed - so the file still being written is never in the batch and a published file still carries
+     * no unpublished trailing bytes. An attempt that dies mid-pass therefore keeps the segments it landed: the next
+     * attempt of the key resumes from them instead of re-fetching the same range, which is what the shape this replaces
+     * cost on the live box (595 replays of one 2006 to 2021 pass, and the 34,541 '_incomplete_' files the census still
+     * counted). The epoch reclaim of an aborted attempt now deletes only files that no published generation names.
+     */
     @Override
     public synchronized void close() {
         if (prevSummary == null) {
             return;
         }
-        if (committed) {
-            publishStagedSummaries();
-        } else {
-            //abort path: only what this attempt staged after its last published boundary is released WITHOUT
-            //publishing it; the boundaries it did publish stay, and the next attempt of this key continues from them
-            final AMemoryFileSummarySerializingCollection summariesCopy = summaries;
-            if (summariesCopy != null) {
-                summariesCopy.closeWithEmptyWrite();
-                summariesCopy.clear();
-                summaries = null;
-                stagedSegmentCount = 0;
-            }
+        if (publishStagedSummaries() && boundaryCommitListener != null) {
+            //the last publish of the attempt moves the store's readable frontier as much as a boundary commit does,
+            //so the consumers mirroring it hear about it here too
+            boundaryCommitListener.onBoundaryCommitPublished(parent.getLastValueEndTime());
         }
         //ONE record for the attempt, written after the outcome is settled so it states what the store now holds. The
         //early return above - an attempt that staged nothing never gets here - is what implements "nothing added,
@@ -265,24 +270,33 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
         prevSummary = null;
     }
 
-    private void publishStagedSummaries() {
+    /**
+     * Writes the staged batch as a new index generation.
+     *
+     * @return true when a generation was written - false when nothing was staged since the last publish, which is what
+     *         a close right after a boundary commit sees; no generation and no cache invalidation then, since the
+     *         store's visible state did not change
+     */
+    private boolean publishStagedSummaries() {
         final AMemoryFileSummarySerializingCollection summariesCopy = summaries;
-        if (summariesCopy != null) {
-            summariesCopy.closeWithEmptyWrite();
-            final ITimeSeriesMemoryFileLookupTable memoryFileLookupTable = parent.getMemoryFileLookupTable();
-            final ICloseableIterator<MemoryFileSummary> iterator = summariesCopy.iterator();
-            memoryFileLookupTable.put(iterator);
-            publishes++;
-            lastPublishedSummary = prevSummary;
-            if (prevSummary != null) {
-                publishedChainHighWater = prevSummary.getCombinedMemoryFileSize();
-            }
-            summariesCopy.clear();
-            summaries = null;
-            stagedSegmentCount = 0;
+        if (summariesCopy == null) {
+            return false;
         }
+        summariesCopy.closeWithEmptyWrite();
+        final ITimeSeriesMemoryFileLookupTable memoryFileLookupTable = parent.getMemoryFileLookupTable();
+        final ICloseableIterator<MemoryFileSummary> iterator = summariesCopy.iterator();
+        memoryFileLookupTable.put(iterator);
+        publishes++;
+        lastPublishedSummary = prevSummary;
+        if (prevSummary != null) {
+            publishedChainHighWater = prevSummary.getCombinedMemoryFileSize();
+        }
+        summariesCopy.clear();
+        summaries = null;
+        stagedSegmentCount = 0;
         parent.clearCaches();
         touchUpdateMarker(parent.getDirectoryHashKey().getDirectoryHashKeyVersion());
+        return true;
     }
 
     public static void touchUpdateMarker(final ITimeSeriesDirectoryHashKeyVersion directoryHashKeyVersion) {

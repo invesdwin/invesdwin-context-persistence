@@ -4,6 +4,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -19,10 +20,12 @@ import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesB
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.MemoryFileMetadata;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.VersionedTimeSeriesMemoryFileLookupTable;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdateProgress;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdaterInternalMethods;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.SequentialChunkedUpdateProgress;
+import de.invesdwin.context.system.properties.ICloseableProperties;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.Arrays;
@@ -44,11 +47,13 @@ import de.invesdwin.util.time.date.FDates;
 
 /**
  * An update attempt that dies mid-pass (a source that times out or is cancelled) must not throw away the bytes it has
- * already fetched. The publish unit is the segment: every {@link TimeSeriesProperties#UPDATE_COMMIT_SEGMENT_INTERVAL}
- * completed segments the attempt publishes what it has staged so far as a new index generation, so the aborted
- * attempt leaves a readable high-water mark behind and the next attempt of the same key continues from it instead of
- * restarting at byte space 0. Everything the aborted attempt staged after its last published boundary is discarded,
- * and the data files that no published generation names are reclaimed - no '_incomplete_' litter accumulating.
+ * already landed. Two publishes keep that honest: a boundary commit every
+ * {@link TimeSeriesProperties#UPDATE_COMMIT_SEGMENT_INTERVAL} completed segments, which gives a pass that runs for
+ * hours a readable high-water mark WHILE it runs, and the publish {@code close()} does with everything the attempt
+ * staged after its last boundary - committed or aborted alike, because a finished data file is complete content. What
+ * an abort can lose is the one batch that was still open when the source died, and the epoch reclaim deletes that file
+ * - no '_incomplete_' litter accumulates. The next attempt of the key is then told to continue from the published
+ * frontier instead of being asked to re-fetch the whole range.
  */
 @NotThreadSafe
 public class TimeSeriesResumableUpdateAttemptTest extends ATest {
@@ -94,8 +99,11 @@ public class TimeSeriesResumableUpdateAttemptTest extends ATest {
         final int totalValues = landedValues + BATCH_FLUSH_INTERVAL;
         final List<FDate> allValues = newValues(1, totalValues);
 
+        //the witness list fills up as the attempt publishes boundaries; the source waits for its first entry before
+        //it dies, so both writer shapes are pinned against the publish rather than against the clock
+        final List<FDate> publishedBoundaries = new ArrayList<>();
         final ATimeSeriesUpdater<String, FDate> aborting = newUpdater(table, KEY,
-                abortingSource(allValues, landedValues), parallel);
+                abortingSource(allValues, landedValues, publishedBoundaries), parallel, null, publishedBoundaries);
         boolean aborted = false;
         try {
             aborting.update().close();
@@ -106,16 +114,25 @@ public class TimeSeriesResumableUpdateAttemptTest extends ATest {
         final String abortedAttemptId = aborting.getEpochId();
         Assertions.checkNotNull(abortedAttemptId, "the aborted attempt must have minted its data file id");
 
-        //the segments up to the last boundary commit are published: their bytes are not lost, and what the attempt
-        //staged after its last publish is not
+        //every segment the attempt FINISHED before its source died is published, not only the boundary commits: a
+        //finished data file is complete content, so an aborted pass loses at most the one batch it was writing
         final List<MemoryFileSummary> published = readPublishedSummaries(lookup);
         Assertions.checkTrue(!published.isEmpty(),
                 "the boundary commit must have published the segments it completed before the abort");
         final List<FDate> publishedValues = readValues(table, KEY);
         Assertions.checkTrue(publishedValues.size() >= firstBoundaryValues,
                 "at least one boundary must be readable after the abort, got: " + publishedValues.size());
-        Assertions.checkTrue(publishedValues.size() < landedValues,
-                "what the attempt staged after its last publish must not be published: " + publishedValues.size());
+        Assertions.checkTrue(publishedValues.size() <= landedValues,
+                "the abort must not publish values the source never handed out: " + publishedValues.size());
+        if (!parallel) {
+            //The sequential writer dies with its source, so at most the one batch it was writing can be missing; this
+            //fixture lands whole batches, so every landed value is published by the close. The parallel writer cannot
+            //be pinned to a count: its producer races ahead of the writer loop, so the queue can die with several
+            //batches never written to a file. What BOTH shapes pin is below - no file the attempt finished stays
+            //unpublished, and no '_incomplete_' residue.
+            Assertions.checkEquals(publishedValues.size(), landedValues,
+                    "an aborted sequential pass must publish every batch it finished: " + publishedValues.size());
+        }
         Assertions.assertThat(publishedValues).isEqualTo(new ArrayList<>(
                 allValues.subList(0, publishedValues.size())));
         Assertions.checkFalse(lookup.isEmptyOrInconsistent(),
@@ -136,8 +153,16 @@ public class TimeSeriesResumableUpdateAttemptTest extends ATest {
         final byte[] publishedBytes = readAllBytes(new File(published.get(0).getMemoryResourceUri()));
 
         //the next attempt continues where the aborted one stopped: the values it re-fetches are the ones that were
-        //never published, nothing published before is rewritten or lost
-        newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(allValues), parallel).update().close();
+        //never published, nothing published before is rewritten or lost. The demand it is given is the payoff the
+        //fleet pays for here: the store's frontier is the last value the ABORT landed, so the source is asked to
+        //supply from there and not to replay the range the aborted attempt already wrote (the live box paid 595 full
+        //replays of a 2006 to 2021 pass for an attempt whose work was discarded).
+        final AtomicReference<FDate> resumeUpdateFrom = new AtomicReference<>();
+        newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(allValues), parallel, resumeUpdateFrom)
+                .update().close();
+        Assertions.assertThat(resumeUpdateFrom.get())
+                .as("the resume must demand from the frontier the abort published")
+                .isEqualTo(publishedValues.get(publishedValues.size() - 1));
         Assertions.assertThat(readValues(table, KEY)).isEqualTo(new ArrayList<>(allValues));
         Assertions.checkFalse(lookup.isEmptyOrInconsistent(),
                 "the store must stay consistent over the resume: " + readPublishedSummaries(lookup));
@@ -153,11 +178,6 @@ public class TimeSeriesResumableUpdateAttemptTest extends ATest {
                 "the resume mutated the bytes of a published data file: " + firstPublishedFile);
     }
 
-    /**
-     * A transaction closed without a final commit discards only what it staged after its last published boundary; the
-     * boundary published before stays visible, and continuing the store with a new attempt lands every value exactly
-     * once.
-     */
     /**
      * One {@code memory.log} record per update attempt - committed OR aborted - stating what the store holds when the
      * attempt closes, and nothing at all for an attempt that lands nothing new. The per-summary shape this replaces
@@ -175,8 +195,9 @@ public class TimeSeriesResumableUpdateAttemptTest extends ATest {
         final List<FDate> allValues = newValues(1, 3 * boundaryValues);
 
         boolean aborted = false;
+        //stays below the commit interval, so the ONLY publish this attempt makes is the one its abort forces at close
         try {
-            newUpdater(table, KEY, abortingSource(allValues, boundaryValues), false).update().close();
+            newUpdater(table, KEY, abortingSource(allValues, 2 * BATCH_FLUSH_INTERVAL), false).update().close();
         } catch (final IncompleteUpdateRetryableException e) {
             aborted = true;
         }
@@ -188,6 +209,19 @@ public class TimeSeriesResumableUpdateAttemptTest extends ATest {
         Assertions.assertThat(log)
                 .as("and that record states the outcome and what was landed")
                 .contains("OUTCOME=ABORTED").contains("DATA_FILES_STAGED=").contains("EPOCH_LOCAL_DATA_ID=");
+        //The record is written AFTER the outcome is settled, so what an abort published is in it: OUTCOME=ABORTED
+        //together with the publish count and the frontier the store now reads. Read back from the store rather than
+        //hard-coded - the exact batch boundary the writer closed is the writer's business.
+        final FDate frontierAfterAbort = lookup.getLastValueEndTime();
+        Assertions.assertThat(frontierAfterAbort)
+                .as("the abort must have landed something for this assertion to mean anything")
+                .isNotNull();
+        Assertions.assertThat(log)
+                .as("an aborted attempt that published says so, with the frontier it landed")
+                .contains("PUBLISHES=1")
+                .contains("LAST_PUBLISHED_VALUE_END_TIME=" + frontierAfterAbort)
+                .contains("MEMORY_RESOURCE_URI=")
+                .contains("CHAIN_HIGH_WATER_BYTES=");
 
         newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(allValues), false).update().close();
         log = Files.readFileToString(logFile, Charsets.UTF_8);
@@ -211,6 +245,68 @@ public class TimeSeriesResumableUpdateAttemptTest extends ATest {
                 .isEqualTo(generationsBefore);
     }
 
+    /**
+     * Two attempts that each die before their first boundary commit: the first publishes at close and leaves a COMPLETE
+     * last file behind, so the second CONTINUES that store and its own close-publish APPENDS a generation instead of
+     * rewriting the chain. The re-stream of the whole chain stays where it belongs - after a pass that finished and
+     * published its short tail as a standalone '_incomplete_' shard, which the next attempt has to redo - and an
+     * aborted pass never pays for it.
+     */
+    @Test
+    public void testTwoAbortedAttemptsAppendInsteadOfRewritingTheChain() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("abortAppendsChain");
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
+        //fewer segments than the commit interval, so no boundary publish happens: everything lands at close
+        final int landedPerAbort = 2 * BATCH_FLUSH_INTERVAL;
+        final List<FDate> allValues = newValues(1, 4 * landedPerAbort);
+
+        runAbortingAttempt(table, lookup, allValues, landedPerAbort);
+        final File memoryDir = lookup.getDirectoryHashKeyVersionMemory().getDirectoryHashKeyVersionDataShared();
+        Assertions.assertThat(VersionedTimeSeriesMemoryFileLookupTable.listIndexGenerations(memoryDir))
+                .as("the first abort publishes what it finished")
+                .hasSize(1);
+
+        runAbortingAttempt(table, lookup, allValues, 2 * landedPerAbort);
+        final MemoryFileMetadata metadata = lookup.getMemoryFileLookupTable().getMetadata();
+        try (ICloseableProperties properties = metadata.getProperties()) {
+            Assertions.assertThat(metadata.getChainBase(properties))
+                    .as("the second abort's close-publish continues the chain, it does not re-stream it")
+                    .isZero();
+        }
+        Assertions.assertThat(VersionedTimeSeriesMemoryFileLookupTable.listIndexGenerations(memoryDir))
+                .as("one generation per aborted attempt")
+                .hasSize(2);
+        //the chain is the source of truth for how much of the range the two aborts landed: attempt 1 finished both
+        //batches, attempt 2 the batches it closed before its source died (the one it was writing is gone). Counted
+        //from the chain rather than hard-coded, because the exact batch boundary is the writer's business.
+        final List<MemoryFileSummary> chain = readPublishedSummaries(lookup);
+        int chainValueCount = 0;
+        for (final MemoryFileSummary summary : chain) {
+            chainValueCount += summary.getValueCount();
+        }
+        Assertions.checkTrue(chainValueCount > landedPerAbort && chainValueCount <= 2 * landedPerAbort,
+                "the second abort must land at least one more finished batch, got: " + chainValueCount);
+        Assertions.assertThat(readValues(table, KEY))
+                .isEqualTo(new ArrayList<>(allValues.subList(0, chainValueCount)));
+        Assertions.checkFalse(lookup.isEmptyOrInconsistent(),
+                "two aborted attempts must leave a readable store: " + chain);
+    }
+
+    /**
+     * One updater pass whose source dies after {@code landed} values - the shape a timing-out feed leaves behind.
+     */
+    private void runAbortingAttempt(final ATimeSeriesDB<String, FDate> table,
+            final TimeSeriesLookupStorageCache<String, FDate> lookup, final List<FDate> allValues, final int landed)
+            throws Exception {
+        boolean aborted = false;
+        try {
+            newUpdater(table, KEY, abortingSource(allValues, landed), false).update().close();
+        } catch (final IncompleteUpdateRetryableException e) {
+            aborted = true;
+        }
+        Assertions.checkTrue(aborted, "the pass has to die mid-way for this test to mean anything");
+    }
+
     private static int countAttemptRecords(final String log) {
         int count = 0;
         for (int i = log.indexOf("\nTRANSACTION\n"); i >= 0; i = log.indexOf("\nTRANSACTION\n", i + 1)) {
@@ -219,8 +315,12 @@ public class TimeSeriesResumableUpdateAttemptTest extends ATest {
         return count;
     }
 
+    /**
+     * A transaction closed without a final commit publishes every segment it FINISHED, not only the ones a boundary
+     * commit had already landed; continuing the store with a new attempt then lands every value exactly once.
+     */
     @Test
-    public void testCloseWithoutCommitKeepsOnlyPublishedBoundaries() throws Exception {
+    public void testCloseWithoutCommitPublishesEveryFinishedSegment() throws Exception {
         final ATimeSeriesDB<String, FDate> table = newTable("boundaryCommit");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
         final int commitInterval = TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL;
@@ -250,13 +350,17 @@ public class TimeSeriesResumableUpdateAttemptTest extends ATest {
         final List<FDate> publishedValues = readValues(table, KEY);
         Assertions.checkTrue(publishedValues.size() >= firstBoundaryValues,
                 "at least one boundary must be readable, got: " + publishedValues.size());
+        Assertions.checkTrue(publishedValues.size() > landedValues - BATCH_FLUSH_INTERVAL
+                && publishedValues.size() <= landedValues,
+                "a close without commit must publish every finished segment, got " + publishedValues.size()
+                        + " of " + landedValues + " landed values");
         Assertions.assertThat(publishedValues).isEqualTo(new ArrayList<>(
                 allValues.subList(0, publishedValues.size())));
         Assertions.checkFalse(lookup.isEmptyOrInconsistent(),
                 "the published boundary must be a consistent store: " + published);
 
-        //the tail the same transaction staged after its last boundary is dropped, so continuing the store with a new
-        //attempt lands every value exactly once
+        //only the one batch that was still open when the pass died is lost, and the next attempt re-derives exactly
+        //that range, so every value ends up in the store once
         final TimeSeriesUpdateTransaction<FDate> next = lookup.newUpdateTransaction(true);
         try {
             SequentialChunkedUpdateProgress.doUpdate(next,
@@ -295,8 +399,16 @@ public class TimeSeriesResumableUpdateAttemptTest extends ATest {
      * cancelled kills the pass. It paces itself like a real feed (the parallel writer's producer would otherwise race
      * far ahead of the writer loop and the pass would die before it ever wrote a segment): values are handed out at
      * about a millisecond each.
+     * <p>
+     * {@code publishedBoundaryWitness} is the frontier list of an {@link ITimeSeriesBoundaryCommitListener} attached to
+     * the same attempt: when it is non-null the source waits for a boundary to actually become PUBLISHED before it
+     * dies. The clock cannot express that - the parallel writer's producer and writer loop race, and on this box three
+     * of three isolated runs of the parallel variant ended the pass before it had finished a single data file (so the
+     * scenario degenerated into "nothing was ever published", measured at lane tip c5ff948e without this change).
+     * Waiting on the publish is what makes the resume case mean what it says.
      */
-    private static ICloseableIterable<FDate> abortingSource(final List<FDate> values, final int landed) {
+    private static ICloseableIterable<FDate> abortingSource(final List<FDate> values, final int landed,
+            final List<FDate> publishedBoundaryWitness) {
         return new ICloseableIterable<FDate>() {
             @Override
             public ICloseableIterator<FDate> iterator() {
@@ -312,6 +424,7 @@ public class TimeSeriesResumableUpdateAttemptTest extends ATest {
                     @Override
                     public FDate next() {
                         if (index >= landed) {
+                            awaitPublishedBoundary(publishedBoundaryWitness);
                             throw new IllegalStateException(
                                     "abort mid-pass after " + landed + " fetched values");
                         }
@@ -324,6 +437,24 @@ public class TimeSeriesResumableUpdateAttemptTest extends ATest {
                 };
             }
         };
+    }
+
+    private static ICloseableIterable<FDate> abortingSource(final List<FDate> values, final int landed) {
+        return abortingSource(values, landed, null);
+    }
+
+    private static void awaitPublishedBoundary(final List<FDate> publishedBoundaryWitness) {
+        if (publishedBoundaryWitness == null) {
+            return;
+        }
+        //one millisecond per poll, so the bound below is a minute of wall time
+        for (int poll = 0; publishedBoundaryWitness.isEmpty(); poll++) {
+            if (poll > 60_000) {
+                throw new IllegalStateException(
+                        "no segment boundary became published within a minute - the writer never finished a file");
+            }
+            Duration.ONE_MILLISECOND.sleepNoInterrupt();
+        }
     }
 
     private static List<File> findAttemptDataFiles(final TimeSeriesLookupStorageCache<String, FDate> lookup,
@@ -483,11 +614,48 @@ public class TimeSeriesResumableUpdateAttemptTest extends ATest {
 
     private ATimeSeriesUpdater<String, FDate> newUpdater(final ATimeSeriesDB<String, FDate> table, final String key,
             final ICloseableIterable<? extends FDate> source, final boolean parallel) {
+        return newUpdater(table, key, source, parallel, null);
+    }
+
+    /**
+     * @param updateFromSeen when non-null, receives the start time this attempt was told to continue from - the
+     *            store's published frontier, which is what a resumed attempt must not be asked to re-supply
+     */
+    private ATimeSeriesUpdater<String, FDate> newUpdater(final ATimeSeriesDB<String, FDate> table, final String key,
+            final ICloseableIterable<? extends FDate> source, final boolean parallel,
+            final AtomicReference<FDate> updateFromSeen) {
+        return newUpdater(table, key, source, parallel, updateFromSeen, null);
+    }
+
+    /**
+     * @param boundaryFrontiers when non-null, this attempt attaches a boundary-commit listener that records every
+     *            published frontier - the witness an aborting source waits on instead of a sleep budget
+     */
+    private ATimeSeriesUpdater<String, FDate> newUpdater(final ATimeSeriesDB<String, FDate> table, final String key,
+            final ICloseableIterable<? extends FDate> source, final boolean parallel,
+            final AtomicReference<FDate> updateFromSeen, final List<FDate> boundaryFrontiers) {
         return new ATimeSeriesUpdater<String, FDate>(key, table) {
 
             @Override
             protected ICloseableIterable<? extends FDate> getSource(final FDate updateFrom) {
+                if (updateFromSeen != null) {
+                    updateFromSeen.set(updateFrom);
+                }
                 return source;
+            }
+
+            @Override
+            protected ITimeSeriesBoundaryCommitListener newBoundaryCommitListener() {
+                if (boundaryFrontiers == null) {
+                    return null;
+                }
+                return new ITimeSeriesBoundaryCommitListener() {
+
+                    @Override
+                    public void onBoundaryCommitPublished(final FDate publishedEndTime) {
+                        boundaryFrontiers.add(publishedEndTime);
+                    }
+                };
             }
 
             @Override

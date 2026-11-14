@@ -7,9 +7,10 @@ import de.invesdwin.util.time.date.FDate;
 /**
  * The recovery policy for an update pass on these rails ({@link ATimeSeriesUpdater} /
  * {@link TimeSeriesUpdateTransaction}) that does not end in one clean run. The rails publish at segment boundaries
- * ({@link ITimeSeriesBoundaryCommitListener}), discard only the aborted attempt's UNPUBLISHED tail, and resume the next
- * attempt above the published prefix - so two caller-side decisions destroy what the source already answered and must
- * not be made by the callers any more:
+ * ({@link ITimeSeriesBoundaryCommitListener}) and once more when the attempt closes - committed or aborted, whatever it
+ * FINISHED - and discard only the batch the aborted attempt never finished, so the next attempt resumes above the
+ * published prefix. Two caller-side decisions destroy what the source already answered and must not be made by the
+ * callers any more:
  * <ul>
  * <li>on an {@code IncompleteUpdateRetryableException}, dropping the whole instrument range ({@code deleteRange}) and
  * clearing the crawl-progress key throws away every answered range this and all earlier attempts had materialised, and

@@ -97,14 +97,24 @@ public class TimeSeriesBoundaryCommitHookTest extends ATest {
         }
         Assertions.checkTrue(aborted, "the aborting source must propagate out of the writer");
 
-        Assertions.checkEquals(frontiers.size(), 1, "exactly the published boundary must notify: " + frontiers);
+        Assertions.checkEquals(frontiers.size(), 2,
+                "the boundary commit and the publish at close must both notify: " + frontiers);
         Assertions.assertThat(frontiers.get(0)).isEqualTo(allValues.get(firstBoundaryValues - 1));
-        //and the notified frontier is exactly what the store now reads as its last published value
-        Assertions.assertThat(lookup.getLastValueEndTime()).isEqualTo(frontiers.get(0));
+        //close() publishes everything the attempt FINISHED after its last boundary, so the second notification is the
+        //frontier of what the aborted pass actually stored - a consumer mirroring the store would otherwise keep
+        //demanding a range that is already on disk
+        Assertions.assertThat(frontiers.get(1)).isEqualTo(allValues.get(landedValues - 1));
+        //and the last notified frontier is exactly what the store now reads as its last published value
+        Assertions.assertThat(lookup.getLastValueEndTime()).isEqualTo(frontiers.get(1));
     }
 
+    /**
+     * A pass that never completes a commit interval still publishes once - at close - and that publish notifies as
+     * well: the hook reports the published frontier, and after close() the store reads up to what this pass landed.
+     * A transaction that stages nothing publishes nothing and notifies nothing.
+     */
     @Test
-    public void testNoBoundaryNoNotification() throws Exception {
+    public void testTheClosePublishNotifiesAndAnEmptyAttemptDoesNot() throws Exception {
         final ATimeSeriesDB<String, FDate> table = newTable("hookQuiet");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
         final int commitInterval = TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL;
@@ -128,7 +138,24 @@ public class TimeSeriesBoundaryCommitHookTest extends ATest {
         } finally {
             transaction.close();
         }
-        Assertions.checkTrue(frontiers.isEmpty(), "a pass without a published boundary must not notify: " + frontiers);
+        Assertions.checkEquals(frontiers.size(), 1,
+                "a pass without a boundary commit publishes at close and must notify that frontier: " + frontiers);
+        Assertions.assertThat(frontiers.get(0)).isEqualTo(allValues.get(allValues.size() - 1));
+        Assertions.assertThat(lookup.getLastValueEndTime()).isEqualTo(frontiers.get(0));
+
+        //the other half of the rule: nothing published means nothing reported
+        final List<FDate> emptyAttemptFrontiers = new ArrayList<>();
+        final TimeSeriesUpdateTransaction<FDate> emptyAttempt = lookup.newUpdateTransaction(true);
+        emptyAttempt.setBoundaryCommitListener(new ITimeSeriesBoundaryCommitListener() {
+
+            @Override
+            public void onBoundaryCommitPublished(final FDate publishedEndTime) {
+                emptyAttemptFrontiers.add(publishedEndTime);
+            }
+        });
+        emptyAttempt.close();
+        Assertions.checkTrue(emptyAttemptFrontiers.isEmpty(),
+                "an attempt that staged nothing must not notify: " + emptyAttemptFrontiers);
     }
 
     @Test

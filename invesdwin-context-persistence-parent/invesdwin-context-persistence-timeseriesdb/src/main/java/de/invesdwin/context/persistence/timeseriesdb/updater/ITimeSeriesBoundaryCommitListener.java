@@ -17,7 +17,9 @@ import de.invesdwin.util.time.date.FDate;
  * holds the key's table write lock (before the publish-then-yield releases it), so the notified frontier cannot be
  * overtaken by another writer mid-callback. Not every boundary COMMIT publishes - a boundary below
  * {@link de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties#UPDATE_COMMIT_SEGMENT_INTERVAL} stages
- * without publishing and does not notify; neither does the discard of an aborted attempt's unpublished tail.
+ * without publishing and does not notify. What is notified is every PUBLISH: {@link TimeSeriesUpdateTransaction#close()}
+ * publishes whatever the attempt staged after its last boundary, committed or aborted, and notifies for that publish as
+ * well; an attempt that staged nothing publishes nothing and notifies nothing.
  */
 public interface ITimeSeriesBoundaryCommitListener {
 
