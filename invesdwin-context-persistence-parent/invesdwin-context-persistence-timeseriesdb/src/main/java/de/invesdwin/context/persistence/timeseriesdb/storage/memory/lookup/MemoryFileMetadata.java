@@ -21,6 +21,7 @@ public class MemoryFileMetadata {
 
     public static final long MISSING_EXPECTED_MEMORY_FILE_SIZE = -1L;
     private static final String KEY_EXPECTED_MEMORY_FILE_SIZE = "EXPECTED_MEMORY_FILE_SIZE";
+    private static final String KEY_EXPECTED_MEMORY_FILE_GENERATION = "EXPECTED_MEMORY_FILE_GENERATION";
     private final File dataDirectory;
     private final File logFile;
     private AtomicNioFileChannel propertiesPath;
@@ -46,12 +47,39 @@ public class MemoryFileMetadata {
         return propertiesPath;
     }
 
-    public void setExpectedMemoryFileSize(final IProperties properties, final long memoryFileSize) {
+    /**
+     * The byte high-water of the chain a publish writes, together with the index generation that carries it.
+     *
+     * <p>
+     * The two must be written as one pair and compared as one pair. The properties file is uploaded before the
+     * generation file is renamed into place, because the properties block of
+     * {@link VersionedTimeSeriesMemoryFileLookupTable#put} closes inside the merge loop while the generation
+     * publishes on the collection's close. A JVM killed in that
+     * window - or a publish whose rename fails on I/O - leaves an attestation that names a generation which never
+     * landed, and the high-water of a chain the store does not hold. Read against the chain actually present, that
+     * number makes
+     * {@link de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache#isEmptyOrInconsistent()}
+     * report a healthy key as damaged, and
+     * the derived-store consumers delete it and re-download from the source. So the comparison only applies when the
+     * attestation names the generation being read; a newer generation that is present but not yet attested is a
+     * valid prefix, and the byte-level arms of the check still cover it.
+     */
+    public void setExpectedMemoryFileSize(final IProperties properties, final long memoryFileSize,
+            final int generationNumber) {
         properties.setLong(KEY_EXPECTED_MEMORY_FILE_SIZE, memoryFileSize);
+        properties.setInteger(KEY_EXPECTED_MEMORY_FILE_GENERATION, generationNumber);
     }
 
     public long getExpectedMemoryFileSize(final IProperties properties) {
         return properties.getLongOptional(KEY_EXPECTED_MEMORY_FILE_SIZE, MISSING_EXPECTED_MEMORY_FILE_SIZE);
+    }
+
+    /**
+     * The index generation the persisted high-water belongs to, or null when the store was written before the
+     * pairing existed - in which case the caller keeps the comparison the unprefixed number always had.
+     */
+    public Integer getExpectedMemoryFileGeneration(final IProperties properties) {
+        return properties.getIntegerOptional(KEY_EXPECTED_MEMORY_FILE_GENERATION);
     }
 
 

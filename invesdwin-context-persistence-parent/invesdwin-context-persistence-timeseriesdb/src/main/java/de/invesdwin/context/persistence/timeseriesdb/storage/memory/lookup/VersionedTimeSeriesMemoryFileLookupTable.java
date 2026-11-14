@@ -159,7 +159,7 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
                             throw new IllegalStateException("prevMemoryFileSize[" + prevMemoryFileSize
                                     + "] should be less than expectedMemoryFileFize[" + expectedMemoryFileSize + "]");
                         }
-                        metadata.setExpectedMemoryFileSize(properties, expectedMemoryFileSize);
+                        metadata.setExpectedMemoryFileSize(properties, expectedMemoryFileSize, newIndexNumber);
 
                         final FDate firstValueEndTime = parent
                                 .extractEndTime(parent.getValueSerde().fromBytes(newSummary.getFirstValue()));
