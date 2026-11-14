@@ -15,14 +15,17 @@ import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChan
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummarySerde;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.AMemoryFileSummarySerializingCollection;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.MemoryFileMetadata;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.VersionedTimeSeriesMemoryFileLookupTable;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdateProgress;
+import de.invesdwin.context.system.properties.ICloseableProperties;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.Arrays;
@@ -271,15 +274,24 @@ public class TimeSeriesEpochReclaimTest extends ATest {
     }
 
     /**
-     * The tolerated tier: each publish streams the previous chain into the new file, so a generation that is not the
-     * newest adds no names the newest lacks - losing it must not stall reclaim forever.
+     * The tolerated tier of a delta chain is only what sits below the crash fallback: those generations are prunable
+     * garbage whatever their contents hold, so an unreadable one must not stall the reclaim forever. Inside the live
+     * range there is no tolerance - a delta names payload no other generation names - which is the inversion of the
+     * cumulative layout's rule, pinned in testUnreadableChainMemberInsideTheLiveRangeMakesTheSweepSkipTheDirectory.
      */
     @Test
-    public void testUnreadableOlderGenerationIsTolerated() throws Exception {
+    public void testUnreadableGenerationBelowTheFallbackIsTolerated() throws Exception {
         final ATimeSeriesDB<String, FDate> table = newTable("reclaimCorruptOlder");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
-        newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, 8)), false).update().close();
-        newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, 12)), false).update().close();
+        //four overlapping passes: each rewrites, so the base ends above the generation this scenario corrupts
+        for (int i = 1; i <= 4; i++) {
+            newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, 4 * i)), false).update().close();
+        }
+        final File dataDirectory = lookup.getDirectoryHashKeyVersionMemory()
+                .getDirectoryHashKeyVersionDataShared();
+        final int chainBase = readChainBase(lookup);
+        Assertions.checkTrue(chainBase >= 3,
+                "the scenario needs a superseded range below the crash fallback, got base: " + chainBase);
 
         final String deadAttempt = attemptIdOf(FDateMillis.nowMillis() - TimeUnit.HOURS.toMillis(2), "tolr0001");
         awaitNoQueuedEpochReclaim();
@@ -289,8 +301,43 @@ public class TimeSeriesEpochReclaimTest extends ATest {
         TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookup);
 
         Assertions.checkTrue(findAttemptDataFiles(lookup, deadAttempt).isEmpty(),
-                "an unreadable older generation must not block the reclaim of un-named garbage");
-        Assertions.assertThat(readValues(table, KEY)).isEqualTo(new ArrayList<>(newValues(1, 12)));
+                "an unreadable generation below the fallback must not block the reclaim of un-named garbage");
+        Assertions.checkTrue(generationPresent(dataDirectory, chainBase), "the base is untouched by the corruption");
+        Assertions.checkTrue(generationPresent(dataDirectory, chainBase - 1), "and so is the crash fallback");
+        Assertions.assertThat(readValues(table, KEY)).isEqualTo(new ArrayList<>(newValues(1, 16)));
+    }
+
+    /**
+     * Inside the live range an unreadable generation is fatal, not ignorable: under a delta chain it is the only record
+     * of payload the store believes it published, so a name set that missed it would delete live data. This is the
+     * generation-level form of the same rule the payload sweep already follows for an unreadable newest generation.
+     */
+    @Test
+    public void testUnreadableChainMemberInsideTheLiveRangeMakesTheSweepSkipTheDirectory() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("reclaimCorruptMiddle");
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
+        final int boundaryValues = 3 * TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL * BATCH_FLUSH_INTERVAL;
+        newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, boundaryValues + 2)), false).update()
+                .close();
+        final File dataDirectory = lookup.getDirectoryHashKeyVersionMemory()
+                .getDirectoryHashKeyVersionDataShared();
+        final List<File> generations = findGenerations(dataDirectory);
+        Assertions.checkTrue(generations.size() >= 3,
+                "the scenario needs a chain with a member between its base and its newest, got: "
+                        + generations.size());
+
+        final String deadAttempt = attemptIdOf(FDateMillis.nowMillis() - TimeUnit.HOURS.toMillis(2), "midcr001");
+        awaitNoQueuedEpochReclaim();
+        plantAttemptArtifacts(lookup, deadAttempt);
+        //a member that is neither the base nor the newest: only the cumulative layout could afford to ignore it
+        final File middle = generations.get(generations.size() / 2);
+        Files.writeStringToFile(middle, "not-a-collection-anymore", Charsets.defaultCharset());
+
+        TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookup);
+
+        Assertions.checkFalse(findAttemptDataFiles(lookup, deadAttempt).isEmpty(),
+                "an unreadable chain member [" + middle.getName() + "] must stop the sweep rather than let it delete"
+                        + " payload only that generation names");
     }
 
     /**
@@ -323,24 +370,28 @@ public class TimeSeriesEpochReclaimTest extends ATest {
     }
 
     /**
-     * The generations a key's data directory holds are cumulative chains, so all but the covering few name nothing the
-     * kept ones do not name. Pruning them must not touch the payload: the files a pruned generation named stay, and the
-     * store still reads the same values.
+     * Inside one attempt, every boundary-commit publish continues the chain, so each generation above the base names
+     * payload no other generation names. Not one of them may be pruned: a live range with a hole in it is a chain that
+     * cannot be assembled. This is the shape the store spends most of its publishes in (the worst ptstaging key carries
+     * 781 generations per attempt, measured 2026-11-14 from lap-mid over ssh), and the count is pinned to what was
+     * published rather than to the keep floor.
      */
     @Test
-    public void testRedundantIndexGenerationsArePrunedAndTheirPayloadSurvives() throws Exception {
-        final ATimeSeriesDB<String, FDate> table = newTable("pruneRedundant");
+    public void testTheLiveChainRangeIsNeverPruned() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("keepLiveRange");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
-        //appending passes, which is the live shape: each publish carries the previous chain plus its own new segments
-        for (int i = 1; i <= 5; i++) {
-            newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(4 * (i - 1) + 1, 4 * i)), false)
-                    .update().close();
-        }
+        //one pass long enough to publish several generations by boundary commits, which is where appends live
+        final int boundaryValues = 3 * TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL * BATCH_FLUSH_INTERVAL;
+        newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, boundaryValues + 2)), false).update()
+                .close();
         final File dataDirectory = lookup.getDirectoryHashKeyVersionMemory()
                 .getDirectoryHashKeyVersionDataShared();
         final List<File> before = findGenerations(dataDirectory);
         Assertions.checkTrue(before.size() > TimeSeriesEpochReclaim.INDEX_GENERATIONS_KEEP_FLOOR,
                 "the scenario needs more generations than the keep floor, got: " + before.size());
+        final int chainBase = readChainBase(lookup);
+        Assertions.checkTrue(chainBase == 0,
+                "a continuing publish appends, so the base stays the first generation of the pass, got: " + chainBase);
         final List<FDate> published = readValues(table, KEY);
         final List<String> namedBefore = namesOfAllGenerations(lookup, dataDirectory);
         // Ageing happens last: a completed update submits this key directory to the epoch sweep, so from the moment the
@@ -352,8 +403,8 @@ public class TimeSeriesEpochReclaimTest extends ATest {
         TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookup);
 
         Assertions.assertThat(findGenerations(dataDirectory))
-                .as("a generation whose names the kept set already covers must go")
-                .hasSize(TimeSeriesEpochReclaim.INDEX_GENERATIONS_KEEP_FLOOR);
+                .as("not one generation of the live chain may go - each names payload the others do not")
+                .hasSize(before.size());
         Assertions.assertThat(readValues(table, KEY)).as("the published chain must read unchanged").isEqualTo(published);
         for (final String named : namedBefore) {
             Assertions.assertThat(new File(dataDirectory, named))
@@ -363,21 +414,27 @@ public class TimeSeriesEpochReclaimTest extends ATest {
 
     /**
      * The live pattern is not only appending: a demand that re-opens the last published file re-publishes an overlapping
-     * range. That store also collapses to the keep floor - measured - but the property that matters is that no payload
-     * file named by any generation before the sweep disappears, and the values still read back whole. The case that must
-     * NOT be pruned is pinned separately, in testGenerationStillNamingAnUncoveredFileIsKept.
+     * range, and re-naming the region the chain tail already names is the one operation the index has that is not an
+     * append. It rewrites the chain and the rewrite becomes the new base, which is what puts the superseded snapshots
+     * BELOW the base - and those are exactly the generations the sweep may prune, without the coverage proof the
+     * cumulative layout needed, because the rewrite re-emits everything they name. The highest one below the base
+     * stays: it is the last intact chain should the new base ever prove unusable.
      */
     @Test
-    public void testRePublishedRangeCollapsesToTheFloorWithoutOrphaningPayload() throws Exception {
-        final ATimeSeriesDB<String, FDate> table = newTable("pruneRePublished");
+    public void testGenerationsBelowTheChainBaseArePrunedAndTheirPayloadSurvives() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("pruneBelowBase");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
         for (int i = 1; i <= 5; i++) {
             newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, 4 * i)), false).update().close();
         }
         final File dataDirectory = lookup.getDirectoryHashKeyVersionMemory()
                 .getDirectoryHashKeyVersionDataShared();
-        Assertions.checkTrue(findGenerations(dataDirectory).size() > TimeSeriesEpochReclaim.INDEX_GENERATIONS_KEEP_FLOOR,
-                "the scenario needs more generations than the keep floor");
+        final List<File> before = findGenerations(dataDirectory);
+        Assertions.checkTrue(before.size() > TimeSeriesEpochReclaim.INDEX_GENERATIONS_KEEP_FLOOR,
+                "the scenario needs more generations than the keep floor, got: " + before.size());
+        final int chainBase = readChainBase(lookup);
+        Assertions.checkTrue(chainBase > 0,
+                "a re-published range must have moved the base above the generations it replaces, got: " + chainBase);
         final List<String> namedBefore = namesOfAllGenerations(lookup, dataDirectory);
         final List<FDate> published = readValues(table, KEY);
         awaitNoQueuedEpochReclaim();
@@ -385,13 +442,27 @@ public class TimeSeriesEpochReclaimTest extends ATest {
 
         TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookup);
 
-        Assertions.assertThat(findGenerations(dataDirectory))
-                .as("re-published ranges are redundant too, once only names that exist and are still in the current view count")
-                .hasSize(TimeSeriesEpochReclaim.INDEX_GENERATIONS_KEEP_FLOOR);
-        Assertions.assertThat(readValues(table, KEY)).isEqualTo(published);
-        for (final String named : namedBefore) {
-            Assertions.assertThat(new File(dataDirectory, named)).exists();
+        final List<File> after = findGenerations(dataDirectory);
+        Assertions.assertThat(after).as("the live range plus the highest superseded snapshot")
+                .hasSize(before.size() - chainBase + 1);
+        for (int number = chainBase; number < before.size(); number++) {
+            Assertions.checkTrue(generationPresent(dataDirectory, number),
+                    "the live chain range [" + chainBase + "..] must survive the sweep intact: " + number);
         }
+        Assertions.checkTrue(generationPresent(dataDirectory, chainBase - 1),
+                "the highest superseded generation stays as the crash fallback for a base that proves unusable");
+        for (int number = 0; number < chainBase - 1; number++) {
+            Assertions.checkFalse(generationPresent(dataDirectory, number),
+                    "a superseded snapshot below the fallback must go: " + number);
+        }
+        Assertions.assertThat(readValues(table, KEY)).as("the published chain must read unchanged").isEqualTo(published);
+        Assertions.checkFalse(lookup.isEmptyOrInconsistent(), "the pruned store must still report itself consistent");
+        for (final String named : namesOfAllGenerations(lookup, dataDirectory)) {
+            Assertions.assertThat(new File(dataDirectory, named))
+                    .as("every payload file the surviving chain names must exist").exists();
+        }
+        Assertions.checkTrue(namedBefore.containsAll(namesOfAllGenerations(lookup, dataDirectory)),
+                "the sweep must not have introduced names the store never published");
     }
 
     /**
@@ -489,12 +560,15 @@ public class TimeSeriesEpochReclaimTest extends ATest {
     }
 
     /**
-     * Coverage, not age, is what justifies deleting a generation: the redo of a standalone '_incomplete_' shard drops a
-     * file from the chain that replaces its summary, so an older generation can be the only remaining record of a
-     * payload file. Such a generation stays, however redundant the rest look.
+     * Under a delta chain it is the base, not coverage, that decides what a generation costs: everything below the base
+     * is a superseded snapshot, and the rewrite that moved the base re-emitted everything the live chain needs. A
+     * generation below the crash fallback therefore goes even when it is the only record of some payload file - that
+     * file is no longer part of any chain a reader can assemble, and keeping the generation would mean keeping a full
+     * snapshot of a state the store has already left behind. Whether the file itself goes is the attempt rules' decision
+     * (retention and liveness), pinned in the attempt tests; here it is fresh, so it stays.
      */
     @Test
-    public void testGenerationStillNamingAnUncoveredFileIsKept() throws Exception {
+    public void testAGenerationBelowTheFallbackIsPrunedEvenWhenItUniquelyNamesPayload() throws Exception {
         final ATimeSeriesDB<String, FDate> table = newTable("pruneUncovered");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
         for (int i = 1; i <= 3; i++) {
@@ -502,6 +576,9 @@ public class TimeSeriesEpochReclaimTest extends ATest {
         }
         final File dataDirectory = lookup.getDirectoryHashKeyVersionMemory()
                 .getDirectoryHashKeyVersionDataShared();
+        final int chainBase = readChainBase(lookup);
+        Assertions.checkTrue(chainBase >= 2,
+                "the scenario needs a superseded range below the base, got base: " + chainBase);
         final FDate onlyValue = FDateBuilder.newDate(2020, 1, 2);
         final File onlyDataFile = new File(dataDirectory, "memory_plantedonly0001.data");
         Files.writeStringToFile(onlyDataFile, "planted", Charsets.defaultCharset());
@@ -524,9 +601,11 @@ public class TimeSeriesEpochReclaimTest extends ATest {
         TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookup);
 
         Assertions.assertThat(uncoveredGeneration)
-                .as("a generation that is the only record of a payload file must not be pruned").exists();
+                .as("a snapshot below the crash fallback is superseded, whatever else it uniquely names").doesNotExist();
         Assertions.assertThat(onlyDataFile)
-                .as("and the payload it is the only record of must not be reclaimed").exists();
+                .as("its payload is the attempt rules' decision, and this attempt is fresh").exists();
+        Assertions.checkTrue(generationPresent(dataDirectory, chainBase), "the base stays");
+        Assertions.checkTrue(generationPresent(dataDirectory, chainBase - 1), "and so does the crash fallback");
         Assertions.assertThat(readValues(table, KEY)).isEqualTo(newValues(1, 12));
     }
 
@@ -575,25 +654,114 @@ public class TimeSeriesEpochReclaimTest extends ATest {
      * newest generation present is the recovery; the empty chain this used to answer with reads as an empty store, and
      * the trading derived-store guards take that as licence to delete and rebuild the key.
      */
+    /**
+     * A delta chain has exactly one full snapshot - its base - so the sweep must never prune it, and a store whose base
+     * generation is gone must not be answered with the deltas that survive it. Those two are the same invariant seen
+     * from either side: pruning the base is what would create the state in which a chain cannot be assembled, and a
+     * chain that cannot be assembled is reported rather than served shorter, because a shorter answer is what the
+     * trading derived-store guards take as licence to delete and rebuild the key. (The recoverable case - a lost newest
+     * DELTA, which leaves the chain contiguous and one record shorter - is pinned at the table level in
+     * VersionedTimeSeriesMemoryFileLookupTableTest.testATableWhoseNewestGenerationWasReclaimedMovesToTheOneBeforeIt.)
+     */
     @Test
-    public void testRangeFallsBackToTheNewestGenerationPresent() throws Exception {
-        final ATimeSeriesDB<String, FDate> table = newTable("tableSelfHeal");
+    public void testTheSweepKeepsTheChainBaseAndALostBaseIsReportedNotServedShorter() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("keepChainBase");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
+        //overlapping passes: each re-names the region the chain tail already names, so each rewrites and moves the base
         for (int i = 1; i <= 3; i++) {
             newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, 4 * i)), false).update().close();
         }
         final File dataDirectory = lookup.getDirectoryHashKeyVersionMemory()
                 .getDirectoryHashKeyVersionDataShared();
-        Assertions.checkFalse(readPublishedSummaries(lookup).isEmpty(), "the store must be published first");
-        final File newestGeneration = findGeneration(lookup, true);
-        Assertions.checkTrue(newestGeneration.delete(), "the scenario removes the current generation: "
-                + newestGeneration);
+        final int chainBase = readChainBase(lookup);
+        Assertions.checkTrue(chainBase >= 2,
+                "the scenario needs a chain whose base is not its first generation, got base: " + chainBase);
+        awaitNoQueuedEpochReclaim();
+        ageGenerations(dataDirectory, TimeUnit.HOURS.toMillis(2));
 
-        final List<MemoryFileSummary> healedChain = readPublishedSummaries(lookup);
+        TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookup);
 
-        Assertions.checkFalse(healedChain.isEmpty(),
-                "a table whose current generation was reclaimed must move to the newest generation present, not read an empty chain");
-        Assertions.assertThat(readValues(table, KEY)).as("the surviving chain must still serve values").isNotEmpty();
+        Assertions.checkTrue(generationPresent(dataDirectory, chainBase),
+                "the sweep prunes below the base, never the base itself");
+        Assertions.checkTrue(generationPresent(dataDirectory, chainBase - 1),
+                "and it keeps the generation below the base as the crash fallback");
+        Assertions.checkFalse(readPublishedSummaries(lookup).isEmpty(),
+                "the chain must still assemble after the sweep pruned the superseded snapshots");
+        Assertions.assertThat(readValues(table, KEY)).as("the surviving chain must still serve every value")
+                .isEqualTo(newValues(1, 12));
+
+        final File baseGeneration = new File(dataDirectory,
+                AMemoryFileSummarySerializingCollection.newIndexGenerationFileName(chainBase));
+        Assertions.checkTrue(baseGeneration.delete(), "the damage case removes the base: " + baseGeneration);
+        try (ICloseableIterator<MemoryFileSummary> ignored = lookup.getMemoryFileLookupTable().range()) {
+            Assertions.fail("a chain whose only full snapshot is gone must not be served from its deltas");
+        } catch (final IllegalStateException e) {
+            Assertions.assertThat(e.getMessage()).as("the report must name the missing base")
+                    .contains("Chain base [" + chainBase + "]");
+        }
+    }
+
+    /**
+     * What keeping the crash fallback is actually for: its chain may name payload the live chain no longer names - the
+     * redo of a standalone '_incomplete_' shard re-serialises the region into a file of its own and drops the old one -
+     * so its name set counts as referenced. Without that the sweep would reclaim the payload under the one generation
+     * it just designated as the recovery path, and the fallback would be a file that no longer reads.
+     */
+    @Test
+    public void testTheCrashFallbackKeepsThePayloadItsChainNames() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("keepFallbackPayload");
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
+        for (int i = 1; i <= 4; i++) {
+            newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, 4 * i)), false).update().close();
+        }
+        final File dataDirectory = lookup.getDirectoryHashKeyVersionMemory()
+                .getDirectoryHashKeyVersionDataShared();
+        final int chainBase = readChainBase(lookup);
+        Assertions.checkTrue(chainBase >= 3,
+                "the scenario needs a superseded range below the crash fallback, got base: " + chainBase);
+
+        final String deadAttempt = attemptIdOf(FDateMillis.nowMillis() - TimeUnit.HOURS.toMillis(2), "fbk0001");
+        awaitNoQueuedEpochReclaim();
+        plantAttemptArtifacts(lookup, deadAttempt);
+        final File namedByFallback = new File(dataDirectory,
+                MemoryFiles.EPOCH_LOCAL_DATA_FILE_PREFIX + deadAttempt + ".data");
+        final File unnamedOfSameAttempt = new File(dataDirectory,
+                MemoryFiles.EPOCH_LOCAL_DATA_FILE_PREFIX + deadAttempt + ".data_incomplete_0_planted.data");
+        //the fallback generation's chain now names one of the dead attempt's files and nothing else does
+        final FDate onlyValue = FDateBuilder.newDate(2020, 1, 2);
+        writeGeneration(new File(dataDirectory,
+                AMemoryFileSummarySerializingCollection.newIndexGenerationFileName(chainBase - 1)),
+                List.of(new MemoryFileSummary(onlyValue, FDateSerde.GET, onlyValue, onlyValue, 0, 1,
+                        namedByFallback.getAbsolutePath(), 0, 0, 7L)),
+                lookup);
+        ageGenerations(dataDirectory, TimeUnit.HOURS.toMillis(2));
+
+        TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookup);
+
+        Assertions.assertThat(namedByFallback)
+                .as("payload the crash fallback names must survive, or the fallback cannot be read back").exists();
+        Assertions.assertThat(unnamedOfSameAttempt)
+                .as("the rest of that dead attempt's files are still garbage, and the sweep proves it read the names")
+                .doesNotExist();
+        Assertions.checkTrue(generationPresent(dataDirectory, chainBase), "the base stays");
+        Assertions.checkTrue(generationPresent(dataDirectory, chainBase - 1), "the fallback stays");
+        Assertions.assertThat(readValues(table, KEY)).isEqualTo(new ArrayList<>(newValues(1, 16)));
+    }
+
+    /**
+     * The base of the live chain this key attests - the retention boundary the sweep prunes below.
+     */
+    private static int readChainBase(final TimeSeriesLookupStorageCache<String, FDate> lookup) {
+        final MemoryFileMetadata metadata = lookup.getMemoryFileLookupTable().getMetadata();
+        try (ICloseableProperties properties = metadata.getProperties()) {
+            return metadata.getChainBase(properties);
+        }
+    }
+
+    private static boolean generationPresent(final File dataDirectory, final int generationNumber) {
+        final File generation = new File(dataDirectory,
+                AMemoryFileSummarySerializingCollection.newIndexGenerationFileName(generationNumber));
+        return generation.exists();
     }
 
     /**

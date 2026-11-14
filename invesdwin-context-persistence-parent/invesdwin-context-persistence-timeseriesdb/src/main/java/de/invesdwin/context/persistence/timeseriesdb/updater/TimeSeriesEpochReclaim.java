@@ -408,6 +408,13 @@ public final class TimeSeriesEpochReclaim {
                     + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME + "' generation is present",
                     false, List.of());
         }
+        final int chainBase = readAttestedChainBase(dataDirectory);
+        if (chainBase >= 0) {
+            //The delta layout: the live chain is a contiguous generation range, so reading that range once IS a
+            //complete name set and everything below the base is a superseded snapshot.
+            return collectChainReferenceSet(dataDirectory, generationFiles, valueFixedLength, compressionFactory,
+                    chainBase);
+        }
         //Walked newest generation first, so that 'referencedNames' is always the name set of what the sweep KEEPS: an
         //older generation whose names are already in it adds nothing the store needs, and it is the one entry whose
         //removal the walk can therefore justify. An older generation that still names a file nothing kept names
@@ -493,6 +500,168 @@ public final class TimeSeriesEpochReclaim {
                     "no generation names any of the published data files present", true, List.of());
         }
         return ReferenceSet.reliable(referencedNames, prunable);
+    }
+
+    /**
+     * The base of the live chain this key attests, or {@link MemoryFileMetadata#MISSING_CHAIN_BASE} when it attests
+     * none - which is a store still on the cumulative layout, and also the answer when the attestation cannot be read,
+     * because the cumulative walk is the conservative one (it keeps anything it cannot prove redundant).
+     */
+    private static int readAttestedChainBase(final File dataDirectory) {
+        final MemoryFileMetadata metadata = new MemoryFileMetadata(dataDirectory);
+        try (ICloseableProperties properties = metadata.getProperties()) {
+            return metadata.getChainBase(properties);
+        } catch (final Throwable t) {
+            LOG.warn("The chain attestation of data directory [%s] cannot be read: %s", dataDirectory,
+                    Throwables.concatMessages(t));
+            return MemoryFileMetadata.MISSING_CHAIN_BASE;
+        }
+    }
+
+    /**
+     * The reference set of a delta chain: the attested base generation and every generation above it, read once. That
+     * range is the live chain, so its name set is complete by construction and everything below the base is a
+     * superseded snapshot - prunable by number, without the coverage proof the cumulative layout needs, because a
+     * rewrite re-emits the whole chain it replaces. The highest generation below the base is kept as the crash
+     * fallback: it is the last intact chain should the new base ever prove unusable, and its own name set is added to
+     * the reference set, because a fallback whose payload has been reclaimed is not a fallback.
+     *
+     * <p>
+     * Two differences from the cumulative walk, both demanded by the layout. An unreadable member is FATAL rather than
+     * tolerated, because a delta names payload that no other generation names - a reference set that missed one would
+     * delete live data, and the cumulative walk's own note asks for exactly this inversion once the index becomes delta
+     * segments. And a hole inside the attested range is damage rather than a shorter chain: nothing legitimately
+     * removes a generation between the base and the newest.
+     */
+    private static ReferenceSet collectChainReferenceSet(final File dataDirectory, final List<File> generationFiles,
+            final Integer valueFixedLength, final ICompressionFactory compressionFactory, final int chainBase) {
+        final Set<String> referencedNames = ILockCollectionFactory.getInstance(true).newLinkedSet();
+        final List<File> ordered = orderedGenerationsByNumber(generationFiles);
+        if (ordered.isEmpty()) {
+            return ReferenceSet.unreliable(referencedNames, "no generation is named by the attested chain base", false,
+                    List.of());
+        }
+        final int newestNumber = AMemoryFileSummarySerializingCollection
+                .indexNumberOf(ordered.get(ordered.size() - 1).getName());
+        if (chainBase > newestNumber) {
+            return ReferenceSet.unreliable(referencedNames, "the attested chain base [" + chainBase
+                    + "] is above the newest generation present [" + newestNumber + "]", true, List.of());
+        }
+        final int baseIndex = indexOfGenerationNumber(ordered, chainBase);
+        if (baseIndex < 0) {
+            return ReferenceSet.unreliable(referencedNames, "the attested chain range [" + chainBase + ".."
+                    + newestNumber + "] is missing generation [" + chainBase + "]", true, List.of());
+        }
+        final String liveChainFailure = addLiveChainNames(referencedNames, ordered, baseIndex, chainBase, newestNumber,
+                dataDirectory, valueFixedLength, compressionFactory);
+        if (liveChainFailure != null) {
+            return ReferenceSet.unreliable(referencedNames, liveChainFailure, true, List.of());
+        }
+        final String fallbackFailure = addFallbackChainNames(referencedNames, ordered, baseIndex, valueFixedLength,
+                compressionFactory);
+        if (fallbackFailure != null) {
+            return ReferenceSet.unreliable(referencedNames, fallbackFailure, true, List.of());
+        }
+        if (referencedNames.isEmpty() && hasPublishedBytesWithoutIndex(dataDirectory)) {
+            return ReferenceSet.unreliable(referencedNames,
+                    "no generation names any of the published data files present", true, List.of());
+        }
+        return ReferenceSet.reliable(referencedNames, getSupersededGenerations(ordered, baseIndex));
+    }
+
+    /**
+     * The generation files of this directory in generation-number order; names that carry no generation number are not
+     * generations and are dropped.
+     */
+    private static List<File> orderedGenerationsByNumber(final List<File> generationFiles) {
+        final List<File> ordered = new ArrayList<>(generationFiles);
+        ordered.removeIf(f -> AMemoryFileSummarySerializingCollection.indexNumberOf(f.getName()) == Integer.MIN_VALUE);
+        ordered.sort(Comparator.comparingInt(
+                (File f) -> AMemoryFileSummarySerializingCollection.indexNumberOf(f.getName())));
+        return ordered;
+    }
+
+    private static int indexOfGenerationNumber(final List<File> orderedGenerations, final int generationNumber) {
+        for (int i = 0; i < orderedGenerations.size(); i++) {
+            if (AMemoryFileSummarySerializingCollection.indexNumberOf(orderedGenerations.get(i).getName()) == generationNumber) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * The name set of the live chain: the attested base and every generation above it. A hole inside the range or an
+     * unreadable member answers with the reason to refuse the sweep, and so does a chain that does not reach the byte
+     * high-water this key attests - the same gate the cumulative walk applies to its newest view, because a chain below
+     * it is not the chain the store published and pruning or reclaiming on it is the fail-open case.
+     */
+    private static String addLiveChainNames(final Set<String> referencedNames, final List<File> orderedGenerations,
+            final int baseIndex, final int chainBase, final int newestNumber, final File dataDirectory,
+            final Integer valueFixedLength, final ICompressionFactory compressionFactory) {
+        int expectedNumber = chainBase;
+        List<MemoryFileSummary> newestSummaries = null;
+        for (int i = baseIndex; i < orderedGenerations.size(); i++) {
+            final File generationFile = orderedGenerations.get(i);
+            final int number = AMemoryFileSummarySerializingCollection.indexNumberOf(generationFile.getName());
+            if (number != expectedNumber) {
+                return "the attested chain range [" + chainBase + ".." + newestNumber + "] is missing generation ["
+                        + expectedNumber + "]";
+            }
+            expectedNumber = number + 1;
+            final List<MemoryFileSummary> summaries = readIndexGenerationSummaries(valueFixedLength,
+                    compressionFactory, generationFile);
+            if (summaries == null) {
+                return "the chain member [" + generationFile.getName() + "] does not parse";
+            }
+            addSummaryNames(referencedNames, summaries);
+            newestSummaries = summaries;
+        }
+        if (newestSummaries != null && !newestGenerationReachesTheAttestedHighWater(dataDirectory, newestSummaries)) {
+            return "the chain [" + chainBase + ".." + newestNumber + "] does not reach the attested byte high-water";
+        }
+        return null;
+    }
+
+    /**
+     * The name set of the crash fallback - the highest generation below the base. It is only a fallback while the
+     * payload it names is still there: its chain may name a file the rewrite dropped from the live chain (the redo of
+     * a standalone '_incomplete_' shard re-serialises the region into a file of its own), so its names count as
+     * referenced even though no live reader asks for them. Reading it is one extra generation per sweep.
+     */
+    private static String addFallbackChainNames(final Set<String> referencedNames,
+            final List<File> orderedGenerations, final int baseIndex, final Integer valueFixedLength,
+            final ICompressionFactory compressionFactory) {
+        if (baseIndex == 0) {
+            return null;
+        }
+        final File fallbackGeneration = orderedGenerations.get(baseIndex - 1);
+        final List<MemoryFileSummary> fallbackSummaries = readIndexGenerationSummaries(valueFixedLength,
+                compressionFactory, fallbackGeneration);
+        if (fallbackSummaries == null) {
+            return "the fallback generation [" + fallbackGeneration.getName() + "] does not parse";
+        }
+        addSummaryNames(referencedNames, fallbackSummaries);
+        return null;
+    }
+
+    /**
+     * The generations below the crash fallback: superseded snapshots, old enough that no reader is still resolving
+     * them. The fallback itself is never in this list, and neither is anything at or above the base.
+     */
+    private static List<File> getSupersededGenerations(final List<File> orderedGenerations, final int baseIndex) {
+        final long nowMillis = FDateMillis.nowMillis();
+        final List<File> prunable = new ArrayList<>();
+        for (int i = 0; i < baseIndex - 1; i++) {
+            final File generation = orderedGenerations.get(i);
+            if (!TimeSeriesProperties.RETAIN_OBSOLETE_EPOCHS_THRESHOLD.isLessThanMillis(
+                    nowMillis - generation.lastModified())) {
+                //younger than the retention threshold: a reader may still be resolving it
+                continue;
+            }
+            prunable.add(generation);
+        }
+        return prunable;
     }
 
     /**

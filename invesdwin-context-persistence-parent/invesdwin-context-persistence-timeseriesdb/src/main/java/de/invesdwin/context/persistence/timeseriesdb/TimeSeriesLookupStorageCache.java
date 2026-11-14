@@ -1100,8 +1100,10 @@ public class TimeSeriesLookupStorageCache<K, V> {
         }
         final MemoryFileMetadata metadata = memoryFileLookupTable.getMetadata();
         final long expectedMemoryFileSize;
+        final Integer attestedIndexNumber;
         try (ICloseableProperties properties = metadata.getProperties()) {
             expectedMemoryFileSize = metadata.getExpectedMemoryFileSize(properties);
+            attestedIndexNumber = metadata.getExpectedMemoryFileGeneration(properties);
         }
         long calculatedMemoryFileSize = 0;
         long actualMemoryFileSize = 0;
@@ -1140,17 +1142,29 @@ public class TimeSeriesLookupStorageCache<K, V> {
                 return true;
             }
             if (expectedMemoryFileSize != MemoryFileMetadata.MISSING_EXPECTED_MEMORY_FILE_SIZE) {
-                if (expectedMemoryFileSize != calculatedMemoryFileSize) {
-                    log.warn(
-                            "Table data for [%s] is inconsistent and needs to be reset. ExpectedMemoryFileSize[%s] != CalculatedMemoryFileSize[%s]",
-                            hashKey, expectedMemoryFileSize, calculatedMemoryFileSize);
-                    return true;
-                }
-                if (actualMemoryFileSize != expectedMemoryFileSize) {
-                    log.warn(
-                            "Table data for [%s] is inconsistent and needs to be reset. ActualMemoryFileSize[%s] != ExpectedMemoryFileSize[%s]",
-                            hashKey, actualMemoryFileSize, expectedMemoryFileSize);
-                    return true;
+                final int currentIndexNumber = memoryFileLookupTable.getCurrentIndexNumber();
+                if (attestedIndexNumber != null && attestedIndexNumber.intValue() != currentIndexNumber) {
+                    //The attestation names an index generation that is not the chain being read: the publish that
+                    //wrote it was interrupted between the properties upload and the generation rename, so the
+                    //high-water describes bytes this store never held. The chain that IS present has already been
+                    //checked record by record against the files it names above; comparing it against another
+                    //generation's attestation is a false positive, and its cost is a wiped key and a re-download.
+                    log.debug(
+                            "Skipping the ExpectedMemoryFileSize comparison for [%s]: the attestation names index generation [%s], the newest generation present is [%s]",
+                            hashKey, attestedIndexNumber, currentIndexNumber);
+                } else {
+                    if (expectedMemoryFileSize != calculatedMemoryFileSize) {
+                        log.warn(
+                                "Table data for [%s] is inconsistent and needs to be reset. ExpectedMemoryFileSize[%s] != CalculatedMemoryFileSize[%s]",
+                                hashKey, expectedMemoryFileSize, calculatedMemoryFileSize);
+                        return true;
+                    }
+                    if (actualMemoryFileSize != expectedMemoryFileSize) {
+                        log.warn(
+                                "Table data for [%s] is inconsistent and needs to be reset. ActualMemoryFileSize[%s] != ExpectedMemoryFileSize[%s]",
+                                hashKey, actualMemoryFileSize, expectedMemoryFileSize);
+                        return true;
+                    }
                 }
             }
             return false;
