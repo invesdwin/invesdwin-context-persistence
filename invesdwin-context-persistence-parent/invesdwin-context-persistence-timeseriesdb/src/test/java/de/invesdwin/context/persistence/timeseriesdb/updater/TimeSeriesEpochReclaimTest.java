@@ -15,6 +15,7 @@ import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChan
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
@@ -23,6 +24,7 @@ import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.AMemoryFileSummarySerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.VersionedTimeSeriesMemoryFileLookupTable;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdateProgress;
+import de.invesdwin.context.system.properties.SystemProperties;
 import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.Arrays;
@@ -60,12 +62,22 @@ public class TimeSeriesEpochReclaimTest extends ATest {
 
     private static final int BATCH_FLUSH_INTERVAL = 4;
     private static final String KEY = "reclaimKey";
+    /**
+     * Bare name: the accessor prefix is the class that declares the key, so this resolves as the fully qualified
+     * TimeSeriesProperties.INDEX_GENERATION_PRUNE_ENABLED that the shipped properties file pins to false.
+     */
+    private static final String PRUNE_GATE_KEY = "INDEX_GENERATION_PRUNE_ENABLED";
 
+    private final SystemProperties pruneGateProperties = new SystemProperties(TimeSeriesProperties.class);
     private File baseDirectory;
+    private Boolean pruneGateBefore;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        //the prune ships behind a default-off rollout gate, so this class enables it and restores whatever was set after
+        pruneGateBefore = pruneGateProperties.getBooleanOptional(PRUNE_GATE_KEY);
+        pruneGateProperties.setBoolean(PRUNE_GATE_KEY, Boolean.TRUE);
         baseDirectory = new File(ContextProperties.TEMP_DIRECTORY, TimeSeriesEpochReclaimTest.class.getSimpleName());
         Files.deleteQuietly(baseDirectory);
         Files.forceMkdir(baseDirectory);
@@ -74,7 +86,39 @@ public class TimeSeriesEpochReclaimTest extends ATest {
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
+        if (pruneGateBefore == null) {
+            pruneGateProperties.remove(PRUNE_GATE_KEY);
+        } else {
+            pruneGateProperties.setBoolean(PRUNE_GATE_KEY, pruneGateBefore);
+        }
         Files.deleteQuietly(baseDirectory);
+    }
+
+    /**
+     * The rollout guard itself: with the property unset (the shipped default) the sweep must leave every generation in
+     * place even when the coverage rule would allow pruning. Pinned because an untested gate is a gate that is not there
+     * - and because the default has to be the inert one until every node re-resolves a reclaimed generation.
+     */
+    @Test
+    public void testPruneIsInertUntilTheGatePropertyIsSet() throws Exception {
+        pruneGateProperties.remove(PRUNE_GATE_KEY);
+        final ATimeSeriesDB<String, FDate> table = newTable("pruneGateOff");
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
+        for (int i = 1; i <= 5; i++) {
+            newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, 4 * i)), false).update().close();
+        }
+        final File dataDirectory = lookup.getDirectoryHashKeyVersionMemory()
+                .getDirectoryHashKeyVersionDataShared();
+        final List<File> before = findGenerations(dataDirectory);
+        Assertions.checkTrue(before.size() > TimeSeriesEpochReclaim.INDEX_GENERATIONS_KEEP_FLOOR,
+                "the scenario needs more generations than the keep floor, got: " + before.size());
+        ageGenerations(dataDirectory, TimeUnit.HOURS.toMillis(2));
+
+        TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookup);
+
+        Assertions.assertThat(findGenerations(dataDirectory))
+                .as("the shipped default must not prune anything")
+                .hasSize(before.size());
     }
 
     /**
