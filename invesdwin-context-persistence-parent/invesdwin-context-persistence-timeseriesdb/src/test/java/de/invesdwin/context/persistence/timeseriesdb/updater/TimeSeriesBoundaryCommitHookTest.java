@@ -13,7 +13,6 @@ import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
-import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdateProgress;
@@ -69,7 +68,7 @@ public class TimeSeriesBoundaryCommitHookTest extends ATest {
     public void testBoundaryCommitListenerSeesEveryPublishedFrontier() throws Exception {
         final ATimeSeriesDB<String, FDate> table = newTable("hookBoundary");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
-        final int commitInterval = TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL;
+        final int commitInterval = TimeSeriesUpdateTransaction.PUBLISH_SEGMENTS_PER_GENERATION;
         final int firstBoundaryValues = commitInterval * BATCH_FLUSH_INTERVAL;
         final List<FDate> frontiers = new ArrayList<>();
         final TimeSeriesUpdateTransaction<FDate> transaction = lookup.newUpdateTransaction(true);
@@ -117,7 +116,7 @@ public class TimeSeriesBoundaryCommitHookTest extends ATest {
     public void testTheClosePublishNotifiesAndAnEmptyAttemptDoesNot() throws Exception {
         final ATimeSeriesDB<String, FDate> table = newTable("hookQuiet");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
-        final int commitInterval = TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL;
+        final int commitInterval = TimeSeriesUpdateTransaction.PUBLISH_SEGMENTS_PER_GENERATION;
         final List<FDate> frontiers = new ArrayList<>();
         final TimeSeriesUpdateTransaction<FDate> transaction = lookup.newUpdateTransaction(true);
         transaction.setBoundaryCommitListener(new ITimeSeriesBoundaryCommitListener() {
@@ -161,7 +160,7 @@ public class TimeSeriesBoundaryCommitHookTest extends ATest {
     @Test
     public void testUpdaterAttemptNotifiesListenerFromItsOwnHook() throws Exception {
         final ATimeSeriesDB<String, FDate> table = newTable("hookUpdater");
-        final int commitInterval = TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL;
+        final int commitInterval = TimeSeriesUpdateTransaction.PUBLISH_SEGMENTS_PER_GENERATION;
         final int firstBoundaryValues = commitInterval * BATCH_FLUSH_INTERVAL;
         final List<FDate> allValues = newValues(1, 2 * firstBoundaryValues);
         final List<FDate> frontiers = new ArrayList<>();

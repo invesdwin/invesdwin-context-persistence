@@ -20,7 +20,6 @@ import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateYieldException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
-import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
@@ -89,7 +88,7 @@ public class TimeSeriesWriteLockYieldTest extends ATest {
     public void testContinuousReaderEndsAttemptCleanlyAtPublishedBoundary() throws Exception {
         final ATimeSeriesDB<String, FDate> table = newTable("yieldEnd");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
-        final int commitInterval = TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL;
+        final int commitInterval = TimeSeriesUpdateTransaction.PUBLISH_SEGMENTS_PER_GENERATION;
         final int boundaryValues = commitInterval * BATCH_FLUSH_INTERVAL;
         final int totalValues = 5 * boundaryValues + BATCH_FLUSH_INTERVAL;
         final List<FDate> allValues = newValues(1, totalValues);
@@ -176,7 +175,7 @@ public class TimeSeriesWriteLockYieldTest extends ATest {
     public void testReaderNeverBlockedLongerThanOneBoundaryBatch() throws Exception {
         final ATimeSeriesDB<String, FDate> table = newTable("yieldWindow");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
-        final int commitInterval = TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL;
+        final int commitInterval = TimeSeriesUpdateTransaction.PUBLISH_SEGMENTS_PER_GENERATION;
         final int boundaryValues = commitInterval * BATCH_FLUSH_INTERVAL;
         final int totalValues = 3 * boundaryValues + BATCH_FLUSH_INTERVAL;
         final int totalBatches = totalValues / BATCH_FLUSH_INTERVAL;

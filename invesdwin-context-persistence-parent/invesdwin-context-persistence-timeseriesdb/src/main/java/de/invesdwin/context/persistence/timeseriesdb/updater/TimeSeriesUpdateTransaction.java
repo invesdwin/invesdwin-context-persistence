@@ -30,6 +30,29 @@ import de.invesdwin.util.time.date.millis.FDateMillis;
 @NotThreadSafe
 public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
 
+    /**
+     * Completed segments one index generation amortises over. This is a constant of the layout, not a deployment
+     * setting: as a system property it let the boxes in this fleet drift apart, and what it trades is a property of the
+     * format. Measured on lap-mid 2026-11-14 (one committed pass of 4,000 segments, 400,000 values of a 5-byte FDate,
+     * batch flush 100, parallel writer, ext4, JDK 17.0.20.1), sweeping the cadence through the then-live property:
+     * <pre>
+     *   segments per publish        1        10        25        50
+     *   generations              4,000       400       160        80
+     *   index bytes            1,977,295   276,783   148,007   128,277
+     *   index share of bytes        48 %      11 %       6 %       5 %
+     *   payload files              4,000       401       161        81
+     *   pass wall time        41,102 ms   4,705 ms   2,655 ms   2,014 ms
+     * </pre>
+     * Coarser is cheaper for the writer, and the read side does not suffer either way (the live chain range is bounded
+     * by {@code CHAIN_MAX_DELTA_GENERATIONS}, measured at 144-160 generations across this sweep). What a publish is
+     * still needed for, and what keeps this from going coarser: it is the CRASH-loss granularity of a pass (an attempt
+     * that ends by exception lands its finished batches at {@link #close()}, a killed JVM keeps only what was already
+     * published), and it is how far the frontier consumers attached through {@link #setBoundaryCommitListener} can see
+     * while a pass runs. 10 puts a live derived-bars boundary at 10 x 10,000 values, which is the granularity the
+     * demand side is paced against.
+     */
+    static final int PUBLISH_SEGMENTS_PER_GENERATION = 10;
+
     private final TimeSeriesLookupStorageCache<?, V> parent;
     private final FDate updateFrom;
     private final List<V> lastValues;
@@ -164,12 +187,18 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     /**
      * Boundary commit of a completed segment: publishes everything this attempt has staged so far as a new index
      * generation and lets the attempt continue staging into it. What a boundary commit buys over the publish
-     * {@link #close()} does anyway is (1) a readable high-water mark DURING a pass that may run for hours, so the
-     * frontier consumers attached through {@link #setBoundaryCommitListener} advance while the attempt is still
-     * running, and (2) the publish-then-yield point that gives readers parked on the key their window. The progress
-     * writers call this after every completed segment; a publish only actually happens once
-     * {@link TimeSeriesProperties#UPDATE_COMMIT_SEGMENT_INTERVAL} segments have piled up, because every publish writes
-     * a new index generation.
+     * {@link #close()} does anyway is a readable high-water mark DURING a pass that may run for hours, so the frontier
+     * consumers attached through {@link #setBoundaryCommitListener} advance while the attempt is still running. The
+     * progress writers call this after every completed segment; a publish (and with it the write-lock yield) only
+     * actually happens once {@link #PUBLISH_SEGMENTS_PER_GENERATION} segments have piled up.
+     *
+     * The yield rides the publish cadence on purpose. Releasing the write lock costs a grace sleep - see the WINDOW_GRACE_MILLIS
+     * grace sleep in {@link TimeSeriesWriteLockYield} - because on this non-fair read-write lock a writer that
+     * releases and immediately re-acquires wins its own race and the "window" is no window. Yielding at every completed
+     * segment was measured at 23,358 ms for a pass that costs 4,705 ms when the yield rides the publish (lap-mid
+     * 2026-11-14, one 4,000 segment pass, identical index bytes and identical payload file counts - the whole delta is
+     * grace sleep). Since the pass holds the key's update lock throughout, making a pass 5x longer makes every reader
+     * of that key wait longer in aggregate, not less: finer windows are not a fairer store.
      *
      * @return true when this call published - the caller must then stop appending to the data file it has been writing
      *         and continue in a new one, so that a published file never carries bytes of a segment that was not
@@ -177,11 +206,11 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
      *         {@link TimeSeriesLookupStorageCache#isEmptyOrInconsistent()} and get reset)
      * @throws IncompleteUpdateYieldException when this attempt holds a table write lock lease
      *         ({@link #setWriteLockYield}) and could not re-acquire the lock after publishing: the publish-then-yield
-     *         of this boundary ends the attempt CLEANLY, the published prefix being the resume point of the next
-     *         attempt of the key
+     *         of this boundary ends the attempt CLEANLY, and close() publishes whatever this pass finished, so nothing
+     *         it landed is lost
      */
     public synchronized boolean commitSegmentBoundary() {
-        if (committed || stagedSegmentCount < TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL) {
+        if (committed || stagedSegmentCount < PUBLISH_SEGMENTS_PER_GENERATION) {
             return false;
         }
         publishStagedSummaries();
@@ -200,7 +229,8 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
                     "Update attempt of hash key [" + parent.getHashKey() + "] published a segment boundary and yielded"
                             + " the table write lock, but readers of the key kept it past the re-acquisition window of"
                             + " [" + TimeSeriesProperties.UPDATE_YIELD_ACQUIRE_WRITE_LOCK_TIMEOUT + "] - ending the"
-                            + " attempt cleanly at this boundary, the published prefix is the resume point");
+                            + " attempt cleanly at this boundary; close() publishes what this pass finished, so the"
+                            + " next attempt resumes above it");
         }
         return true;
     }
