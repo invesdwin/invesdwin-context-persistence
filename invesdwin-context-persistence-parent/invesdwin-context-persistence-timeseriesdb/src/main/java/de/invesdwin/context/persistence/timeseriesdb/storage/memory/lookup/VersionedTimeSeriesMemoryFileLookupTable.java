@@ -25,6 +25,13 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
 
     private static final Log LOG = new Log(VersionedTimeSeriesMemoryFileLookupTable.class);
 
+    /**
+     * How often one publish may re-resolve its generation number before it gives up. Every retry costs one directory
+     * listing, so this bounds the worst case rather than the common one: the number is free on the first pass unless
+     * another writer of this key is publishing at the same moment.
+     */
+    private static final int GENERATION_CLAIM_ATTEMPTS = 8;
+
     private final TimeSeriesLookupStorageCache<?, V> parent;
     private final File directory;
     private final AtomicNioFileChannel baseChannel;
@@ -77,9 +84,8 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
     @Override
     public synchronized void put(final ICloseableIterator<MemoryFileSummary> summaries) {
         try {
-            final int newIndexNumber = currentIndexNumber.get() + 1;
-            final File newIndexFile = new File(directory,
-                    AMemoryFileSummarySerializingCollection.newIndexGenerationFileName(newIndexNumber));
+            final File newIndexFile = claimNextGenerationFile();
+            final int newIndexNumber = AMemoryFileSummarySerializingCollection.indexNumberOf(newIndexFile.getName());
 
             baseChannel.setFileName(newIndexFile.getName());
 
@@ -211,6 +217,40 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
         } finally {
             summaries.close();
         }
+    }
+
+    /**
+     * The generation file this publish writes into. The number is re-read from the directory instead of taken from the
+     * counter this instance latched, because the counter is per instance: two holders of one key's update claim exist
+     * whenever a heartbeat claim goes stale on a share (the very case the epoch reclaim's liveness guard exists for),
+     * and both would then pick the same '&lt;N&gt;_memory.index'. The channel publishes by rename, and a rename
+     * REPLACES an existing target, so the earlier writer's chain would simply disappear - no exception, and no reader
+     * can tell that the summaries below the high-water are gone. Re-resolving narrows that window to one directory
+     * listing and turns a collision into a retry; a target still occupied after {@link #GENERATION_CLAIM_ATTEMPTS} is
+     * a hard error rather than a silent overwrite, because what is supposed to keep one writer per key is the heartbeat
+     * update claim, not the file name.
+     */
+    private File claimNextGenerationFile() {
+        for (int attempt = 0; attempt < GENERATION_CLAIM_ATTEMPTS; attempt++) {
+            int newestNumber = currentIndexNumber.get();
+            for (final File existing : listIndexGenerations(directory)) {
+                final int number = AMemoryFileSummarySerializingCollection.indexNumberOf(existing.getName());
+                if (number > newestNumber) {
+                    newestNumber = number;
+                }
+            }
+            final File candidate = new File(directory,
+                    AMemoryFileSummarySerializingCollection.newIndexGenerationFileName(newestNumber + 1));
+            if (!candidate.exists()) {
+                return candidate;
+            }
+            LOG.warn("Index generation [%s] of directory [%s] already exists - another writer claimed it,"
+                    + " re-resolving (attempt %s of %s)", candidate.getName(), directory, attempt + 1,
+                    GENERATION_CLAIM_ATTEMPTS);
+        }
+        throw new IllegalStateException("Cannot claim a free index generation in [" + directory + "] after ["
+                + GENERATION_CLAIM_ATTEMPTS + "] attempts - this key is being published by more than one writer while"
+                + " the update claim that should exclude them is held or stale");
     }
 
     @Override
