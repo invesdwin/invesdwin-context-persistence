@@ -57,50 +57,53 @@ public class MemoryFileMetadata {
 
 
     /**
-     * One record per published generation, appended to the key's {@code memory.log}: what the publish left at the head
-     * of the chain, and how many summaries it added.
+     * Exactly ONE record per update attempt, written when the attempt's transaction closes - whether it committed or
+     * aborted - stating what the store holds up to that point: the attempt id, how many data files it staged, how many
+     * times it published, and the published frontier.
      *
      * <p>
-     * Kept deliberately rather than deleted: this file is what dated "the last write of real tick data" during the
-     * 2026-11-11 iqfeed outage (its mtime plus the record's own timestamps), and nothing in the code root reads it.
-     *
-     * <p>
-     * It used to be written once PER SUMMARY, which on the live store is pure volume without information: measured
-     * 2026-11-14 from lap-mid over ssh on ptstaging's ~/.invesdwin, 6,535 memory.log files totalling 3,139 MB, the
-     * largest 42 MB holding 73,139 records for a key whose directory carries 22 index generations - because each
-     * publish added its whole batch of summaries again. One record per publish keeps the same fields and the same
-     * frontier, at a tenth of the text for interval 10. The per-summary write was also 6.0 us of open+append+close
-     * each (measured on this box, ext4) against 0.5 us buffered, though at 10 summaries per publish that is only
-     * ~0.7 % of the ~8.3 ms a publish costs overall - the disk and the noise are the reason, not the CPU.
+     * The trail is kept because it is read by people, not by code: it is what dated "the last write of real tick data"
+     * during the 2026-11-11 iqfeed outage (INCIDENT-iqfeed-outage-20261111.md:86). It used to be written once per
+     * SUMMARY: measured 2026-11-14 09:2x from lap-mid over ssh on ptstaging's live store, 6,535 memory.log files
+     * totalling 3,139.7 MB, the largest 42.2 MB holding 73,139 records for a key whose directory carries 22 index
+     * generations. Per attempt is the unit that answers the operator question, and an attempt that staged nothing
+     * writes nothing at all.
      */
-    public void logPublish(final int publishedSummaryCount, final MemoryFileSummary lastPublished,
-            final long chainHighWaterBytes, final FDate lastValueEndTime) {
+    public void logTransaction(final String epochLocalDataId, final boolean committed, final int dataFilesStaged,
+            final int publishes, final MemoryFileSummary lastPublished, final FDate lastPublishedValueEndTime,
+            final long chainHighWaterBytes) {
         final StringBuilder logEntry = new StringBuilder();
-        logEntry.append("\nPUBLISH\n");
+        logEntry.append("\nTRANSACTION\n");
         logEntry.append("REAL_TIME=");
         logEntry.append(FDate.now());
         logEntry.append("\nHEARTBEAT_OWNER=");
         logEntry.append(HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER);
-        logEntry.append("\nPUBLISHED_SUMMARY_COUNT=");
-        logEntry.append(publishedSummaryCount);
+        logEntry.append("\nEPOCH_LOCAL_DATA_ID=");
+        logEntry.append(epochLocalDataId);
+        logEntry.append("\nOUTCOME=");
+        logEntry.append(committed ? "COMMITTED" : "ABORTED");
+        logEntry.append("\nDATA_FILES_STAGED=");
+        logEntry.append(dataFilesStaged);
+        logEntry.append("\nPUBLISHES=");
+        logEntry.append(publishes);
         logEntry.append("\nCHAIN_HIGH_WATER_BYTES=");
         logEntry.append(chainHighWaterBytes);
-        logEntry.append("\nLAST_SUMMARY_FIRST_VALUE_END_TIME=");
-        logEntry.append(lastPublished.getFirstValueEndTime());
-        logEntry.append("\nLAST_SUMMARY_LAST_VALUE_END_TIME=");
-        logEntry.append(lastValueEndTime);
-        logEntry.append("\nMEMORY_RESOURCE_URI=");
-        logEntry.append(lastPublished.getMemoryResourceUri());
-        logEntry.append("\nPRECEDING_MEMORY_OFFSET=");
-        logEntry.append(lastPublished.getPrecedingMemoryOffset());
-        logEntry.append("\nMEMORY_OFFSET=");
-        logEntry.append(lastPublished.getMemoryOffset());
-        logEntry.append("\nMEMORY_LENGTH=");
-        logEntry.append(lastPublished.getMemoryLength());
-        logEntry.append("\nPRECEDING_VALUE_COUNT=");
-        logEntry.append(lastPublished.getPrecedingValueCount());
-        logEntry.append("\nVALUE_COUNT=");
-        logEntry.append(lastPublished.getValueCount());
+        logEntry.append("\nLAST_PUBLISHED_VALUE_END_TIME=");
+        logEntry.append(lastPublishedValueEndTime);
+        if (lastPublished != null) {
+            logEntry.append("\nLAST_PUBLISHED_FIRST_VALUE_END_TIME=");
+            logEntry.append(lastPublished.getFirstValueEndTime());
+            logEntry.append("\nMEMORY_RESOURCE_URI=");
+            logEntry.append(lastPublished.getMemoryResourceUri());
+            logEntry.append("\nMEMORY_OFFSET=");
+            logEntry.append(lastPublished.getMemoryOffset());
+            logEntry.append("\nMEMORY_LENGTH=");
+            logEntry.append(lastPublished.getMemoryLength());
+            logEntry.append("\nPRECEDING_VALUE_COUNT=");
+            logEntry.append(lastPublished.getPrecedingValueCount());
+            logEntry.append("\nVALUE_COUNT=");
+            logEntry.append(lastPublished.getValueCount());
+        }
         logEntry.append("\n");
         try {
             try (FileOutputStream out = new FileOutputStream(logFile, true)) {

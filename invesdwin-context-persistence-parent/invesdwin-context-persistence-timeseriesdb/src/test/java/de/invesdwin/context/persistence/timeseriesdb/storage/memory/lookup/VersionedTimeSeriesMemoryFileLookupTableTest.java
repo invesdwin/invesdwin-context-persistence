@@ -178,44 +178,30 @@ public class VersionedTimeSeriesMemoryFileLookupTableTest extends ATest {
     }
 
     /**
-     * The key's {@code memory.log} is an operator-facing trail, not dead weight: it is what dated the last real tick
-     * write during the 2026-11-11 iqfeed outage. But it used to carry one record PER SUMMARY, which on the live store
-     * measured 73,139 records / 42 MB for a key with 22 generations (and 3,139 MB across 6,535 keys on ptstaging) for
-     * no information a publish record does not already hold. One record per publish, with the publish's own count,
-     * high-water and head-of-chain summary, is what this pins.
+     * The publish writes no {@code memory.log} record: the trail moved to the update attempt, which leaves one record
+     * stating what the store holds when it closes - committed or aborted. ("Nothing was added, so nothing is written"
+     * is pinned where it is real, on the attempt: TimeSeriesResumableUpdateAttemptTest. A guard for an empty batch here
+     * would be dead code - publishStagedSummaries() is only reached when the attempt staged a file.)
      */
     @Test
-    public void testOneLogRecordPerPublishNotOnePerSummary() throws Exception {
+    public void testAPublishWritesNoLogRecord() throws Exception {
         final ATimeSeriesDB<String, FDate> table = newTable("publishLog");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
         final File directory = lookup.getDirectoryHashKeyVersionMemory().getDirectoryHashKeyVersionDataShared();
         Files.forceMkdir(directory);
-        final File logFile = new File(directory, "memory.log");
 
         final VersionedTimeSeriesMemoryFileLookupTable<FDate> publisher = new VersionedTimeSeriesMemoryFileLookupTable<>(
                 lookup, directory, 0);
         publisher.put(new ListSummaryIterator(List.of(summary(1, 10L), summary(2, 20L), summary(3, 30L))));
+        final int generations = findGenerations(directory).size();
+        Assertions.assertThat(generations).as("a real publish lands one generation").isEqualTo(1);
+        Assertions.assertThat(new File(directory, "memory.log").exists())
+                .as("a publish writes no memory.log record - the record belongs to the update attempt")
+                .isFalse();
 
-        String log = Files.readFileToString(logFile, Charsets.UTF_8);
-        Assertions.assertThat(countOccurrences(log, "PUBLISHED_SUMMARY_COUNT="))
-                .as("one publish writes one record, whatever the batch size")
-                .isEqualTo(1);
-        Assertions.assertThat(log).as("the record names the batch it published")
-                .contains("PUBLISHED_SUMMARY_COUNT=3");
-        Assertions.assertThat(log).as("and the byte high-water the publish leaves behind")
-                .contains("CHAIN_HIGH_WATER_BYTES=30");
-        Assertions.assertThat(log).as("and the head of the new chain, which is the frontier an operator asks for")
-                .contains("LAST_SUMMARY_LAST_VALUE_END_TIME=0003-01-01")
-                .contains("MEMORY_RESOURCE_URI=memory_3-gene0001.data");
-
-        publisher.put(new ListSummaryIterator(List.of(summary(4, 40L))));
-        log = Files.readFileToString(logFile, Charsets.UTF_8);
-        Assertions.assertThat(countOccurrences(log, "PUBLISHED_SUMMARY_COUNT="))
-                .as("a second publish adds a second record")
-                .isEqualTo(2);
-        Assertions.assertThat(countOccurrences(log, "MemoryFileSummary"))
-                .as("the per-summary record shape is gone")
-                .isZero();
+        Assertions.assertThat(new File(directory, "memory.log").exists())
+                .as("and no publish writes a log record")
+                .isFalse();
     }
 
     private static int countOccurrences(final String text, final String needle) {
