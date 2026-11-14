@@ -155,6 +155,7 @@ public class TimeSeriesEpochReclaimTest extends ATest {
         //plant a dead old attempt (its id predates the attempt the marker describes, nothing names it, nothing
         //refers it): swept
         final String deadAttempt = attemptIdOf(FDateMillis.nowMillis() - TimeUnit.HOURS.toMillis(4), "dead0000");
+        awaitNoQueuedEpochReclaim();
         plantAttemptArtifacts(lookup, deadAttempt);
         //plant an attempt of a live pass: the marker describes an attempt that started three hours ago (its heartbeat
         //claim is fresh) and the planted id was minted two hours ago, i.e. at or after that start - so it may still be
@@ -196,6 +197,7 @@ public class TimeSeriesEpochReclaimTest extends ATest {
         newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, 8)), false).update().close();
 
         final String deadAttempt = attemptIdOf(FDateMillis.nowMillis() - TimeUnit.HOURS.toMillis(2), "crash000");
+        awaitNoQueuedEpochReclaim();
         plantAttemptArtifacts(lookup, deadAttempt);
         Assertions.checkFalse(findAttemptDataFiles(lookup, deadAttempt).isEmpty(), "planted garbage must exist first");
 
@@ -223,6 +225,7 @@ public class TimeSeriesEpochReclaimTest extends ATest {
         newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, 8)), false).update().close();
 
         final String deadAttempt = attemptIdOf(FDateMillis.nowMillis() - TimeUnit.HOURS.toMillis(2), "queue000");
+        awaitNoQueuedEpochReclaim();
         plantAttemptArtifacts(lookup, deadAttempt);
         Assertions.checkFalse(findAttemptDataFiles(lookup, deadAttempt).isEmpty(), "planted garbage must exist first");
 
@@ -256,6 +259,7 @@ public class TimeSeriesEpochReclaimTest extends ATest {
         newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, 12)), false).update().close();
 
         final String deadAttempt = attemptIdOf(FDateMillis.nowMillis() - TimeUnit.HOURS.toMillis(2), "crpt0001");
+        awaitNoQueuedEpochReclaim();
         plantAttemptArtifacts(lookup, deadAttempt);
         final File corrupted = corruptGeneration(lookup, true);
 
@@ -278,6 +282,7 @@ public class TimeSeriesEpochReclaimTest extends ATest {
         newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, 12)), false).update().close();
 
         final String deadAttempt = attemptIdOf(FDateMillis.nowMillis() - TimeUnit.HOURS.toMillis(2), "tolr0001");
+        awaitNoQueuedEpochReclaim();
         plantAttemptArtifacts(lookup, deadAttempt);
         corruptGeneration(lookup, false);
 
@@ -299,6 +304,7 @@ public class TimeSeriesEpochReclaimTest extends ATest {
         newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, 8)), false).update().close();
 
         final String deadAttempt = attemptIdOf(FDateMillis.nowMillis() - TimeUnit.HOURS.toMillis(2), "noidx001");
+        awaitNoQueuedEpochReclaim();
         plantAttemptArtifacts(lookup, deadAttempt);
         final File dataDirectory = lookup.getDirectoryHashKeyVersionMemory()
                 .getDirectoryHashKeyVersionDataShared();
@@ -340,6 +346,7 @@ public class TimeSeriesEpochReclaimTest extends ATest {
         // Ageing happens last: a completed update submits this key directory to the epoch sweep, so from the moment the
         // generations pass the in-flight bound a sweep on the cleanup thread may prune them, and reading their contents
         // behind that moment races this class's own production code.
+        awaitNoQueuedEpochReclaim();
         ageGenerations(dataDirectory, TimeUnit.HOURS.toMillis(2));
 
         TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookup);
@@ -373,6 +380,7 @@ public class TimeSeriesEpochReclaimTest extends ATest {
                 "the scenario needs more generations than the keep floor");
         final List<String> namedBefore = namesOfAllGenerations(lookup, dataDirectory);
         final List<FDate> published = readValues(table, KEY);
+        awaitNoQueuedEpochReclaim();
         ageGenerations(dataDirectory, TimeUnit.HOURS.toMillis(2));
 
         TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookup);
@@ -426,6 +434,7 @@ public class TimeSeriesEpochReclaimTest extends ATest {
         //between ageing and the assertion below
         final File corrupted = corruptGeneration(lookup, true);
         final String deadAttempt = attemptIdOf(FDateMillis.nowMillis() - TimeUnit.HOURS.toMillis(2), "cnat0001");
+        awaitNoQueuedEpochReclaim();
         plantAttemptArtifacts(lookup, deadAttempt);
         ageGenerations(dataDirectory, TimeUnit.HOURS.toMillis(2));
 
@@ -465,6 +474,7 @@ public class TimeSeriesEpochReclaimTest extends ATest {
                 + chain.size());
 
         final String deadAttempt = attemptIdOf(FDateMillis.nowMillis() - TimeUnit.HOURS.toMillis(2), "trnc0001");
+        awaitNoQueuedEpochReclaim();
         plantAttemptArtifacts(lookup, deadAttempt);
         ageGenerations(dataDirectory, TimeUnit.HOURS.toMillis(2));
         final List<MemoryFileSummary> shortened = chain.subList(0, chain.size() - 1);
@@ -508,6 +518,7 @@ public class TimeSeriesEpochReclaimTest extends ATest {
                 List.of(new MemoryFileSummary(onlyValue, FDateSerde.GET, onlyValue, onlyValue, 0, 1,
                         onlyDataFile.getAbsolutePath(), 0, 0, 10L)),
                 lookup);
+        awaitNoQueuedEpochReclaim();
         ageGenerations(dataDirectory, TimeUnit.HOURS.toMillis(2));
 
         TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookup);
@@ -546,6 +557,7 @@ public class TimeSeriesEpochReclaimTest extends ATest {
         final List<File> before = findGenerations(dataDirectory);
         Assertions.assertThat(before).hasSize(3);
         //older than RETAIN_OBSOLETE_FILES_THRESHOLD (1 MONTH), which is what used to fire the constructor's delete
+        awaitNoQueuedEpochReclaim();
         ageGenerations(dataDirectory, TimeUnit.DAYS.toMillis(61));
 
         try (ICloseableIterator<MemoryFileSummary> ignored = new VersionedTimeSeriesMemoryFileLookupTable<FDate>(
@@ -599,6 +611,17 @@ public class TimeSeriesEpochReclaimTest extends ATest {
      * Moves the mtimes of every generation of the directory back in time, which is what the in-flight bound and the
      * keep decision read.
      */
+    /**
+     * Settles the sweep that the test's own successful attempts submitted to the version-cleanup thread. Planting or
+     * ageing state while one of those is still queued races it: the queued pass reads the marker the REAL attempt wrote
+     * (its updateStart is 'now'), so an attempt id planted before that start is garbage to it and the planted files are
+     * gone before this class' deterministic sweep call. Every scenario that plants therefore starts from an empty queue.
+     */
+    private static void awaitNoQueuedEpochReclaim() {
+        TimeSeriesEpochReclaim.runPendingObsoleteEpochsReclaims();
+        Assertions.assertThat(TimeSeriesEpochReclaim.getPendingObsoleteEpochsReclaimCount()).isZero();
+    }
+
     private static void ageGenerations(final File dataDirectory, final long ageMillis) {
         final long agedMillis = FDateMillis.nowMillis() - ageMillis;
         for (final File generation : findGenerations(dataDirectory)) {
