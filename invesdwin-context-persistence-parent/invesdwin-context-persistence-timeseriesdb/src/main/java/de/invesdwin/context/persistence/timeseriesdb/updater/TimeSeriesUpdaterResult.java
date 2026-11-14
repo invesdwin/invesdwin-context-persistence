@@ -3,6 +3,7 @@ package de.invesdwin.context.persistence.timeseriesdb.updater;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 
 import javax.annotation.concurrent.Immutable;
 
@@ -67,8 +68,10 @@ public class TimeSeriesUpdaterResult implements ISafeCloseable {
             if (updateProgressFile != null && updateFinishedFile != null) {
                 try {
                     Files.moveFile(updateProgressFile, updateFinishedFile);
-                } catch (final FileNotFoundException e) {
-                    // ignore, file was already moved or deleted
+                } catch (final FileNotFoundException | NoSuchFileException e) {
+                    // ignore, file was already moved or deleted. Both types are caught because moveFile publishes
+                    // through java.nio (invesdwin-util#26), and nio reports an absent source as NoSuchFileException
+                    // while the commons-io route this replaces threw FileNotFoundException - siblings under IOException.
                     Files.touchQuietly(updateFinishedFile);
                 } catch (final IOException e) {
                     throw new RuntimeException("Failed to move update progress file to update finished file", e);
