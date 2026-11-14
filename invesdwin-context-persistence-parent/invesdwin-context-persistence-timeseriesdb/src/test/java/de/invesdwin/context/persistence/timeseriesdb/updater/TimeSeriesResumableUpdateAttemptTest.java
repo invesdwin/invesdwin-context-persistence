@@ -15,7 +15,6 @@ import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
-import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
@@ -48,7 +47,7 @@ import de.invesdwin.util.time.date.FDates;
 /**
  * An update attempt that dies mid-pass (a source that times out or is cancelled) must not throw away the bytes it has
  * already landed. Two publishes keep that honest: a boundary commit every
- * {@link TimeSeriesProperties#UPDATE_COMMIT_SEGMENT_INTERVAL} completed segments, which gives a pass that runs for
+ * {@link TimeSeriesUpdateTransaction#PUBLISH_SEGMENTS_PER_GENERATION} completed segments, which gives a pass that runs for
  * hours a readable high-water mark WHILE it runs, and the publish {@code close()} does with everything the attempt
  * staged after its last boundary - committed or aborted alike, because a finished data file is complete content. What
  * an abort can lose is the one batch that was still open when the source died, and the epoch reclaim deletes that file
@@ -91,7 +90,7 @@ public class TimeSeriesResumableUpdateAttemptTest extends ATest {
     private void checkAbortedAttemptResumes(final boolean parallel) throws Exception {
         final ATimeSeriesDB<String, FDate> table = newTable("resume" + parallel);
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
-        final int commitInterval = TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL;
+        final int commitInterval = TimeSeriesUpdateTransaction.PUBLISH_SEGMENTS_PER_GENERATION;
         //a parallel writer feeds its queue ahead of the writer loop, so the pass has to die well after the first
         //boundary commit for that boundary to be published when the source dies
         final int firstBoundaryValues = commitInterval * BATCH_FLUSH_INTERVAL;
@@ -191,7 +190,7 @@ public class TimeSeriesResumableUpdateAttemptTest extends ATest {
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
         final File memoryDir = lookup.getDirectoryHashKeyVersionMemory().getDirectoryHashKeyVersionDataShared();
         final File logFile = new File(memoryDir, "memory.log");
-        final int boundaryValues = TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL * BATCH_FLUSH_INTERVAL;
+        final int boundaryValues = TimeSeriesUpdateTransaction.PUBLISH_SEGMENTS_PER_GENERATION * BATCH_FLUSH_INTERVAL;
         final List<FDate> allValues = newValues(1, 3 * boundaryValues);
 
         boolean aborted = false;
@@ -323,7 +322,7 @@ public class TimeSeriesResumableUpdateAttemptTest extends ATest {
     public void testCloseWithoutCommitPublishesEveryFinishedSegment() throws Exception {
         final ATimeSeriesDB<String, FDate> table = newTable("boundaryCommit");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
-        final int commitInterval = TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL;
+        final int commitInterval = TimeSeriesUpdateTransaction.PUBLISH_SEGMENTS_PER_GENERATION;
         final int firstBoundaryValues = commitInterval * BATCH_FLUSH_INTERVAL;
         final int landedValues = 2 * firstBoundaryValues + BATCH_FLUSH_INTERVAL;
         final int totalValues = landedValues + BATCH_FLUSH_INTERVAL;

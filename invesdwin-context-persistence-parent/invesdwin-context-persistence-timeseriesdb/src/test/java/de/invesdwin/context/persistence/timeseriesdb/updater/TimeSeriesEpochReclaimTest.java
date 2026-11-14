@@ -15,7 +15,6 @@ import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChan
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
-import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
@@ -333,7 +332,7 @@ public class TimeSeriesEpochReclaimTest extends ATest {
     public void testUnreadableChainMemberInsideTheLiveRangeMakesTheSweepSkipTheDirectory() throws Exception {
         final ATimeSeriesDB<String, FDate> table = newTable("reclaimCorruptMiddle");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
-        final int boundaryValues = 3 * TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL * BATCH_FLUSH_INTERVAL;
+        final int boundaryValues = 3 * TimeSeriesUpdateTransaction.PUBLISH_SEGMENTS_PER_GENERATION * BATCH_FLUSH_INTERVAL;
         newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, boundaryValues + 2)), false).update()
                 .close();
         final File dataDirectory = lookup.getDirectoryHashKeyVersionMemory()
@@ -398,7 +397,7 @@ public class TimeSeriesEpochReclaimTest extends ATest {
         final ATimeSeriesDB<String, FDate> table = newTable("keepLiveRange");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
         //one pass long enough to publish several generations by boundary commits, which is where appends live
-        final int boundaryValues = 3 * TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL * BATCH_FLUSH_INTERVAL;
+        final int boundaryValues = 3 * TimeSeriesUpdateTransaction.PUBLISH_SEGMENTS_PER_GENERATION * BATCH_FLUSH_INTERVAL;
         newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(newValues(1, boundaryValues + 2)), false).update()
                 .close();
         final File dataDirectory = lookup.getDirectoryHashKeyVersionMemory()

@@ -11,7 +11,6 @@ import org.junit.jupiter.api.Test;
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
-import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
@@ -96,7 +95,7 @@ public class TimeSeriesPublishedChainHighWaterGuardTest extends ATest {
     public void testReplacementAfterABoundaryCommitIsPublished() throws Exception {
         final ATimeSeriesDB<String, FDate> table = newTable("chainHighWaterReplaceBoundary");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
-        final int boundaryValues = TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL * BATCH_FLUSH_INTERVAL;
+        final int boundaryValues = TimeSeriesUpdateTransaction.PUBLISH_SEGMENTS_PER_GENERATION * BATCH_FLUSH_INTERVAL;
         Assertions.checkTrue(lookup.getMemoryFileLookupTable().getCurrentIndexNumber() == -1,
                 "the key starts without an index generation");
         publishReplacementWithLowerExtent(table, lookup, newValues(1, boundaryValues + 2));
@@ -120,7 +119,7 @@ public class TimeSeriesPublishedChainHighWaterGuardTest extends ATest {
         final ATimeSeriesDB<String, FDate> table = newTable("chainAppendBoundary");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
         //three boundary-commit intervals worth of values, so the pass publishes several generations
-        final int boundaryValues = 3 * TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL * BATCH_FLUSH_INTERVAL;
+        final int boundaryValues = 3 * TimeSeriesUpdateTransaction.PUBLISH_SEGMENTS_PER_GENERATION * BATCH_FLUSH_INTERVAL;
         newUpdater(table, newValues(1, boundaryValues + 2)).update().close();
 
         final int newestGeneration = lookup.getMemoryFileLookupTable().getCurrentIndexNumber();

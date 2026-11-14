@@ -14,12 +14,12 @@ import de.invesdwin.util.time.date.FDate;
  * instead of rebasing over it.
  *
  * The listener is called synchronously on the attempt thread inside the boundary commit, while the attempt still
- * holds the key's table write lock (before the publish-then-yield releases it), so the notified frontier cannot be
- * overtaken by another writer mid-callback. Not every boundary COMMIT publishes - a boundary below
- * {@link de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties#UPDATE_COMMIT_SEGMENT_INTERVAL} stages
- * without publishing and does not notify. What is notified is every PUBLISH: {@link TimeSeriesUpdateTransaction#close()}
- * publishes whatever the attempt staged after its last boundary, committed or aborted, and notifies for that publish as
- * well; an attempt that staged nothing publishes nothing and notifies nothing.
+ * holds the key's table write lock (before the yield releases it), so the notified frontier cannot be overtaken by
+ * another writer mid-callback. Not every completed segment boundary publishes: a boundary that has not accumulated
+ * {@link TimeSeriesUpdateTransaction#PUBLISH_SEGMENTS_PER_GENERATION} segments since the last publish stages without
+ * publishing and notifies nothing. What IS notified
+ * is every publish, including the one {@link TimeSeriesUpdateTransaction#close()} does with whatever the attempt staged
+ * after its last publish, committed or aborted; an attempt that staged nothing publishes nothing and notifies nothing.
  */
 public interface ITimeSeriesBoundaryCommitListener {
 

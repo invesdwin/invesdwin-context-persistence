@@ -12,7 +12,6 @@ import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
-import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
@@ -83,7 +82,7 @@ public class TimeSeriesPublishedFileLengthInvariantTest extends ATest {
     public void testPublishedFilesCarryExactlyTheirPublishedBytesAfterMidFileAbort() throws Exception {
         final ATimeSeriesDB<String, FDate> table = newTable("byteInvariantAbort");
         final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
-        final int commitInterval = TimeSeriesProperties.UPDATE_COMMIT_SEGMENT_INTERVAL;
+        final int commitInterval = TimeSeriesUpdateTransaction.PUBLISH_SEGMENTS_PER_GENERATION;
         //two boundary commits worth of values, then the source dies part way into the next file
         final int boundaryValues = commitInterval * BATCH_FLUSH_INTERVAL;
         final int landedValues = 2 * boundaryValues + BATCH_FLUSH_INTERVAL / 2;

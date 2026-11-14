@@ -22,7 +22,14 @@ final class TimeSeriesWriteLockYield {
 
     //after releasing the write lock, let the readers parked on it actually land in the read side before contending
     //for re-acquisition: on this non-fair read-write lock a writer that releases and immediately tryLocks usually
-    //wins its own race, which would make the released window no window at all
+    //wins its own race, which would make the released window no window at all.
+    //
+    //This sleep is what a yield COSTS, and it is why the yield rides the publish cadence rather than running at every
+    //completed segment: measured on lap-mid 2026-11-14 with one 4,000 segment pass, yielding per segment takes 23,358 ms
+    //against 4,705 ms when it happens once per 10 segments, with byte-identical index output (276,783 B) and identical
+    //payload file counts (401) - the whole delta is this sleep. And since the attempt holds the key's heartbeat update
+    //lock for its pass, a 5x longer pass makes every reader of the key wait longer in aggregate: finer windows here are
+    //not a fairer store, they are a slower writer.
     private static final long WINDOW_GRACE_MILLIS = 5;
 
     private final ILock writeLock;
