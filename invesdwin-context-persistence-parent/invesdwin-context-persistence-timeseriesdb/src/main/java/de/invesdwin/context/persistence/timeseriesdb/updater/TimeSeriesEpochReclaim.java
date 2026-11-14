@@ -255,11 +255,7 @@ public final class TimeSeriesEpochReclaim {
                     }
                 }
             }
-            //Rollout gate (INDEX_GENERATION_PRUNE_ENABLED, default false): the prune stays off until every node runs the
-            //build whose range() re-resolves the newest generation present, or an older build reads a pruned directory
-            //as an empty store.
-            final boolean generationsToPrune = TimeSeriesProperties.isIndexGenerationPruneEnabled()
-                    && generationFiles.size() > INDEX_GENERATIONS_KEEP_FLOOR;
+            final boolean generationsToPrune = generationFiles.size() > INDEX_GENERATIONS_KEEP_FLOOR;
             if (filesByAttemptId.isEmpty() && !generationsToPrune) {
                 return;
             }

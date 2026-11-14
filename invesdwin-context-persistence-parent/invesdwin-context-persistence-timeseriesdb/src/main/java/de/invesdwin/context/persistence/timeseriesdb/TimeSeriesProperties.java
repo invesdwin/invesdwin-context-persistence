@@ -96,16 +96,4 @@ public final class TimeSeriesProperties {
         return ACQUIRE_WRITE_LOCK_TIMEOUT.newRandomDuration();
     }
 
-    /**
-     * Whether the index-generation prune may run. Read per call rather than latched into a static final: a rollout guard
-     * that can only be set at class-initialisation cannot be proven inert by turning it off in a test, and the house rule
-     * for such a mechanism is that the test goes red when the property disables it. It ships off because the prune
-     * removes index generations that an OLDER build may be holding, and that build's range() answers an empty chain when
-     * the generation it latched is gone - which the trading derived-store guards read as licence to delete and rebuild
-     * the key. Enable it only once every node runs the build that re-resolves the newest generation present.
-     */
-    public static boolean isIndexGenerationPruneEnabled() {
-        return SYSTEM_PROPERTIES.getBooleanOptional("INDEX_GENERATION_PRUNE_ENABLED", Boolean.FALSE);
-    }
-
 }
