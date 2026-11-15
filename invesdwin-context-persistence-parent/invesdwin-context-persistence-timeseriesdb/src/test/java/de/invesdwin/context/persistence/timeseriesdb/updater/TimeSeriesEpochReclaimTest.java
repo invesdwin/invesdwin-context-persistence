@@ -206,7 +206,7 @@ public class TimeSeriesEpochReclaimTest extends ATest {
      * The sweep needs no dedicated timer: the next successful attempt for the key submits it and the version-cleanup
      * thread takes the crashed writer's garbage with it. Submitting instead of sweeping on the update thread is the
      * point - a sweep parses every retained index generation of the key (~865 MB measured for one live key's directory
-     * on ptstaging) and must not run under the cache update lock. The drain happens on another thread, so this waits
+     * on the production box) and must not run under the cache update lock. The drain happens on another thread, so this waits
      * for its effect instead of asserting about a thread it does not own.
      */
     @Test
@@ -388,8 +388,8 @@ public class TimeSeriesEpochReclaimTest extends ATest {
     /**
      * Inside one attempt, every boundary-commit publish continues the chain, so each generation above the base names
      * payload no other generation names. Not one of them may be pruned: a live range with a hole in it is a chain that
-     * cannot be assembled. This is the shape the store spends most of its publishes in (the worst ptstaging key carries
-     * 781 generations per attempt, measured 2026-11-14 from lap-mid over ssh), and the count is pinned to what was
+     * cannot be assembled. This is the shape the store spends most of its publishes in (the worst production key carries
+     * 781 generations per attempt, measured 2026-11-14 from a dev box over ssh), and the count is pinned to what was
      * published rather than to the keep floor.
      */
     @Test

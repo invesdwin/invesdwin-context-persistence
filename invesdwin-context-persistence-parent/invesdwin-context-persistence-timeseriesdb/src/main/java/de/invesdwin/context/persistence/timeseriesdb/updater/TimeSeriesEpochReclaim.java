@@ -50,7 +50,7 @@ import de.invesdwin.util.time.date.millis.FDateMillis;
  * {@link TimeSeriesDirectoryHashKeyVersionLeaseRegistry}, which already has its own single thread and lifecycle. That
  * is not a cosmetic move: a sweep reads every '&lt;N&gt;_memory.index' generation of the key to learn which data files
  * are still referenced, and a live key's directory holds generations back to
- * {@link TimeSeriesProperties#RETAIN_OBSOLETE_FILES_THRESHOLD} - measured on ptstaging with 1,496 generations of
+ * {@link TimeSeriesProperties#RETAIN_OBSOLETE_FILES_THRESHOLD} - measured on the production box with 1,496 generations of
  * ~578 KB in one live key's directory, so one sweep decompresses ~865 MB. Doing that inline held the live cache update
  * lock for minutes while every demand of that key answered retry-later.</li>
  * </ul>

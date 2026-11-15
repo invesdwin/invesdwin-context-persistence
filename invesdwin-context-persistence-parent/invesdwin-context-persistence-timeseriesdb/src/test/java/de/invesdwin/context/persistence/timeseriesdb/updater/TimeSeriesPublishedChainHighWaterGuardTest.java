@@ -111,7 +111,7 @@ public class TimeSeriesPublishedChainHighWaterGuardTest extends ATest {
     /**
      * The whole point of the delta chain: inside one attempt, every boundary-commit publish CONTINUES the chain, so it
      * writes only its own records and the base stays the attempt's first generation. The live shape this bounds is 781
-     * generations per attempt on the worst ptstaging key (measured 2026-11-14 from lap-mid over ssh) - if each of those
+     * generations per attempt on the worst production key (measured 2026-11-14 from a dev box over ssh) - if each of those
      * publishes rewrote the chain, the layout would buy nothing and the index would keep costing ~54 % of the key.
      */
     @Test

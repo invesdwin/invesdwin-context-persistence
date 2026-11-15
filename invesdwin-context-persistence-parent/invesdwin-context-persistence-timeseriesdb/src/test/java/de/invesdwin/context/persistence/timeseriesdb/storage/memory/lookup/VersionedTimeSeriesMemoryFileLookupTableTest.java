@@ -214,7 +214,7 @@ public class VersionedTimeSeriesMemoryFileLookupTableTest extends ATest {
      * The cost this layout exists to remove: a generation above the base carries the records its own publish staged,
      * not the whole chain. Pinned on record counts rather than wall time, because the point is that a publish stops
      * re-emitting what is already stored - the live measurement behind it is 4,302,137 B of index I/O and 27,533,743 B
-     * of inflate+deflate to persist 1,457 B of new content (ptstaging worst key, 2026-11-14, lap-mid over ssh).
+     * of inflate+deflate to persist 1,457 B of new content (the production store's worst key, 2026-11-14, verified over ssh).
      */
     @Test
     public void testADeltaGenerationCarriesOnlyTheRecordsItsOwnPublishStaged() throws Exception {
