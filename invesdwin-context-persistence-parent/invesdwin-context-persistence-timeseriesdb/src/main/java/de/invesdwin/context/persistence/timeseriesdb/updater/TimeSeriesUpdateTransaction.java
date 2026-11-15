@@ -33,7 +33,7 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
     /**
      * Completed segments one index generation amortises over. This is a constant of the layout, not a deployment
      * setting: as a system property it let the boxes in this fleet drift apart, and what it trades is a property of the
-     * format. Measured on lap-mid 2026-11-14 (one committed pass of 4,000 segments, 400,000 values of a 5-byte FDate,
+     * format. Measured on a dev box 2026-11-14 (one committed pass of 4,000 segments, 400,000 values of a 5-byte FDate,
      * batch flush 100, parallel writer, ext4, JDK 17.0.20.1), sweeping the cadence through the then-live property:
      * <pre>
      *   segments per publish        1        10        25        50
@@ -195,7 +195,7 @@ public class TimeSeriesUpdateTransaction<V> implements ISafeCloseable {
      * The yield rides the publish cadence on purpose. Releasing the write lock costs a grace sleep - see the WINDOW_GRACE_MILLIS
      * grace sleep in {@link TimeSeriesWriteLockYield} - because on this non-fair read-write lock a writer that
      * releases and immediately re-acquires wins its own race and the "window" is no window. Yielding at every completed
-     * segment was measured at 23,358 ms for a pass that costs 4,705 ms when the yield rides the publish (lap-mid
+     * segment was measured at 23,358 ms for a pass that costs 4,705 ms when the yield rides the publish (a dev box
      * 2026-11-14, one 4,000 segment pass, identical index bytes and identical payload file counts - the whole delta is
      * grace sleep). Since the pass holds the key's update lock throughout, making a pass 5x longer makes every reader
      * of that key wait longer in aggregate, not less: finer windows are not a fairer store.

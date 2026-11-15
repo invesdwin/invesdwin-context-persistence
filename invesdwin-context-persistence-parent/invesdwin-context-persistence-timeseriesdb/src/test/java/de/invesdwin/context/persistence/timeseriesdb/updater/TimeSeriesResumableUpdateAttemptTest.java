@@ -180,7 +180,7 @@ public class TimeSeriesResumableUpdateAttemptTest extends ATest {
     /**
      * One {@code memory.log} record per update attempt - committed OR aborted - stating what the store holds when the
      * attempt closes, and nothing at all for an attempt that lands nothing new. The per-summary shape this replaces
-     * measured 3,139 MB across 6,535 keys on ptstaging (largest single file 42.2 MB with 73,139 records), which answers
+     * measured 3,139 MB across 6,535 keys on the production box (largest single file 42.2 MB with 73,139 records), which answers
      * far less than one attempt record does: the attempt id, the outcome, how many data files it staged, how many times
      * it published and the published frontier.
      */

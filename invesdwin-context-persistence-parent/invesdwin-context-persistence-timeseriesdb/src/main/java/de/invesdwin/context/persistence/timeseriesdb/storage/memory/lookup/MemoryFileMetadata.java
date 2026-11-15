@@ -138,7 +138,7 @@ public class MemoryFileMetadata {
      * <p>
      * The trail is kept because it is read by people, not by code: it is what dated "the last write of real tick data"
      * during the 2026-11-11 iqfeed outage (INCIDENT-iqfeed-outage-20261111.md:86). It used to be written once per
-     * SUMMARY: measured 2026-11-14 09:2x from lap-mid over ssh on ptstaging's live store, 6,535 memory.log files
+     * SUMMARY: measured 2026-11-14 09:2x from a dev box over ssh on the production box's live store, 6,535 memory.log files
      * totalling 3,139.7 MB, the largest 42.2 MB holding 73,139 records for a key whose directory carries 22 index
      * generations. Per attempt is the unit that answers the operator question, and an attempt that staged nothing
      * writes nothing at all.
