@@ -31,7 +31,10 @@ import de.invesdwin.util.lang.Files;
 import de.invesdwin.util.lang.string.Charsets;
 import de.invesdwin.util.lang.string.description.TextDescription;
 import de.invesdwin.util.math.Longs;
+import de.invesdwin.util.time.date.FTimeUnit;
 import de.invesdwin.util.time.date.millis.FDateMillis;
+import de.invesdwin.util.time.date.millis.FDateNanos;
+import de.invesdwin.util.time.duration.Duration;
 
 /**
  * Reclaim of the data files an update attempt leaves behind (the M1 attempt-local layout is what makes this a hard
@@ -100,14 +103,22 @@ public final class TimeSeriesEpochReclaim {
             .newConcurrentMap();
 
     /**
-     * The chain-to-attestation mismatch last reported for a data directory, keyed to the exact pair of byte counts it
-     * was reported for. The sweep re-walks the same directory on every pass - measured on the running service after the
-     * 2026-11-19 roll: 1,512 warn lines from 8 distinct directories in 8.5 minutes, 0 keys reset, 0 error records -
-     * so only a CHANGE of state earns a line. The entry is dropped as soon as the two agree again, which bounds the map
-     * at the number of currently mismatched directories.
+     * How often one data directory may report a chain-vs-attestation mismatch. Deduplicating on the byte pair alone
+     * was measured to be useless on a live store: the pair changes with every flush, so a busy directory produced 240
+     * warn lines in 4.4 minutes AFTER the pair-dedup change (1,512 lines from 8 directories in the run before it,
+     * 80 % of the service's whole WARN output). The interval is what bounds it; a directory that stays mismatched is
+     * still named once a minute, because a persistent mismatch is worth seeing again.
      */
-    private static final Map<File, String> HIGH_WATER_MISMATCH_REPORTED = ILockCollectionFactory.getInstance(true)
-            .newConcurrentMap();
+    private static final Duration HIGH_WATER_REPORT_INTERVAL = new Duration(1, FTimeUnit.MINUTES);
+
+    /**
+     * Last report state per data directory: the signature that was reported (the byte pair, or the read failure) and
+     * when it was emitted, in elapsed nanos rather than an Instant so a per-walk path allocates no clock object. The
+     * entry is dropped as soon as chain and attestation agree again, which bounds the map at the number of currently
+     * mismatched directories.
+     */
+    private static final Map<File, HighWaterReport> HIGH_WATER_MISMATCH_REPORTED = ILockCollectionFactory
+            .getInstance(true).newConcurrentMap();
 
     private TimeSeriesEpochReclaim() {}
 
@@ -704,14 +715,14 @@ public final class TimeSeriesEpochReclaim {
                 HIGH_WATER_MISMATCH_REPORTED.remove(dataDirectory);
                 return true;
             }
-            if (mismatchStateChanges(dataDirectory, chainHighWater + "/" + attestedHighWater)) {
+            if (shouldReportMismatch(dataDirectory, chainHighWater + "/" + attestedHighWater)) {
                 LOG.warn("The newest index generation of data directory [%s] ends at [%s] bytes, the key attests [%s]",
                         dataDirectory, Long.valueOf(chainHighWater), Long.valueOf(attestedHighWater));
             }
             return false;
         } catch (final Throwable t) {
             final String failure = Throwables.concatMessages(t);
-            if (mismatchStateChanges(dataDirectory, "unread/" + failure)) {
+            if (shouldReportMismatch(dataDirectory, "unread/" + failure)) {
                 LOG.warn("The byte attestation of data directory [%s] cannot be read: %s", dataDirectory, failure);
             }
             return false;
@@ -719,12 +730,29 @@ public final class TimeSeriesEpochReclaim {
     }
 
     /**
-     * True when this directory's mismatch state differs from the last one recorded here - i.e. it is worth a line. The
-     * signature names the state (the two byte counts, or the read failure), so a directory mid-publish produces one
-     * line per state it passes through instead of one per walk.
+     * True when this directory's mismatch deserves a line now: a state change since the last report, or the same state
+     * persisting past {@link #HIGH_WATER_REPORT_INTERVAL}. Callers hold no lock - a duplicate line under a race costs
+     * nothing, suppressing a real one would not.
      */
-    private static boolean mismatchStateChanges(final File dataDirectory, final String signature) {
-        return !signature.equals(HIGH_WATER_MISMATCH_REPORTED.put(dataDirectory, signature));
+    private static boolean shouldReportMismatch(final File dataDirectory, final String signature) {
+        final long nowNanos = FDateNanos.elapsedNanos();
+        final HighWaterReport last = HIGH_WATER_MISMATCH_REPORTED.get(dataDirectory);
+        if (last != null && last.signature.equals(signature)
+                && HIGH_WATER_REPORT_INTERVAL.isGreaterThanNanos(nowNanos - last.reportedAtNanos)) {
+            return false;
+        }
+        HIGH_WATER_MISMATCH_REPORTED.put(dataDirectory, new HighWaterReport(signature, nowNanos));
+        return true;
+    }
+
+    private static final class HighWaterReport {
+        private final String signature;
+        private final long reportedAtNanos;
+
+        private HighWaterReport(final String signature, final long reportedAtNanos) {
+            this.signature = signature;
+            this.reportedAtNanos = reportedAtNanos;
+        }
     }
 
     private static void addSummaryNames(final Set<String> names, final List<MemoryFileSummary> summaries) {
