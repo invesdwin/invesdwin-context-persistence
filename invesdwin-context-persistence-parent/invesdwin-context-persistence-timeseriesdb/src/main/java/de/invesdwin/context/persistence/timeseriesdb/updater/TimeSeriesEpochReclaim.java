@@ -99,6 +99,16 @@ public final class TimeSeriesEpochReclaim {
     private static final Map<File, PendingReclaim> PENDING_RECLAIMS = ILockCollectionFactory.getInstance(true)
             .newConcurrentMap();
 
+    /**
+     * The chain-to-attestation mismatch last reported for a data directory, keyed to the exact pair of byte counts it
+     * was reported for. The sweep re-walks the same directory on every pass - measured on the running service after the
+     * 2026-11-19 roll: 1,512 warn lines from 8 distinct directories in 8.5 minutes, 0 keys reset, 0 error records -
+     * so only a CHANGE of state earns a line. The entry is dropped as soon as the two agree again, which bounds the map
+     * at the number of currently mismatched directories.
+     */
+    private static final Map<File, String> HIGH_WATER_MISMATCH_REPORTED = ILockCollectionFactory.getInstance(true)
+            .newConcurrentMap();
+
     private TimeSeriesEpochReclaim() {}
 
     /**
@@ -457,7 +467,9 @@ public final class TimeSeriesEpochReclaim {
                 //The store already persists the byte high-water of the chain it published on every put
                 //(EXPECTED_MEMORY_FILE_SIZE, read back by isEmptyOrInconsistent), so a chain that does not reach it is
                 //not the published chain, and pruning or reclaiming on it is the fail-open case this class exists to
-                //close.
+                //close. The report of WHICH bytes disagree stays inside the helper, because the once-per-key warning
+                //in pruneRedundantIndexGenerations cannot carry it: that path returns early when nothing was prunable,
+                //which is the normal outcome here (measured: 1,512 mismatches, 0 "Not pruning" lines).
                 return ReferenceSet.unreliable(referencedNames, "the newest generation ["
                         + generationFile.getName() + "] does not reach the attested byte high-water", true, prunable);
             }
@@ -670,6 +682,12 @@ public final class TimeSeriesEpochReclaim {
      * equality {@link TimeSeriesLookupStorageCache#isEmptyOrInconsistent()} uses as its own integrity test, applied
      * here to the file the walk is about to trust. A store that never published has no attestation, which is not a
      * mismatch; a read failure answers false, because the caller deletes nothing unless the walk is reliable.
+     * <p>
+     * The mismatch stays a WARN - it is the store refusing to trust its own newest generation, and the once-per-key
+     * warning below it does not fire when nothing was prunable - but it is reported once per distinct state per
+     * directory rather than once per walk. A directory that is mid-publish changes state every pass, so it reads as a
+     * short sequence of lines ending when the chain catches up with the attestation; a directory stuck at the same pair
+     * of numbers across passes is the case worth seeing again, and it is not repeated either.
      */
     private static boolean newestGenerationReachesTheAttestedHighWater(final File dataDirectory,
             final List<MemoryFileSummary> summaries) {
@@ -677,20 +695,36 @@ public final class TimeSeriesEpochReclaim {
         try (ICloseableProperties properties = metadata.getProperties()) {
             final long attestedHighWater = metadata.getExpectedMemoryFileSize(properties);
             if (attestedHighWater == MemoryFileMetadata.MISSING_EXPECTED_MEMORY_FILE_SIZE) {
+                HIGH_WATER_MISMATCH_REPORTED.remove(dataDirectory);
                 return true;
             }
             final long chainHighWater = summaries.isEmpty() ? 0L
                     : summaries.get(summaries.size() - 1).getCombinedMemoryFileSize();
-            if (chainHighWater != attestedHighWater) {
-                LOG.warn("The newest index generation of data directory [%s] ends at [%s] bytes, the key attests [%s]",
-                        dataDirectory, chainHighWater, attestedHighWater);
+            if (chainHighWater == attestedHighWater) {
+                HIGH_WATER_MISMATCH_REPORTED.remove(dataDirectory);
+                return true;
             }
-            return chainHighWater == attestedHighWater;
+            if (mismatchStateChanges(dataDirectory, chainHighWater + "/" + attestedHighWater)) {
+                LOG.warn("The newest index generation of data directory [%s] ends at [%s] bytes, the key attests [%s]",
+                        dataDirectory, Long.valueOf(chainHighWater), Long.valueOf(attestedHighWater));
+            }
+            return false;
         } catch (final Throwable t) {
-            LOG.warn("The byte attestation of data directory [%s] cannot be read: %s", dataDirectory,
-                    Throwables.concatMessages(t));
+            final String failure = Throwables.concatMessages(t);
+            if (mismatchStateChanges(dataDirectory, "unread/" + failure)) {
+                LOG.warn("The byte attestation of data directory [%s] cannot be read: %s", dataDirectory, failure);
+            }
             return false;
         }
+    }
+
+    /**
+     * True when this directory's mismatch state differs from the last one recorded here - i.e. it is worth a line. The
+     * signature names the state (the two byte counts, or the read failure), so a directory mid-publish produces one
+     * line per state it passes through instead of one per walk.
+     */
+    private static boolean mismatchStateChanges(final File dataDirectory, final String signature) {
+        return !signature.equals(HIGH_WATER_MISMATCH_REPORTED.put(dataDirectory, signature));
     }
 
     private static void addSummaryNames(final Set<String> names, final List<MemoryFileSummary> summaries) {
