@@ -1,6 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 
-import de.invesdwin.context.integration.retry.fast.FastNonBlockingRetryLaterRuntimeException;
+import de.invesdwin.context.log.Log;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDBInternals;
@@ -25,6 +25,8 @@ import de.invesdwin.util.time.date.FDates;
 
 @NotThreadSafe
 public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
+
+    private static final Log LOG = new Log(PersistentLiveSegment.class);
 
     private final SegmentedKey<K> segmentedKey;
     private final ISegmentedTimeSeriesDBInternals<K, V> historicalSegmentTable;
@@ -201,16 +203,16 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
         };
         try (TimeSeriesUpdaterResult result = updater.update()) {
             if (result.getUpdatedTo() == null) {
-                //The range this flush was given yielded nothing to write. ATimeSeriesUpdater declares a null
-                //updatedTo as a permitted outcome ("the callers tolerate a null updatedTo" - ALazyDataUpdater
-                //null-checks it, the live precalc driver guards it), so asserting here was wrong: the NPE reached
-                //the idle-updating listener as a NON-retryable error, and Retries.shouldRetry then unsubscribes
-                //the instrument from automatic updates - measured on the live service as 66 flush failures and 68
-                //UnsubscribeFromEventException records, all on continuous-chain legs, recurring every hour.
-                //Named and retryable instead; this throws before any close, so the caller's buffer is kept and the
-                //next attempt re-flushes the same values rather than losing them.
-                throw new FastNonBlockingRetryLaterRuntimeException("Live segment flush wrote nothing for table ["
-                        + table.getName() + "] and key [" + segmentedKey + "]");
+                //Nothing to advance: an empty live-segment flush is routine, not a fault. Asserting on it produced
+                //an anonymous NullPointerException that AIdleUpdatingStrategyListener could not retry, and every
+                //occurrence ended in an UnsubscribeFromEventException that dropped the instrument from automatic
+                //updates (measured on the live service: 66 such records, 68 unsubscribes, ~16 continuous keys).
+                //Throwing here instead is equally wrong - the full module suite shows an empty flush is a normal
+                //outcome (884 failures when it became a verdict). So the segment simply stays empty: the caller keeps
+                //its buffer, and the next attempt re-flushes it.
+                LOG.debug("Live segment flush wrote nothing for table [%s] and key [%s]; staying empty and letting"
+                        + " the caller re-flush", table.getName(), segmentedKey);
+                return;
             }
         } catch (final IncompleteUpdateRetryableException e) {
             throw new RuntimeException(e);

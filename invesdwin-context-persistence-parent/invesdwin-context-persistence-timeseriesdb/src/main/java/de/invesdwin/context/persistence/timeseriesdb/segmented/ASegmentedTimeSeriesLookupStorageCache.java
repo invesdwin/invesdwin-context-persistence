@@ -1,5 +1,8 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented;
 
+import de.invesdwin.util.concurrent.lock.ILock;
+import java.util.List;
+import java.util.ArrayList;
 import java.io.Closeable;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -17,6 +20,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.lang3.SerializationException;
 import org.springframework.retry.backoff.BackOffPolicy;
 
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.lease.TimeSeriesDirectoryHashKeyVersionLeaseRegistry;
 import de.invesdwin.context.integration.IntegrationProperties;
 import de.invesdwin.context.integration.concurrent.DatabaseThreads;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
@@ -66,7 +70,6 @@ import de.invesdwin.util.concurrent.future.Futures;
 import de.invesdwin.util.concurrent.future.ImmutableFuture;
 import de.invesdwin.util.concurrent.future.ThrowableFuture;
 import de.invesdwin.util.concurrent.lock.ICloseableLock;
-import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
@@ -984,6 +987,32 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         return filteredSegments;
     }
 
+    /**
+     * Retires the current version's segments after the version bump.
+     * <p>
+     * Copy-on-write only - no file is deleted here. The reclaimed version's directories go through
+     * TimeSeriesDirectoryHashKeyVersionLease.cleanupObsoleteVersions, which deletes a version only when no active
+     * lease holds it, and leases are advertised by heartbeat FILES in a shared directory
+     * (populateActiveHeartbeatLeases) - i.e. liveness is cross-process. An eager delete here could only see this
+     * JVM's write locks, so it would be able to rip a version out from under another runtime that is legitimately
+     * publishing into it; that is why the optimistic in-JVM tryLock variant was dropped.
+     * <p>
+     * The status rows still must go: a surviving COMPLETE/COMPLETE_EMPTY row would serve a deleted segment as
+     * complete-without-values to a later reader of the same key.
+     */
+    protected void retireCurrentVersionSegments() {
+        try (ICloseableIterator<TimeRange> iterator = segmentStatusTable.rangeKeys()) {
+            while (true) {
+                segmentStatusTable.delete(iterator.next());
+            }
+        } catch (final NoSuchElementException e) {
+            //end reached
+        }
+        //Ask for reclamation now rather than at the next interval, so an uncontended reset still frees disk early -
+        //the sweep itself keeps the lease/heartbeat judgement.
+        TimeSeriesDirectoryHashKeyVersionLeaseRegistry.requestEpochReclaim();
+    }
+
     public void deleteAll() {
         lookupByIndexAvailableFutureDisabled = true;
         try {
@@ -1003,20 +1032,15 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
 
             deleteLock.lock();
             try {
-                try (ICloseableIterator<TimeRange> iterator = segmentStatusTable.rangeKeys()) {
-                    while (true) {
-                        final TimeRange rangeKey = iterator.next();
-                        segmentedTable.deleteRange(new SegmentedKey<K>(key, rangeKey));
-                        //also drop the status row: on the bump-skip path (no .updated marker ->
-                        //incrementVersion stays on the current version) the generation is NOT
-                        //orphaned, and a surviving COMPLETE/COMPLETE_EMPTY row would serve this
-                        //deleted segment as complete-without-values to every later reader.
-                        segmentStatusTable.delete(rangeKey);
-                    }
-                } catch (final NoSuchElementException e) {
-                    //end reached
-                }
+                //Copy-on-write reset: retire the version instead of deleting its segments in place. The table lock
+                //is keyed by (hashKey, segment) - getTableLock(key) in ASegmentedTimeSeriesDB - so an inline
+                //deleteRange of a segment contends with the very update attempt that is publishing into it, which is
+                //what made this path wait on a cancelled writer and then force an unlocked delete. Bumping first
+                //means no new reader can enter this version; the interrupted writer finishes into a version nobody
+                //reads; and the old version directory is reclaimed by the existing lease machinery
+                //(TimeSeriesDirectoryHashKeyVersionLease.cleanupObsoleteVersions, heartbeat-gated) rather than here.
                 directoryHashKey.getDirectoryHashKeyVersion().incrementVersion();
+                retireCurrentVersionSegments();
                 storage.deleteRange_latestValueLookupTable(hashKey);
                 storage.deleteRange_nextValueLookupTable(hashKey);
                 storage.deleteRange_previousValueLookupTable(hashKey);

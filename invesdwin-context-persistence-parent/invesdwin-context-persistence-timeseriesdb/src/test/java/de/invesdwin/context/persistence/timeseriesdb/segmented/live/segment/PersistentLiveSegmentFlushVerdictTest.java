@@ -8,7 +8,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
-import de.invesdwin.context.integration.retry.fast.FastNonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.SegmentedKey;
@@ -45,27 +44,28 @@ public class PersistentLiveSegmentFlushVerdictTest extends ATest {
     private final Map<Integer, FDate> extractTime = ILockCollectionFactory.getInstance(false).newMap();
 
     @Test
-    public void anEmptyFlushIsARetryableVerdictAndKeepsTheSegmentEmpty() {
-        final PersistentLiveSegment<FDate, Integer> segment = newSegment("emptyFlushVerdict");
+    public void anEmptyFlushIsAQuietFallthroughThatLeavesTheSegmentEmpty() {
+        final PersistentLiveSegment<FDate, Integer> segment = newSegment("emptyFlushFallthrough");
         Assertions.assertThat(segment.isEmpty()).as("a fresh live segment is empty").isTrue();
-        Assertions.assertThatExceptionOfType(FastNonBlockingRetryLaterRuntimeException.class)
-                .as("nothing written must be a verdict the caller can retry, not an NPE it cannot classify")
-                .isThrownBy(() -> segment.putNextLiveValues(EmptyCloseableIterable.getInstance()))
-                .withMessageContaining("flush wrote nothing");
+        //The assertion that used to live here raised an anonymous NPE, which the idle listener could not retry, so
+        //every empty flush ended in an UnsubscribeFromEventException (66 records, 68 unsubscribes, ~16 keys). Making
+        //it a verdict instead was also wrong: the module suite shows an empty flush is routine (884 failures when it
+        //threw). Neither - the caller keeps its buffer and the next attempt re-flushes it.
+        segment.putNextLiveValues(EmptyCloseableIterable.getInstance());
         Assertions.assertThat(segment.isEmpty())
-                .as("a failed flush must not mark the segment written - the caller keeps its buffer and retries")
+                .as("an empty flush neither faults nor marks the segment written")
                 .isTrue();
     }
 
     @Test
-    public void aFlushAfterAFailedOneStillWritesTheBufferedValues() {
+    public void theValuesOfAnEmptyFlushRoundStillGetWrittenByTheNextOne() {
         final PersistentLiveSegment<FDate, Integer> segment = newSegment("emptyFlushThenRealOne");
-        Assertions.assertThatExceptionOfType(FastNonBlockingRetryLaterRuntimeException.class)
-                .isThrownBy(() -> segment.putNextLiveValues(EmptyCloseableIterable.getInstance()));
+        segment.putNextLiveValues(EmptyCloseableIterable.getInstance());
         final FDate valueTime = FDateBuilder.newDate(2000, 6, 15);
         extractTime.put(7, valueTime);
         segment.putNextLiveValues(WrapperCloseableIterable.maybeWrap(List.of(7)));
-        Assertions.assertThat(segment.isEmpty()).as("the retry carries the values that survived the failed flush")
+        Assertions.assertThat(segment.isEmpty())
+                .as("the retry carries the values that the refused round kept for it")
                 .isFalse();
     }
 
