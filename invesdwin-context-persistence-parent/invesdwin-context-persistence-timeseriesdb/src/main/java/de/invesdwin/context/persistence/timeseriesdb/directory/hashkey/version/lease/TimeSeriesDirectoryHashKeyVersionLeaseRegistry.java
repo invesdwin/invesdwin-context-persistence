@@ -1,5 +1,7 @@
 package de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.lease;
 
+import java.util.List;
+import java.nio.file.DirectoryStream;
 import java.io.File;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
@@ -141,6 +143,90 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
      * file throttle - that gate is {@link AtomicNioFileChannelContext#TMP_CLEANUP_INTERVAL} (a day), while the epoch
      * retention this sweep obeys is an hour.
      */
+    /**
+     * Whether some OTHER process currently holds a lease on this hash key's {@code version} directory. The key form
+     * is exactly what newRegistryKey() writes into a heartbeat file, so the two sides cannot drift.
+     * <p>
+     * Read-only on purpose: the registry's only other accessor, getOrCreate(parent, version), would register a lease
+     * for this JVM and make us the holder, which is the opposite of the question. A store reset needs to know
+     * whether it may delete a retired version's files now, and that is a cross-process fact.
+     * <p>
+     * A heartbeat whose file is older than {@link HeartbeatFileChannelLockRegistry#HEARTBEAT_TIMEOUT} does not count:
+     * a live process re-touches it every {@link HeartbeatFileChannelLockRegistry#HEARTBEAT_INTERVAL}, so an old mtime
+     * means its writer crashed and it must not pin the version forever. The version sweep is the fallback for what
+     * stays held - not holding a lease is an optimisation of reclaim latency, never a correctness precondition.
+     */
+    public static boolean isLeasedByForeignProcess(final ITimeSeriesDirectoryHashKey parent, final int version) {
+        final File heartbeatsDirectory = parent.getParent().getHeartbeatsDirectory();
+        if (!Files.isDirectory(heartbeatsDirectory.toPath())) {
+            return false;
+        }
+        final String registryKey = parent.getHashKey() + "/" + version;
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(heartbeatsDirectory.toPath(),
+                Files::isRegularFile)) {
+            for (final Path heartbeatFile : stream) {
+                if (heartbeatFile.getFileName().toString()
+                        .startsWith(Files.normalizeFileName(HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER))) {
+                    //our own leases are not foreign; a reset releases them
+                    continue;
+                }
+                if (!isHeartbeatLive(heartbeatFile.toFile())) {
+                    continue;
+                }
+                if (namesLease(heartbeatFile, registryKey)) {
+                    return true;
+                }
+            }
+        } catch (final IOException e) {
+            //The directory vanished or became unreadable mid-scan: that is not evidence of "nobody holds it".
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Reading one heartbeat file's lease lines. Fail-closed on purpose: the heartbeat is rewritten in place
+     * (writeStringToFileIfDifferent -> truncate), and a lease is registered before the rewrite is scheduled
+     * (requestWrite goes to the heartbeat executor), so a live file can be caught empty or half-written. An
+     * unreadable or key-less live heartbeat therefore counts as holding, which costs reclaim latency; answering
+     * "not held" would cost another process its open payload.
+     */
+    private static boolean namesLease(final Path heartbeatFile, final String registryKey) {
+        final List<String> lines;
+        try {
+            lines = Files.readAllLines(heartbeatFile);
+        } catch (final IOException e) {
+            return true;
+        }
+        boolean leaseLines = false;
+        for (final String line : lines) {
+            final String trimmed = line.trim();
+            if (!trimmed.contains("/")) {
+                //the header line (Hostname=/ProcessId=/...) - not a lease
+                continue;
+            }
+            leaseLines = true;
+            if (registryKey.equals(trimmed)) {
+                return true;
+            }
+        }
+        return !leaseLines;
+    }
+
+    /**
+     * Whether a heartbeat file was refreshed recently enough to mean its writer is still alive.
+     * <p>
+     * touchOrRewriteHeartbeat() re-touches the file every HEARTBEAT_INTERVAL even when the lease set did not change,
+     * and a JVM that ends up holding no lease deletes its file outright, so a file older than HEARTBEAT_TIMEOUT
+     * belongs to a process that died. Nothing reaps those files, so every reader of a heartbeats directory has to
+     * ignore them - both this registry's eager check and the version sweep's active-lease set - or a crash pins the
+     * versions that process claimed forever.
+     */
+    public static boolean isHeartbeatLive(final File heartbeatFile) {
+        return heartbeatFile.lastModified() > FDateMillis.nowMillis()
+                - HeartbeatFileChannelLockRegistry.HEARTBEAT_TIMEOUT.millisValue();
+    }
+
     public static void requestEpochReclaim() {
         if (EPOCH_RECLAIM_SCHEDULED.compareAndSet(false, true)) {
             startCleanupExecutorIfNeeded();

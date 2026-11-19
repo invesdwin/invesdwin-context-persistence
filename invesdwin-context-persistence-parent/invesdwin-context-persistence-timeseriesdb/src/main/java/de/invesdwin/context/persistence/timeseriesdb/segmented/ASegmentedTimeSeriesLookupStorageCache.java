@@ -1,8 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented;
 
 import de.invesdwin.util.concurrent.lock.ILock;
-import java.util.List;
-import java.util.ArrayList;
 import java.io.Closeable;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -988,28 +986,42 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
     }
 
     /**
-     * Retires the current version's segments after the version bump.
+     * Retires the version that was just bumped past.
      * <p>
-     * Copy-on-write only - no file is deleted here. The reclaimed version's directories go through
-     * TimeSeriesDirectoryHashKeyVersionLease.cleanupObsoleteVersions, which deletes a version only when no active
-     * lease holds it, and leases are advertised by heartbeat FILES in a shared directory
-     * (populateActiveHeartbeatLeases) - i.e. liveness is cross-process. An eager delete here could only see this
-     * JVM's write locks, so it would be able to rip a version out from under another runtime that is legitimately
-     * publishing into it; that is why the optimistic in-JVM tryLock variant was dropped.
+     * Attempt the delete, wait for it only where we hold the lock, leave it to the holder otherwise: a segment whose
+     * (hashKey, segment) table write lock is immediately free is unlinked now, so an uncontended reset still reclaims
+     * disk at once; a segment another thread is publishing into is left alone. And when a foreign process holds a
+     * lease on the retired version at all, nothing here is deleted - that runtime publishes into it and its own sweep
+     * will reclaim it. What the old code did instead was wait up to ACQUIRE_WRITE_LOCK_TIMEOUT on a writer its own
+     * teardown had just interrupted, and then delete while unlocked.
      * <p>
-     * The status rows still must go: a surviving COMPLETE/COMPLETE_EMPTY row would serve a deleted segment as
-     * complete-without-values to a later reader of the same key.
+     * The status rows always go, in every branch: a surviving COMPLETE/COMPLETE_EMPTY row would serve a deleted
+     * segment as complete-without-values to a later reader of the same key. Anything left on disk is reclaimed by
+     * TimeSeriesDirectoryHashKeyVersionLease.cleanupObsoleteVersions, which is why requestEpochReclaim() is called -
+     * to shorten the wait, not to duplicate the sweep's lease judgement here.
      */
-    protected void retireCurrentVersionSegments() {
+    protected void retireCurrentVersionSegments(final int retiredVersion) {
+        final boolean foreignLease = TimeSeriesDirectoryHashKeyVersionLeaseRegistry.isLeasedByForeignProcess(
+                directoryHashKey, retiredVersion);
         try (ICloseableIterator<TimeRange> iterator = segmentStatusTable.rangeKeys()) {
             while (true) {
-                segmentStatusTable.delete(iterator.next());
+                final TimeRange rangeKey = iterator.next();
+                if (!foreignLease) {
+                    final SegmentedKey<K> segmentedKey = new SegmentedKey<>(key, rangeKey);
+                    final ILock writeLock = segmentedTable.getTableLock(segmentedKey).writeLock();
+                    if (writeLock.tryLock()) {
+                        try {
+                            segmentedTable.deleteRange(segmentedKey);
+                        } finally {
+                            writeLock.unlock();
+                        }
+                    }
+                }
+                segmentStatusTable.delete(rangeKey);
             }
         } catch (final NoSuchElementException e) {
             //end reached
         }
-        //Ask for reclamation now rather than at the next interval, so an uncontended reset still frees disk early -
-        //the sweep itself keeps the lease/heartbeat judgement.
         TimeSeriesDirectoryHashKeyVersionLeaseRegistry.requestEpochReclaim();
     }
 
@@ -1039,8 +1051,9 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
                 //means no new reader can enter this version; the interrupted writer finishes into a version nobody
                 //reads; and the old version directory is reclaimed by the existing lease machinery
                 //(TimeSeriesDirectoryHashKeyVersionLease.cleanupObsoleteVersions, heartbeat-gated) rather than here.
+                final int retiredVersion = directoryHashKey.getDirectoryHashKeyVersion().getVersion();
                 directoryHashKey.getDirectoryHashKeyVersion().incrementVersion();
-                retireCurrentVersionSegments();
+                retireCurrentVersionSegments(retiredVersion);
                 storage.deleteRange_latestValueLookupTable(hashKey);
                 storage.deleteRange_nextValueLookupTable(hashKey);
                 storage.deleteRange_previousValueLookupTable(hashKey);
