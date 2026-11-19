@@ -1,5 +1,8 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented.live;
 
+import de.invesdwin.util.assertions.Assertions;
+import org.junit.jupiter.api.Test;
+import de.invesdwin.util.concurrent.lock.ILock;
 import java.util.List;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -147,5 +150,32 @@ public class ALiveSegmentedTimeSeriesDBWithCacheTest extends ABaseDBWithCacheTes
             return "values";
         }
     }
+
+    /**
+     * A store reset must not need the table write lock any more - that is what retiring the version buys.
+     * <p>
+     * The old shape deleted every segment of the key in place, and a segment's table lock is exactly what a live
+     * update attempt holds while publishing into it; at run close the teardown had just interrupted that writer, so
+     * the reset either waited on it (up to ACQUIRE_WRITE_LOCK_TIMEOUT) or forced an unlocked delete. The version bump
+     * makes the reset a copy-on-write handover: it retires the version, no new reader can enter it, and the existing
+     * lease sweep reclaims the directory later.
+     */
+    @Test
+    public void testDeleteRangeSucceedsWithoutTheTableWriteLock() throws Exception {
+        final long sizeBefore = table.size(KEY);
+        Assertions.assertThat(sizeBefore).as("this check needs a populated key").isGreaterThan(0L);
+        final ILock writeLock = table.getTableLock(KEY).writeLock();
+        writeLock.lock();
+        try {
+            //no verdict, no wait: the reset does not ask for this lock any more
+            table.deleteRange(KEY);
+        } finally {
+            writeLock.unlock();
+        }
+        Assertions.assertThat(table.size(KEY))
+                .as("the retired version means the key now reads as a fresh, empty store")
+                .isZero();
+    }
+
 
 }

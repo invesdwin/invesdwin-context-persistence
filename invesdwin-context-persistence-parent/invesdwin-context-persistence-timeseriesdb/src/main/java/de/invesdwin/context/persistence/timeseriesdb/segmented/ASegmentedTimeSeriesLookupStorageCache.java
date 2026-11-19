@@ -1,5 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented;
 
+import de.invesdwin.util.concurrent.lock.ILock;
 import java.io.Closeable;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -17,6 +18,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.lang3.SerializationException;
 import org.springframework.retry.backoff.BackOffPolicy;
 
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.lease.TimeSeriesDirectoryHashKeyVersionLeaseRegistry;
 import de.invesdwin.context.integration.IntegrationProperties;
 import de.invesdwin.context.integration.concurrent.DatabaseThreads;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
@@ -66,7 +68,6 @@ import de.invesdwin.util.concurrent.future.Futures;
 import de.invesdwin.util.concurrent.future.ImmutableFuture;
 import de.invesdwin.util.concurrent.future.ThrowableFuture;
 import de.invesdwin.util.concurrent.lock.ICloseableLock;
-import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
@@ -984,6 +985,46 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         return filteredSegments;
     }
 
+    /**
+     * Retires the version that was just bumped past.
+     * <p>
+     * Attempt the delete, wait for it only where we hold the lock, leave it to the holder otherwise: a segment whose
+     * (hashKey, segment) table write lock is immediately free is unlinked now, so an uncontended reset still reclaims
+     * disk at once; a segment another thread is publishing into is left alone. And when a foreign process holds a
+     * lease on the retired version at all, nothing here is deleted - that runtime publishes into it and its own sweep
+     * will reclaim it. What the old code did instead was wait up to ACQUIRE_WRITE_LOCK_TIMEOUT on a writer its own
+     * teardown had just interrupted, and then delete while unlocked.
+     * <p>
+     * The status rows always go, in every branch: a surviving COMPLETE/COMPLETE_EMPTY row would serve a deleted
+     * segment as complete-without-values to a later reader of the same key. Anything left on disk is reclaimed by
+     * TimeSeriesDirectoryHashKeyVersionLease.cleanupObsoleteVersions, which is why requestEpochReclaim() is called -
+     * to shorten the wait, not to duplicate the sweep's lease judgement here.
+     */
+    protected void retireCurrentVersionSegments(final int retiredVersion) {
+        final boolean foreignLease = TimeSeriesDirectoryHashKeyVersionLeaseRegistry.isLeasedByForeignProcess(
+                directoryHashKey, retiredVersion);
+        try (ICloseableIterator<TimeRange> iterator = segmentStatusTable.rangeKeys()) {
+            while (true) {
+                final TimeRange rangeKey = iterator.next();
+                if (!foreignLease) {
+                    final SegmentedKey<K> segmentedKey = new SegmentedKey<>(key, rangeKey);
+                    final ILock writeLock = segmentedTable.getTableLock(segmentedKey).writeLock();
+                    if (writeLock.tryLock()) {
+                        try {
+                            segmentedTable.deleteRange(segmentedKey);
+                        } finally {
+                            writeLock.unlock();
+                        }
+                    }
+                }
+                segmentStatusTable.delete(rangeKey);
+            }
+        } catch (final NoSuchElementException e) {
+            //end reached
+        }
+        TimeSeriesDirectoryHashKeyVersionLeaseRegistry.requestEpochReclaim();
+    }
+
     public void deleteAll() {
         lookupByIndexAvailableFutureDisabled = true;
         try {
@@ -1003,20 +1044,16 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
 
             deleteLock.lock();
             try {
-                try (ICloseableIterator<TimeRange> iterator = segmentStatusTable.rangeKeys()) {
-                    while (true) {
-                        final TimeRange rangeKey = iterator.next();
-                        segmentedTable.deleteRange(new SegmentedKey<K>(key, rangeKey));
-                        //also drop the status row: on the bump-skip path (no .updated marker ->
-                        //incrementVersion stays on the current version) the generation is NOT
-                        //orphaned, and a surviving COMPLETE/COMPLETE_EMPTY row would serve this
-                        //deleted segment as complete-without-values to every later reader.
-                        segmentStatusTable.delete(rangeKey);
-                    }
-                } catch (final NoSuchElementException e) {
-                    //end reached
-                }
+                //Copy-on-write reset: retire the version instead of deleting its segments in place. The table lock
+                //is keyed by (hashKey, segment) - getTableLock(key) in ASegmentedTimeSeriesDB - so an inline
+                //deleteRange of a segment contends with the very update attempt that is publishing into it, which is
+                //what made this path wait on a cancelled writer and then force an unlocked delete. Bumping first
+                //means no new reader can enter this version; the interrupted writer finishes into a version nobody
+                //reads; and the old version directory is reclaimed by the existing lease machinery
+                //(TimeSeriesDirectoryHashKeyVersionLease.cleanupObsoleteVersions, heartbeat-gated) rather than here.
+                final int retiredVersion = directoryHashKey.getDirectoryHashKeyVersion().getVersion();
                 directoryHashKey.getDirectoryHashKeyVersion().incrementVersion();
+                retireCurrentVersionSegments(retiredVersion);
                 storage.deleteRange_latestValueLookupTable(hashKey);
                 storage.deleteRange_nextValueLookupTable(hashKey);
                 storage.deleteRange_previousValueLookupTable(hashKey);
