@@ -1,5 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.lease;
 
+import de.invesdwin.util.lang.string.Charsets;
 import java.io.File;
 import java.io.IOException;
 
@@ -95,6 +96,77 @@ public class TimeSeriesDirectoryHashKeyVersionLeaseRegistryTest extends ATest {
         plantHeartbeat(foreignHeartbeatFile(store));
         Assertions.assertThat(TimeSeriesDirectoryHashKeyVersionLeaseRegistry.isLeasedByForeignProcess(newHashKey(store),
                 VERSION)).isTrue();
+    }
+
+    /**
+     * The claim only exists once another process can read it: getOrCreate publishes this JVM's heartbeat before it
+     * returns, so a reset running on another node asking about this version is not answering from a state that is in
+     * this map but not on disk.
+     */
+    @Test
+    public void testANewLeaseIsPublishedBeforeGetOrCreateReturns() throws IOException {
+        final File store = store("publishBeforeReturn");
+        final TimeSeriesDirectoryHashKey key = newHashKey(store);
+        final TimeSeriesDirectoryHashKeyVersionLease lease = TimeSeriesDirectoryHashKeyVersionLeaseRegistry
+                .getOrCreate(key, VERSION);
+        try {
+            final String content = Files.readFileToString(ourHeartbeatFile(store),
+                    Charsets.defaultCharset());
+            Assertions.assertThat(content).contains(registryKey(VERSION));
+        } finally {
+            lease.close();
+        }
+    }
+
+    /**
+     * The upload stages a temp next to the final name; a reader that counted it would double-count a state that is
+     * either already published or about to be.
+     */
+    @Test
+    public void testAStagedHeartbeatIsNotReadAsALease() throws IOException {
+        final File store = store("staged");
+        final File staged = new File(heartbeatsDirectory(store),
+                "999999@somehost_00000000-0000-0000-0000-000000000000"
+                        + HeartbeatFileChannelLockRegistry.HEARTBEAT_EXTENSION + ".tmp");
+        plantHeartbeat(staged, registryKey(VERSION));
+        Assertions.assertThat(TimeSeriesDirectoryHashKeyVersionLeaseRegistry.isLeasedByForeignProcess(newHashKey(store),
+                VERSION)).isFalse();
+    }
+
+    /**
+     * What a failed heartbeat publish actually costs, and that it is recovered: the file still holds the previous
+     * lease set, so the process looks alive with a claim nobody can see. The retry comes from the next heartbeat
+     * cycle (HEARTBEAT_INTERVAL), which is only true if a failed publish leaves the last-published snapshot alone -
+     * advancing it would make the cycle take the mtime-only branch and never re-announce the missing lease.
+     */
+    @Test
+    public void testAFailedPublishIsRetriedByTheNextHeartbeatCycle() throws IOException {
+        final File store = store("publishRetry");
+        final TimeSeriesDirectoryHashKey key = newHashKey(store);
+        final TimeSeriesDirectoryHashKeyVersionLease first = TimeSeriesDirectoryHashKeyVersionLeaseRegistry
+                .getOrCreate(key, VERSION);
+        Assertions.assertThat(Files.readFileToString(ourHeartbeatFile(store), Charsets.defaultCharset()))
+                .as("the first lease is announced").contains(registryKey(VERSION));
+
+        Assumptions.assumeTrue(heartbeatsDirectory(store).setWritable(false),
+                "this filesystem lets us take write permission away");
+        final TimeSeriesDirectoryHashKeyVersionLease second;
+        try {
+            second = TimeSeriesDirectoryHashKeyVersionLeaseRegistry.getOrCreate(key, VERSION + 1);
+        } finally {
+            heartbeatsDirectory(store).setWritable(true);
+        }
+        Assertions.assertThat(Files.readFileToString(ourHeartbeatFile(store), Charsets.defaultCharset()))
+                .as("the failed publish left the previous content in place")
+                .doesNotContain(registryKey(VERSION + 1));
+
+        TimeSeriesDirectoryHashKeyVersionLeaseRegistry.updateHeartbeats();
+
+        Assertions.assertThat(Files.readFileToString(ourHeartbeatFile(store), Charsets.defaultCharset()))
+                .as("the next cycle re-publishes the lease that could not be announced")
+                .contains(registryKey(VERSION + 1));
+        second.close();
+        first.close();
     }
 
     @Test

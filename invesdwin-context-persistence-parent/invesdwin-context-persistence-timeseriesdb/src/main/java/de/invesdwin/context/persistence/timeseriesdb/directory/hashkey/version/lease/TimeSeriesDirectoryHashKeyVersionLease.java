@@ -208,7 +208,8 @@ public final class TimeSeriesDirectoryHashKeyVersionLease implements ISafeClosea
             return;
         }
 
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(heartbeatPath, Files::isRegularFile)) {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(heartbeatPath,
+                TimeSeriesDirectoryHashKeyVersionLeaseRegistry::isPublishedHeartbeat)) {
             for (final Path heartbeatFile : stream) {
                 if (!TimeSeriesDirectoryHashKeyVersionLeaseRegistry.isHeartbeatLive(heartbeatFile.toFile())) {
                     //The writer died without cleaning up: nothing reaps these files, so a stale heartbeat would keep
