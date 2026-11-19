@@ -1,5 +1,6 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented.live.segment;
 
+import de.invesdwin.context.integration.retry.fast.FastNonBlockingRetryLaterRuntimeException;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDBInternals;
@@ -12,7 +13,6 @@ import de.invesdwin.context.persistence.timeseriesdb.storage.memory.ISkipMemoryF
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
 import de.invesdwin.context.persistence.timeseriesdb.updater.TimeSeriesUpdaterResult;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdateProgress;
-import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
 import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.concurrent.lock.ILock;
@@ -200,7 +200,18 @@ public class PersistentLiveSegment<K, V> implements ILiveSegment<K, V> {
             }
         };
         try (TimeSeriesUpdaterResult result = updater.update()) {
-            Assertions.checkNotNull(result.getUpdatedTo());
+            if (result.getUpdatedTo() == null) {
+                //The range this flush was given yielded nothing to write. ATimeSeriesUpdater declares a null
+                //updatedTo as a permitted outcome ("the callers tolerate a null updatedTo" - ALazyDataUpdater
+                //null-checks it, the live precalc driver guards it), so asserting here was wrong: the NPE reached
+                //the idle-updating listener as a NON-retryable error, and Retries.shouldRetry then unsubscribes
+                //the instrument from automatic updates - measured on the live service as 66 flush failures and 68
+                //UnsubscribeFromEventException records, all on continuous-chain legs, recurring every hour.
+                //Named and retryable instead; this throws before any close, so the caller's buffer is kept and the
+                //next attempt re-flushes the same values rather than losing them.
+                throw new FastNonBlockingRetryLaterRuntimeException("Live segment flush wrote nothing for table ["
+                        + table.getName() + "] and key [" + segmentedKey + "]");
+            }
         } catch (final IncompleteUpdateRetryableException e) {
             throw new RuntimeException(e);
         }
