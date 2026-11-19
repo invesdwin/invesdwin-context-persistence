@@ -573,6 +573,12 @@ public class TimeSeriesEpochReclaimTest extends ATest {
                 "a newest generation that ends below the attested byte high-water [" + chain.get(chain.size() - 1)
                         .getCombinedMemoryFileSize() + " -> " + shortened.get(shortened.size() - 1)
                         .getCombinedMemoryFileSize() + "] must stop the sweep rather than delete what its tail named");
+
+        //The report of this state is now deduplicated per directory (only a CHANGE of the byte pair earns a line), so
+        //prove the suppression costs the verdict nothing: a second walk over the same mismatch refuses again.
+        TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookup);
+        Assertions.checkFalse(findAttemptDataFiles(lookup, deadAttempt).isEmpty(),
+                "the second walk may not prune what the first one refused");
     }
 
     /**
