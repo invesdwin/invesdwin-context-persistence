@@ -1,4 +1,4 @@
-package de.invesdwin.context.persistence.timeseriesdb;
+package de.invesdwin.context.persistence.timeseriesdb.updater;
 
 import java.io.File;
 import java.io.RandomAccessFile;
@@ -11,12 +11,16 @@ import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache.InconsistencyReason;
+import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
+import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.AMemoryFileSummarySerializingCollection;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.lookup.MemoryFileMetadata;
 import de.invesdwin.context.persistence.timeseriesdb.updater.ATimeSeriesUpdater;
+import de.invesdwin.context.persistence.timeseriesdb.updater.TimeSeriesUpdateTransaction;
 import de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdateProgress;
 import de.invesdwin.context.system.properties.ICloseableProperties;
 import de.invesdwin.context.test.ATest;
@@ -32,6 +36,7 @@ import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
+import de.invesdwin.util.time.date.FDates;
 
 /**
  * The answer a recovery decision needs is not "inconsistent?" but "inconsistent HOW?".
@@ -194,6 +199,51 @@ public class TimeSeriesInconsistencyReasonTest extends ATest {
                 "and the reason separates it from a chain that lost bytes");
     }
 
+    /**
+     * The failure case the fleet actually hits: an update pass that dies part way through - a surefire fork timeout,
+     * a kill -9, an OOM termination, a hung process someone stops - after an earlier pass had already published. What
+     * the killed pass must NOT do is leave the store in a state the next reader calls damaged, because the next reader
+     * answers that by wiping the key. This is the 2026-11-20 parallel-test signature seen from the store side: run 1
+     * was cap-killed mid-publish, run 2 inherited its leftovers and could not make progress.
+     * <p>
+     * A pass that dies before crossing the publish cadence attests nothing (its unfinished chunks are never
+     * summarised), so the surviving attestation is the healthy one from the completed pass, still paired with its
+     * generation.
+     */
+    @Test
+    public void testAPassDyingAfterAnEarlierPublishLeavesTheNextReaderACleanStore() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("killedAfterPublish");
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
+        final List<FDate> landed = newValues(1, BATCH_FLUSH_INTERVAL + 2);
+        newUpdater(table, landed).update().close();
+
+        //a second pass that dies mid-way: enough values to look like a long pass, a null to stop it
+        final List<FDate> dying = new ArrayList<>(newValues(1, TimeSeriesUpdateTransaction.PUBLISH_SEGMENTS_PER_GENERATION * BATCH_FLUSH_INTERVAL - 1));
+        dying.add(null);
+        try {
+            newUpdater(table, dying).update().close();
+        } catch (final Exception e) {
+            //the pass died with its source; what matters is what the next reader sees
+        }
+
+        final MemoryFileMetadata metadata = lookup.getMemoryFileLookupTable().getMetadata();
+        try (ICloseableProperties properties = metadata.getProperties()) {
+            Assertions.checkTrue(metadata.getExpectedMemoryFileSize(properties)
+                    != MemoryFileMetadata.MISSING_EXPECTED_MEMORY_FILE_SIZE,
+                    "the completed pass attested a high-water, and the killed one must not have destroyed it");
+            Assertions.checkNotNull(metadata.getExpectedMemoryFileGeneration(properties),
+                    "and it is attested AS A PAIR - the unpaired form is the ambiguous state a current build never"
+                            + " creates, whatever kills the JVM");
+        }
+        lookup.clearCaches();
+        Assertions.checkFalse(lookup.isEmptyOrInconsistent(),
+                "the next reader must not be handed a store it has to wipe: " + lookup.getLastInconsistencyReason());
+        Assertions.checkEquals(InconsistencyReason.NONE, lookup.getLastInconsistencyReason(),
+                "no reason recorded for a killed pass");
+        Assertions.checkTrue(readValues(table).size() >= landed.size(),
+                "and the values the completed pass published stay readable");
+    }
+
     // --- plumbing ---
 
     private static long readAttestation(final TimeSeriesLookupStorageCache<String, FDate> lookup) {
@@ -205,6 +255,14 @@ public class TimeSeriesInconsistencyReasonTest extends ATest {
 
     private static File memoryDirectoryOf(final TimeSeriesLookupStorageCache<String, FDate> lookup) {
         return lookup.getDirectoryHashKeyVersionMemory().getDirectoryHashKeyVersionDataShared();
+    }
+
+    private List<FDate> readValues(final ATimeSeriesDB<String, FDate> table) {
+        final List<FDate> values = new ArrayList<>();
+        try (ICloseableIterator<FDate> it = table.rangeValues(KEY, FDates.MIN_DATE, FDates.MAX_DATE).iterator()) {
+            Lists.toListWithoutHasNext(it, values);
+        }
+        return values;
     }
 
     private static List<MemoryFileSummary> publishedSummaries(
@@ -223,10 +281,11 @@ public class TimeSeriesInconsistencyReasonTest extends ATest {
         return table.getLookupTableCache(KEY);
     }
 
-    private static List<FDate> newValues(final int fromDay, final int toDay) {
+    /** One minute apart, so a fixture can ask for forty values without leaving the hour. */
+    private static List<FDate> newValues(final int fromIndex, final int toIndex) {
         final List<FDate> values = new ArrayList<>();
-        for (int day = fromDay; day <= toDay; day++) {
-            values.add(FDateBuilder.newDate(2026, 1, day));
+        for (int i = fromIndex; i <= toIndex; i++) {
+            values.add(FDateBuilder.newDate(2026, 1, 1, 0, i - 1, 0));
         }
         return values;
     }
