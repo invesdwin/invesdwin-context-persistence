@@ -46,7 +46,7 @@ import de.invesdwin.util.time.date.millis.FDateMillis;
  * was cap-killed mid-pass and left attempt garbage (7 zero-byte 'memory_&lt;attemptId&gt;.data' files plus ~21-37
  * 'memory_&lt;attemptId&gt;_incomplete_&lt;offset&gt;_&lt;timestamp&gt;.data' shards) in a live cache directory; the
  * next run inherited it, produced 'Max Retries exhausted' retry-later aborts, and parked with every thread in a join
- * chain until the store was cleared. Four scenarios, each its own store directory:
+ * chain until the store was cleared. Seven scenarios, each its own store directory:
  * <ol>
  * <li>foreign garbage (a different, already-dead attempt's files) must not invalidate an otherwise healthy chain - no
  * false wipe;</li>
@@ -59,7 +59,15 @@ import de.invesdwin.util.time.date.millis.FDateMillis;
  * its bytes;</li>
  * <li>a fresh update attempt over a store whose 'update.progress' marker describes a long-dead attempt (its heartbeat
  * claim older than {@link HeartbeatFileChannelLockRegistry#HEARTBEAT_TIMEOUT}, its claimed frontier ahead of what the
- * store actually holds) must still run to completion and advance the frontier, rather than refuse or loop.</li>
+ * store actually holds) must still run to completion and advance the frontier, rather than refuse or loop;</li>
+ * <li>a candidate young enough to still be publishing - its epoch id has not aged past
+ * {@code RETAIN_OBSOLETE_EPOCHS_THRESHOLD} - must keep its files through the same sweep, so the sweep cannot reach a
+ * chain's in-flight tail file;</li>
+ * <li>a candidate whose files are old but whose {@code .lock} claim is fresh must keep them too: age alone must
+ * never decide, since a long pass publishes for hours past the retention threshold while its heartbeat stays live;</li>
+ * <li>and the two must be told apart by the same sweep pass, not just tested separately: a live candidate and a
+ * predating dead one, both past the retention window, and only the dead one may go - with the chain's own named
+ * payload checked byte-intact after that pass, in the specific crash-window state scenario 2's fix opens up.</li>
  * </ol>
  * The store directory is created per test in setUp and deleted in tearDown, so no cell depends on another cell's
  * leftovers and nothing here touches a real deployment's store.
@@ -378,6 +386,77 @@ public class TimeSeriesAttemptGarbageRecoveryTest extends ATest {
         Assertions.checkFalse(lookup.isEmptyOrInconsistent(), "the key must still report itself consistent");
         Assertions.assertThat(readValues(table, KEY)).as("the chain must read unchanged after the sweep")
                 .isEqualTo(new ArrayList<>(first));
+    }
+
+    /**
+     * Scenario 7: scenarios 5 and 6 test the age gate and the liveness gate one at a time. This one runs both
+     * through the same pass, in the crash-window state scenario 2's fix opens up - the state where the sweep is
+     * newly reachable and the risk of it over-reaching is real - and pins the two apart by contrast rather than
+     * by isolation: a candidate whose files are past the retention window but at or after the key's own marker
+     * updateStart, with a fresh .lock claim (live), and a second candidate predating that same marker (dead), both
+     * run through one reclaimObsoleteEpochs call. Only the dead one may go. The live one's files, the published
+     * attempt's own data files, and the chain's trailing '_incomplete_' file - which a published generation names
+     * until a later attempt's redo replaces it, exactly the reference the removed staging sweep corrupted - must
+     * all still be there, and the chain is re-read byte-for-byte, not just for existence.
+     * <p>
+     * Discriminating mutation, run after this commit was made: dead-coding isAttemptLive's predates gate (its
+     * createdMillis &lt; updateStart branch, TimeSeriesEpochReclaim:906-910) makes this cell's live candidate look
+     * garbage too - its files get taken, and the cell's "the live candidate's files must not be swept" assertion
+     * flips red - while scenarios 1-6 all stay green: 5's candidate short-circuits before that check (its reclaim
+     * pass has no live marker at all), and 6's never reaches it either (it is the whole point of that cell, and
+     * this cell's contrast candidate is what makes the difference testable rather than just present). Mutation
+     * reverted, tree checked clean before the tally was taken.
+     */
+    @Test
+    public void testCrashWindowReclaimTellsALiveCandidateFromADeadOneAndKeepsTheChainByteIntact() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("crashWindowLiveVsDead");
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
+        final List<FDate> first = newValues(1, BATCH_FLUSH_INTERVAL + 2);
+        final ATimeSeriesUpdater<String, FDate> published = newUpdater(table, KEY,
+                WrapperCloseableIterable.maybeWrap(first), false);
+        published.update().close();
+
+        final List<MemoryFileSummary> chain = readPublishedSummaries(lookup);
+        Assertions.assertThat(chain).hasSize(2);
+        final MemoryFileSummary tail = chain.get(chain.size() - 1);
+        Assertions.checkTrue(MemoryFiles.isIncompleteMemoryFile(new File(tail.getMemoryResourceUri()).getName()),
+                "the scenario needs a standalone '_incomplete_' tail the live chain names: " + tail);
+        assertPublishedBytesMatchNamedFiles(lookup, chain);
+
+        //the crash window from scenario 2: the attestation sits ahead of the newest generation actually present.
+        final int landedGeneration = lookup.getMemoryFileLookupTable().getCurrentIndexNumber();
+        publishOneMoreSummary(lookup, chain);
+        final File interruptedGeneration = new File(memoryDirectoryOf(lookup),
+                AMemoryFileSummarySerializingCollection.newIndexGenerationFileName(landedGeneration + 1));
+        Assertions.checkTrue(interruptedGeneration.exists(),
+                "the extra publish must have landed the generation this scenario then removes");
+        Assertions.checkTrue(interruptedGeneration.delete(), "removing it must work: " + interruptedGeneration);
+        lookup.clearCaches();
+
+        //both candidates are past RETAIN_OBSOLETE_EPOCHS_THRESHOLD, so the age gate alone cannot tell them apart;
+        //only isAttemptLive can, and it decides by comparing each candidate's own epoch to the key's current marker.
+        final File progressFile = lookup.getUpdateProgressFile();
+        TimeSeriesUpdaterProgress.writeUpdateProgress(progressFile,
+                new FDate(FDateMillis.nowMillis() - TimeUnit.HOURS.toMillis(3)), 0, 0, null, null);
+        plantFreshLockClaim(progressFile);
+        final String liveAttempt = attemptIdOf(FDateMillis.nowMillis() - TimeUnit.HOURS.toMillis(2), "live00001");
+        final String deadAttempt = attemptIdOf(FDateMillis.nowMillis() - TimeUnit.HOURS.toMillis(4), "dead00001");
+        plantForeignAttemptArtifacts(lookup, liveAttempt);
+        plantForeignAttemptArtifacts(lookup, deadAttempt);
+
+        TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookup);
+
+        Assertions.checkTrue(findAttemptDataFiles(lookup, deadAttempt).isEmpty(),
+                "the dead candidate's garbage must go, now that the sweep is allowed to run");
+        Assertions.checkTrue(!findAttemptDataFiles(lookup, liveAttempt).isEmpty(),
+                "the live candidate's files must not be swept, whatever the sweep may now do in general");
+        Assertions.checkTrue(!findAttemptDataFiles(lookup, published.getEpochId()).isEmpty(),
+                "the published attempt's own data files must still be there");
+        Assertions.checkFalse(lookup.isEmptyOrInconsistent(),
+                "the store must still report itself consistent after the sweep");
+        Assertions.assertThat(readValues(table, KEY)).as("the published chain must read unchanged after the sweep")
+                .isEqualTo(new ArrayList<>(first));
+        assertPublishedBytesMatchNamedFiles(lookup, readPublishedSummaries(lookup));
     }
 
     // --- helpers ---
