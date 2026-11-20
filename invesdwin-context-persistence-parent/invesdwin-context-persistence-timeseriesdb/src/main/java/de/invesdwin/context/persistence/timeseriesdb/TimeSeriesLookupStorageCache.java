@@ -182,6 +182,8 @@ public class TimeSeriesLookupStorageCache<K, V> {
     };
     private final AtomicInteger lastResetIndex = new AtomicInteger();
 
+    private volatile InconsistencyReason lastInconsistencyReason = InconsistencyReason.NONE;
+
     private final String hashKey;
     private final ISerde<V> valueSerde;
     private final Integer valueFixedLength;
@@ -1114,8 +1116,6 @@ public class TimeSeriesLookupStorageCache<K, V> {
         HIGH_WATER_AHEAD_OF_CHAIN,
         FILES_BEYOND_HIGH_WATER
     }
-
-    private volatile InconsistencyReason lastInconsistencyReason = InconsistencyReason.NONE;
 
     /**
      * The reason of the most recent {@link #isEmptyOrInconsistent()} pass on this cache. Read without a second walk,
