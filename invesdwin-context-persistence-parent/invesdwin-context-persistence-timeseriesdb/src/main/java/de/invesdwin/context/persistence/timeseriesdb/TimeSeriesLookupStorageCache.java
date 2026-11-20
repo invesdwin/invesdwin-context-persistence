@@ -1113,6 +1113,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
         NAMED_FILE_SHORTER_THAN_CLAIMED,
         CONTRADICTORY_SUMMARY,
         NO_SUMMARIES,
+        CORRUPT_STORAGE,
         HIGH_WATER_AHEAD_OF_CHAIN,
         FILES_BEYOND_HIGH_WATER
     }
@@ -1229,10 +1230,22 @@ public class TimeSeriesLookupStorageCache<K, V> {
                         "Table data for [%s] is inconsistent and needs to be reset. Exception during deserialization: %s",
                         hashKey, t.toString());
                 return true;
-            } else {
-                //unexpected exception, since RemoteFastSerializingSerde only throws SerializingException
-                throw Throwables.propagate(t);
             }
+            if (Throwables.isCausedByType(t, java.io.IOException.class)) {
+                //The old else-branch assumed the serde can only throw SerializationException. It cannot: reading a
+                //stored stream that has lost bytes to corruption fails in the compression layer with an IOException
+                //("Stream is corrupted" from the LZ4 block reader), and propagating THAT out of the consistency check
+                //means the state is never healed - the consumer asked whether the store is rebuildable, was handed an
+                //exception instead of an answer, and the key stays broken. A store that cannot be read is by
+                //definition inconsistent, whatever layer noticed it.
+                log.warn(
+                        "Table data for [%s] is inconsistent and needs to be reset. The stored stream cannot be read: %s",
+                        hashKey, t.toString());
+                return true;
+            }
+            //neither a serde failure nor a stream failure: this is our own bug, and hiding it as an inconsistency
+            //would send the consumer to re-download data that was never damaged
+            throw Throwables.propagate(t);
         }
     }
 
