@@ -242,6 +242,50 @@ public class TimeSeriesInconsistencyReasonTest extends ATest {
                 "and the values the completed pass published stay readable");
     }
 
+    /**
+     * The residual the attempt-garbage lane named and left open: "an already-populated old store is not
+     * retroactively fixed by this change". This pins what that actually costs. A store carrying the unpaired
+     * attestation a pre-pairing build writes is indicted on every read, so the consumer wipes it - but the wipe is a
+     * version increment followed by a pass that publishes, and a publish writes the generation beside the size. So
+     * the store self-heals at its first rebuild, and the residue is one re-download, not a permanently un-wedgeable
+     * key. Where the source can no longer serve the range, that re-download is the data loss - which is the honest
+     * boundary of "the reset is conservative and correct": it is correct about the data it can still get.
+     */
+    @Test
+    public void testAnUnpairedLegacyStoreSelfHealsAtItsFirstPublishAfterTheReset() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("legacySelfHeal");
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
+        newUpdater(table, newValues(1, BATCH_FLUSH_INTERVAL + 2)).update().close();
+
+        //strip the pairing, leaving the shape a pre-pairing build leaves behind: size only, and ahead of the chain
+        final long highWater = readAttestation(lookup);
+        final File propertiesFile = new File(new File(memoryDirectoryOf(lookup), "properties"), "memory.properties");
+        java.nio.file.Files.write(propertiesFile.toPath(),
+                ("EXPECTED_MEMORY_FILE_SIZE=" + (highWater + 1000L) + "\n").getBytes(Charsets.UTF_8));
+        lookup.clearCaches();
+
+        Assertions.checkTrue(lookup.isEmptyOrInconsistent(),
+                "precondition: the unpaired store is indicted, exactly as the residual describes");
+        Assertions.checkEquals(InconsistencyReason.HIGH_WATER_AHEAD_OF_CHAIN, lookup.getLastInconsistencyReason(),
+                "by the high-water arm");
+
+        //the consumer's remedy, then the pass that follows it
+        table.deleteRange(KEY);
+        lookup.clearCaches();
+        Assertions.checkTrue(lookup.isEmptyOrInconsistent(),
+                "an empty new version reports itself empty, which is what the demand side expects after a reset");
+        final List<FDate> reSupplied = newValues(1, BATCH_FLUSH_INTERVAL * 2 + 2);
+        newUpdater(table, reSupplied).update().close();
+        lookup.clearCaches();
+
+        Assertions.checkFalse(lookup.isEmptyOrInconsistent(),
+                "after one publish the same store is no longer indicted - the pairing was rewritten by the publish");
+        Assertions.checkEquals(InconsistencyReason.NONE, lookup.getLastInconsistencyReason(),
+                "so the residual costs a rebuild, not a permanently wedged key");
+        Assertions.checkEquals(reSupplied, readValues(table),
+                "and the values the source re-supplied are the values the key now serves");
+    }
+
     // --- plumbing ---
 
     private static long readAttestation(final TimeSeriesLookupStorageCache<String, FDate> lookup) {
