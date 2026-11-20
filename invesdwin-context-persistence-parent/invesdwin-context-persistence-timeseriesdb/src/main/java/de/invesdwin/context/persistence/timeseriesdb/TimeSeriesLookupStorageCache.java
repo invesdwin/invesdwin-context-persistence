@@ -1089,13 +1089,52 @@ public class TimeSeriesLookupStorageCache<K, V> {
         }
     }
 
+    /**
+     * Which check indicted the store, or {@link #NONE} when nothing did. The boolean answer cannot drive recovery:
+     * "inconsistent" today means "delete the key and re-fetch", and the reasons below differ in whether that is the
+     * right act. Two of them deserve their ambiguity to be stated rather than coded around:
+     * <ul>
+     * <li>{@link #HIGH_WATER_AHEAD_OF_CHAIN} cannot distinguish an attestation left stale by an interrupted publish
+     * from a chain that lost its tail WHOLE (payload file plus the summaries naming it, gone together) - in the second
+     * case the shortened chain is self-consistent by construction and the attestation is the only witness that
+     * anything was there. A read path has nothing else to ask, which is why the reset answer is kept for both;
+     * resolving it needs a writer's intent, not a smarter reader.</li>
+     * <li>{@link #FILES_BEYOND_HIGH_WATER} is the inverse: the files hold more bytes than any account of them, i.e. a
+     * published file carrying unpublished trailing bytes, which the publish rules of
+     * {@link TimeSeriesUpdateTransaction#commitSegmentBoundary} forbid.</li>
+     * </ul>
+     */
+    public enum InconsistencyReason {
+        NONE,
+        NO_UPDATED_MARKER,
+        INVALID_SERIALIZATION,
+        NAMED_FILE_SHORTER_THAN_CLAIMED,
+        CONTRADICTORY_SUMMARY,
+        NO_SUMMARIES,
+        HIGH_WATER_AHEAD_OF_CHAIN,
+        FILES_BEYOND_HIGH_WATER
+    }
+
+    private volatile InconsistencyReason lastInconsistencyReason = InconsistencyReason.NONE;
+
+    /**
+     * The reason of the most recent {@link #isEmptyOrInconsistent()} pass on this cache. Read without a second walk,
+     * because the walk is the expensive part; a consumer that wants a fresh answer calls {@link
+     * #isEmptyOrInconsistent()} first.
+     */
+    public InconsistencyReason getLastInconsistencyReason() {
+        return lastInconsistencyReason;
+    }
+
     public boolean isEmptyOrInconsistent() {
         // if the directory is not populated yet, we treat it as empty
         if (!directoryHashKey.getDirectoryHashKeyVersion().getUpdatedMarkerFile().exists()) {
+            lastInconsistencyReason = InconsistencyReason.NO_UPDATED_MARKER;
             return true;
         }
 
         if (isInvalidSerialization()) {
+            lastInconsistencyReason = InconsistencyReason.INVALID_SERIALIZATION;
             return true;
         }
         final MemoryFileMetadata metadata = memoryFileLookupTable.getMetadata();
@@ -1122,6 +1161,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
                     actualMemoryFileSize += memoryFileLength;
                 }
                 if (calculatedMemoryFileSize > actualMemoryFileSize) {
+                    lastInconsistencyReason = InconsistencyReason.NAMED_FILE_SHORTER_THAN_CLAIMED;
                     log.warn("Table data for [%s] is inconsistent and needs to be reset. Empty file: [%s]", hashKey,
                             summary);
                     return true;
@@ -1132,6 +1172,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
                     log.warn(
                             "Table data for [%s] is inconsistent and needs to be reset. Inconsistent summary file [%s]: [%s]",
                             hashKey, t.toString(), summary);
+                    lastInconsistencyReason = InconsistencyReason.CONTRADICTORY_SUMMARY;
                     return true;
                 }
                 prevSummary = summary;
@@ -1139,6 +1180,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
                 noFileFound = false;
             }
             if (noFileFound) {
+                lastInconsistencyReason = InconsistencyReason.NO_SUMMARIES;
                 return true;
             }
             if (expectedMemoryFileSize != MemoryFileMetadata.MISSING_EXPECTED_MEMORY_FILE_SIZE) {
@@ -1149,17 +1191,22 @@ public class TimeSeriesLookupStorageCache<K, V> {
                     //high-water describes bytes this store never held. The chain that IS present has already been
                     //checked record by record against the files it names above; comparing it against another
                     //generation's attestation is a false positive, and its cost is a wiped key and a re-download.
+                    //not an indictment: the attestation belongs to a generation that never landed, and the chain
+                    //that IS present was verified record by record above
+                    lastInconsistencyReason = InconsistencyReason.NONE;
                     log.debug(
                             "Skipping the ExpectedMemoryFileSize comparison for [%s]: the attestation names index generation [%s], the newest generation present is [%s]",
                             hashKey, attestedIndexNumber, currentIndexNumber);
                 } else {
                     if (expectedMemoryFileSize != calculatedMemoryFileSize) {
+                        lastInconsistencyReason = InconsistencyReason.HIGH_WATER_AHEAD_OF_CHAIN;
                         log.warn(
                                 "Table data for [%s] is inconsistent and needs to be reset. ExpectedMemoryFileSize[%s] != CalculatedMemoryFileSize[%s]",
                                 hashKey, expectedMemoryFileSize, calculatedMemoryFileSize);
                         return true;
                     }
                     if (actualMemoryFileSize != expectedMemoryFileSize) {
+                        lastInconsistencyReason = InconsistencyReason.FILES_BEYOND_HIGH_WATER;
                         log.warn(
                                 "Table data for [%s] is inconsistent and needs to be reset. ActualMemoryFileSize[%s] != ExpectedMemoryFileSize[%s]",
                                 hashKey, actualMemoryFileSize, expectedMemoryFileSize);
@@ -1167,6 +1214,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
                     }
                 }
             }
+            lastInconsistencyReason = InconsistencyReason.NONE;
             return false;
         }
     }
