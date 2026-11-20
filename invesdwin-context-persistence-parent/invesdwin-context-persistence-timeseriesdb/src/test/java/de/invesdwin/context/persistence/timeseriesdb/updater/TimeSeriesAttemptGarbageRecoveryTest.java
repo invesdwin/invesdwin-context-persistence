@@ -275,6 +275,53 @@ public class TimeSeriesAttemptGarbageRecoveryTest extends ATest {
                 "and recorded its own completion where a later reader looks: " + lookup.getUpdateFinishedFile());
     }
 
+    /**
+     * Scenario 5: the sweep must not reach underneath a CONCURRENT attempt. Staging's cross-attempt
+     * {@code _incomplete_} sweep is the failure this pins against: it deleted every incomplete file whose name
+     * timestamp lagged the newest one by at least a month, and the trailing summary of a published chain references
+     * exactly that file until the next attempt's redo replaces it, so the delete manufactured the "Empty file"
+     * condition and wiped a healthy key. The same shape is tested here from the other side: a foreign attempt whose
+     * epoch is fresh - one that could be publishing right now - keeps both of its files through a reclaim pass, and
+     * the chain still reads unchanged. Mutation proof: disabling the retention gate
+     * (TimeSeriesProperties.RETAIN_OBSOLETE_EPOCHS_THRESHOLD check in the attempt sweep) reds this cell alone, with
+     * scenarios 1-4 staying green - so it is the window that protects a concurrent attempt, not an accident of the
+     * planted names.
+     * <p>
+     * Scope stated rather than implied: this covers the retention half of the protection. The heartbeat half is not
+     * exercised here because liveness in this store is keyed to the key's version lease, so a test cannot plant a
+     * "live" foreign attempt without owning that lease itself.
+     */
+    @Test
+    public void testAForeignAttemptWithAFreshEpochIsNotSweptUnderneathTheChain() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("freshForeignAttempt");
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
+        final List<FDate> first = newValues(1, BATCH_FLUSH_INTERVAL + 2);
+        newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(first), false).update().close();
+        final List<MemoryFileSummary> chainBefore = readPublishedSummaries(lookup);
+        final List<String> namedBefore = namesOfPublishedChain(chainBefore);
+
+        final String concurrentAttempt = attemptIdOf(FDateMillis.nowMillis(), "orphan0003");
+        awaitNoQueuedEpochReclaim();
+        plantForeignAttemptArtifacts(lookup, concurrentAttempt);
+        final List<File> planted = findAttemptDataFiles(lookup, concurrentAttempt);
+        Assertions.checkFalse(planted.isEmpty(), "the planted files must exist before the sweep");
+
+        TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookup);
+
+        Assertions.assertThat(findAttemptDataFiles(lookup, concurrentAttempt))
+                .as("an attempt inside the epoch retention window may be publishing right now, so its files must "
+                        + "survive - deleting them is how the removed staging sweep corrupted a live chain")
+                .containsExactlyInAnyOrderElementsOf(planted);
+        final File dataDirectory = memoryDirectoryOf(lookup);
+        for (final String named : namedBefore) {
+            Assertions.assertThat(new File(dataDirectory, named))
+                    .as("payload the published chain names must be untouched").exists();
+        }
+        Assertions.checkFalse(lookup.isEmptyOrInconsistent(), "the key must still report itself consistent");
+        Assertions.assertThat(readValues(table, KEY)).as("the chain must read unchanged after the sweep")
+                .isEqualTo(new ArrayList<>(first));
+    }
+
     // --- helpers ---
 
     /**
