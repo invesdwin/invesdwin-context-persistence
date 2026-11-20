@@ -328,6 +328,76 @@ public class TimeSeriesBrokenAttemptDataTest extends ATest {
                 "which is the finding: corruption detection here is structural, not content-based");
     }
 
+    /**
+     * The answer to "doesn't LZ4 already checksum?" - yes on one path, and it is not the path the payload uses.
+     * <p>
+     * {@code ReusableLZ4BlockInputStream} (the block-stream framing the index generations are read through) computes a
+     * checksum over the DECOMPRESSED block bytes and throws "Stream is corrupted" when it disagrees - that is what
+     * caught the corrupted index in the first cell of this class. The stored VALUES are read a different way: per
+     * record, through {@code CompressionDelegateSerde} into {@code LZ4Streams.decompress(src,dest)}, which reads the
+     * original length and a raw flag and hands them to the LZ4 decompressor with NO checksum of any kind. LZ4's own
+     * block format carries no integrity either - the framing layer is what adds it, and that layer is exactly what
+     * this path skips.
+     * <p>
+     * So a flipped byte inside a stored record is not caught by the consistency check (which never decompresses a
+     * payload file) and not caught by the value read either. This cell pins both halves, because the mitigation
+     * question can only be answered with the boundary drawn: integrity here is per-stream, and the payload is read
+     * per-record.
+     */
+    @Test
+    public void testAPayloadFlipIsCaughtByNeitherTheConsistencyCheckNorTheValueRead() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("payloadNoGuard");
+        final List<FDate> values = newValues(1, BATCH_FLUSH_INTERVAL * 6);
+        newUpdater(table, "guardKey", values).update().close();
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache("guardKey");
+
+        final File payload = new File(publishedSummaries(lookup).get(0).getMemoryResourceUri());
+        final byte[] bytes = java.nio.file.Files.readAllBytes(payload.toPath());
+        final int rawRecordBytes = values.size() * FDateSerde.FIXED_LENGTH;
+        Assertions.checkTrue(bytes.length != rawRecordBytes,
+                "precondition: the payload is not raw records, it is the compressed per-record framing ("
+                        + bytes.length + " bytes for " + values.size() + " records of " + FDateSerde.FIXED_LENGTH
+                        + ")");
+        final byte[] firstRecord = FDateSerde.GET.toBytes(values.get(0));
+        Assertions.checkFalse(containsRun(bytes, firstRecord),
+                "and the stored records are not present verbatim, so the read must go through the decompressor");
+
+        bytes[bytes.length / 2] ^= (byte) 0xFF;
+        java.nio.file.Files.write(payload.toPath(), bytes);
+        lookup.clearCaches();
+
+        Assertions.checkFalse(lookup.isEmptyOrInconsistent(),
+                "the consistency check never decompresses a payload file, so it cannot see this");
+        Assertions.checkEquals(InconsistencyReason.NONE, lookup.getLastInconsistencyReason(),
+                "and records nothing against the store");
+
+        //and the read: it does not fail, it does not report, and it does not return what was stored either. The
+        //measured shape of the damage is SILENT LOSS - the corrupted size header shifts every later record position,
+        //so the reader stops short of the end. Which is worse than an exception: an exception is a fact someone can
+        //act on, while a short answer looks like a market that simply had no more data.
+        final List<FDate> afterFlip = readValues(table, "guardKey");
+        Assertions.checkTrue(afterFlip.size() < values.size(),
+                "the read returns FEWER values than were written (" + afterFlip.size() + " of " + values.size()
+                        + ") without failing and without any check saying a word - this is the case a checksum exists"
+                        + " to turn into an error");
+        Assertions.checkFalse(lookup.isEmptyOrInconsistent(),
+                "and even after that loss the store still reports itself sound");
+        log.info("Payload flip: asked %s values, read %s, neither the consistency check nor the read reported it",
+                Integer.valueOf(values.size()), Integer.valueOf(afterFlip.size()));
+    }
+
+    private static boolean containsRun(final byte[] haystack, final byte[] needle) {
+        outer: for (int i = 0; i + needle.length <= haystack.length; i++) {
+            for (int j = 0; j < needle.length; j++) {
+                if (haystack[i + j] != needle[j]) {
+                    continue outer;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
     // --- damage helpers ---
 
     private static File newestGenerationFile(final TimeSeriesLookupStorageCache<String, FDate> lookup) {
