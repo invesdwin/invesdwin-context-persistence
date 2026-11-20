@@ -3,6 +3,7 @@ package de.invesdwin.context.persistence.timeseriesdb.updater;
 import java.io.File;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -75,6 +76,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
     private final ILock writeUpdateProgressLock;
     //the id of this attempt's update transaction, used by the reclaim hooks (null only before doUpdate mints it)
     private volatile String epochId;
+    private volatile FDate lastRedoCoverageGap;
     private volatile long lastLocalGhostFinalizeNudgeMillis;
     //diagnostic/nudge bookkeeping for orphaned local heartbeat claims (see trackRemoteUpdate)
 
@@ -408,10 +410,21 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             if (source == null) {
                 throw new NullPointerException("source is null");
             }
+            //Which position does this attempt's redo expect the source to re-answer? Only the branch of
+            //newUpdateTransaction that re-reads an '_incomplete_' tail and drops its last value leaves
+            //resumeAfterEndTime null while carrying lastValues: a resume over a completed boundary sets it, and a
+            //fresh store has no updateFrom at all.
+            final FDate redoDroppedPosition = updateTransaction.getResumeAfterEndTime() == null
+                    && !lastValues.isEmpty() ? updateFrom : null;
+            //The end time of the first value this attempt actually TAKES from its source - not of the first value it
+            //is handed, since a generous source re-offers everything below updateFrom and those are duplicates to be
+            //dropped. That first taken value is where the dropped tail position has to come back from.
+            final AtomicReference<FDate> sourceFirstTaken = new AtomicReference<>();
             final ICloseableIterable<? extends V> skippingSource;
             if (updateFrom != null) {
                 final FDate resumeAfterEndTime = updateTransaction.getResumeAfterEndTime();
                 skippingSource = new ASkippingIterable<V>(source) {
+
                     @Override
                     protected boolean skip(final V element) {
                         final FDate endTime = extractEndTime(element);
@@ -422,7 +435,11 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
                             return true;
                         }
                         //ensure we add no duplicate values
-                        return endTime.isBeforeNotNullSafe(updateFrom);
+                        if (endTime.isBeforeNotNullSafe(updateFrom)) {
+                            return true;
+                        }
+                        sourceFirstTaken.compareAndSet(null, endTime);
+                        return false;
                     }
                 };
             } else {
@@ -494,7 +511,11 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             };
             //A redo of the standalone '_incomplete_' shard drops that shard's last value and expects the source to
             //answer that position again: the pass replays the same input and regenerates that bar, so the redo path is
-            //deliberately checkless - whatever the source answers for the position is what gets published.
+            //deliberately checkless - whatever the source answers for the position is what gets published. What it is
+            //not is silent: lastValues are always staged (that is what makes redoDroppedPosition non-null), so this
+            //attempt does replace the tail, and if the source cannot answer the dropped position the chain loses it.
+            //The report below names that; guarding it is not this class's job - the fleet ruling puts supply silence
+            //in the verdict layer.
             final FlatteningIterable<? extends V> flatteningSources = new FlatteningIterable<>(lastValues,
                     skippingSource);
 
@@ -515,6 +536,7 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
             //all values consumed without exception: publish the staged index now (close() alone must not commit a
             //possibly partial attempt)
             updateTransaction.commit();
+            reportRedoCoverageGap(redoDroppedPosition, sourceFirstTaken.get());
         }
     }
 
@@ -612,6 +634,52 @@ public abstract class ATimeSeriesUpdater<K, V> implements ITimeSeriesUpdater<K, 
      */
     protected ITimeSeriesBoundaryCommitListener newBoundaryCommitListener() {
         return null;
+    }
+
+    /**
+     * Did the source answer a redo with the position the redo dropped? The dropped value's own end time is what the
+     * attempt re-asks from, so the healthy first value taken ends exactly there; a first value ending strictly later
+     * means the source's coverage has moved past that position and the value will not come back into the republished
+     * chain. Extracted as a pure function because the truth table is worth pinning without a store.
+     */
+    static boolean redoCoverageMissing(final FDate droppedPosition, final FDate firstTakenEndTime) {
+        return droppedPosition != null && firstTakenEndTime != null
+                && firstTakenEndTime.isAfterNotNullSafe(droppedPosition);
+    }
+
+    /**
+     * One line per dropped position this attempt could not get back, written after the pass published. A redo always
+     * stages its re-read tail, so when this runs the chain has genuinely been replaced - which is why a source that
+     * took nothing at or above the position is also a loss (null first value). Not guarded, not retried: guarding it
+     * would be the store-side immutability check the fleet ruled out, and the verdict layer above owns the supply
+     * question. Bounded per position because the live subscription storages re-attempt the same frontier on their
+     * check interval, and an unconditional WARN there is the repeat-noise shape this fleet has already paid for once.
+     */
+    private void reportRedoCoverageGap(final FDate droppedPosition, final FDate firstTakenEndTime) {
+        if (droppedPosition == null) {
+            return;
+        }
+        if (firstTakenEndTime != null && !redoCoverageMissing(droppedPosition, firstTakenEndTime)) {
+            //the source answered the position itself - the healthy redo
+            return;
+        }
+        if (droppedPosition.equals(lastRedoCoverageGap)) {
+            //same frontier as the last report: the state has not changed
+            return;
+        }
+        lastRedoCoverageGap = droppedPosition;
+        LOG.warn("Redo of key [%s] dropped its '_incomplete_' tail position [%s] and the source did not answer it:"
+                        + " the first value taken ends at [%s], so that value is missing from the republished chain",
+                key, droppedPosition, firstTakenEndTime);
+    }
+
+    /**
+     * The tail position the most recent update attempt of this updater could not re-ask during its redo, or null when
+     * the redo got that position back. Reported for the same reason as the warning: otherwise the loss is
+     * indistinguishable from a gap the series genuinely has.
+     */
+    public FDate getLastRedoCoverageGap() {
+        return lastRedoCoverageGap;
     }
 
     protected boolean shouldRedoLastFile() {
