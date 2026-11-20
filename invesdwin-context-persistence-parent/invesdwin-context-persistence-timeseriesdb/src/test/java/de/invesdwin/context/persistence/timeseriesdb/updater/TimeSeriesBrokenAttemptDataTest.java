@@ -37,6 +37,7 @@ import de.invesdwin.util.math.decimal.scaled.Percent;
 import de.invesdwin.util.time.date.FDate;
 import de.invesdwin.util.time.date.FDateBuilder;
 import de.invesdwin.util.time.date.FDates;
+import de.invesdwin.util.time.date.millis.FDateMillis;
 
 /**
  * Stores that are genuinely broken from a previous attempt, and what recovery actually does about each.
@@ -200,9 +201,12 @@ public class TimeSeriesBrokenAttemptDataTest extends ATest {
 
         TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookup);
 
-        //the honest expectation: the epoch sweep is coverage-driven and does NOT own staging litter - that is reaped
-        //by the channel-level sweep on AtomicNioFileChannelContext.TMP_CLEANUP_INTERVAL (a day). Pinning it here says
-        //which job owns which garbage, so nobody "fixes" one by deleting files the other is responsible for.
+        //the honest expectation, read off the code rather than from a note: the epoch sweep is coverage-driven and
+        //does NOT own staging litter. That litter is reaped by AtomicNioFileChannelContext, which runs
+        //Files.cleanupStaleTempFiles on its OWN schedule - a directory is visited at most once per
+        //TMP_CLEANUP_INTERVAL (a day), and a file is only taken once it is older than TMP_CLEANUP_TIMEOUT (12 HOURS).
+        //So litter from a killed writer can sit for up to a day and a half, which is a disk question, not a
+        //correctness one - the next cell proves the reaper actually works.
         Assertions.checkTrue(litter.exists(), "the epoch sweep is not the reaper of staging litter: " + litter);
         for (int i = 0; i < chainFiles.size(); i++) {
             Assertions.checkTrue(chainFiles.get(i).exists(),
@@ -213,6 +217,58 @@ public class TimeSeriesBrokenAttemptDataTest extends ATest {
         }
         lookup.clearCaches();
         Assertions.checkFalse(lookup.isEmptyOrInconsistent(), "and the chain still reads sound");
+    }
+
+    /**
+     * The reaper for kill -9 litter, proven rather than assumed. A writer killed mid-upload leaves a staged
+     * {@code .tmp} file; {@code AtomicNioFileChannelContext} visits a directory at most once per
+     * {@code TMP_CLEANUP_INTERVAL} (a day) and takes only files older than {@code TMP_CLEANUP_TIMEOUT} (12 hours).
+     * This drives the same sweep the production path calls, with the litter back-dated, and shows it removes the
+     * litter while leaving every file the published chain names untouched - so the worst case for a killed writer is
+     * disk, not data.
+     */
+    @Test
+    public void testTheStaleTempSweepTakesKilledWriterLitterAndLeavesTheChainIntact() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("tempSweep");
+        final List<FDate> values = newValues(1, BATCH_FLUSH_INTERVAL + 2);
+        newUpdater(table, "sweepKey", values).update().close();
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache("sweepKey");
+
+        final File memoryDirectory = memoryDirectoryOf(lookup);
+        final File litter = new File(memoryDirectory, "9999_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME
+                + ".update" + AtomicNioFileChannelContext.TMP_EXTENSION);
+        java.nio.file.Files.write(litter.toPath(), new byte[] { 7, 7, 7 });
+        //older than the 12 hour staleness threshold
+        final long thirteenHoursMillis = 13L * 60L * 60L * 1000L;
+        java.nio.file.Files.setLastModifiedTime(litter.toPath(),
+                java.nio.file.attribute.FileTime.fromMillis(FDateMillis.nowMillis() - thirteenHoursMillis));
+
+        //a FRESH piece of litter as well: the sweep must leave it, because its staleness is what qualifies it
+        final File freshLitter = new File(memoryDirectory,
+                "9998_" + AMemoryFileSummarySerializingCollection.MEMORY_INDEX_FILE_NAME + ".update"
+                        + AtomicNioFileChannelContext.TMP_EXTENSION);
+        java.nio.file.Files.write(freshLitter.toPath(), new byte[] { 8 });
+
+        final List<File> chainFiles = new ArrayList<>();
+        for (final MemoryFileSummary summary : publishedSummaries(lookup)) {
+            chainFiles.add(new File(summary.getMemoryResourceUri()));
+        }
+        chainFiles.add(newestGenerationFile(lookup));
+        Assertions.checkTrue(litter.exists() && freshLitter.exists(), "both planted files must exist first");
+
+        de.invesdwin.util.lang.Files.cleanupStaleTempFiles(memoryDirectory.toPath(),
+                AtomicNioFileChannelContext.TMP_CLEANUP_TIMEOUT, AtomicNioFileChannelContext.TMP_EXTENSION);
+
+        Assertions.checkFalse(litter.exists(), "stale upload litter must be reaped: " + litter);
+        Assertions.checkTrue(freshLitter.exists(),
+                "a staging file that is not yet stale must survive - an in-flight upload of another writer is exactly"
+                        + " that shape: " + freshLitter);
+        for (final File chainFile : chainFiles) {
+            Assertions.checkTrue(chainFile.exists(), "the sweep removed a chain file: " + chainFile);
+        }
+        lookup.clearCaches();
+        Assertions.checkFalse(lookup.isEmptyOrInconsistent(), "and the store still reads sound afterwards");
+        Assertions.checkEquals(values, readValues(table, "sweepKey"), "with every value intact");
     }
 
     /**
