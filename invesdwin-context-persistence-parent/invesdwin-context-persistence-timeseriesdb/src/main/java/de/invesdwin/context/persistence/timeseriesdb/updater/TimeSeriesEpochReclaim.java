@@ -472,7 +472,8 @@ public final class TimeSeriesEpochReclaim {
                 kept++;
                 continue;
             }
-            if (i == 0 && !newestGenerationReachesTheAttestedHighWater(dataDirectory, summaries)) {
+            if (i == 0 && !newestGenerationReachesTheAttestedHighWater(dataDirectory, summaries,
+                    AMemoryFileSummarySerializingCollection.indexNumberOf(generationFile.getName()))) {
                 //A newest generation truncated at a record boundary still parses as a valid, shorter collection, so
                 //neither of the two tiers above fires on it and the walk would name less than the store published.
                 //The store already persists the byte high-water of the chain it published on every put
@@ -641,7 +642,8 @@ public final class TimeSeriesEpochReclaim {
             addSummaryNames(referencedNames, summaries);
             newestSummaries = summaries;
         }
-        if (newestSummaries != null && !newestGenerationReachesTheAttestedHighWater(dataDirectory, newestSummaries)) {
+        if (newestSummaries != null && !newestGenerationReachesTheAttestedHighWater(dataDirectory, newestSummaries,
+                newestNumber)) {
             return "the chain [" + chainBase + ".." + newestNumber + "] does not reach the attested byte high-water";
         }
         return null;
@@ -694,6 +696,17 @@ public final class TimeSeriesEpochReclaim {
      * here to the file the walk is about to trust. A store that never published has no attestation, which is not a
      * mismatch; a read failure answers false, because the caller deletes nothing unless the walk is reliable.
      * <p>
+     * The attestation is read together with the generation number it belongs to (see
+     * {@link TimeSeriesLookupStorageCache#isEmptyOrInconsistent()}'s own skip and
+     * TimeSeriesAttestedGenerationCrashWindowTest): a publish writes its byte high-water and generation pair BEFORE the
+     * generation file it attests is renamed into place, so a kill in that window leaves an attestation naming a
+     * generation that never landed. Requiring the newest generation actually present to reach that ahead-of-the-chain
+     * attestation would report every such directory as unreliable, and an unreliable walk refuses the whole sweep -
+     * which would leave a crashed writer's attempt garbage unreclaimable for as long as the mismatch persists. That is
+     * not chain damage, so it is skipped here exactly as it is skipped in the length check; a genuine damage case (the
+     * attestation names the generation actually present, but its byte total disagrees, e.g. a newest generation
+     * truncated at a record boundary) still returns false, unchanged.
+     * <p>
      * The mismatch stays a WARN - it is the store refusing to trust its own newest generation, and the once-per-key
      * warning below it does not fire when nothing was prunable - but it is reported once per distinct state per
      * directory rather than once per walk. A directory that is mid-publish changes state every pass, so it reads as a
@@ -701,11 +714,17 @@ public final class TimeSeriesEpochReclaim {
      * of numbers across passes is the case worth seeing again, and it is not repeated either.
      */
     private static boolean newestGenerationReachesTheAttestedHighWater(final File dataDirectory,
-            final List<MemoryFileSummary> summaries) {
+            final List<MemoryFileSummary> summaries, final int generationNumber) {
         final MemoryFileMetadata metadata = new MemoryFileMetadata(dataDirectory);
         try (ICloseableProperties properties = metadata.getProperties()) {
             final long attestedHighWater = metadata.getExpectedMemoryFileSize(properties);
             if (attestedHighWater == MemoryFileMetadata.MISSING_EXPECTED_MEMORY_FILE_SIZE) {
+                HIGH_WATER_MISMATCH_REPORTED.remove(dataDirectory);
+                return true;
+            }
+            final Integer attestedGeneration = metadata.getExpectedMemoryFileGeneration(properties);
+            if (attestedGeneration != null && attestedGeneration.intValue() != generationNumber) {
+                //the crash-window pairing: this attestation describes a generation that is not the one being walked
                 HIGH_WATER_MISMATCH_REPORTED.remove(dataDirectory);
                 return true;
             }
