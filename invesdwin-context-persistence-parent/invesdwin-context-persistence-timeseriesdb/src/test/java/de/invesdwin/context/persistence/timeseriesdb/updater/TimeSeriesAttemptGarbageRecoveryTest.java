@@ -322,7 +322,75 @@ public class TimeSeriesAttemptGarbageRecoveryTest extends ATest {
                 .isEqualTo(new ArrayList<>(first));
     }
 
+    /**
+     * Scenario 6: age alone must never decide - a live claim protects an attempt whose FILES are old. This is the
+     * production shape of a long pass: an attempt that started hours ago and is still publishing, so its payload
+     * names carry an epoch well past RETAIN_OBSOLETE_EPOCHS_THRESHOLD while its heartbeat stays fresh. The retention
+     * window (scenario 5) cannot help such an attempt, and the coverage rule cannot either - the orphan test is about
+     * what the published GENERATIONS name, and an in-flight attempt has published nothing yet. So liveness is the only
+     * thing standing between the sweep and a pass that is mid-write, which is exactly the class of bug that made the
+     * removed staging sweep destructive.
+     * <p>
+     * Pinned by construction: the attempt id's epoch is five hours old, the progress marker claims an even older start
+     * so the attempt is the current one, and the lock claim is written fresh. Discriminating mutation: forcing
+     * isAttemptLive to answer false reds this cell alone - scenarios 1-5 stay green, because 2's garbage is
+     * old AND unclaimed, and 5's is protected by age rather than by a claim.
+     */
+    @Test
+    public void testAnAttemptWithOldFilesButALiveClaimIsNotSwept() throws Exception {
+        final ATimeSeriesDB<String, FDate> table = newTable("liveClaimOldFiles");
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache(KEY);
+        final List<FDate> first = newValues(1, BATCH_FLUSH_INTERVAL + 2);
+        newUpdater(table, KEY, WrapperCloseableIterable.maybeWrap(first), false).update().close();
+        final FDate storeFrontier = lookup.getLastValueEndTime();
+        Assertions.checkNotNull(storeFrontier, "the first pass must have left a readable frontier");
+        final List<MemoryFileSummary> chainBefore = readPublishedSummaries(lookup);
+        final List<String> namedBefore = namesOfPublishedChain(chainBefore);
+
+        awaitNoQueuedEpochReclaim();
+
+        //five hours past the retention threshold by name, and a marker that claims this attempt is the running one.
+        final long fiveHoursMillis = TimeUnit.HOURS.toMillis(5);
+        final String liveAttempt = attemptIdOf(FDateMillis.nowMillis() - fiveHoursMillis, "inflight01");
+        plantForeignAttemptArtifacts(lookup, liveAttempt);
+        final List<File> planted = findAttemptDataFiles(lookup, liveAttempt);
+        Assertions.checkFalse(planted.isEmpty(), "the in-flight attempt's files must exist before the sweep");
+
+        final File progressFile = lookup.getUpdateProgressFile();
+        TimeSeriesUpdaterProgress.writeUpdateProgress(progressFile,
+                new FDate(FDateMillis.nowMillis() - fiveHoursMillis - TimeUnit.MINUTES.toMillis(30)), 0, 0,
+                storeFrontier, storeFrontier.addDays(30));
+        plantFreshLockClaim(progressFile);
+        Assertions.assertThat(TimeSeriesUpdaterProgress.readUpdateProgress(progressFile))
+                .as("the marker must name this process as its owner for the claim to pair with it").isNotNull();
+
+        TimeSeriesEpochReclaim.reclaimObsoleteEpochs(lookup);
+
+        Assertions.assertThat(findAttemptDataFiles(lookup, liveAttempt))
+                .as("an attempt holding a fresh claim may be writing right now: its files must survive even though "
+                        + "their epoch is past the retention window")
+                .containsExactlyInAnyOrderElementsOf(planted);
+        final File dataDirectory = memoryDirectoryOf(lookup);
+        for (final String named : namedBefore) {
+            Assertions.assertThat(new File(dataDirectory, named))
+                    .as("payload the published chain names must be untouched").exists();
+        }
+        Assertions.checkFalse(lookup.isEmptyOrInconsistent(), "the key must still report itself consistent");
+        Assertions.assertThat(readValues(table, KEY)).as("the chain must read unchanged after the sweep")
+                .isEqualTo(new ArrayList<>(first));
+    }
+
     // --- helpers ---
+
+    /** Writes the lock claim for the current process owner with a fresh mtime, i.e. a live attempt. */
+    private static void plantFreshLockClaim(final File progressFile) throws Exception {
+        final File lockFile = new File(progressFile.getAbsolutePath() + ".lock");
+        Files.writeStringToFile(lockFile, HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER,
+                Charsets.defaultCharset());
+        Assertions.checkTrue(lockFile.setLastModified(FDateMillis.nowMillis()),
+                "claim must be fresh: " + lockFile);
+    }
+
 
     /**
      * A foreign dead attempt's own artifacts: a 0-byte published-shape data file and a byte-carrying '_incomplete_'
