@@ -246,10 +246,16 @@ public class TimeSeriesInconsistencyReasonTest extends ATest {
      * The residual the attempt-garbage lane named and left open: "an already-populated old store is not
      * retroactively fixed by this change". This pins what that actually costs. A store carrying the unpaired
      * attestation a pre-pairing build writes is indicted on every read, so the consumer wipes it - but the wipe is a
-     * version increment followed by a pass that publishes, and a publish writes the generation beside the size. So
-     * the store self-heals at its first rebuild, and the residue is one re-download, not a permanently un-wedgeable
+     * version increment followed by a pass that publishes, and after that the attestation and the chain agree again.
+     * So the store clears at its first rebuild, and the residue is one re-download, not a permanently un-wedgeable
      * key. Where the source can no longer serve the range, that re-download is the data loss - which is the honest
      * boundary of "the reset is conservative and correct": it is correct about the data it can still get.
+     * <p>
+     * What this cell does NOT claim, because a mutation refuted the claim I first wrote here: the clearing is not
+     * caused by the pairing. Mutating {@code MemoryFileMetadata.setExpectedMemoryFileSize} to write the size and
+     * drop the generation leaves this cell green — a fresh publish makes the numbers equal, and the high-water arm
+     * compares numbers. That same mutation reds the crash-window cell and the killed-pass cell, which is what the
+     * pairing is actually for, and is the reason those two are stated separately rather than folded into this one.
      */
     @Test
     public void testAnUnpairedLegacyStoreSelfHealsAtItsFirstPublishAfterTheReset() throws Exception {
@@ -279,7 +285,7 @@ public class TimeSeriesInconsistencyReasonTest extends ATest {
         lookup.clearCaches();
 
         Assertions.checkFalse(lookup.isEmptyOrInconsistent(),
-                "after one publish the same store is no longer indicted - the pairing was rewritten by the publish");
+                "after one publish the same store is no longer indicted - the attestation and the chain agree again");
         Assertions.checkEquals(InconsistencyReason.NONE, lookup.getLastInconsistencyReason(),
                 "so the residual costs a rebuild, not a permanently wedged key");
         Assertions.checkEquals(reSupplied, readValues(table),
