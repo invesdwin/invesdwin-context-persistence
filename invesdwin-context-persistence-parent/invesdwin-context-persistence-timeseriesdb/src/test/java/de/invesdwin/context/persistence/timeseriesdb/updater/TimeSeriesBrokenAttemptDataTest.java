@@ -27,6 +27,10 @@ import de.invesdwin.util.collections.iterable.ICloseableIterator;
 import de.invesdwin.util.collections.iterable.WrapperCloseableIterable;
 import de.invesdwin.util.collections.list.Lists;
 import de.invesdwin.util.lang.Files;
+import de.invesdwin.context.integration.compression.ICompressionFactory;
+import de.invesdwin.context.integration.compression.DisabledCompressionFactory;
+import org.apache.commons.lang3.SerializationException;
+import de.invesdwin.util.streams.buffer.bytes.IByteBuffer;
 import de.invesdwin.util.marshallers.serde.ISerde;
 import de.invesdwin.util.marshallers.serde.basic.FDateSerde;
 import de.invesdwin.util.math.decimal.scaled.Percent;
@@ -69,6 +73,10 @@ import de.invesdwin.util.time.date.FDates;
 public class TimeSeriesBrokenAttemptDataTest extends ATest {
 
     private static final int BATCH_FLUSH_INTERVAL = 4;
+
+    /** The two simulated on-disk value formats. */
+    private static final int FORMAT_V1 = 1;
+    private static final int FORMAT_V2 = 2;
 
     private File baseDirectory;
 
@@ -398,6 +406,239 @@ public class TimeSeriesBrokenAttemptDataTest extends ATest {
         return false;
     }
 
+    /**
+     * The mitigation, simulated rather than shipped: production keeps checksums off for throughput, so what has to be
+     * proven is that the option WORKS when it is wanted - that a corrupted value becomes a loud failure, and that the
+     * existing reset-and-rebuild path then restores the data.
+     * <p>
+     * A 4-byte CRC32 rides in front of each stored value. Flip a byte mid-payload and compare against the
+     * no-integrity cell above: the consistency check still says nothing (it never decompresses a payload file), but
+     * the READ now fails with the checksum named, instead of quietly returning fewer values than were written. From
+     * there the recovery is the ordinary one: reset the key, let the next pass re-supply it, read whole.
+     */
+    @Test
+    public void testAChecksummedSerdeMakesTheDamageLoudAndTheResetRestoresTheValues() throws Exception {
+        //compression OFF, which is the layout the flyweight positional read uses: here the serde IS the only reader
+        //of the stored bytes, so a per-record checksum is what turns silent truncation into a failure
+        final ChecksummedDateSerde serde = new ChecksummedDateSerde();
+        final ATimeSeriesDB<String, FDate> table = newTable("checksumGuard", serde, serde.length(),
+                DisabledCompressionFactory.INSTANCE);
+        final List<FDate> values = newValues(1, BATCH_FLUSH_INTERVAL * 6);
+        newUpdater(table, "checksumKey", values).update().close();
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = table.getLookupTableCache("checksumKey");
+        Assertions.checkFalse(lookup.isEmptyOrInconsistent(), "precondition: a sound store");
+
+        final File payload = new File(publishedSummaries(lookup).get(0).getMemoryResourceUri());
+        final byte[] bytes = java.nio.file.Files.readAllBytes(payload.toPath());
+        bytes[bytes.length / 2] ^= (byte) 0xFF;
+        java.nio.file.Files.write(payload.toPath(), bytes);
+        lookup.clearCaches();
+
+        //the structural check is unchanged by the serde: it still never looks inside the payload
+        Assertions.checkFalse(lookup.isEmptyOrInconsistent(),
+                "the consistency check still cannot see payload damage - the guard is in the read, as designed");
+
+        Throwable readFailure = null;
+        List<FDate> afterFlip = null;
+        try {
+            afterFlip = readValues(table, "checksumKey");
+        } catch (final Throwable t) {
+            readFailure = t;
+        }
+        Assertions.checkNotNull(readFailure,
+                "with the checksum in the record, the read FAILS instead of silently returning " + (afterFlip == null
+                        ? "?" : Integer.valueOf(afterFlip.size())) + " of " + values.size() + " values");
+        Assertions.checkTrue(rootCauseMessage(readFailure).contains("checksum"),
+                "and it says what is wrong: " + rootCauseMessage(readFailure));
+
+        //recovery: the ordinary reset path, which is why a loud failure is worth the bytes
+        table.deleteRange("checksumKey");
+        lookup.clearCaches();
+        newUpdater(table, "checksumKey", values).update().close();
+        lookup.clearCaches();
+        Assertions.checkFalse(lookup.isEmptyOrInconsistent(), "the rebuilt store reports sound");
+        Assertions.checkEquals(values, readValues(table, "checksumKey"),
+                "and every value is back - the damage cost a rebuild, not a hole in the series");
+    }
+
+    /**
+     * The other mitigation shape Edwin asked for: a serde that REFUSES a format change. The version lives inside the
+     * record, so nothing about the width, the offsets or the counts changes - this is exactly the reinterpretation the
+     * arithmetic checks cannot see, and the serde is the only component that knows it is reading foreign bytes.
+     * <p>
+     * Two halves, and the second one is the rule this test exists to teach: refusing with the marker
+     * {@code SerializationException} makes the store recover (reset, rebuild, whole), while refusing with a plain
+     * runtime exception escapes the consistency check entirely - the consumer never gets its answer and the key is
+     * never rebuilt.
+     */
+    @Test
+    public void testASerdeRefusingAFormatChangeRecoversWhenItThrowsTheMarkerType() throws Exception {
+        final ATimeSeriesDB<String, FDate> v1 = newTable("versionedSerde", new VersionedDateSerde(FORMAT_V1),
+                VersionedDateSerde.LENGTH);
+        final List<FDate> values = newValues(1, BATCH_FLUSH_INTERVAL + 2);
+        newUpdater(v1, "versionKey", values).update().close();
+
+        //the same store, opened by a build whose format moved on: same width, different meaning
+        final ATimeSeriesDB<String, FDate> v2 = newTable("versionedSerde", new VersionedDateSerde(FORMAT_V2),
+                VersionedDateSerde.LENGTH);
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = v2.getLookupTableCache("versionKey");
+
+        Assertions.checkTrue(lookup.isEmptyOrInconsistent(),
+                "a serde that recognises foreign bytes must make the store report itself inconsistent");
+        Assertions.checkEquals(InconsistencyReason.INVALID_SERIALIZATION, lookup.getLastInconsistencyReason(),
+                "and the reason must be the serde arm, not an arithmetic accident");
+
+        v2.deleteRange("versionKey");
+        lookup.clearCaches();
+        newUpdater(v2, "versionKey", values).update().close();
+        lookup.clearCaches();
+        Assertions.checkFalse(lookup.isEmptyOrInconsistent(), "the rebuilt store is sound under the new format");
+        Assertions.checkEquals(values, readValues(v2, "versionKey"),
+                "and the values survive the format move, because the reset path could run");
+    }
+
+    @Test
+    public void testASerdeRefusingAFormatChangeWithAPlainExceptionDoesNotRecover() throws Exception {
+        final ATimeSeriesDB<String, FDate> v1 = newTable("unmarkerSerde", new VersionedDateSerde(FORMAT_V1),
+                VersionedDateSerde.LENGTH);
+        final List<FDate> values = newValues(1, BATCH_FLUSH_INTERVAL + 2);
+        newUpdater(v1, "unmarkerKey", values).update().close();
+
+        final ATimeSeriesDB<String, FDate> v2 = newTable("unmarkerSerde",
+                new UnmarkingRefusalSerde(), VersionedDateSerde.LENGTH);
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = v2.getLookupTableCache("unmarkerKey");
+
+        boolean escaped = false;
+        String escapedMessage = null;
+        try {
+            lookup.isEmptyOrInconsistent();
+        } catch (final Throwable t) {
+            escaped = true;
+            escapedMessage = rootCauseMessage(t);
+        }
+        //PIN, and it is a rule rather than a preference: a format refusal that does not use the marker type leaves
+        //the consumer with an exception instead of an answer, so the key is never rebuilt and the store stays broken
+        Assertions.checkTrue(Boolean.valueOf(escaped),
+                "today a plain runtime refusal still escapes the check - this is why serdes must throw the marker "
+                        + "type: " + escapedMessage);
+    }
+
+    // --- test-only integrity serdes; production keeps both of these OFF for throughput ---
+
+    /** {@code CRC32(millis,picos)} ahead of the value bytes: content integrity carried by the serde. */
+    private static final class ChecksummedDateSerde implements ISerde<FDate> {
+
+        private static final int CRC_INDEX = 0;
+        private static final int VALUE_INDEX = Integer.BYTES;
+
+        int length() {
+            return VALUE_INDEX + FDateSerde.FIXED_LENGTH;
+        }
+
+        @Override
+        public int toBuffer(final IByteBuffer buffer, final FDate obj) {
+            if (obj == null) {
+                return 0;
+            }
+            FDateSerde.putFDateNotNullSafe(buffer, VALUE_INDEX, obj);
+            buffer.putInt(CRC_INDEX, checksum(obj));
+            return length();
+        }
+
+        @Override
+        public FDate fromBuffer(final IByteBuffer buffer) {
+            final FDate value = FDateSerde.getFDateNotNullSafe(buffer, VALUE_INDEX);
+            final int stored = buffer.getInt(CRC_INDEX);
+            final int computed = checksum(value);
+            if (stored != computed) {
+                throw new SerializationException("stored value [" + value + "] fails its checksum: stored [" + stored
+                        + "] != computed [" + computed + "]");
+            }
+            return value;
+        }
+
+        private static int checksum(final FDate value) {
+            final java.util.zip.CRC32 crc = new java.util.zip.CRC32();
+            final byte[] raw = new byte[FDateSerde.FIXED_LENGTH];
+            final long millis = value.millisValue();
+            for (int i = 0; i < Long.BYTES; i++) {
+                raw[i] = (byte) (millis >>> (8 * (Long.BYTES - 1 - i)));
+            }
+            final int picos = value.picosValue();
+            for (int i = 0; i < Integer.BYTES; i++) {
+                raw[Long.BYTES + i] = (byte) (picos >>> (8 * (Integer.BYTES - 1 - i)));
+            }
+            crc.update(raw);
+            return (int) crc.getValue();
+        }
+    }
+
+    /** A version field inside the record: same width, and the serde knows when the bytes are not its format. */
+    private static final class VersionedDateSerde implements ISerde<FDate> {
+
+        static final int LENGTH = Integer.BYTES + FDateSerde.FIXED_LENGTH;
+        static final int VALUE_INDEX = Integer.BYTES;
+
+        private final int format;
+
+        private VersionedDateSerde(final int format) {
+            this.format = format;
+        }
+
+        @Override
+        public int toBuffer(final IByteBuffer buffer, final FDate obj) {
+            if (obj == null) {
+                return 0;
+            }
+            buffer.putInt(0, format);
+            FDateSerde.putFDateNotNullSafe(buffer, VALUE_INDEX, obj);
+            return LENGTH;
+        }
+
+        @Override
+        public FDate fromBuffer(final IByteBuffer buffer) {
+            final int stored = buffer.getInt(0);
+            if (stored != format) {
+                throw new SerializationException("stored value format version [" + stored
+                        + "] is not understood by this serde [" + format + "]");
+            }
+            return FDateSerde.getFDateNotNullSafe(buffer, VALUE_INDEX);
+        }
+    }
+
+    /**
+     * The same refusal, thrown as a plain runtime exception rather than the marker type - the idiom that does NOT
+     * recover. Written standalone rather than as a subclass, because the point is exactly that its check is its own.
+     */
+    private static final class UnmarkingRefusalSerde implements ISerde<FDate> {
+
+        @Override
+        public int toBuffer(final IByteBuffer buffer, final FDate obj) {
+            if (obj == null) {
+                return 0;
+            }
+            buffer.putInt(0, FORMAT_V2);
+            FDateSerde.putFDateNotNullSafe(buffer, VersionedDateSerde.VALUE_INDEX, obj);
+            return VersionedDateSerde.LENGTH;
+        }
+
+        @Override
+        public FDate fromBuffer(final IByteBuffer buffer) {
+            if (buffer.getInt(0) != FORMAT_V2) {
+                throw new IllegalArgumentException("I do not recognise this stored format");
+            }
+            return FDateSerde.getFDateNotNullSafe(buffer, VersionedDateSerde.VALUE_INDEX);
+        }
+    }
+
+    private static String rootCauseMessage(final Throwable t) {
+        Throwable current = t;
+        while (current.getCause() != null && current.getCause() != current) {
+            current = current.getCause();
+        }
+        return current.getClass().getSimpleName() + ": " + current.getMessage();
+    }
+
     // --- damage helpers ---
 
     private static File newestGenerationFile(final TimeSeriesLookupStorageCache<String, FDate> lookup) {
@@ -452,7 +693,17 @@ public class TimeSeriesBrokenAttemptDataTest extends ATest {
 
     private ATimeSeriesDB<String, FDate> newTable(final String name, final ISerde<FDate> serde,
             final int fixedLength) {
+        return newTable(name, serde, fixedLength, null);
+    }
+
+    private ATimeSeriesDB<String, FDate> newTable(final String name, final ISerde<FDate> serde,
+            final int fixedLength, final ICompressionFactory compressionFactory) {
         return new ATimeSeriesDB<String, FDate>(name) {
+
+            @Override
+            protected ICompressionFactory newCompressionFactory() {
+                return compressionFactory == null ? super.newCompressionFactory() : compressionFactory;
+            }
 
             @Override
             protected ISerde<FDate> newValueSerde() {
