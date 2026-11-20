@@ -77,7 +77,7 @@ public class TimeSeriesInconsistencyReasonTest extends ATest {
     public void testAHonestStoreRecordsNoReason() throws Exception {
         final TimeSeriesLookupStorageCache<String, FDate> lookup = openStore("clean");
         Assertions.checkFalse(lookup.isEmptyOrInconsistent(), "a fresh pass leaves a consistent store");
-        Assertions.checkEquals(lookup.getLastInconsistencyReason(), InconsistencyReason.NONE,
+        Assertions.checkEquals(InconsistencyReason.NONE, lookup.getLastInconsistencyReason(),
                 "and nothing was recorded against it");
     }
 
@@ -98,7 +98,7 @@ public class TimeSeriesInconsistencyReasonTest extends ATest {
         lookup.clearCaches();
 
         Assertions.checkTrue(lookup.isEmptyOrInconsistent(), "the reset answer must not change here");
-        Assertions.checkEquals(lookup.getLastInconsistencyReason(), InconsistencyReason.HIGH_WATER_AHEAD_OF_CHAIN,
+        Assertions.checkEquals(InconsistencyReason.HIGH_WATER_AHEAD_OF_CHAIN, lookup.getLastInconsistencyReason(),
                 "but the reason must say it was the high-water comparison, not a record check");
     }
 
@@ -119,7 +119,7 @@ public class TimeSeriesInconsistencyReasonTest extends ATest {
 
         Assertions.checkFalse(lookup.isEmptyOrInconsistent(),
                 "an attestation of a generation that never landed leaves the chain alone");
-        Assertions.checkEquals(lookup.getLastInconsistencyReason(), InconsistencyReason.NONE,
+        Assertions.checkEquals(InconsistencyReason.NONE, lookup.getLastInconsistencyReason(),
                 "so no reason is recorded - the skip and the clean case must not be told apart by a reason either");
     }
 
@@ -137,8 +137,7 @@ public class TimeSeriesInconsistencyReasonTest extends ATest {
         lookup.clearCaches();
 
         Assertions.checkTrue(lookup.isEmptyOrInconsistent(), "a chain naming an empty file is damaged");
-        Assertions.checkEquals(lookup.getLastInconsistencyReason(),
-                InconsistencyReason.NAMED_FILE_SHORTER_THAN_CLAIMED,
+        Assertions.checkEquals(InconsistencyReason.NAMED_FILE_SHORTER_THAN_CLAIMED, lookup.getLastInconsistencyReason(),
                 "and the reason is the per-record length check, not the high-water comparison");
     }
 
@@ -157,7 +156,7 @@ public class TimeSeriesInconsistencyReasonTest extends ATest {
         lookup.clearCaches();
 
         Assertions.checkTrue(lookup.isEmptyOrInconsistent(), "the store's own length check still indicts it");
-        Assertions.checkEquals(lookup.getLastInconsistencyReason(), InconsistencyReason.FILES_BEYOND_HIGH_WATER,
+        Assertions.checkEquals(InconsistencyReason.FILES_BEYOND_HIGH_WATER, lookup.getLastInconsistencyReason(),
                 "and the reason says the files, not the number, are the outlier");
     }
 
@@ -170,7 +169,7 @@ public class TimeSeriesInconsistencyReasonTest extends ATest {
         lookup.clearCaches();
 
         Assertions.checkTrue(lookup.isEmptyOrInconsistent(), "a store that never completed a publish is empty");
-        Assertions.checkEquals(lookup.getLastInconsistencyReason(), InconsistencyReason.NO_UPDATED_MARKER,
+        Assertions.checkEquals(InconsistencyReason.NO_UPDATED_MARKER, lookup.getLastInconsistencyReason(),
                 "which is a different case from a damaged chain, and has nothing to recover");
     }
 
@@ -192,7 +191,7 @@ public class TimeSeriesInconsistencyReasonTest extends ATest {
         lookup.clearCaches();
 
         Assertions.checkTrue(lookup.isEmptyOrInconsistent(), "a chain of nothing is not a store to serve");
-        Assertions.checkEquals(lookup.getLastInconsistencyReason(), InconsistencyReason.NO_SUMMARIES,
+        Assertions.checkEquals(InconsistencyReason.NO_SUMMARIES, lookup.getLastInconsistencyReason(),
                 "and the reason separates it from a chain that lost bytes");
     }
 

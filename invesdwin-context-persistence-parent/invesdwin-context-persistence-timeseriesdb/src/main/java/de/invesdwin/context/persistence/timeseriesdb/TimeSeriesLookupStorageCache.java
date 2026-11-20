@@ -1191,9 +1191,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
                     //high-water describes bytes this store never held. The chain that IS present has already been
                     //checked record by record against the files it names above; comparing it against another
                     //generation's attestation is a false positive, and its cost is a wiped key and a re-download.
-                    //not an indictment: the attestation belongs to a generation that never landed, and the chain
-                    //that IS present was verified record by record above
-                    lastInconsistencyReason = InconsistencyReason.NONE;
+                    //the success path below records NONE: a skip is not an indictment
                     log.debug(
                             "Skipping the ExpectedMemoryFileSize comparison for [%s]: the attestation names index generation [%s], the newest generation present is [%s]",
                             hashKey, attestedIndexNumber, currentIndexNumber);
