@@ -23,6 +23,8 @@ import de.invesdwin.context.integration.concurrent.nonblocking.INonBlockingRunna
 import de.invesdwin.context.integration.retry.NonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.RetryScopes;
 import de.invesdwin.context.integration.retry.fast.FastNonBlockingRetryLaterRuntimeException;
+import de.invesdwin.context.integration.retry.RetryLaterPendingRuntimeException;
+import de.invesdwin.context.integration.retry.fast.FastRetryLaterPendingRuntimeException;
 import de.invesdwin.context.integration.retry.task.ARetryCallable;
 import de.invesdwin.context.integration.retry.task.BackOffPolicies;
 import de.invesdwin.context.integration.retry.task.RetryOriginator;
@@ -224,8 +226,8 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
             } catch (final InterruptedException e) {
                 throw new RuntimeException(e);
             }
-        } else {
-            updateLock.lock();
+        } else if (!acquireUpdateLockForJoin(updateLock, TimeSeriesProperties.UPDATE_JOIN_ACQUIRE_TIMEOUT)) {
+            throw joinCeilingVerdict(TimeSeriesProperties.UPDATE_JOIN_ACQUIRE_TIMEOUT);
         }
         WaitForGraph.lockAcquired(graphKey);
         try {
@@ -546,6 +548,27 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
 
     protected <T> void logUpdate(final String name, final T oldValue, final String reason, final T newValue) {
         log.warn("Updating [%s] because existing %s [%s] %s [%s]", this, name, oldValue, reason, newValue);
+    }
+
+    /**
+     * The willing-to-wait join onto another context's update round: it stays a join (this tier intends to wait, and it
+     * is reached only where the caller chose that mode - see shouldSkipUpdateOnCurrentThreadIfAlreadyRunning), but it
+     * is now bounded. Extracted with the ceiling as a parameter so the branch can be pinned by a test without waiting
+     * out the shipped watchdog.
+     *
+     * @return false when the lock is still held elsewhere past the ceiling
+     */
+    static boolean acquireUpdateLockForJoin(final ILock updateLock, final Duration ceiling) {
+        return updateLock.tryLockNoInterrupt(ceiling);
+    }
+
+    private RetryLaterPendingRuntimeException joinCeilingVerdict(final Duration ceiling) {
+        //pending: the holder IS running the update this caller wants, so this must not consume the non-pending
+        //budget; fast: the message already names key, table and ceiling
+        return new FastRetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_PREFIX
+                + ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: joining the update of " + getElementsName()
+                + " [" + getKeyStr() + "] is still held by another context past the " + ceiling
+                + " join ceiling - refusing instead of parking here forever");
     }
 
     protected boolean shouldSkipUpdateOnCurrentThreadIfAlreadyRunning() {
