@@ -2,6 +2,7 @@ package de.invesdwin.context.persistence.timeseriesdb.segmented;
 
 import de.invesdwin.util.concurrent.lock.ILock;
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
@@ -31,7 +32,9 @@ import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache.InconsistencyReason;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
+import de.invesdwin.context.persistence.timeseriesdb.UpdateAttemptVerdict;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.FileBufferCache;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.ITimeSeriesDirectoryHashKey;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.TimeSeriesDirectoryHashKey;
@@ -110,6 +113,12 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
     private volatile long cachedSize = -1L;
     private volatile Optional<FDate> cachedPrevLastAvailableSegmentToWithoutLive;
     private volatile Optional<FDate> cachedPrevLastAvailableSegmentToWithLive;
+    /**
+     * Which check indicted this segmented store on the most recent {@link #isEmptyOrInconsistent()} pass, so a
+     * recovery can be written per reason instead of all-or-nothing. Same enum as the non-segmented cache's answer:
+     * the two must not drift into different vocabularies for the same states.
+     */
+    private volatile InconsistencyReason lastInconsistencyReason = InconsistencyReason.NONE;
     private final Log log = new Log(this);
 
     private final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable;
@@ -251,6 +260,10 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         };
         this.deleteLock = Locks.newReentrantLock(ASegmentedTimeSeriesLookupStorageCache.class.getSimpleName() + "_"
                 + segmentedTable.getName() + "_" + hashKey + "_deleteLock");
+    }
+
+    public InconsistencyReason getLastInconsistencyReason() {
+        return lastInconsistencyReason;
     }
 
     public ITimeSeriesDirectoryHashKey getDirectoryHashKey() {
@@ -816,8 +829,17 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
             }
         } catch (final Throwable t) {
             if (Throwables.isCausedByType(t, IncompleteUpdateRetryableException.class)) {
+                //The wipe stays, and a cell written to remove it is what established that: a segment whose init died is
+                //reset by the NEXT attempt anyway (the INITIALIZING branch above this call deletes range and status
+                //under the write lock and the heartbeat file lock), so the only thing this delete changes is whether a
+                //reader can be served a PARTIALLY initialised segment in between - and the invariant stated on
+                //initSegmentWithStatusHandling is that a wiped fresh state is preferred over "being answered with the
+                //segment silently missing". Measured, not assumed: with this line removed, a pass that published 8
+                //values and died left those 8 unreadable all the same, because the retry path reset the segment; only
+                //the window changed. What the window is worth is a partially served bar series.
                 segmentedTable.deleteRange(new SegmentedKey<K>(segmentedKey.getKey(), segmentedKey.getSegment()));
-                throw new RetryLaterRuntimeException(t);
+                //classify, do not re-label: the marker says this pass did not finish, nothing more
+                throw UpdateAttemptVerdict.forIncompleteUpdate(hashKey, t);
             } else {
                 throw Throwables.propagate(t);
             }
@@ -1797,6 +1819,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
     }
 
     public boolean isEmptyOrInconsistent() {
+        lastInconsistencyReason = InconsistencyReason.NONE;
         try {
             getFirstValue();
             getLastValue();
@@ -1805,9 +1828,22 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
                 //e.g. fst: unable to find class for code 88 after version upgrade
                 log.warn("Table data for [%s] is inconsistent and needs to be reset. Exception during getLastValue: %s",
                         hashKey, t.toString());
+                lastInconsistencyReason = InconsistencyReason.INVALID_SERIALIZATION;
+                return true;
+            } else if (Throwables.isCausedByType(t, IOException.class)) {
+                //The assumption in the else-branch below, that a read can only fail as a serde failure, is the same one
+                //TimeSeriesLookupStorageCache had to give up: a stored stream that lost bytes fails in the compression
+                //layer with an IOException ("Stream is corrupted" from the LZ4 block reader). Letting that escape the
+                //question "may this key be reset?" leaves the key broken forever, because the consumer that could
+                //rebuild it is never given an answer. Measured here by SegmentedCorruptBytesRecoveryTest: a byte flip
+                //inside a published index generation propagated as RuntimeException(IOException: Stream is corrupted).
+                log.warn("Table data for [%s] is inconsistent and needs to be reset. The stored stream cannot be read: %s",
+                        hashKey, t.toString());
+                lastInconsistencyReason = InconsistencyReason.CORRUPT_STORAGE;
                 return true;
             } else {
-                //unexpected exception, since RemoteFastSerializingSerde only throws SerializingException
+                //neither a serde failure nor a stream failure: our own bug. Recording it as an inconsistency would send
+                //the consumer to re-download data that was never damaged
                 throw Throwables.propagate(t);
             }
         }
@@ -1817,7 +1853,13 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
                 final Entry<TimeRange, SegmentStatus> row = iterator.next();
                 final SegmentStatus status = row.getValue();
                 if (status == SegmentStatus.COMPLETE) {
-                    if (segmentedTable.isEmptyOrInconsistent(new SegmentedKey<K>(key, row.getKey()))) {
+                    final SegmentedKey<K> segmentKey = new SegmentedKey<K>(key, row.getKey());
+                    if (segmentedTable.isEmptyOrInconsistent(segmentKey)) {
+                        //the per-segment check knows WHICH arm indicted it; take that answer rather than guessing from
+                        //the aggregate boolean, or the reason a consumer reads is the segment finder's, not the
+                        //segment's
+                        lastInconsistencyReason = segmentedTable.getLookupTableCache(segmentKey)
+                                .getLastInconsistencyReason();
                         return true;
                     }
                 }
@@ -1825,6 +1867,12 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
             }
         } catch (final NoSuchElementException e) {
             //end reached
+        }
+        if (empty) {
+            //no COMPLETE segment at all: this key was never built, which is a different act for a recovery than a key
+            //whose chain contradicts itself - without a reason here a consumer reading true cannot tell "nothing to
+            //heal" from "damaged", and the honest answer for a fresh key is that there is nothing to wipe
+            lastInconsistencyReason = InconsistencyReason.NO_SUMMARIES;
         }
         return empty;
     }

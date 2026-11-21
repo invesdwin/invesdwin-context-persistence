@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
+import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateAbortedException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
@@ -168,6 +169,12 @@ public class TimeSeriesPublishedChainHighWaterGuardTest extends ATest {
         } catch (final IllegalStateException e) {
             Assertions.checkTrue(e.getMessage().contains("prevMemoryFileSize"),
                     "the refusal must name the byte high-water guard: " + e.getMessage());
+            //the TYPE is the point: a byte-space regression inside the chain being built is not a supply problem a
+            //retry can cure, and the store's conversion (ATimeSeriesUpdater) keeps its "resume above the prefix"
+            //answer only for failures that do not carry this marker. IllegalStateException stays the caught supertype,
+            //so no existing consumer of the guard changes contract
+            Assertions.checkTrue(e instanceof IncompleteUpdateAbortedException,
+                    "the guard must declare its permanence with the marker, but threw: " + e.getClass().getName());
         }
         Assertions.assertThat(readExpectedMemoryFileSize(lookup)).as("the refusal must not move the high-water")
                 .isEqualTo(highWater);

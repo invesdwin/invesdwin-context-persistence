@@ -99,7 +99,7 @@ public class TimeSeriesBrokenAttemptDataTest extends ATest {
     }
 
     /**
-     * Case 1: a lookup generation whose bytes cannot be deserialised. The payloads still hold every value, so the
+     * Case 1: a lookup generation whose bytes cannot be decoded. The payloads still hold every value, so the
      * answer is a rebuild of the chain - the test proves the rebuild actually restores the data, not just that the
      * store is flagged.
      */
@@ -120,8 +120,13 @@ public class TimeSeriesBrokenAttemptDataTest extends ATest {
 
         Assertions.checkTrue(lookup.isEmptyOrInconsistent(),
                 "an index that cannot be read must not be served as if it could: " + generation);
-        Assertions.checkEquals(InconsistencyReason.INVALID_SERIALIZATION, lookup.getLastInconsistencyReason(),
-                "and the reason must name the deserialisation arm rather than the byte-level ones");
+        //Corrected with the split landed in this lane. The value this cell used to assert (INVALID_SERIALIZATION) was
+        //STRUCTURAL, not observed: until the arms returned their own reason, the caller recorded INVALID_SERIALIZATION
+        //for both, so this assertion could not have failed whichever arm fired. With the arms distinguished the damage
+        //proves to be a stream failure - a flipped byte inside a published index generation trips the LZ4 block
+        //checksum ("Stream is corrupted"), and the serde's class-code arm is never reached.
+        Assertions.checkEquals(InconsistencyReason.CORRUPT_STORAGE, lookup.getLastInconsistencyReason(),
+                "and the reason must name the STREAM arm - this is a block-checksum failure, not a class-code mismatch");
 
         //the consumer's answer: reset and let the next pass rebuild from the source
         table.deleteRange("corruptKey");
