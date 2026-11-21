@@ -2,7 +2,7 @@ package de.invesdwin.context.persistence.timeseriesdb.segmented;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
+import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -139,11 +139,18 @@ public class SegmentedCorruptBytesRecoveryTest extends ATest {
     }
 
     private static void corruptMiddleByteOf(final File file) throws IOException {
-        final byte[] bytes = Files.readAllBytes(file.toPath());
-        Assertions.checkTrue(bytes.length > 16,
-                "the file must be large enough to damage meaningfully: " + Integer.valueOf(bytes.length));
-        bytes[bytes.length / 2] = (byte) (bytes[bytes.length / 2] ^ 0xFF);
-        Files.write(file.toPath(), bytes);
+        //RandomAccessFile, not java.nio.file.Files: the generated ruleset bans importing the latter ("Use
+        //de.invesdwin...Files instead"), and a single in-place flip needs neither a whole-file read nor a write
+        try (RandomAccessFile raf = new RandomAccessFile(file, "rw")) {
+            final long length = raf.length();
+            Assertions.checkTrue(length > 16L,
+                    "the file must be large enough to damage meaningfully: " + Long.valueOf(length));
+            final long middle = length / 2L;
+            raf.seek(middle);
+            final int b = raf.read();
+            raf.seek(middle);
+            raf.write(b ^ 0xFF);
+        }
     }
 
     private static List<FDate> newValues(final int count) {
