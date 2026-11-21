@@ -1868,6 +1868,12 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         } catch (final NoSuchElementException e) {
             //end reached
         }
+        if (empty) {
+            //no COMPLETE segment at all: this key was never built, which is a different act for a recovery than a key
+            //whose chain contradicts itself - without a reason here a consumer reading true cannot tell "nothing to
+            //heal" from "damaged", and the honest answer for a fresh key is that there is nothing to wipe
+            lastInconsistencyReason = InconsistencyReason.NO_SUMMARIES;
+        }
         return empty;
     }
 

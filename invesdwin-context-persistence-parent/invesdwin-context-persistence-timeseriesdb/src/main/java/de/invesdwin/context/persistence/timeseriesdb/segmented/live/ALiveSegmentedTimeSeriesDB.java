@@ -8,6 +8,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.compression.lz4.LZ4Streams;
 import de.invesdwin.context.persistence.timeseriesdb.ATimeSeriesDB;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache.InconsistencyReason;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
 import de.invesdwin.context.persistence.timeseriesdb.directory.ITimeSeriesDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
@@ -340,6 +341,11 @@ public abstract class ALiveSegmentedTimeSeriesDB<K, V> implements ILiveSegmented
         } finally {
             readLock.unlock();
         }
+    }
+
+    @Override
+    public InconsistencyReason getInconsistencyReason(final K key) {
+        return getLiveSegmentedLookupTableCache(key).getLastInconsistencyReason();
     }
 
     @Override
