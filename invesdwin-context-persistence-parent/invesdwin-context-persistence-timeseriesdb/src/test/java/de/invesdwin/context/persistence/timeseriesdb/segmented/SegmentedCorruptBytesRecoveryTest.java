@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import de.invesdwin.context.ContextProperties;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache.InconsistencyReason;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.TimeSeriesBaseDirectory;
@@ -107,6 +108,73 @@ public class SegmentedCorruptBytesRecoveryTest extends ATest {
         } finally {
             db.close();
         }
+    }
+
+    /**
+     * The per-segment reason, carried up. Three segments, damage in the MIDDLE one: the head read still has the global
+     * first and last values (they live in the outer segments), so the only path that can indict this key is the
+     * status-table walk - and that walk has to report the damaged SEGMENT's reason rather than leave the default.
+     * Until this cell the carry-up line was unverified; deleting it now reddens exactly here, because the boolean still
+     * says true while the reason stays NONE - which is the all-or-nothing recovery this lane exists to retire.
+     */
+    @Test
+    public void testADamagedMiddleSegmentCarriesItsOwnReasonUp() throws Exception {
+        final List<FDate> feed = new ArrayList<>();
+        feed.add(FDateBuilder.newDate(2020, 6, 1));
+        feed.add(FDateBuilder.newDate(2023, 6, 1));
+        feed.add(FDateBuilder.newDate(2025, 6, 1));
+        final HealableSegmentedDB db = new HealableSegmentedDB("middleSegment", feed);
+        try {
+            final String key = "k";
+            final ASegmentedTimeSeriesLookupStorageCache<String, FDate> cache = db.getSegmentedLookupTableCache(key);
+            final List<SegmentedKey<String>> segments = new ArrayList<>();
+            for (final FDate value : feed) {
+                final TimeRange segment = db.getSegmentFinder(key).getCacheQuery().getValue(value);
+                final SegmentedKey<String> segmentedKey = new SegmentedKey<>(key, segment);
+                Assertions.checkTrue(
+                        cache.maybeInitSegmentSync(segmentedKey, sk -> db.newSource(segmentedKey)),
+                        "precondition: every segment must initialise cleanly, failed at " + segment);
+                if (!segments.contains(segmentedKey)) {
+                    segments.add(segmentedKey);
+                }
+            }
+            Assertions.checkTrue(segments.size() == 3,
+                    "the fixture needs three distinct segments so the head read cannot see the middle one, got "
+                            + Integer.valueOf(segments.size()));
+
+            //damage: the middle segment keeps its summaries but loses the bytes they name
+            final TimeSeriesLookupStorageCache<SegmentedKey<String>, FDate> middleLookup = db.getSegmentedTable()
+                    .getLookupTableCache(segments.get(1));
+            final File named = new File(firstPublishedResourceUri(middleLookup));
+            Assertions.checkTrue(named.exists(), "the middle segment must have a published payload: " + named);
+            try (java.io.RandomAccessFile raf = new java.io.RandomAccessFile(named, "rw")) {
+                raf.setLength(0L);
+            }
+            middleLookup.clearCaches();
+
+            Assertions.checkTrue(db.isEmptyOrInconsistent(key),
+                    "a summary naming bytes that are no longer there must indict the key");
+            Assertions.checkEquals(InconsistencyReason.NAMED_FILE_SHORTER_THAN_CLAIMED,
+                    cache.getLastInconsistencyReason(),
+                    "the reason must come from the damaged SEGMENT - the head read cannot see this damage, so a NONE "
+                            + "here means the status walk indicted the key without saying who");
+        } finally {
+            db.close();
+        }
+    }
+
+    private static String firstPublishedResourceUri(
+            final TimeSeriesLookupStorageCache<SegmentedKey<String>, FDate> lookup) {
+        try (ICloseableIterator<MemoryFileSummary> it = lookup.getMemoryFileLookupTable().range()) {
+            while (it.hasNext()) {
+                final String uri = it.next().getMemoryResourceUri();
+                if (uri != null) {
+                    return uri;
+                }
+            }
+        }
+        Assertions.fail("the segment must have a published payload file to damage");
+        return null;
     }
 
     private static List<FDate> readSegment(final ASegmentedTimeSeriesLookupStorageCache<String, FDate> cache,
