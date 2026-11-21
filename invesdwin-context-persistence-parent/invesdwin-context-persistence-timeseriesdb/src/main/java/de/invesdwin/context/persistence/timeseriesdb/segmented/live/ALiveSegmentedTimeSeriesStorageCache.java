@@ -10,6 +10,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.commons.lang3.mutable.MutableInt;
 
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache.InconsistencyReason;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ASegmentedTimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.segmented.ISegmentedTimeSeriesDB;
@@ -98,6 +99,20 @@ public abstract class ALiveSegmentedTimeSeriesStorageCache<K, V> implements Clos
             return true;
         }
         return historicalSegmentTable.isEmptyOrInconsistent(key);
+    }
+
+    /**
+     * The reason recorded by the last consistency pass over this key's historical chain; it does not re-walk anything.
+     * <p>
+     * Known blind spot, stated rather than papered over: the live arm of {@link #isEmptyOrInconsistent()} - a live
+     * segment that exists but holds nothing - indicts the key WITHOUT producing a reason, so a consumer that reads
+     * {@code NONE} next to a {@code true} answer on a live-segmented key may be looking at that case rather than at a
+     * healthy store. No reason constant is invented for it here, because nothing in this module's fixtures can produce
+     * the state on purpose; naming one would be a claim rather than a capability. Attributing it belongs with the live
+     * segment's own state machine (see PersistentLiveSegment / convertLiveSegmentToHistorical), not with this getter.
+     */
+    public InconsistencyReason getLastInconsistencyReason() {
+        return historicalSegmentLookupTableCache.getLastInconsistencyReason();
     }
 
     public void deleteAll() {
