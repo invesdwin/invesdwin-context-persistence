@@ -32,6 +32,7 @@ import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableEx
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
+import de.invesdwin.context.persistence.timeseriesdb.UpdateAttemptVerdict;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.FileBufferCache;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.ITimeSeriesDirectoryHashKey;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.TimeSeriesDirectoryHashKey;
@@ -816,8 +817,17 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
             }
         } catch (final Throwable t) {
             if (Throwables.isCausedByType(t, IncompleteUpdateRetryableException.class)) {
+                //The wipe stays, and a cell written to remove it is what established that: a segment whose init died is
+                //reset by the NEXT attempt anyway (the INITIALIZING branch above this call deletes range and status
+                //under the write lock and the heartbeat file lock), so the only thing this delete changes is whether a
+                //reader can be served a PARTIALLY initialised segment in between - and the invariant stated on
+                //initSegmentWithStatusHandling is that a wiped fresh state is preferred over "being answered with the
+                //segment silently missing". Measured, not assumed: with this line removed, a pass that published 8
+                //values and died left those 8 unreadable all the same, because the retry path reset the segment; only
+                //the window changed. What the window is worth is a partially served bar series.
                 segmentedTable.deleteRange(new SegmentedKey<K>(segmentedKey.getKey(), segmentedKey.getSegment()));
-                throw new RetryLaterRuntimeException(t);
+                //classify, do not re-label: the marker says this pass did not finish, nothing more
+                throw UpdateAttemptVerdict.forIncompleteUpdate(hashKey, t);
             } else {
                 throw Throwables.propagate(t);
             }
