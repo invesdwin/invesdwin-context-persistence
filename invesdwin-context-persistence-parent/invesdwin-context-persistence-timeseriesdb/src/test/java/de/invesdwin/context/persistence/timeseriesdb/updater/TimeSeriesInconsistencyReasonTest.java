@@ -1,6 +1,7 @@
 package de.invesdwin.context.persistence.timeseriesdb.updater;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
@@ -141,6 +142,51 @@ public class TimeSeriesInconsistencyReasonTest extends ATest {
         Assertions.checkTrue(lookup.isEmptyOrInconsistent(), "a chain naming an empty file is damaged");
         Assertions.checkEquals(InconsistencyReason.NAMED_FILE_SHORTER_THAN_CLAIMED, lookup.getLastInconsistencyReason(),
                 "and the reason is the per-record length check, not the high-water comparison");
+    }
+
+    /**
+     * A byte flip in the middle of a published index generation. Nothing arithmetic can see it - the file is present
+     * and its length is exactly what the account claims - so the damage surfaces only when the LZ4 block refuses to
+     * decode. The consumer asked "can this store be reset?", so that must be the answer rather than an exception, and
+     * the reason must name the layer that noticed: the stored stream, not a serde mismatch. {@link
+     * InconsistencyReason#CORRUPT_STORAGE} has been in the enum since it landed and, until this cell, was assigned by
+     * nothing - the IOException arm inside {@code isInvalidSerialization()} healed the store while the caller still
+     * recorded {@code INVALID_SERIALIZATION}.
+     */
+    @Test
+    public void testACorruptedGenerationStreamReasonsCorruptStorage() throws Exception {
+        final TimeSeriesLookupStorageCache<String, FDate> lookup = openStore("corruptStream");
+        final File generation = newestGenerationFile(lookup);
+        corruptMiddleByteOf(generation);
+        lookup.clearCaches();
+
+        Assertions.checkTrue(lookup.isEmptyOrInconsistent(),
+                "a chain that will not decode is inconsistent, and the check must answer that rather than throw it");
+        Assertions.checkEquals(InconsistencyReason.CORRUPT_STORAGE, lookup.getLastInconsistencyReason(),
+                "the reason must say the STREAM failed to decode, not that the serde found an unknown class");
+    }
+
+    private static File newestGenerationFile(final TimeSeriesLookupStorageCache<?, ?> lookup) {
+        final int generation = lookup.getMemoryFileLookupTable().getCurrentIndexNumber();
+        final File candidate = new File(memoryDirectoryOf(lookup),
+                AMemoryFileSummarySerializingCollection.newIndexGenerationFileName(generation));
+        Assertions.checkTrue(candidate.exists(), "the newest generation must be present: " + candidate);
+        return candidate;
+    }
+
+    private static void corruptMiddleByteOf(final File file) throws IOException {
+        //RandomAccessFile on purpose: this class imports the house de.invesdwin.util.lang.Files, and a whole-file
+        //read/write via java.nio would have to be qualified inline. A single in-place flip needs neither.
+        try (RandomAccessFile raf = new RandomAccessFile(file, "rw")) {
+            final long length = raf.length();
+            Assertions.checkTrue(length > 16L,
+                    "the file must be large enough to damage meaningfully: " + Long.valueOf(length));
+            final long middle = length / 2L;
+            raf.seek(middle);
+            final int b = raf.read();
+            raf.seek(middle);
+            raf.write(b ^ 0xFF);
+        }
     }
 
     /**
@@ -301,7 +347,7 @@ public class TimeSeriesInconsistencyReasonTest extends ATest {
         }
     }
 
-    private static File memoryDirectoryOf(final TimeSeriesLookupStorageCache<String, FDate> lookup) {
+    private static File memoryDirectoryOf(final TimeSeriesLookupStorageCache<?, ?> lookup) {
         return lookup.getDirectoryHashKeyVersionMemory().getDirectoryHashKeyVersionDataShared();
     }
 

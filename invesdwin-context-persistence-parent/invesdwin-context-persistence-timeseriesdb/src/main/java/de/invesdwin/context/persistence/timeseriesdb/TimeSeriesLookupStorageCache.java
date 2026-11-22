@@ -1134,8 +1134,9 @@ public class TimeSeriesLookupStorageCache<K, V> {
             return true;
         }
 
-        if (isInvalidSerialization()) {
-            lastInconsistencyReason = InconsistencyReason.INVALID_SERIALIZATION;
+        final InconsistencyReason serializationReason = getSerializationInconsistency();
+        if (serializationReason != InconsistencyReason.NONE) {
+            lastInconsistencyReason = serializationReason;
             return true;
         }
         final MemoryFileMetadata metadata = memoryFileLookupTable.getMetadata();
@@ -1218,18 +1219,26 @@ public class TimeSeriesLookupStorageCache<K, V> {
         }
     }
 
-    private boolean isInvalidSerialization() {
+    /**
+     * Which indictment a read of the chain produces, or {@link InconsistencyReason#NONE} when the chain decodes. The
+     * two failure layers must not be collapsed into one boolean: a serde that cannot map a class code is a VERSION
+     * mismatch (the bytes are intact, the meaning of them moved), while a stream that will not decode means the BYTES
+     * themselves are suspect. A recovery that is allowed to keep an existing prefix behaves differently for the two,
+     * which is the whole reason {@link InconsistencyReason#CORRUPT_STORAGE} exists - and until this split it was
+     * declared and never assigned, so a corrupt stream was recorded as a serde failure.
+     */
+    private InconsistencyReason getSerializationInconsistency() {
         try {
             getFirstValue();
             getLastValue();
-            return false;
+            return InconsistencyReason.NONE;
         } catch (final Throwable t) {
             if (Throwables.isCausedByType(t, SerializationException.class)) {
                 //e.g. fst: unable to find class for code 88 after version upgrade
                 log.warn(
                         "Table data for [%s] is inconsistent and needs to be reset. Exception during deserialization: %s",
                         hashKey, t.toString());
-                return true;
+                return InconsistencyReason.INVALID_SERIALIZATION;
             }
             if (Throwables.isCausedByType(t, java.io.IOException.class)) {
                 //The old else-branch assumed the serde can only throw SerializationException. It cannot: reading a
@@ -1241,7 +1250,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
                 log.warn(
                         "Table data for [%s] is inconsistent and needs to be reset. The stored stream cannot be read: %s",
                         hashKey, t.toString());
-                return true;
+                return InconsistencyReason.CORRUPT_STORAGE;
             }
             //neither a serde failure nor a stream failure: this is our own bug, and hiding it as an inconsistency
             //would send the consumer to re-download data that was never damaged

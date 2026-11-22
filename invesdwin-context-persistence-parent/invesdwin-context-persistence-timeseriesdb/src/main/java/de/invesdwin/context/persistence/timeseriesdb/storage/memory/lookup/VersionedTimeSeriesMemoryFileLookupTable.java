@@ -15,6 +15,7 @@ import de.invesdwin.context.integration.filechannel.nio.atomic.AtomicNioFileChan
 import de.invesdwin.util.concurrent.lock.file.AtomicNioFileChannelContext;
 import de.invesdwin.util.error.Throwables;
 import de.invesdwin.context.log.Log;
+import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateAbortedException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummary;
 import de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFileSummarySerde;
@@ -267,7 +268,9 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
                     : metadata.getExpectedMemoryFileSize(properties);
 
             if (prevMemoryFileSize > expectedMemoryFileSize) {
-                throw new IllegalStateException("prevMemoryFileSize[" + prevMemoryFileSize
+                //not a supply problem: the chain this pass is building contradicts the published high-water, so
+                //"resume above the prefix" would re-ask the same contradiction forever (cap35r's 1,257 re-asks)
+                throw new IncompleteUpdateAbortedException("prevMemoryFileSize[" + prevMemoryFileSize
                         + "] should be less than expectedMemoryFileFize[" + expectedMemoryFileSize + "]");
             }
             metadata.setExpectedMemoryFileSize(properties, expectedMemoryFileSize, newIndexNumber);
@@ -276,7 +279,9 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
                     .extractEndTime(parent.getValueSerde().fromBytes(newSummary.getFirstValue()));
 
             if (!firstValueEndTime.equalsNotNullSafe(newSummary.getFirstValueEndTime())) {
-                throw new IllegalStateException("summary.firstValue.endTime[" + firstValueEndTime
+                //the summary disagrees with the value stored inside it: this generation cannot be trusted as a
+                //resume point, whatever the source does next
+                throw new IncompleteUpdateAbortedException("summary.firstValue.endTime[" + firstValueEndTime
                         + "] != summary.getFirstValueEndTime[" + newSummary.getFirstValueEndTime() + "]");
             }
 
@@ -317,8 +322,9 @@ public class VersionedTimeSeriesMemoryFileLookupTable<V> implements ITimeSeriesM
         final FDate newFirstEndTime = newSummary.getFirstValueEndTime();
         if (lastFirstEndTime != null
                 && (lastFirstEndTime.isAfter(newFirstEndTime) || lastFirstEndTime.equalsNotNullSafe(newFirstEndTime))) {
-            throw new IllegalStateException("existingLastSummary.firstValueEndTime[" + lastFirstEndTime
-                    + "] does not align with newSummary.firstValueEndTime[" + newFirstEndTime + "]");
+            throw new IncompleteUpdateAbortedException(
+                    "existingLastSummary.firstValueEndTime[" + lastFirstEndTime
+                            + "] does not align with newSummary.firstValueEndTime[" + newFirstEndTime + "]");
         }
         newCollection.add(lastWritten);
         return newSummary;
