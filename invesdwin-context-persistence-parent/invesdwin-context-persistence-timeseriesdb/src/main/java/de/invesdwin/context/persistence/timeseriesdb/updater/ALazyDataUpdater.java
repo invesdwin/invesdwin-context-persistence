@@ -118,6 +118,19 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
         return keyStr;
     }
 
+    /**
+     * Whether the last update attempt for this key left its completion marker in place. The marker is the store's own
+     * durable signal: it is moved into place when an attempt publishes its final progress (TimeSeriesUpdaterResult)
+     * and removed when a new attempt starts (ATimeSeriesUpdater), so false means work is outstanding for this key -
+     * including the case where nothing has ever been derived.
+     * <p>
+     * A consumer that cannot join the attempt needs this before it answers from the published state: for a key that
+     * was never derived, the published state is empty, and serving it is a wrong result rather than a stale one.
+     */
+    public final boolean isUpdateFinished() {
+        return getTable().getLookupTableCache(getKey()).getUpdateFinishedFile().exists();
+    }
+
     protected String newKeyStr() {
         return getTable().innerHashKeyToString(key);
     }
