@@ -23,8 +23,6 @@ import de.invesdwin.context.integration.concurrent.nonblocking.INonBlockingRunna
 import de.invesdwin.context.integration.retry.NonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.RetryScopes;
 import de.invesdwin.context.integration.retry.fast.FastNonBlockingRetryLaterRuntimeException;
-import de.invesdwin.context.integration.retry.RetryLaterPendingRuntimeException;
-import de.invesdwin.context.integration.retry.fast.FastRetryLaterPendingRuntimeException;
 import de.invesdwin.context.integration.retry.task.ARetryCallable;
 import de.invesdwin.context.integration.retry.task.BackOffPolicies;
 import de.invesdwin.context.integration.retry.task.RetryOriginator;
@@ -226,8 +224,16 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
             } catch (final InterruptedException e) {
                 throw new RuntimeException(e);
             }
-        } else if (!acquireUpdateLockForJoin(updateLock, TimeSeriesProperties.UPDATE_JOIN_ACQUIRE_TIMEOUT)) {
-            throw joinCeilingVerdict(TimeSeriesProperties.UPDATE_JOIN_ACQUIRE_TIMEOUT);
+        } else {
+            //The join tier parks: this caller came specifically to wait for the update another context is running, and
+            //the join on the task behind it has always been unbounded by design (skipCycleForCaller refuses any edge
+            //that would close a cycle up front, and the task aborts retryably on cyclic pin waits). A ceiling here
+            //only postponed the same outcome and handed the caller a verdict it cannot use - the same shape as the
+            //five-minute ceiling on the precalculated creation path, which produced 33 refusals in one cold umbrella
+            //run and surfaced as ClassCastExceptions downstream. What bounds a wedged holder instead is progress, not
+            //the wall clock: the attempt keeps publishing content, or the store's heartbeat/lease machinery and the
+            //derived-store stall guard stop crediting a stalled key.
+            acquireUpdateLockForJoin(updateLock);
         }
         WaitForGraph.lockAcquired(graphKey);
         try {
@@ -558,17 +564,12 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
      *
      * @return false when the lock is still held elsewhere past the ceiling
      */
-    static boolean acquireUpdateLockForJoin(final ILock updateLock, final Duration ceiling) {
-        return updateLock.tryLockNoInterrupt(ceiling);
-    }
-
-    private RetryLaterPendingRuntimeException joinCeilingVerdict(final Duration ceiling) {
-        //pending: the holder IS running the update this caller wants, so this must not consume the non-pending
-        //budget; fast: the message already names key, table and ceiling
-        return new FastRetryLaterPendingRuntimeException(RetryLaterPendingRuntimeException.PENDING_PREFIX
-                + ALazyDataUpdater.class.getSimpleName() + ".maybeUpdate: joining the update of " + getElementsName()
-                + " [" + getKeyStr() + "] is still held by another context past the " + ceiling
-                + " join ceiling - refusing instead of parking here forever");
+    /**
+     * The join arm's acquire: a plain blocking acquire, for a caller that came specifically to wait for an in-flight
+     * update. Bounded by progress rather than by a ceiling - see the call site in maybeUpdateWaiting.
+     */
+    static void acquireUpdateLockForJoin(final ILock updateLock) {
+        updateLock.lock();
     }
 
     protected boolean shouldSkipUpdateOnCurrentThreadIfAlreadyRunning() {

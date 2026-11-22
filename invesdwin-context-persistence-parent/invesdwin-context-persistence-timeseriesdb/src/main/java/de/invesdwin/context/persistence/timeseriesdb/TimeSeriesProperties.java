@@ -35,15 +35,6 @@ public final class TimeSeriesProperties {
     public static final Duration RETAIN_OBSOLETE_VERSIONS_THRESHOLD;
     public static final Duration RETAIN_OBSOLETE_EPOCHS_THRESHOLD;
     public static final Duration UPDATE_YIELD_ACQUIRE_WRITE_LOCK_TIMEOUT;
-    /**
-     * Watchdog ceiling for the intentional join onto an update that another context is already running (the
-     * willing-to-wait tier in ALazyDataUpdater.maybeUpdateWaiting). The live demand path never reaches it: it is
-     * answered a verdict at ACQUIRE_UPDATE_LOCK_TIMEOUT. This exists so that a hung update cannot hang a run forever -
-     * the §41 shape on the production box was two threads parked for 9 h 27 min with no monitor cycle for jstack to
-     * report. Sized as a watchdog, not as a tuning knob: no normal update round anywhere in the fleet comes close to
-     * it, so nothing that succeeds today is changed by it.
-     */
-    public static final Duration UPDATE_JOIN_ACQUIRE_TIMEOUT;
     private static final SystemProperties SYSTEM_PROPERTIES;
 
     static {
@@ -68,7 +59,6 @@ public final class TimeSeriesProperties {
         RETAIN_OBSOLETE_EPOCHS_THRESHOLD = SYSTEM_PROPERTIES.getDuration("RETAIN_OBSOLETE_EPOCHS_THRESHOLD");
         UPDATE_YIELD_ACQUIRE_WRITE_LOCK_TIMEOUT = SYSTEM_PROPERTIES
                 .getDuration("UPDATE_YIELD_ACQUIRE_WRITE_LOCK_TIMEOUT");
-        UPDATE_JOIN_ACQUIRE_TIMEOUT = SYSTEM_PROPERTIES.getDuration("UPDATE_JOIN_ACQUIRE_TIMEOUT");
         FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR = null;
     }
 
