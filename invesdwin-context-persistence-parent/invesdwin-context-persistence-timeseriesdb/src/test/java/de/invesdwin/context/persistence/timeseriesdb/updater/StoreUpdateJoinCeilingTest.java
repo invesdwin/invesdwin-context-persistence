@@ -6,6 +6,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import org.junit.jupiter.api.Test;
 
+import de.invesdwin.context.integration.concurrent.FinancialdataThreads;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.concurrent.lock.ILock;
@@ -68,6 +69,48 @@ public class StoreUpdateJoinCeilingTest {
                     + " the holder finished, which is how a hung update hung the caller forever");
             Assertions.checkTrue(!updateLock.isHeldByCurrentThread(), "a refused join holds nothing");
         } finally {
+            holder.finish();
+        }
+    }
+
+    @Test
+    public void testABlockingJoinerParksThroughAHoldNoCeilingWouldSurvive() throws InterruptedException {
+        //the join arm for a caller that may block: the task join behind it has always been unbounded, so a ceiling on
+        //the lock only turns a slow-but-progressing update into a verdict this caller cannot use
+        final ILock updateLock = newLock("join-parks");
+        final Holder holder = new Holder(updateLock, 1_800);
+        holder.start();
+        try {
+            final long startMillis = FDateMillis.nowMillis();
+            Assertions.checkTrue(ALazyDataUpdater.acquireUpdateLockForJoinByCallerTier(updateLock,
+                    new Duration(100, FTimeUnit.MILLISECONDS)),
+                    "a blocking joiner is not refused by a small ceiling - it waits for the update it came to join");
+            final long elapsedMillis = FDateMillis.nowMillis() - startMillis;
+            Assertions.checkTrue(elapsedMillis >= 1_000L,
+                    "and it really waited for the holder: " + Long.valueOf(elapsedMillis) + " ms");
+            updateLock.unlock();
+        } finally {
+            holder.finish();
+        }
+    }
+
+    @Test
+    public void testANonBlockingJoinerIsStillRefusedPastItsCeilingAndHoldsNothing()
+            throws InterruptedException {
+        //the same arm for a non-blocking consumer: it keeps its contract - bounded wait, then the verdict its retry
+        //re-asks - and it must not leave the lock held
+        final Boolean previousTier = FinancialdataThreads.registerThreadBlockingUpdateCacheDisabled(true);
+        final ILock updateLock = newLock("join-refused-tier");
+        final Holder holder = new Holder(updateLock, 2_000);
+        holder.start();
+        try {
+            final boolean acquired = ALazyDataUpdater.acquireUpdateLockForJoinByCallerTier(updateLock,
+                    new Duration(200, FTimeUnit.MILLISECONDS));
+            Assertions.checkFalse(acquired, "a non-blocking joiner past its ceiling must be refused, not parked");
+            Assertions.checkTrue(!updateLock.isHeldByCurrentThread(),
+                    "and the refused caller holds nothing to unlock");
+        } finally {
+            FinancialdataThreads.unregisterThreadBlockingUpdateCacheDisabled(previousTier);
             holder.finish();
         }
     }

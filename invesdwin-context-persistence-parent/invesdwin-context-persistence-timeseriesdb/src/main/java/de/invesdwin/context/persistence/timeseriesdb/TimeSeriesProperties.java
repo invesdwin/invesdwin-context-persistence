@@ -36,12 +36,15 @@ public final class TimeSeriesProperties {
     public static final Duration RETAIN_OBSOLETE_EPOCHS_THRESHOLD;
     public static final Duration UPDATE_YIELD_ACQUIRE_WRITE_LOCK_TIMEOUT;
     /**
-     * Watchdog ceiling for the intentional join onto an update that another context is already running (the
-     * willing-to-wait tier in ALazyDataUpdater.maybeUpdateWaiting). The live demand path never reaches it: it is
-     * answered a verdict at ACQUIRE_UPDATE_LOCK_TIMEOUT. This exists so that a hung update cannot hang a run forever -
-     * the §41 shape on the production box was two threads parked for 9 h 27 min with no monitor cycle for jstack to
-     * report. Sized as a watchdog, not as a tuning knob: no normal update round anywhere in the fleet comes close to
-     * it, so nothing that succeeds today is changed by it.
+     * Ceiling for the join onto an update that another context is already running, and it applies ONLY to a
+     * non-blocking caller ({@code UpdateLockAcquirePolicy.isRequestTier()}): that caller answers "later" and must not
+     * park, so past this ceiling it gets the PENDING verdict its own retry re-asks. A caller that may block waits on
+     * the update lock without a ceiling instead - the join on the task behind it has always been unbounded by design,
+     * so a ceiling on the lock alone only converts a slow-but-progressing update into a verdict the caller cannot use.
+     * <p>
+     * Sized as a watchdog for the non-blocking tier, not as a tuning knob. The claim that no normal round comes close
+     * to it was checked against a cold umbrella run on 2026-11-22 and the same magnitude on the precalculated updater
+     * creation path fired 33 times there, which is why that path no longer has a ceiling for blocking callers.
      */
     public static final Duration UPDATE_JOIN_ACQUIRE_TIMEOUT;
     private static final SystemProperties SYSTEM_PROPERTIES;

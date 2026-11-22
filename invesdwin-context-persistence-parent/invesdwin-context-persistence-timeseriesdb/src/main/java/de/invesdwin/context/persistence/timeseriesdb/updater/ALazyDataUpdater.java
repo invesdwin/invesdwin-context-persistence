@@ -16,6 +16,7 @@ import org.springframework.retry.backoff.BackOffPolicy;
 
 import de.invesdwin.context.integration.IntegrationProperties;
 import de.invesdwin.context.integration.concurrent.DatabaseThreads;
+import de.invesdwin.context.integration.concurrent.UpdateLockAcquirePolicy;
 import de.invesdwin.context.integration.concurrent.nonblocking.ANonBlockingRunnable;
 import de.invesdwin.context.integration.concurrent.nonblocking.DisabledNonBlockingRunnable;
 import de.invesdwin.context.integration.concurrent.nonblocking.INonBlockingRunnable;
@@ -226,7 +227,14 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
             } catch (final InterruptedException e) {
                 throw new RuntimeException(e);
             }
-        } else if (!acquireUpdateLockForJoin(updateLock, TimeSeriesProperties.UPDATE_JOIN_ACQUIRE_TIMEOUT)) {
+        } else if (UpdateLockAcquirePolicy.isRequestTier()) {
+            //A non-blocking consumer keeps its contract: bounded join wait, then the PENDING verdict its own retry
+            //re-asks. It may not park here, and refusing is correct for it because its caller answers "later".
+            if (!acquireUpdateLockForJoin(updateLock, TimeSeriesProperties.UPDATE_JOIN_ACQUIRE_TIMEOUT)) {
+                throw joinCeilingVerdict(TimeSeriesProperties.UPDATE_JOIN_ACQUIRE_TIMEOUT);
+            }
+        } else if (!acquireUpdateLockForJoinByCallerTier(updateLock,
+                TimeSeriesProperties.UPDATE_JOIN_ACQUIRE_TIMEOUT)) {
             throw joinCeilingVerdict(TimeSeriesProperties.UPDATE_JOIN_ACQUIRE_TIMEOUT);
         }
         WaitForGraph.lockAcquired(graphKey);
@@ -558,6 +566,21 @@ public abstract class ALazyDataUpdater<K, V> implements ILazyDataUpdater<K, V> {
      *
      * @return false when the lock is still held elsewhere past the ceiling
      */
+    /**
+     * The join arm's acquire, split by what the caller may do: a non-blocking consumer gets the bounded join wait and,
+     * past it, false - the caller turns that into the PENDING verdict its retry re-asks. A caller that may block parks
+     * without a ceiling, because the task join behind it has always been unbounded by design (skipCycleForCaller has
+     * refused any cycle edge up front, and the task aborts retryably on cyclic pin waits), so a ceiling on the lock
+     * alone only converts a slow-but-progressing update into a verdict this caller cannot use.
+     */
+    static boolean acquireUpdateLockForJoinByCallerTier(final ILock updateLock, final Duration joinCeiling) {
+        if (UpdateLockAcquirePolicy.isRequestTier()) {
+            return acquireUpdateLockForJoin(updateLock, joinCeiling);
+        }
+        updateLock.lock();
+        return true;
+    }
+
     static boolean acquireUpdateLockForJoin(final ILock updateLock, final Duration ceiling) {
         return updateLock.tryLockNoInterrupt(ceiling);
     }
