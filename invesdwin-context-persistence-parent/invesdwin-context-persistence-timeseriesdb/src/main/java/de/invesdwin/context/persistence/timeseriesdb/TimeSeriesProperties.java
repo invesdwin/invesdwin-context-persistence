@@ -35,18 +35,6 @@ public final class TimeSeriesProperties {
     public static final Duration RETAIN_OBSOLETE_VERSIONS_THRESHOLD;
     public static final Duration RETAIN_OBSOLETE_EPOCHS_THRESHOLD;
     public static final Duration UPDATE_YIELD_ACQUIRE_WRITE_LOCK_TIMEOUT;
-    /**
-     * Ceiling for the join onto an update that another context is already running, and it applies ONLY to a
-     * non-blocking caller ({@code UpdateLockAcquirePolicy.isRequestTier()}): that caller answers "later" and must not
-     * park, so past this ceiling it gets the PENDING verdict its own retry re-asks. A caller that may block waits on
-     * the update lock without a ceiling instead - the join on the task behind it has always been unbounded by design,
-     * so a ceiling on the lock alone only converts a slow-but-progressing update into a verdict the caller cannot use.
-     * <p>
-     * Sized as a watchdog for the non-blocking tier, not as a tuning knob. The claim that no normal round comes close
-     * to it was checked against a cold umbrella run on 2026-11-22 and the same magnitude on the precalculated updater
-     * creation path fired 33 times there, which is why that path no longer has a ceiling for blocking callers.
-     */
-    public static final Duration UPDATE_JOIN_ACQUIRE_TIMEOUT;
     private static final SystemProperties SYSTEM_PROPERTIES;
 
     static {
@@ -71,7 +59,6 @@ public final class TimeSeriesProperties {
         RETAIN_OBSOLETE_EPOCHS_THRESHOLD = SYSTEM_PROPERTIES.getDuration("RETAIN_OBSOLETE_EPOCHS_THRESHOLD");
         UPDATE_YIELD_ACQUIRE_WRITE_LOCK_TIMEOUT = SYSTEM_PROPERTIES
                 .getDuration("UPDATE_YIELD_ACQUIRE_WRITE_LOCK_TIMEOUT");
-        UPDATE_JOIN_ACQUIRE_TIMEOUT = SYSTEM_PROPERTIES.getDuration("UPDATE_JOIN_ACQUIRE_TIMEOUT");
         FILE_BUFFER_CACHE_FLYWEIGHT_ARRAY_ALLOCATOR = null;
     }
 
