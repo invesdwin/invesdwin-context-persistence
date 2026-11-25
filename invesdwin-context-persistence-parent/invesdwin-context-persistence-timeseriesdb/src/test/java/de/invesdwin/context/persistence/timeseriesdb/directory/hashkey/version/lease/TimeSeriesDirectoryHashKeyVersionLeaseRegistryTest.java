@@ -18,7 +18,11 @@ import de.invesdwin.context.test.ATest;
 import de.invesdwin.util.assertions.Assertions;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLockRegistry;
 import de.invesdwin.util.lang.Files;
+import de.invesdwin.util.time.date.FTimeUnit;
 import de.invesdwin.util.time.date.millis.FDateMillis;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Whether a retired version directory may be deleted now or has to be left to another process.
@@ -38,6 +42,9 @@ public class TimeSeriesDirectoryHashKeyVersionLeaseRegistryTest extends ATest {
 
     private static final int VERSION = 7;
     private static final String HASH_KEY = "LEASETESTTABLE/segmentedKey";
+    /** Observation windows for the progress assertion - a stalled pair reports the same count twice. */
+    private static final long SAMPLE_MILLIS = 3000L;
+    private static final long JOIN_MILLIS = 5000L;
 
     @Test
     public void testAForeignLiveLeaseOfThisVersionPinsIt() throws IOException {
@@ -214,6 +221,91 @@ public class TimeSeriesDirectoryHashKeyVersionLeaseRegistryTest extends ATest {
 
     private String registryKey(final int version) {
         return HASH_KEY + "/" + version;
+    }
+
+    /**
+     * Lease close and heartbeat refresh run against each other on the same context map, and neither may stall the other.
+     * <p>
+     * What this cell actually pins, proven by mutation, is the submit race: {@code requestWrite} submitted to the
+     * heartbeat pool outside the lifecycle monitor, while {@code stopHeartbeatExecutorIfNeeded} shuts that pool down
+     * inside it as the last lease closes - so a create concurrent with that close submitted to a terminated executor.
+     * Moving the submit under the monitor removes the race; putting it back (submit outside, no monitor) reddens this
+     * cell with {@code RejectedExecutionException: … rejected from … [Terminated …]}, which is what it throws on a
+     * real run too - and there it matters beyond the throw, because the retry layer reads an unmarked runtime
+     * exception as a fault rather than a wait.
+     * <p>
+     * The second fix in this change is not pinned by this cell. The refresh used to hold the map's monitor and then
+     * call {@code computeIfPresent} (monitor then bin) while a close ran inside {@code computeIfPresent} and took that
+     * same monitor for the heartbeat delete (bin then monitor) - a real inversion that deadlocked a cold
+     * derived-store pass for 70 minutes on 2026-11-25 (17 threads blocked, {@code jstack} reporting no
+     * {@code Found deadlock}). Reverting that part does NOT redden this cell: the collision window is far narrower
+     * than the file-IO cadence of these loops, so the reproduction is the two thread dumps from that run, not a stress
+     * assertion. The progress windows here are a smoke test that both loops keep moving, and the reason the heartbeat
+     * serialisation now lives on its own lock is stated at {@code HEARTBEAT_WRITE_LOCK}.
+     */
+    @Test
+    public void testCloseAgainstHeartbeatRefreshKeepsMakingProgress() throws Exception {
+        final File store = store("closeAgainstRefresh");
+        final AtomicBoolean stop = new AtomicBoolean(false);
+        final AtomicInteger rounds = new AtomicInteger();
+        final AtomicReference<Throwable> closerFailure = new AtomicReference<>();
+        final AtomicReference<Throwable> refresherFailure = new AtomicReference<>();
+
+        final Thread closer = new Thread(() -> {
+            try {
+                while (!stop.get()) {
+                    final TimeSeriesDirectoryHashKeyVersionLease lease = TimeSeriesDirectoryHashKeyVersionLeaseRegistry
+                            .getOrCreate(newHashKey(store), VERSION);
+                    lease.close();
+                    rounds.incrementAndGet();
+                }
+            } catch (final Throwable t) {
+                //a loop that dies silently looks identical to a loop that stalls - report it
+                closerFailure.set(t);
+            }
+        }, "lease-close-stress");
+        final Thread refresher = new Thread(() -> {
+            try {
+                while (!stop.get()) {
+                    TimeSeriesDirectoryHashKeyVersionLeaseRegistry.updateHeartbeats();
+                }
+            } catch (final Throwable t) {
+                refresherFailure.set(t);
+            }
+        }, "lease-heartbeat-stress");
+        closer.setDaemon(true);
+        refresher.setDaemon(true);
+        closer.start();
+        refresher.start();
+
+        try {
+            FTimeUnit.MILLISECONDS.sleep(SAMPLE_MILLIS);
+            Assertions.assertThat(closerFailure.get())
+                    .as("the close loop threw, so the progress figure below is not a lock measurement")
+                    .isNull();
+            Assertions.assertThat(refresherFailure.get())
+                    .as("the heartbeat refresh loop threw, so the progress figure below is not a lock measurement")
+                    .isNull();
+            final int first = rounds.get();
+            FTimeUnit.MILLISECONDS.sleep(SAMPLE_MILLIS);
+            final int second = rounds.get();
+            Assertions.assertThat(second)
+                    .as("no lease was closed in the second " + SAMPLE_MILLIS + " ms window (first=" + first
+                            + ", second=" + second + ") - the monitor/bin inversion between the heartbeat refresh and"
+                            + " lease close is back; jstack does not report it as a deadlock, so look for threads"
+                            + " blocked on DIRECTORY_CONTEXTS while another holds a ConcurrentHashMap bin")
+                    .isGreaterThan(first);
+        } finally {
+            stop.set(true);
+            closer.join(JOIN_MILLIS);
+            refresher.join(JOIN_MILLIS);
+        }
+        Assertions.assertThat(closer.isAlive())
+                .as("the close loop did not stop after stop was set - it is parked on a lock")
+                .isFalse();
+        Assertions.assertThat(refresher.isAlive())
+                .as("the heartbeat refresh loop did not stop after stop was set - it is parked on a lock")
+                .isFalse();
     }
 
     private File store(final String name) {
