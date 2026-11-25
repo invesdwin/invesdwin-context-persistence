@@ -43,6 +43,15 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
     private static final Map<File, SharedDirectoryLeaseContext> DIRECTORY_CONTEXTS = ILockCollectionFactory
             .getInstance(true)
             .newConcurrentMap();
+    /**
+     * Serialises heartbeat writes. It is deliberately NOT the map itself: a ConcurrentHashMap hands out a per-bin
+     * lock inside {@code compute}/{@code computeIfPresent}, so synchronising on the map while calling compute (the
+     * heartbeat task did) and taking that same monitor inside a compute lambda (lease close did) is a lock-order
+     * inversion, and it deadlocked a cold derived-store pass on 2026-11-25 - with 17 threads blocked and no
+     * {@code Found deadlock} in {@code jstack}. Nothing that holds this lock may call into {@code DIRECTORY_CONTEXTS}
+     * compute methods.
+     */
+    private static final Object HEARTBEAT_WRITE_LOCK = new Object();
     private static final Duration HEARTBEAT_INTERVAL = Duration.ONE_MINUTE;
     private static final Duration VERSION_CLEANUP_CHECK_INTERVAL = Duration.ONE_HOUR;
     private static final Duration VERSION_CLEANUP_INTERVAL = AtomicNioFileChannelContext.TMP_CLEANUP_INTERVAL;
@@ -89,12 +98,10 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                 heartbeatExecutor = Executors.newScheduledThreadPool(
                         TimeSeriesDirectoryHashKeyVersionLeaseRegistry.class.getSimpleName() + "-Heartbeat", 1);
 
-                // Periodic background refresh for all active contexts
-                heartbeatExecutor.scheduleAtFixedRate(() -> {
-                    synchronized (DIRECTORY_CONTEXTS) {
-                        updateHeartbeats();
-                    }
-                }, HEARTBEAT_INTERVAL.millisValue(), HEARTBEAT_INTERVAL.millisValue(), TimeUnit.MILLISECONDS);
+                // Periodic background refresh for all active contexts. updateHeartbeats() prunes through
+                // computeIfPresent, so it must not run under a monitor of this map.
+                heartbeatExecutor.scheduleAtFixedRate(() -> updateHeartbeats(), HEARTBEAT_INTERVAL.millisValue(),
+                        HEARTBEAT_INTERVAL.millisValue(), TimeUnit.MILLISECONDS);
             }
         }
     }
@@ -116,10 +123,10 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
 
                 // Check cleanup status hourly so restarts can pick up pending cleanups promptly
                 cleanupExecutor.scheduleAtFixedRate(() -> {
-                    final SharedDirectoryLeaseContext[] contexts;
-                    synchronized (DIRECTORY_CONTEXTS) {
-                        contexts = DIRECTORY_CONTEXTS.values().toArray(new SharedDirectoryLeaseContext[0]);
-                    }
+                    //A ConcurrentHashMap iteration is weakly consistent and needs no monitor - and taking one here
+                    //would put this thread on the wrong side of the compute calls the heartbeat path makes.
+                    final SharedDirectoryLeaseContext[] contexts = DIRECTORY_CONTEXTS.values()
+                            .toArray(new SharedDirectoryLeaseContext[0]);
                     for (final SharedDirectoryLeaseContext context : contexts) {
                         context.cleanupObsoleteVersions();
                     }
@@ -136,6 +143,27 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                 cleanupExecutor.shutdown();
                 cleanupExecutor = null;
             }
+        }
+    }
+
+    /**
+     * A submit has to happen inside the lifecycle monitor. The stop methods shut the pool down under it as the last
+     * lease closes, so a submit made outside can hand its task to an executor that is already terminated - measured by
+     * the lease stress cell on 2026-11-25 as RejectedExecutionException ("rejected from … [Terminated …]") thrown out
+     * of getOrCreate via requestWrite. That matters beyond the throw: the retry layer classifies an unmarked runtime
+     * exception as a fault, not a wait, so a store update can end in an unsubscribe rather than a retry.
+     */
+    private static void submitHeartbeatTask(final Runnable task) {
+        synchronized (TimeSeriesDirectoryHashKeyVersionLeaseRegistry.class) {
+            startHeartbeatExecutorIfNeeded();
+            heartbeatExecutor.execute(task);
+        }
+    }
+
+    private static void submitCleanupTask(final Runnable task) {
+        synchronized (TimeSeriesDirectoryHashKeyVersionLeaseRegistry.class) {
+            startCleanupExecutorIfNeeded();
+            cleanupExecutor.execute(task);
         }
     }
 
@@ -241,18 +269,13 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
 
     public static void requestEpochReclaim() {
         if (EPOCH_RECLAIM_SCHEDULED.compareAndSet(false, true)) {
-            startCleanupExecutorIfNeeded();
-            if (cleanupExecutor != null && !cleanupExecutor.isShutdown()) {
-                cleanupExecutor.execute(() -> {
-                    //cleared before the sweep: a submission made during it queues the next one instead of being lost
-                    EPOCH_RECLAIM_SCHEDULED.set(false);
-                    TimeSeriesEpochReclaim.runPendingObsoleteEpochsReclaims();
-                });
-            } else {
-                //the executor went away between the start attempt and here; the submission stays pending and the next
-                //update attempt for that key asks again
+            //submitting under the lifecycle monitor is what makes the old "executor went away between the start
+            //attempt and here" branch unreachable: shutdown cannot interleave with the submit any more
+            submitCleanupTask(() -> {
+                //cleared before the sweep: a submission made during it queues the next one instead of being lost
                 EPOCH_RECLAIM_SCHEDULED.set(false);
-            }
+                TimeSeriesEpochReclaim.runPendingObsoleteEpochsReclaims();
+            });
         }
     }
 
@@ -264,7 +287,9 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
         for (final SharedDirectoryLeaseContext context : DIRECTORY_CONTEXTS.values()) {
             boolean held;
             try {
-                held = context.touchOrRewriteHeartbeat();
+                synchronized (HEARTBEAT_WRITE_LOCK) {
+                    held = context.touchOrRewriteHeartbeat();
+                }
             } catch (final RuntimeException e) {
                 //A publish failure must not end the schedule: a store whose heartbeat stops being refreshed reads as
                 //dead to the version sweep, which is worse than one publish lost.
@@ -353,7 +378,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             //requestWrite(), closes the window where a reset on another node asks whether a foreign heartbeat names
             //this version while this JVM has leased it and not yet announced it. Same monitor the heartbeat task
             //takes, so no scheduled writer can land an older snapshot after this one.
-            synchronized (DIRECTORY_CONTEXTS) {
+            synchronized (HEARTBEAT_WRITE_LOCK) {
                 touchOrRewriteHeartbeat();
             }
             requestWrite();
@@ -373,7 +398,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             }
 
             if (isEmpty) {
-                synchronized (DIRECTORY_CONTEXTS) {
+                synchronized (HEARTBEAT_WRITE_LOCK) {
                     deleteHeartbeat();
                 }
                 return true;
@@ -463,10 +488,9 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
 
         private void requestWrite() {
             if (writeScheduled.compareAndSet(false, true)) {
-                startHeartbeatExecutorIfNeeded();
-                heartbeatExecutor.execute(() -> {
+                submitHeartbeatTask(() -> {
                     writeScheduled.set(false);
-                    synchronized (DIRECTORY_CONTEXTS) {
+                    synchronized (HEARTBEAT_WRITE_LOCK) {
                         touchOrRewriteHeartbeat();
                     }
                 });
@@ -494,8 +518,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             }
 
             if (cleanupScheduled.compareAndSet(false, true)) {
-                startCleanupExecutorIfNeeded();
-                cleanupExecutor.execute(() -> {
+                submitCleanupTask(() -> {
                     cleanupScheduled.set(false);
                     cleanupObsoleteVersions();
                 });
