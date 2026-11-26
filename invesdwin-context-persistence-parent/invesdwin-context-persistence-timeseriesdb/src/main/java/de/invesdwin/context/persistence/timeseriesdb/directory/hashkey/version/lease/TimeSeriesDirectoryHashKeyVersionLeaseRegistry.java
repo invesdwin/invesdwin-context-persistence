@@ -1,5 +1,8 @@
 package de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.lease;
 
+import de.invesdwin.context.log.Log;
+import java.util.List;
+import java.nio.file.DirectoryStream;
 import java.io.File;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
@@ -16,6 +19,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import de.invesdwin.context.integration.IntegrationProperties;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.ITimeSeriesDirectoryHashKey;
+import de.invesdwin.context.persistence.timeseriesdb.updater.TimeSeriesEpochReclaim;
 import de.invesdwin.instrument.DynamicInstrumentationProperties;
 import de.invesdwin.util.collections.factory.ILockCollectionFactory;
 import de.invesdwin.util.collections.fast.IFastIterableMap;
@@ -34,9 +38,20 @@ import de.invesdwin.util.time.duration.Duration;
 @ThreadSafe
 public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
 
+    private static final Log LOG = new Log(TimeSeriesDirectoryHashKeyVersionLeaseRegistry.class);
+
     private static final Map<File, SharedDirectoryLeaseContext> DIRECTORY_CONTEXTS = ILockCollectionFactory
             .getInstance(true)
             .newConcurrentMap();
+    /**
+     * Serialises heartbeat writes. It is deliberately NOT the map itself: a ConcurrentHashMap hands out a per-bin
+     * lock inside {@code compute}/{@code computeIfPresent}, so synchronising on the map while calling compute (the
+     * heartbeat task did) and taking that same monitor inside a compute lambda (lease close did) is a lock-order
+     * inversion, and it deadlocked a cold derived-store pass on 2026-11-25 - with 17 threads blocked and no
+     * {@code Found deadlock} in {@code jstack}. Nothing that holds this lock may call into {@code DIRECTORY_CONTEXTS}
+     * compute methods.
+     */
+    private static final Object HEARTBEAT_WRITE_LOCK = new Object();
     private static final Duration HEARTBEAT_INTERVAL = Duration.ONE_MINUTE;
     private static final Duration VERSION_CLEANUP_CHECK_INTERVAL = Duration.ONE_HOUR;
     private static final Duration VERSION_CLEANUP_INTERVAL = AtomicNioFileChannelContext.TMP_CLEANUP_INTERVAL;
@@ -46,6 +61,11 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
 
     private static ScheduledExecutorService heartbeatExecutor;
     private static ScheduledExecutorService cleanupExecutor;
+    /**
+     * Coalescing of the epoch-reclaim drain: one queued drain is enough, because the drain itself iterates every
+     * directory submitted in the meantime.
+     */
+    private static final AtomicBoolean EPOCH_RECLAIM_SCHEDULED = new AtomicBoolean(false);
 
     private TimeSeriesDirectoryHashKeyVersionLeaseRegistry() {}
 
@@ -78,12 +98,10 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                 heartbeatExecutor = Executors.newScheduledThreadPool(
                         TimeSeriesDirectoryHashKeyVersionLeaseRegistry.class.getSimpleName() + "-Heartbeat", 1);
 
-                // Periodic background refresh for all active contexts
-                heartbeatExecutor.scheduleAtFixedRate(() -> {
-                    synchronized (DIRECTORY_CONTEXTS) {
-                        updateHeartbeats();
-                    }
-                }, HEARTBEAT_INTERVAL.millisValue(), HEARTBEAT_INTERVAL.millisValue(), TimeUnit.MILLISECONDS);
+                // Periodic background refresh for all active contexts. updateHeartbeats() prunes through
+                // computeIfPresent, so it must not run under a monitor of this map.
+                heartbeatExecutor.scheduleAtFixedRate(() -> updateHeartbeats(), HEARTBEAT_INTERVAL.millisValue(),
+                        HEARTBEAT_INTERVAL.millisValue(), TimeUnit.MILLISECONDS);
             }
         }
     }
@@ -105,10 +123,10 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
 
                 // Check cleanup status hourly so restarts can pick up pending cleanups promptly
                 cleanupExecutor.scheduleAtFixedRate(() -> {
-                    final SharedDirectoryLeaseContext[] contexts;
-                    synchronized (DIRECTORY_CONTEXTS) {
-                        contexts = DIRECTORY_CONTEXTS.values().toArray(new SharedDirectoryLeaseContext[0]);
-                    }
+                    //A ConcurrentHashMap iteration is weakly consistent and needs no monitor - and taking one here
+                    //would put this thread on the wrong side of the compute calls the heartbeat path makes.
+                    final SharedDirectoryLeaseContext[] contexts = DIRECTORY_CONTEXTS.values()
+                            .toArray(new SharedDirectoryLeaseContext[0]);
                     for (final SharedDirectoryLeaseContext context : contexts) {
                         context.cleanupObsoleteVersions();
                     }
@@ -120,16 +138,165 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
 
     private static void stopCleanupExecutorIfNeeded() {
         synchronized (TimeSeriesDirectoryHashKeyVersionLeaseRegistry.class) {
-            if (DIRECTORY_CONTEXTS.isEmpty() && cleanupExecutor != null && !cleanupExecutor.isShutdown()) {
+            if (DIRECTORY_CONTEXTS.isEmpty() && !TimeSeriesEpochReclaim.hasPendingObsoleteEpochsReclaims()
+                    && cleanupExecutor != null && !cleanupExecutor.isShutdown()) {
                 cleanupExecutor.shutdown();
                 cleanupExecutor = null;
             }
         }
     }
 
-    private static void updateHeartbeats() {
+    /**
+     * A submit has to happen inside the lifecycle monitor. The stop methods shut the pool down under it as the last
+     * lease closes, so a submit made outside can hand its task to an executor that is already terminated - measured by
+     * the lease stress cell on 2026-11-25 as RejectedExecutionException ("rejected from … [Terminated …]") thrown out
+     * of getOrCreate via requestWrite. That matters beyond the throw: the retry layer classifies an unmarked runtime
+     * exception as a fault, not a wait, so a store update can end in an unsubscribe rather than a retry.
+     */
+    private static void submitHeartbeatTask(final Runnable task) {
+        synchronized (TimeSeriesDirectoryHashKeyVersionLeaseRegistry.class) {
+            startHeartbeatExecutorIfNeeded();
+            heartbeatExecutor.execute(task);
+        }
+    }
+
+    private static void submitCleanupTask(final Runnable task) {
+        synchronized (TimeSeriesDirectoryHashKeyVersionLeaseRegistry.class) {
+            startCleanupExecutorIfNeeded();
+            cleanupExecutor.execute(task);
+        }
+    }
+
+    /**
+     * Runs the epoch-reclaim drain on this registry's cleanup thread: one single-threaded janitor for both sweeps
+     * (obsolete versions and the attempt-local garbage of finished update attempts), with the lifecycle of the
+     * executor already handling start-on-demand and shutdown-on-idle. Not routed through the version cleanup's marker
+     * file throttle - that gate is {@link AtomicNioFileChannelContext#TMP_CLEANUP_INTERVAL} (a day), while the epoch
+     * retention this sweep obeys is an hour.
+     */
+    /**
+     * Whether some OTHER process currently holds a lease on this hash key's {@code version} directory. The key form
+     * is exactly what newRegistryKey() writes into a heartbeat file, so the two sides cannot drift.
+     * <p>
+     * Read-only on purpose: the registry's only other accessor, getOrCreate(parent, version), would register a lease
+     * for this JVM and make us the holder, which is the opposite of the question. A store reset needs to know
+     * whether it may delete a retired version's files now, and that is a cross-process fact.
+     * <p>
+     * A heartbeat whose file is older than {@link HeartbeatFileChannelLockRegistry#HEARTBEAT_TIMEOUT} does not count:
+     * a live process re-touches it every {@link HeartbeatFileChannelLockRegistry#HEARTBEAT_INTERVAL}, so an old mtime
+     * means its writer crashed and it must not pin the version forever. The version sweep is the fallback for what
+     * stays held - not holding a lease is an optimisation of reclaim latency, never a correctness precondition.
+     */
+    public static boolean isLeasedByForeignProcess(final ITimeSeriesDirectoryHashKey parent, final int version) {
+        final File heartbeatsDirectory = parent.getParent().getHeartbeatsDirectory();
+        if (!Files.isDirectory(heartbeatsDirectory.toPath())) {
+            return false;
+        }
+        final String registryKey = parent.getHashKey() + "/" + version;
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(heartbeatsDirectory.toPath(),
+                TimeSeriesDirectoryHashKeyVersionLeaseRegistry::isPublishedHeartbeat)) {
+            for (final Path heartbeatFile : stream) {
+                if (heartbeatFile.getFileName().toString()
+                        .startsWith(Files.normalizeFileName(HeartbeatFileChannelLockRegistry.HEARTBEAT_OWNER))) {
+                    //our own leases are not foreign; a reset releases them
+                    continue;
+                }
+                if (!isHeartbeatLive(heartbeatFile.toFile())) {
+                    continue;
+                }
+                if (namesLease(heartbeatFile, registryKey)) {
+                    return true;
+                }
+            }
+        } catch (final IOException e) {
+            //The directory vanished or became unreadable mid-scan: that is not evidence of "nobody holds it".
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Reading one heartbeat file's lease lines. Fail-closed on purpose: the heartbeat is rewritten in place
+     * (writeStringToFileIfDifferent -> truncate), and a lease is registered before the rewrite is scheduled
+     * (requestWrite goes to the heartbeat executor), so a live file can be caught empty or half-written. An
+     * unreadable or key-less live heartbeat therefore counts as holding, which costs reclaim latency; answering
+     * "not held" would cost another process its open payload.
+     */
+    private static boolean namesLease(final Path heartbeatFile, final String registryKey) {
+        final List<String> lines;
+        try {
+            lines = Files.readAllLines(heartbeatFile);
+        } catch (final IOException e) {
+            return true;
+        }
+        boolean leaseLines = false;
+        for (final String line : lines) {
+            final String trimmed = line.trim();
+            if (!trimmed.contains("/")) {
+                //the header line (Hostname=/ProcessId=/...) - not a lease
+                continue;
+            }
+            leaseLines = true;
+            if (registryKey.equals(trimmed)) {
+                return true;
+            }
+        }
+        return !leaseLines;
+    }
+
+    /**
+     * Whether a heartbeat file was refreshed recently enough to mean its writer is still alive.
+     * <p>
+     * touchOrRewriteHeartbeat() re-touches the file every HEARTBEAT_INTERVAL even when the lease set did not change,
+     * and a JVM that ends up holding no lease deletes its file outright, so a file older than HEARTBEAT_TIMEOUT
+     * belongs to a process that died. Nothing reaps those files, so every reader of a heartbeats directory has to
+     * ignore them - both this registry's eager check and the version sweep's active-lease set - or a crash pins the
+     * versions that process claimed forever.
+     */
+    /**
+     * Only a published heartbeat file counts: an upload stages a temp next to the final name, and a temp is not
+     * evidence of a lease - the state it names is either already published or about to be.
+     */
+    static boolean isPublishedHeartbeat(final Path file) {
+        return Files.isRegularFile(file)
+                && file.getFileName().toString().endsWith(HeartbeatFileChannelLockRegistry.HEARTBEAT_EXTENSION);
+    }
+
+    public static boolean isHeartbeatLive(final File heartbeatFile) {
+        return heartbeatFile.lastModified() > FDateMillis.nowMillis()
+                - HeartbeatFileChannelLockRegistry.HEARTBEAT_TIMEOUT.millisValue();
+    }
+
+    public static void requestEpochReclaim() {
+        if (EPOCH_RECLAIM_SCHEDULED.compareAndSet(false, true)) {
+            //submitting under the lifecycle monitor is what makes the old "executor went away between the start
+            //attempt and here" branch unreachable: shutdown cannot interleave with the submit any more
+            submitCleanupTask(() -> {
+                //cleared before the sweep: a submission made during it queues the next one instead of being lost
+                EPOCH_RECLAIM_SCHEDULED.set(false);
+                TimeSeriesEpochReclaim.runPendingObsoleteEpochsReclaims();
+            });
+        }
+    }
+
+    /**
+     * The heartbeat executor's body. Package-visible so a cell can drive one cycle deterministically instead of
+     * waiting for HEARTBEAT_INTERVAL (30 s): without that, the retry semantics of a failed publish cannot be tested.
+     */
+    static void updateHeartbeats() {
         for (final SharedDirectoryLeaseContext context : DIRECTORY_CONTEXTS.values()) {
-            if (!context.touchOrRewriteHeartbeat()) {
+            boolean held;
+            try {
+                synchronized (HEARTBEAT_WRITE_LOCK) {
+                    held = context.touchOrRewriteHeartbeat();
+                }
+            } catch (final RuntimeException e) {
+                //A publish failure must not end the schedule: a store whose heartbeat stops being refreshed reads as
+                //dead to the version sweep, which is worse than one publish lost.
+                LOG.error("Heartbeat refresh failed for [%s]: %s", context.getHeartbeatsDirectory(), e.getMessage());
+                held = true;
+            }
+            if (!held) {
                 DIRECTORY_CONTEXTS.computeIfPresent(context.getHeartbeatsDirectory(),
                         (dir, ctx) -> ctx.isEmpty() ? null : ctx);
             }
@@ -207,6 +374,13 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                 activeLeases.put(registryKey, new WeakTimeSeriesDirectoryHashKeyVersionLease(newLease));
             }
 
+            //A lease is a claim only once other processes can read it: publishing here, not only through
+            //requestWrite(), closes the window where a reset on another node asks whether a foreign heartbeat names
+            //this version while this JVM has leased it and not yet announced it. Same monitor the heartbeat task
+            //takes, so no scheduled writer can land an older snapshot after this one.
+            synchronized (HEARTBEAT_WRITE_LOCK) {
+                touchOrRewriteHeartbeat();
+            }
             requestWrite();
             requestCleanupCheck();
             return newLease;
@@ -224,7 +398,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             }
 
             if (isEmpty) {
-                synchronized (DIRECTORY_CONTEXTS) {
+                synchronized (HEARTBEAT_WRITE_LOCK) {
                     deleteHeartbeat();
                 }
                 return true;
@@ -314,10 +488,9 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
 
         private void requestWrite() {
             if (writeScheduled.compareAndSet(false, true)) {
-                startHeartbeatExecutorIfNeeded();
-                heartbeatExecutor.execute(() -> {
+                submitHeartbeatTask(() -> {
                     writeScheduled.set(false);
-                    synchronized (DIRECTORY_CONTEXTS) {
+                    synchronized (HEARTBEAT_WRITE_LOCK) {
                         touchOrRewriteHeartbeat();
                     }
                 });
@@ -345,8 +518,7 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
             }
 
             if (cleanupScheduled.compareAndSet(false, true)) {
-                startCleanupExecutorIfNeeded();
-                cleanupExecutor.execute(() -> {
+                submitCleanupTask(() -> {
                     cleanupScheduled.set(false);
                     cleanupObsoleteVersions();
                 });
@@ -417,9 +589,54 @@ public final class TimeSeriesDirectoryHashKeyVersionLeaseRegistry {
                 content.append(lease.getRegistryKey());
             }
 
-            Files.writeStringToFileIfDifferent(heartbeatFile, content.toString());
+            if (!publishHeartbeat(content.toString())) {
+                //Deliberately not advancing lastActiveLeasesSnapshot here: touchOrRewriteHeartbeat() answers an
+                //unchanged lease set by only re-touching the mtime, so an advanced snapshot after a failed publish
+                //would keep the file looking alive while the leases it lists stay the old ones - unannounced
+                //indefinitely rather than until the next lease change. Leaving it behind forces a full rewrite next
+                //cycle (HEARTBEAT_INTERVAL, 30s).
+                return true;
+            }
             lastActiveLeasesSnapshot = activeLeasesSnapshot;
             return true;
+        }
+
+        /**
+         * Staged temp plus rename, so a concurrent reader sees either the whole previous set of leases or the whole
+         * new one - never a truncated file. For the truncate-in-place form the measurement is in util's
+         * Files.moveAtomic javadoc: 15,913 of 29,587 observations found the name missing with a plain replace move,
+         * 0 with this one.
+         */
+        /**
+         * @return whether the file now holds {@code content} - published, or already identical.
+         */
+        private boolean publishHeartbeat(final String content) {
+            String existing = null;
+            try {
+                existing = Files.readFileToStringNoThrow(heartbeatFile, Charsets.defaultCharset());
+            } catch (final RuntimeException e) {
+                //readFileToStringNoThrow rethrows despite its name (util Files:865-871 wraps the IOException in a
+                //RuntimeException): a missing or unreadable current file simply means "publish it".
+            }
+            if (content.equals(existing)) {
+                return true;
+            }
+            //One staging name per (directory, process): AtomicNioFileChannelContext.TMP_SUFFIX embeds the heartbeat
+            //owner, so two JVMs sweeping one store never write onto each other's staging file.
+            final File stagingFile = new File(heartbeatsDirectory,
+                    heartbeatFile.getName() + AtomicNioFileChannelContext.TMP_SUFFIX);
+            try {
+                Files.writeStringToFileIfDifferent(stagingFile, content);
+                Files.moveAtomic(stagingFile.toPath(), heartbeatFile.toPath());
+                return true;
+            } catch (final IOException e) {
+                Files.deleteQuietly(stagingFile);
+                //A heartbeat that cannot be published makes this JVM's leases invisible to another process's reclaim
+                //decision, so a lost publish is worth an error record rather than a debug line. It must not end the
+                //lease registration: a process that cannot announce its leases is still a process holding them.
+                LOG.error("Unable to publish heartbeat file [%s]: %s", heartbeatFile, e.getMessage());
+                return false;
+            }
         }
 
         private void deleteHeartbeat() {

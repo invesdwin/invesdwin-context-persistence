@@ -96,6 +96,14 @@ public class TimeSeriesLookupStorageCache<K, V> {
     public static final EvictionMode EVICTION_MODE = EvictionMode.ClearConcurrent;
     public static final boolean HIGH_CONCURRENCY = false;
 
+    /**
+     * Name of the data sub directory of a version directory holding the index generations, data files and update
+     * markers of a key's store.
+     */
+    public static final String MEMORY_DATA_ID = "memory";
+    public static final String UPDATE_PROGRESS_FILE_NAME = "update.progress";
+    public static final String UPDATE_FINISHED_FILE_NAME = "update.finished";
+
     private static final String READ_RANGE_VALUES = "readRangeValues";
     private static final String READ_RANGE_VALUES_REVERSE = "readRangeValuesReverse";
     private final TimeSeriesStorage storage;
@@ -174,6 +182,8 @@ public class TimeSeriesLookupStorageCache<K, V> {
     };
     private final AtomicInteger lastResetIndex = new AtomicInteger();
 
+    private volatile InconsistencyReason lastInconsistencyReason = InconsistencyReason.NONE;
+
     private final String hashKey;
     private final ISerde<V> valueSerde;
     private final Integer valueFixedLength;
@@ -206,7 +216,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
         this.hashKey = hashKey;
         this.directoryHashKey = new TimeSeriesDirectoryHashKey(storage.getDirectory(), hashKey);
         this.directoryHashKeyVersionMemory = new TimeSeriesDirectoryHashKeyVersionData(
-                directoryHashKey.getDirectoryHashKeyVersion(), "memory");
+                directoryHashKey.getDirectoryHashKeyVersion(), MEMORY_DATA_ID);
         this.memoryFileLookupTable = new RefreshingTimeSeriesMemoryFileLookupTable<V>(this,
                 directoryHashKeyVersionMemory);
         this.valueSerde = valueSerde;
@@ -273,6 +283,14 @@ public class TimeSeriesLookupStorageCache<K, V> {
         return directoryHashKey;
     }
 
+    /**
+     * The normalized hash key string this cache's store lives under inside the table's shared directory (the
+     * directory name of its key).
+     */
+    public String getHashKey() {
+        return hashKey;
+    }
+
     public TimeSeriesDirectoryHashKeyVersionData getDirectoryHashKeyVersionMemory() {
         return directoryHashKeyVersionMemory;
     }
@@ -282,11 +300,13 @@ public class TimeSeriesLookupStorageCache<K, V> {
     }
 
     public File getUpdateProgressFile() {
-        return new File(directoryHashKeyVersionMemory.getDirectoryHashKeyVersionDataShared(), "update.progress");
+        return new File(directoryHashKeyVersionMemory.getDirectoryHashKeyVersionDataShared(),
+                UPDATE_PROGRESS_FILE_NAME);
     }
 
     public File getUpdateFinishedFile() {
-        return new File(directoryHashKeyVersionMemory.getDirectoryHashKeyVersionDataShared(), "update.finished");
+        return new File(directoryHashKeyVersionMemory.getDirectoryHashKeyVersionDataShared(),
+                UPDATE_FINISHED_FILE_NAME);
     }
 
     public MemoryFileSummary getLastRangeKey() {
@@ -1071,19 +1091,60 @@ public class TimeSeriesLookupStorageCache<K, V> {
         }
     }
 
+    /**
+     * Which check indicted the store, or {@link #NONE} when nothing did. The boolean answer cannot drive recovery:
+     * "inconsistent" today means "delete the key and re-fetch", and the reasons below differ in whether that is the
+     * right act. Two of them deserve their ambiguity to be stated rather than coded around:
+     * <ul>
+     * <li>{@link #HIGH_WATER_AHEAD_OF_CHAIN} cannot distinguish an attestation left stale by an interrupted publish
+     * from a chain that lost its tail WHOLE (payload file plus the summaries naming it, gone together) - in the second
+     * case the shortened chain is self-consistent by construction and the attestation is the only witness that
+     * anything was there. A read path has nothing else to ask, which is why the reset answer is kept for both;
+     * resolving it needs a writer's intent, not a smarter reader.</li>
+     * <li>{@link #FILES_BEYOND_HIGH_WATER} is the inverse: the files hold more bytes than any account of them, i.e. a
+     * published file carrying unpublished trailing bytes, which the publish rules of
+     * {@link TimeSeriesUpdateTransaction#commitSegmentBoundary} forbid.</li>
+     * </ul>
+     */
+    public enum InconsistencyReason {
+        NONE,
+        NO_UPDATED_MARKER,
+        INVALID_SERIALIZATION,
+        NAMED_FILE_SHORTER_THAN_CLAIMED,
+        CONTRADICTORY_SUMMARY,
+        NO_SUMMARIES,
+        CORRUPT_STORAGE,
+        HIGH_WATER_AHEAD_OF_CHAIN,
+        FILES_BEYOND_HIGH_WATER
+    }
+
+    /**
+     * The reason of the most recent {@link #isEmptyOrInconsistent()} pass on this cache. Read without a second walk,
+     * because the walk is the expensive part; a consumer that wants a fresh answer calls {@link
+     * #isEmptyOrInconsistent()} first.
+     */
+    public InconsistencyReason getLastInconsistencyReason() {
+        return lastInconsistencyReason;
+    }
+
     public boolean isEmptyOrInconsistent() {
         // if the directory is not populated yet, we treat it as empty
         if (!directoryHashKey.getDirectoryHashKeyVersion().getUpdatedMarkerFile().exists()) {
+            lastInconsistencyReason = InconsistencyReason.NO_UPDATED_MARKER;
             return true;
         }
 
-        if (isInvalidSerialization()) {
+        final InconsistencyReason serializationReason = getSerializationInconsistency();
+        if (serializationReason != InconsistencyReason.NONE) {
+            lastInconsistencyReason = serializationReason;
             return true;
         }
         final MemoryFileMetadata metadata = memoryFileLookupTable.getMetadata();
         final long expectedMemoryFileSize;
+        final Integer attestedIndexNumber;
         try (ICloseableProperties properties = metadata.getProperties()) {
             expectedMemoryFileSize = metadata.getExpectedMemoryFileSize(properties);
+            attestedIndexNumber = metadata.getExpectedMemoryFileGeneration(properties);
         }
         long calculatedMemoryFileSize = 0;
         long actualMemoryFileSize = 0;
@@ -1097,12 +1158,12 @@ public class TimeSeriesLookupStorageCache<K, V> {
                 final MemoryFileSummary summary = summaries.next();
                 final File memoryFile = new File(summary.getMemoryResourceUri());
                 final long memoryFileLength = memoryFile.length();
-                calculatedMemoryFileSize = summary.getPrecedingMemoryOffset() + summary.getMemoryOffset()
-                        + summary.getMemoryLength();
+                calculatedMemoryFileSize = summary.getCombinedMemoryFileSize();
                 if (!Objects.equals(prevMemoryFile, memoryFile)) {
                     actualMemoryFileSize += memoryFileLength;
                 }
                 if (calculatedMemoryFileSize > actualMemoryFileSize) {
+                    lastInconsistencyReason = InconsistencyReason.NAMED_FILE_SHORTER_THAN_CLAIMED;
                     log.warn("Table data for [%s] is inconsistent and needs to be reset. Empty file: [%s]", hashKey,
                             summary);
                     return true;
@@ -1113,6 +1174,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
                     log.warn(
                             "Table data for [%s] is inconsistent and needs to be reset. Inconsistent summary file [%s]: [%s]",
                             hashKey, t.toString(), summary);
+                    lastInconsistencyReason = InconsistencyReason.CONTRADICTORY_SUMMARY;
                     return true;
                 }
                 prevSummary = summary;
@@ -1120,42 +1182,79 @@ public class TimeSeriesLookupStorageCache<K, V> {
                 noFileFound = false;
             }
             if (noFileFound) {
+                lastInconsistencyReason = InconsistencyReason.NO_SUMMARIES;
                 return true;
             }
             if (expectedMemoryFileSize != MemoryFileMetadata.MISSING_EXPECTED_MEMORY_FILE_SIZE) {
-                if (expectedMemoryFileSize != calculatedMemoryFileSize) {
-                    log.warn(
-                            "Table data for [%s] is inconsistent and needs to be reset. ExpectedMemoryFileSize[%s] != CalculatedMemoryFileSize[%s]",
-                            hashKey, expectedMemoryFileSize, calculatedMemoryFileSize);
-                    return true;
-                }
-                if (actualMemoryFileSize != expectedMemoryFileSize) {
-                    log.warn(
-                            "Table data for [%s] is inconsistent and needs to be reset. ActualMemoryFileSize[%s] != ExpectedMemoryFileSize[%s]",
-                            hashKey, actualMemoryFileSize, expectedMemoryFileSize);
-                    return true;
+                final int currentIndexNumber = memoryFileLookupTable.getCurrentIndexNumber();
+                if (attestedIndexNumber != null && attestedIndexNumber.intValue() != currentIndexNumber) {
+                    //The attestation names an index generation that is not the chain being read: the publish that
+                    //wrote it was interrupted between the properties upload and the generation rename, so the
+                    //high-water describes bytes this store never held. The chain that IS present has already been
+                    //checked record by record against the files it names above; comparing it against another
+                    //generation's attestation is a false positive, and its cost is a wiped key and a re-download.
+                    //the success path below records NONE: a skip is not an indictment
+                    log.debug(
+                            "Skipping the ExpectedMemoryFileSize comparison for [%s]: the attestation names index generation [%s], the newest generation present is [%s]",
+                            hashKey, attestedIndexNumber, currentIndexNumber);
+                } else {
+                    if (expectedMemoryFileSize != calculatedMemoryFileSize) {
+                        lastInconsistencyReason = InconsistencyReason.HIGH_WATER_AHEAD_OF_CHAIN;
+                        log.warn(
+                                "Table data for [%s] is inconsistent and needs to be reset. ExpectedMemoryFileSize[%s] != CalculatedMemoryFileSize[%s]",
+                                hashKey, expectedMemoryFileSize, calculatedMemoryFileSize);
+                        return true;
+                    }
+                    if (actualMemoryFileSize != expectedMemoryFileSize) {
+                        lastInconsistencyReason = InconsistencyReason.FILES_BEYOND_HIGH_WATER;
+                        log.warn(
+                                "Table data for [%s] is inconsistent and needs to be reset. ActualMemoryFileSize[%s] != ExpectedMemoryFileSize[%s]",
+                                hashKey, actualMemoryFileSize, expectedMemoryFileSize);
+                        return true;
+                    }
                 }
             }
+            lastInconsistencyReason = InconsistencyReason.NONE;
             return false;
         }
     }
 
-    private boolean isInvalidSerialization() {
+    /**
+     * Which indictment a read of the chain produces, or {@link InconsistencyReason#NONE} when the chain decodes. The
+     * two failure layers must not be collapsed into one boolean: a serde that cannot map a class code is a VERSION
+     * mismatch (the bytes are intact, the meaning of them moved), while a stream that will not decode means the BYTES
+     * themselves are suspect. A recovery that is allowed to keep an existing prefix behaves differently for the two,
+     * which is the whole reason {@link InconsistencyReason#CORRUPT_STORAGE} exists - and until this split it was
+     * declared and never assigned, so a corrupt stream was recorded as a serde failure.
+     */
+    private InconsistencyReason getSerializationInconsistency() {
         try {
             getFirstValue();
             getLastValue();
-            return false;
+            return InconsistencyReason.NONE;
         } catch (final Throwable t) {
             if (Throwables.isCausedByType(t, SerializationException.class)) {
                 //e.g. fst: unable to find class for code 88 after version upgrade
                 log.warn(
                         "Table data for [%s] is inconsistent and needs to be reset. Exception during deserialization: %s",
                         hashKey, t.toString());
-                return true;
-            } else {
-                //unexpected exception, since RemoteFastSerializingSerde only throws SerializingException
-                throw Throwables.propagate(t);
+                return InconsistencyReason.INVALID_SERIALIZATION;
             }
+            if (Throwables.isCausedByType(t, java.io.IOException.class)) {
+                //The old else-branch assumed the serde can only throw SerializationException. It cannot: reading a
+                //stored stream that has lost bytes to corruption fails in the compression layer with an IOException
+                //("Stream is corrupted" from the LZ4 block reader), and propagating THAT out of the consistency check
+                //means the state is never healed - the consumer asked whether the store is rebuildable, was handed an
+                //exception instead of an answer, and the key stays broken. A store that cannot be read is by
+                //definition inconsistent, whatever layer noticed it.
+                log.warn(
+                        "Table data for [%s] is inconsistent and needs to be reset. The stored stream cannot be read: %s",
+                        hashKey, t.toString());
+                return InconsistencyReason.CORRUPT_STORAGE;
+            }
+            //neither a serde failure nor a stream failure: this is our own bug, and hiding it as an inconsistency
+            //would send the consumer to re-download data that was never damaged
+            throw Throwables.propagate(t);
         }
     }
 
@@ -1195,8 +1294,7 @@ public class TimeSeriesLookupStorageCache<K, V> {
             }
 
             final long memoryOffset = summary.getPrecedingMemoryOffset() + summary.getMemoryOffset();
-            final long expectedMemoryOffset = prevSummary.getPrecedingMemoryOffset() + prevSummary.getMemoryOffset()
-                    + prevSummary.getMemoryLength();
+            final long expectedMemoryOffset = prevSummary.getCombinedMemoryFileSize();
             if (memoryOffset != expectedMemoryOffset) {
                 throw new IllegalStateException(
                         "memoryOffset[" + memoryOffset + "] != expectedMemoryOffset[" + expectedMemoryOffset + "]");
@@ -1215,17 +1313,20 @@ public class TimeSeriesLookupStorageCache<K, V> {
     }
 
     /**
-     * When shouldRedoLastFile=true this deletes the last file in order to create a new updated one (so the files do not
-     * get fragmented too much between updates
+     * When shouldRedoLastFile=true the last file is replaced by a new updated one (so the files do not get fragmented
+     * too much between updates). The attempt local data files of this attempt make the redo safe: it writes files of
+     * its own and leaves the replaced file of the previously published generation untouched.
      */
     public synchronized TimeSeriesUpdateTransaction<V> newUpdateTransaction(final boolean shouldRedoLastFile) {
         maybeUpdateIndex();
         final MemoryFileSummary latestSummary = getLastRangeKey();
+        final String epochLocalDataId = MemoryFiles.newEpochLocalDataId();
         final FDate updateFrom;
         final List<V> lastValues;
         final long precedingMemoryOffset;
         final long memoryOffset;
         final long precedingValueCount;
+        final FDate resumeAfterEndTime;
         if (latestSummary != null) {
             final FDate latestRangeKey;
             if (shouldRedoLastFile && MemoryFiles.isIncompleteMemoryFile(latestSummary.getMemoryResourceUri())) {
@@ -1241,20 +1342,30 @@ public class TimeSeriesLookupStorageCache<K, V> {
                     memoryOffset = latestSummary.getMemoryOffset();
                     precedingValueCount = latestSummary.getPrecedingValueCount();
                     updateFrom = extractEndTime(lastValue);
+                    //the removed last value comes back from the source, everything before it is re-written from
+                    //lastValues, so nothing is excluded by its end time
+                    resumeAfterEndTime = null;
                     latestRangeKey = latestSummary.getFirstValueEndTime();
                 } else {
                     precedingMemoryOffset = latestSummary.getPrecedingMemoryOffset();
                     memoryOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength();
                     precedingValueCount = latestSummary.getPrecedingValueCount() + latestSummary.getValueCount();
                     updateFrom = latestSummary.getFirstValueEndTime();
+                    resumeAfterEndTime = null;
                     latestRangeKey = latestSummary.getFirstValueEndTime().addPicoseconds(1);
                 }
             } else {
+                //the last published file is a complete one: a boundary commit publishes complete segments only, so an
+                //attempt that continues such a store resumes a previous attempt that died mid-pass. The resume point
+                //is the last value the store holds, not the first value of the last file - continuing at the first
+                //value would hand the already stored values back to the writer and break the summary chain.
+                final FDate lastPublishedValueEndTime = extractEndTime(latestSummary.getLastValue(valueSerde));
                 lastValues = Collections.emptyList();
                 precedingMemoryOffset = latestSummary.getPrecedingMemoryOffset();
                 memoryOffset = latestSummary.getMemoryOffset() + latestSummary.getMemoryLength();
                 precedingValueCount = latestSummary.getPrecedingValueCount() + latestSummary.getValueCount();
-                updateFrom = latestSummary.getFirstValueEndTime();
+                updateFrom = lastPublishedValueEndTime;
+                resumeAfterEndTime = lastPublishedValueEndTime;
                 latestRangeKey = latestSummary.getFirstValueEndTime().addPicoseconds(1);
             }
             storage.deleteRange_latestValueLookupTable(hashKey, latestRangeKey);
@@ -1270,9 +1381,14 @@ public class TimeSeriesLookupStorageCache<K, V> {
             precedingMemoryOffset = 0L;
             memoryOffset = 0L;
             precedingValueCount = 0L;
+            resumeAfterEndTime = null;
         }
-        return new TimeSeriesUpdateTransaction<>(this, updateFrom, lastValues, precedingMemoryOffset, memoryOffset,
-                precedingValueCount);
+        //the attempt writes data files of its own, so its byte space starts at 0 while the preceding offset keeps the
+        //running total over the files the published generation references
+        final long transactionPrecedingMemoryOffset = precedingMemoryOffset + memoryOffset;
+        final long transactionMemoryOffset = 0L;
+        return new TimeSeriesUpdateTransaction<>(this, updateFrom, lastValues, transactionPrecedingMemoryOffset,
+                transactionMemoryOffset, precedingValueCount, epochLocalDataId, resumeAfterEndTime);
     }
 
     public synchronized void maybeUpdateIndex() {
@@ -1370,13 +1486,13 @@ public class TimeSeriesLookupStorageCache<K, V> {
     }
 
     @SuppressWarnings("rawtypes")
-    private static final class ResultCacheKey {
+    static final class ResultCacheKey {
 
         private final MemoryFileSummary summary;
         private final IFileBufferSource source;
         private final int hashCode;
 
-        private ResultCacheKey(final MemoryFileSummary summary, final IFileBufferSource source) {
+        ResultCacheKey(final MemoryFileSummary summary, final IFileBufferSource source) {
             this.summary = summary;
             this.source = source;
             this.hashCode = Objects.hashCode(ResultCacheKey.class, summary);
@@ -1399,7 +1515,11 @@ public class TimeSeriesLookupStorageCache<K, V> {
         public boolean equals(final Object obj) {
             if (obj instanceof ResultCacheKey) {
                 final ResultCacheKey cObj = (ResultCacheKey) obj;
-                return hashCode == cObj.hashCode;
+                //hashCode alone only identifies the bucket - two different segment summaries must never compare
+                //equal just because their hash codes collide, else one segment's cached result is served for the
+                //other; MemoryFileSummary.equals covers exactly the fields that feed MemoryFileSummary.hashCode,
+                //so value-equal summaries keep equal hashCodes and this stays hashCode-consistent
+                return hashCode == cObj.hashCode && Objects.equals(summary, cObj.summary);
             }
             return false;
         }

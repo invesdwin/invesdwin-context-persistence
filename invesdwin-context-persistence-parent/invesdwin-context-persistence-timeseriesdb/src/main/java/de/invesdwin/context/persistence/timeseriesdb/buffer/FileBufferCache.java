@@ -9,6 +9,7 @@ import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -247,7 +248,15 @@ public final class FileBufferCache {
                 }
                 return value;
             } catch (final TimeoutException e) {
-                //prevent async deadlock when write lock just became active
+                //prevent async deadlock when write lock just became active; also drop the cached
+                //future - Futures.get() cancels it on timeout/interrupt, and leaving a cancelled
+                //future in the cache would poison every later reader with a CancellationException
+                RESULT_CACHE.asMap().remove(key);
+                return getResultNoCache(source);
+            } catch (final CancellationException e) {
+                //the cached future was cancelled by an earlier timed-out reader (see above); evict
+                //the poisoned entry and serve this read synchronously
+                RESULT_CACHE.asMap().remove(key);
                 return getResultNoCache(source);
             }
         } else {
@@ -313,14 +322,14 @@ public final class FileBufferCache {
         PRELOAD_EXECUTOR.execute(() -> getResult(hashKey, summary, source));
     }
 
-    private static final class ResultCacheKey {
+    static final class ResultCacheKey {
 
         private final String hashKey;
         private final MemoryFileSummary summary;
         private IFileBufferSource source;
         private final int hashCode;
 
-        private ResultCacheKey(final String hashKey, final MemoryFileSummary summary, final IFileBufferSource source) {
+        ResultCacheKey(final String hashKey, final MemoryFileSummary summary, final IFileBufferSource source) {
             this.hashKey = hashKey;
             this.summary = summary;
             this.source = source;
@@ -352,7 +361,11 @@ public final class FileBufferCache {
         public boolean equals(final Object obj) {
             if (obj instanceof ResultCacheKey) {
                 final ResultCacheKey cObj = (ResultCacheKey) obj;
-                return hashCode == cObj.hashCode;
+                //hashCode alone only identifies the bucket - hashKey and summary decide identity (the source is
+                //deliberately not part of the identity, it is re-set via setSource on the shared entry); value-equal
+                //hashKey/summary keep equal hashCodes, so this stays hashCode-consistent
+                return hashCode == cObj.hashCode && Objects.equals(hashKey, cObj.hashKey)
+                        && Objects.equals(summary, cObj.summary);
             }
             return false;
         }

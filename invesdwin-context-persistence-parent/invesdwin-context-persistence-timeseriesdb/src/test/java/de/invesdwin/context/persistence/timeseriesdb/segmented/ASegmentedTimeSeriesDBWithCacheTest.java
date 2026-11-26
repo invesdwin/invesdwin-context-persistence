@@ -36,6 +36,7 @@ public class ASegmentedTimeSeriesDBWithCacheTest extends ABaseDBWithCacheTest {
     public void setUp() throws Exception {
         super.setUp();
         table = new TestSegmentedTimeSeriesDB(getClass().getSimpleName(), entities);
+        warmUpCacheSingletons();
     }
 
     public static final class TestSegmentedTimeSeriesDB extends ASegmentedTimeSeriesDB<String, FDate> {

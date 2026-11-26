@@ -109,6 +109,16 @@ public class MemoryFileSummary implements ISerializableValueObject {
         return memoryLength;
     }
 
+    /**
+     * The byte extent this summary claims for the data file it names: the running total of the bytes the chain holds up
+     * to it plus its own range. A published generation's high-water is that value for its last summary, and the lookup
+     * table's EXPECTED_MEMORY_FILE_SIZE property keeps exactly that number - which is also where the next summary must
+     * start, so a chain that does not tile it is inconsistent.
+     */
+    public long getCombinedMemoryFileSize() {
+        return precedingMemoryOffset + memoryOffset + memoryLength;
+    }
+
     public IByteBuffer newBuffer(final IMemoryMappedFile file) {
         final int length = Integers.checkedCast(getMemoryLength());
         return file.newByteBuffer(getMemoryOffset(), length);

@@ -25,4 +25,12 @@ public interface ITimeSeriesUpdaterInternalMethods<K, V> {
 
     boolean shouldRedoLastFile();
 
+    /**
+     * Identifies the data files that this update attempt writes; must never be null. The epoch local layout (every
+     * attempt writing data files named after itself into the version directory) is the only layout this store
+     * supports, so an implementation that returns null breaks the contract and is refused by
+     * {@link de.invesdwin.context.persistence.timeseriesdb.storage.memory.MemoryFiles#newMemoryFile(de.invesdwin.context.persistence.timeseriesdb.updater.progress.ITimeSeriesUpdaterInternalMethods, long)}.
+     */
+    String getEpochLocalDataId();
+
 }

@@ -44,6 +44,8 @@ public class SequentialChunkedUpdateProgress<K, V> implements ITimeSeriesUpdateP
     private V lastElement;
     private FDate maxTime;
     private BufferedFileDataOutputStream out;
+    //true when the last published boundary ended this data file: the next chunk goes into a file of its own
+    private boolean publishedBoundary;
 
     private final Object[] batch;
 
@@ -71,6 +73,20 @@ public class SequentialChunkedUpdateProgress<K, V> implements ITimeSeriesUpdateP
 
     private File newMemoryFile() {
         return MemoryFiles.newMemoryFile(parent, precedingMemoryOffset);
+    }
+
+    /**
+     * Closes the data file this writer has been appending to and continues in a fresh one; the offsets keep the
+     * running total over the files this attempt writes, the same scheme the chunked layout uses for a segment size
+     * overflow.
+     */
+    private void startNextMemoryFile() throws IOException {
+        precedingMemoryOffset += memoryOffset;
+        memoryFile = newMemoryFile();
+        out.close();
+        out = new BufferedFileDataOutputStream(memoryFile);
+        memoryOffset = 0;
+        publishedBoundary = false;
     }
 
     @Override
@@ -147,17 +163,18 @@ public class SequentialChunkedUpdateProgress<K, V> implements ITimeSeriesUpdateP
             final long tempFileLength = tempOut.position();
 
             if (complete) {
+                if (publishedBoundary) {
+                    //everything this file holds is published: finish it and continue in a file of its own, so that a
+                    //published file never carries trailing bytes of a segment that was not published
+                    startNextMemoryFile();
+                }
                 if (IMemoryMappedFile.isSegmentSizeExceeded(memoryOffset + tempFileLength)) {
-                    precedingMemoryOffset += memoryOffset;
-                    memoryFile = newMemoryFile();
-                    out.close();
                     if (OperatingSystem.isWindows() && IMemoryMappedFile.isSegmentSizeExceeded(tempFileLength)) {
                         throw new IllegalStateException("Cannot write temp file of length [" + tempFileLength
                                 + "] to new memory file because it would exceed the maximum segment size of ["
                                 + IMemoryMappedFile.MAX_SEGMENT_SIZE_WINDOWS + "] on Windows");
                     }
-                    out = new BufferedFileDataOutputStream(memoryFile);
-                    memoryOffset = 0;
+                    startNextMemoryFile();
                 }
 
                 transferToMemoryFile(tempFileLength);
@@ -167,6 +184,7 @@ public class SequentialChunkedUpdateProgress<K, V> implements ITimeSeriesUpdateP
                 memoryOffset += tempFileLength;
                 precedingValueCount += valueCount;
                 parent.onFlush(this, flushIndex);
+                publishedBoundary = updateTransaction.commitSegmentBoundary();
 
             } else {
                 // Route incomplete segment to isolated standalone file

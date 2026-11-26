@@ -222,7 +222,9 @@ public class ThresholdDiskLargeArrayAllocator implements ILargeArrayAllocator, C
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(ThresholdDiskLargeArrayAllocator.class, heap, disk, getDirectory());
+        // getDirectory() is disk's own state and already folded into disk.hashCode(); the
+        // equals field set here is exactly (heap, disk) so the pair stays consistent.
+        return Objects.hashCode(ThresholdDiskLargeArrayAllocator.class, heap, disk);
     }
 
     @Override

@@ -19,6 +19,7 @@ public class NoGapValuesASegmentedTimeSeriesDBWithUnlimitedCacheTest extends ANo
     public void setUp() throws Exception {
         super.setUp();
         table = new TestSegmentedTimeSeriesDB(getClass().getSimpleName(), entities);
+        warmUpCacheSingletons();
     }
 
 }

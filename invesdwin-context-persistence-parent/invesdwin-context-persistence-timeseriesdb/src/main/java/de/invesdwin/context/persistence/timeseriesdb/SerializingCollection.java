@@ -638,7 +638,21 @@ public class SerializingCollection<E> implements Collection<E>, IDeserializingCl
 
         @Override
         protected void clean() {
-            Closeables.closeQuietly(fos);
+            //A channel that publishes on close does its rename INSIDE this close (AtomicNioFileChannel.newUpload()
+            //returns a stream whose close() moves the staged temp file onto the final name), so closing quietly loses
+            //the publish verdict: the caller continues believing the collection was written, and the reader later finds
+            //a shorter chain - for an index generation that is an inconsistent key the derived-store guards rebuild.
+            //AFinalizer.run() already catches anything thrown on the cleaner path, so this only reaches application code.
+            //Wrapped here rather than handed to Closeables.close(): its Throwables.propagate rethrows the ORIGINAL
+            //checked exception unchecked (LangUtil.rethrowUnchecked), which a caller's catch (RuntimeException) cannot
+            //see - the publish verdict then walks past every handler that was written for it.
+            if (fos != null) {
+                try {
+                    fos.close();
+                } catch (final IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
             fos = null;
             ByteBuffers.EXPANDABLE_POOL.returnObject(writeBuffer);
             writeBuffer = null;

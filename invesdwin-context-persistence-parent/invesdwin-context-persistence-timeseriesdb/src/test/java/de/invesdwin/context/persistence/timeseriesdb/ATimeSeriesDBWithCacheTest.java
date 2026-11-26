@@ -36,6 +36,7 @@ public class ATimeSeriesDBWithCacheTest extends ABaseDBWithCacheTest {
         table = new TestTimeSeriesDB(getClass().getSimpleName());
         updater = new TestTimeSeriesUpdater(KEY, (ATimeSeriesDB<String, FDate>) table, entities);
         updater.update().close();
+        warmUpCacheSingletons();
     }
 
     public static final class TestTimeSeriesUpdater extends ATimeSeriesUpdater<String, FDate> {

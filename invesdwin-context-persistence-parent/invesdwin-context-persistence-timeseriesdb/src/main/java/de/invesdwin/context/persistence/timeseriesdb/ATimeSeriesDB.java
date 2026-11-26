@@ -14,6 +14,7 @@ import de.invesdwin.context.integration.persistentmap.CorruptedStorageException;
 import de.invesdwin.context.integration.retry.RetryDisabledRuntimeException;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
 import de.invesdwin.context.log.error.Err;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache.InconsistencyReason;
 import de.invesdwin.context.persistence.timeseriesdb.directory.ITimeSeriesDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.TimeSeriesDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
@@ -376,6 +377,12 @@ public abstract class ATimeSeriesDB<K, V> implements ITimeSeriesDBInternals<K, V
         } finally {
             readLock.unlock();
         }
+    }
+
+    @Override
+    public InconsistencyReason getInconsistencyReason(final K key) {
+        //no lock and no walk: this reads what the last isEmptyOrInconsistent pass on this cache recorded
+        return getLookupTableCache(key).getLastInconsistencyReason();
     }
 
     @Override

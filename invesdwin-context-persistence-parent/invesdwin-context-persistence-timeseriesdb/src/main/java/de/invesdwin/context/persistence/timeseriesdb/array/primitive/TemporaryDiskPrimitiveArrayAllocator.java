@@ -180,7 +180,7 @@ public class TemporaryDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllo
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(DiskPrimitiveArrayAllocator.class, getDelegate());
+        return Objects.hashCode(TemporaryDiskPrimitiveArrayAllocator.class, getDelegate());
     }
 
     @Override
@@ -190,7 +190,7 @@ public class TemporaryDiskPrimitiveArrayAllocator implements IPrimitiveArrayAllo
         }
         if (obj instanceof TemporaryDiskPrimitiveArrayAllocator) {
             final TemporaryDiskPrimitiveArrayAllocator cObj = (TemporaryDiskPrimitiveArrayAllocator) obj;
-            return Objects.equals(getDelegate(), cObj.finalizer.delegate);
+            return Objects.equals(getDelegate(), cObj.getDelegate());
         }
         return false;
     }

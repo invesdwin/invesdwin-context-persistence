@@ -180,7 +180,7 @@ public class TemporaryDiskLargeArrayAllocator implements ILargeArrayAllocator, C
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(DiskLargeArrayAllocator.class, getDelegate());
+        return Objects.hashCode(TemporaryDiskLargeArrayAllocator.class, getDelegate());
     }
 
     @Override
@@ -190,7 +190,7 @@ public class TemporaryDiskLargeArrayAllocator implements ILargeArrayAllocator, C
         }
         if (obj instanceof TemporaryDiskLargeArrayAllocator) {
             final TemporaryDiskLargeArrayAllocator cObj = (TemporaryDiskLargeArrayAllocator) obj;
-            return Objects.equals(getDelegate(), cObj.finalizer.delegate);
+            return Objects.equals(getDelegate(), cObj.getDelegate());
         }
         return false;
     }

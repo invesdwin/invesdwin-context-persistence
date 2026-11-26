@@ -10,6 +10,7 @@ import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.integration.compression.lz4.FastLZ4CompressionFactory;
 import de.invesdwin.context.integration.persistentmap.APersistentMap;
 import de.invesdwin.context.integration.persistentmap.IPersistentMapFactory;
+import de.invesdwin.context.log.Log;
 import de.invesdwin.context.persistence.timeseriesdb.IPersistentMapType;
 import de.invesdwin.context.persistence.timeseriesdb.PersistentMapType;
 import de.invesdwin.context.persistence.timeseriesdb.directory.ITimeSeriesDirectory;
@@ -127,14 +128,33 @@ public class TimeSeriesStorage {
 
     private void maybeResetTable(final APersistentMap<?, ?> table) {
         final String key = newResetTableKey(table);
-        final FDate lastResetShared = directory.getStoragePropertiesShared().getDateOptional(key);
+        final FDate lastResetShared;
+        try {
+            lastResetShared = directory.getStoragePropertiesShared().getDateOptional(key);
+        } catch (final RuntimeException e) {
+            //A corrupted reset-marker (torn or interleaved properties write) is metadata of a derived store, not market data: treat it as an unknown reset state and force a clean-state delete+rewrite instead of crashing the opening - this prevents one bad metadata read from poisoning every later run
+            new Log(TimeSeriesStorage.class).warn("Corrupted reset-marker [%s] in shared storage properties of [%s], forcing table reset", key, directory.getStorageName(), e);
+            table.deleteTable();
+            directory.getStoragePropertiesShared().remove(key);
+            updateResetTableUnchecked(table, null, FDate.now());
+            return;
+        }
         final FDate now;
         if (lastResetShared == null) {
             now = FDate.now();
         } else {
             now = lastResetShared;
         }
-        final FDate lastResetPerNode = directory.getStoragePropertiesPerNode().getDateOptional(key);
+        final FDate lastResetPerNode;
+        try {
+            lastResetPerNode = directory.getStoragePropertiesPerNode().getDateOptional(key);
+        } catch (final RuntimeException e) {
+            new Log(TimeSeriesStorage.class).warn("Corrupted reset-marker [%s] in per-node storage properties of [%s], forcing table reset", key, directory.getStorageName(), e);
+            table.deleteTable();
+            directory.getStoragePropertiesPerNode().remove(key);
+            updateResetTableUnchecked(table, lastResetShared, FDate.now());
+            return;
+        }
         if (!Objects.equals(now, lastResetPerNode)) {
             table.deleteTable();
             updateResetTableUnchecked(table, lastResetShared, now);

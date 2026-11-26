@@ -1,5 +1,7 @@
 package de.invesdwin.context.persistence.timeseriesdb;
 
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache.InconsistencyReason;
+
 import java.io.Closeable;
 
 import de.invesdwin.context.integration.compression.ICompressionFactory;
@@ -58,6 +60,23 @@ public interface ITimeSeriesDB<K, V> extends Closeable {
     FDate getPreviousValueKey(K key, FDate date, int shiftBackUnits);
 
     boolean isEmptyOrInconsistent(K key);
+
+    /**
+     * Which check indicted this key on the most recent {@link #isEmptyOrInconsistent(K)} pass, or {@code NONE} when
+     * nothing did. Call the boolean first: the walk is the expensive part, and this reads the answer that walk already
+     * recorded rather than re-checking.
+     * <p>
+     * It exists because one boolean is not a policy. Wiping a key is the right act for a chain that contradicts itself
+     * or a stream that will not decode, and is data loss for a key that was simply never built - yet every consumer of
+     * the boolean has so far had to guess which case it is holding, or probe the store a second time to find out.
+     * <p>
+     * The default answers {@code NONE} for stores that do not classify their own damage; the real timeseriesdb
+     * implementations override it, and a consumer must treat {@code NONE} together with a {@code true} boolean as "this
+     * store cannot tell me why", not as "the store is fine".
+     */
+    default InconsistencyReason getInconsistencyReason(final K key) {
+        return InconsistencyReason.NONE;
+    }
 
     /**
      * Jumps the specified shiftForwardUnits to the future instead of only one unit.

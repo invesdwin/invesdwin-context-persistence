@@ -296,6 +296,8 @@ public class ParallelUpdateProgress<K, V> implements ITimeSeriesUpdateProgress {
         int flushIndex = 0;
         long precedingMemoryOffset = initialPrecedingMemoryOffset;
         long precedingValueCount = initialPrecedingValueCount;
+        //true when the last published boundary ended the current data file: the next chunk goes into a new one
+        boolean publishedBoundary = false;
 
         File memoryFile = MemoryFiles.newMemoryFile(parent, precedingMemoryOffset);
 
@@ -315,18 +317,22 @@ public class ParallelUpdateProgress<K, V> implements ITimeSeriesUpdateProgress {
                     final boolean complete = !parent.shouldRedoLastFile()
                             || (progress.getValueCount() == batchFlushInterval && batchWriterProducer.hasNext());
                     if (complete) {
-                        if (IMemoryMappedFile.isSegmentSizeExceeded(memoryOffset + tempFileLength)) {
-                            precedingMemoryOffset += memoryOffset;
-                            memoryFile = MemoryFiles.newMemoryFile(parent, precedingMemoryOffset);
-                            memoryFileOut.close();
+                        if (publishedBoundary || IMemoryMappedFile.isSegmentSizeExceeded(memoryOffset
+                                + tempFileLength)) {
+                            //either the last published boundary ended this data file (a published file must never carry
+                            //trailing bytes of a segment that was not published) or the segment size limit is reached
                             if (OperatingSystem.isWindows()
                                     && IMemoryMappedFile.isSegmentSizeExceeded(tempFileLength)) {
                                 throw new IllegalStateException("Cannot write temp file of length [" + tempFileLength
                                         + "] to new memory file because it would exceed the maximum segment size of ["
                                         + IMemoryMappedFile.MAX_SEGMENT_SIZE_WINDOWS + "] on Windows");
                             }
+                            precedingMemoryOffset += memoryOffset;
+                            memoryFile = MemoryFiles.newMemoryFile(parent, precedingMemoryOffset);
+                            memoryFileOut.close();
                             memoryFileOut = new FileOutputStream(memoryFile, true);
                             memoryOffset = 0;
+                            publishedBoundary = false;
                         }
                         memoryOffset += progress.transferToMemoryFile(updateTransaction, memoryFileOut, memoryFile,
                                 precedingMemoryOffset, memoryOffset, flushIndex, precedingValueCount, tempFileLength);
@@ -336,6 +342,7 @@ public class ParallelUpdateProgress<K, V> implements ITimeSeriesUpdateProgress {
                                             + "] does not match expected memory offset [" + memoryOffset + "]");
                         }
                         precedingValueCount += progress.getValueCount();
+                        publishedBoundary = updateTransaction.commitSegmentBoundary();
                     } else {
                         //open new incomplete segment to isolated file
                         precedingMemoryOffset += memoryOffset;

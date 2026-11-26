@@ -7,6 +7,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import de.invesdwin.context.integration.compression.ICompressionFactory;
 import de.invesdwin.context.persistence.timeseriesdb.ITimeSeriesDB;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache.InconsistencyReason;
 import de.invesdwin.context.persistence.timeseriesdb.directory.ITimeSeriesDirectory;
 import de.invesdwin.context.persistence.timeseriesdb.directory.base.ITimeSeriesBaseDirectory;
 import de.invesdwin.util.collections.iterable.ICloseableIterable;
@@ -37,6 +38,13 @@ public abstract class ADelegateTimeSeriesDB<K, V> implements ITimeSeriesDB<K, V>
     @Override
     public ITimeSeriesBaseDirectory getBaseDirectory() {
         return delegate.getBaseDirectory();
+    }
+
+    @Override
+    public InconsistencyReason getInconsistencyReason(final K key) {
+        //delegated on purpose: a wrapped table classifies its own damage, and inheriting the interface default would
+        //answer NONE for a store that in fact knows why it is indicting the key
+        return delegate.getInconsistencyReason(key);
     }
 
     @Override

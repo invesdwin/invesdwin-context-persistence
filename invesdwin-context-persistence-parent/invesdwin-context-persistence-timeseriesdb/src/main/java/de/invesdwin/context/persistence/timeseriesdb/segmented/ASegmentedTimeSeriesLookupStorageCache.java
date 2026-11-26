@@ -1,6 +1,8 @@
 package de.invesdwin.context.persistence.timeseriesdb.segmented;
 
+import de.invesdwin.util.concurrent.lock.ILock;
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
@@ -17,10 +19,11 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.commons.lang3.SerializationException;
 import org.springframework.retry.backoff.BackOffPolicy;
 
+import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.version.lease.TimeSeriesDirectoryHashKeyVersionLeaseRegistry;
 import de.invesdwin.context.integration.IntegrationProperties;
 import de.invesdwin.context.integration.concurrent.DatabaseThreads;
-import de.invesdwin.context.integration.retry.NonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.RetryLaterRuntimeException;
+import de.invesdwin.context.integration.retry.fast.FastNonBlockingRetryLaterRuntimeException;
 import de.invesdwin.context.integration.retry.task.ARetryCallable;
 import de.invesdwin.context.integration.retry.task.BackOffPolicies;
 import de.invesdwin.context.integration.retry.task.RetryOriginator;
@@ -29,7 +32,9 @@ import de.invesdwin.context.log.error.Err;
 import de.invesdwin.context.persistence.timeseriesdb.IncompleteUpdateRetryableException;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupMode;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache;
+import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesLookupStorageCache.InconsistencyReason;
 import de.invesdwin.context.persistence.timeseriesdb.TimeSeriesProperties;
+import de.invesdwin.context.persistence.timeseriesdb.UpdateAttemptVerdict;
 import de.invesdwin.context.persistence.timeseriesdb.buffer.FileBufferCache;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.ITimeSeriesDirectoryHashKey;
 import de.invesdwin.context.persistence.timeseriesdb.directory.hashkey.TimeSeriesDirectoryHashKey;
@@ -66,7 +71,6 @@ import de.invesdwin.util.concurrent.future.Futures;
 import de.invesdwin.util.concurrent.future.ImmutableFuture;
 import de.invesdwin.util.concurrent.future.ThrowableFuture;
 import de.invesdwin.util.concurrent.lock.ICloseableLock;
-import de.invesdwin.util.concurrent.lock.ILock;
 import de.invesdwin.util.concurrent.lock.Locks;
 import de.invesdwin.util.concurrent.lock.disabled.DisabledLock;
 import de.invesdwin.util.concurrent.lock.file.HeartbeatFileChannelLock;
@@ -109,6 +113,12 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
     private volatile long cachedSize = -1L;
     private volatile Optional<FDate> cachedPrevLastAvailableSegmentToWithoutLive;
     private volatile Optional<FDate> cachedPrevLastAvailableSegmentToWithLive;
+    /**
+     * Which check indicted this segmented store on the most recent {@link #isEmptyOrInconsistent()} pass, so a
+     * recovery can be written per reason instead of all-or-nothing. Same enum as the non-segmented cache's answer:
+     * the two must not drift into different vocabularies for the same states.
+     */
+    private volatile InconsistencyReason lastInconsistencyReason = InconsistencyReason.NONE;
     private final Log log = new Log(this);
 
     private final ASegmentedTimeSeriesDB<K, V>.SegmentedTable segmentedTable;
@@ -250,6 +260,10 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         };
         this.deleteLock = Locks.newReentrantLock(ASegmentedTimeSeriesLookupStorageCache.class.getSimpleName() + "_"
                 + segmentedTable.getName() + "_" + hashKey + "_deleteLock");
+    }
+
+    public InconsistencyReason getLastInconsistencyReason() {
+        return lastInconsistencyReason;
     }
 
     public ITimeSeriesDirectoryHashKey getDirectoryHashKey() {
@@ -396,7 +410,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         final IReadWriteLock segmentTableLock = segmentedTable.getTableLock(segmentedKey);
         final ILock segmentReadLock = segmentTableLock.readLock();
         if (!segmentReadLock.tryLockNoInterrupt(IntegrationProperties.NON_BLOCKING_ASYNC_WAIT_TIMEOUT)) {
-            throw new NonBlockingRetryLaterRuntimeException(ASegmentedTimeSeriesLookupStorageCache.class.getSimpleName()
+            throw new FastNonBlockingRetryLaterRuntimeException(ASegmentedTimeSeriesLookupStorageCache.class.getSimpleName()
                     + ".maybeInitSegmentAsync: readlock could not be acquired for async update check while operating in non-blocking mode for segment "
                     + getElementsName() + ": " + segmentedKey);
         }
@@ -444,7 +458,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
                 //make sure entry is removed even if async task finished before the put operation happened
                 segmentedKey_maybeInitSegmentAsyncFuture.remove(segmentedKey);
             } catch (final TimeoutException e) {
-                throw new NonBlockingRetryLaterRuntimeException(
+                throw new FastNonBlockingRetryLaterRuntimeException(
                         ASegmentedTimeSeriesLookupStorageCache.class.getSimpleName()
                                 + ".maybeInitSegmentAsync: async update " + reason
                                 + " while operating in non-blocking mode for segment " + getElementsName() + ": "
@@ -513,10 +527,18 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
                             segmentedTable.deleteRange(segmentedKey);
                             segmentStatusTable.delete(segmentedKey.getSegment());
                         }
-                        initSegmentWithStatusHandling(segmentedKey, source);
-                        onSegmentCompleted(segmentedKey, readRangeValues(segmentedKey.getSegment().getFrom(),
-                                segmentedKey.getSegment().getTo(), DisabledLock.INSTANCE, null));
-                        return true;
+                        //initSegmentWithStatusHandling reports the outcome: when the completion publish was
+                        //discarded (a deleteAll overtook the update) it wipes the segment and throws a
+                        //RetryLaterRuntimeException, so no completion event is reported to listeners (and the
+                        //live convertLiveSegmentToHistorical callers that consume this boolean) and the
+                        //blocking read retries against the wiped fresh state instead of being answered with
+                        //the segment silently missing. The false branch below stays defensive only.
+                        if (initSegmentWithStatusHandling(segmentedKey, source)) {
+                            onSegmentCompleted(segmentedKey, readRangeValues(segmentedKey.getSegment().getFrom(),
+                                    segmentedKey.getSegment().getTo(), DisabledLock.INSTANCE, null));
+                            return true;
+                        }
+                        return false;
                     } finally {
                         segmentWriteLock.unlock();
                     }
@@ -588,16 +610,129 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         return true;
     }
 
-    private void initSegmentWithStatusHandling(final SegmentedKey<K> segmentedKey,
+    private boolean initSegmentWithStatusHandling(final SegmentedKey<K> segmentedKey,
             final Function<SegmentedKey<K>, ICloseableIterable<? extends V>> source) {
+        //Wipe before the update so that each publish is a replacement and never an append onto files a
+        //racing deleteAll may have left in this generation: deleteAll iterates a point-in-time status
+        //rangeKeys snapshot, so a segment whose INITIALIZING row lands after that snapshot gets its key
+        //generation bumped while its data files (and its segment-level version) survive; appending the
+        //fresh flush onto them would publish COMPLETE over the merge (resurrection/duplication) and no
+        //version-equality check could ever see it. Same idiom as the INITIALIZING resume wipe in
+        //maybeInitSegmentSync; deleteRange re-enters the segment write lock the caller already holds
+        //and bumps the segment-level version, which the capture below records after it.
+        segmentedTable.deleteRange(segmentedKey);
         segmentStatusTable.put(segmentedKey.getSegment(), SegmentStatus.INITIALIZING);
         maybePrepareForUpdate(segmentedKey.getSegment());
+        /*
+         * Pin the completion publish to the generation this update was computed for (887fc597 idiom:
+         * capture the directory version once per operation like the lookup-table read sites do). deleteAll
+         * increments the key version while holding deleteLock and force-deletes each snapshotted segment
+         * (bumping that segment's own version); it never waits on the segment write lock held here
+         * (ATimeSeriesDB.deleteRange forces past busy locks), so deleteAll can overtake a running update.
+         * The segmentStatus directory is version-scoped but re-resolved on every status call
+         * (RefreshingTimeSeriesSegmentStatusTable.getDelegate), so publishing after such a bump would write
+         * COMPLETE/COMPLETE_EMPTY into the NEW generation's directory - the one row deleteAll never removes
+         * (clearCaches only drops the delegate reference) - and every later reader would then be served a
+         * segment that claims complete while holding no values. Two tokens are compared because the
+         * orphaning happens at two levels: deleteAll's per-segment wipe moves the SEGMENT version, while
+         * the key-level incrementVersion can stay on the current version when the .updated marker is
+         * absent (and the marker touch a status put performs is rate-gated and tryLock-skipped under
+         * contention) - in that interleaving only the segment token moves. Captured after
+         * maybePrepareForUpdate on purpose: an update whose long phase only begins once deleteAll is
+         * through (maybePrepareForUpdate blocks there on deleteLock) still publishes normally; only
+         * updates overtaken mid-flight are discarded. The guard is coherent per cache instance only:
+         * deleteLock and the version objects are per-instance (distinct UniqueNameGenerator names), so no
+         * cross-instance coverage is claimed.
+         */
+        final int versionAtUpdateStart = directoryHashKey.getDirectoryHashKeyVersion().getVersion();
+        final int segmentVersionAtUpdateStart = segmentedTable.getLookupTableCache(segmentedKey)
+                .getDirectoryHashKey().getDirectoryHashKeyVersion().getVersion();
+        boolean discarded = false;
+        int versionObservedAtPublish = versionAtUpdateStart;
+        int segmentVersionObservedAtPublish = segmentVersionAtUpdateStart;
         try (TimeSeriesUpdaterResult result = initSegmentRetry(segmentedKey, source)) {
-            if (segmentedTable.isEmptyOrInconsistent(segmentedKey)) {
-                segmentStatusTable.put(segmentedKey.getSegment(), SegmentStatus.COMPLETE_EMPTY);
-            } else {
-                segmentStatusTable.put(segmentedKey.getSegment(), SegmentStatus.COMPLETE);
+            //The re-check and the publish must be atomic against deleteAll: take deleteLock (the per-key
+            //lock deleteAll holds across its rangeKeys loop and incrementVersion; the invalidation below
+            //uses the same lock) BEFORE reading the publish-time tokens and hold it through
+            //isEmptyOrInconsistent (disk I/O) and both status puts. Without it the check is decorative:
+            //a deleteAll completing entirely between the re-check and the put still lands the poison row
+            //in the new generation. With it, every deleteAll either completed before this region (a token
+            //moved -> discard below) or waits for this region (the put lands in the captured generation,
+            //is orphaned by the later bump and self-heals: the next reader resolves the new directory,
+            //finds no row and re-initializes from a fresh wipe). The segment-write -> deleteLock order is
+            //pre-existing (maybePrepareForUpdate, invalidateLookupTablesForSegment) and deleteAll never
+            //blocks on any segment lock, so no new cycle is introduced.
+            deleteLock.lock();
+            try {
+                versionObservedAtPublish = directoryHashKey.getDirectoryHashKeyVersion().getVersion();
+                segmentVersionObservedAtPublish = segmentedTable.getLookupTableCache(segmentedKey)
+                        .getDirectoryHashKey().getDirectoryHashKeyVersion().getVersion();
+                if (versionObservedAtPublish != versionAtUpdateStart
+                        || segmentVersionObservedAtPublish != segmentVersionAtUpdateStart) {
+                    discarded = true;
+                } else if (segmentedTable.isEmptyOrInconsistent(segmentedKey)) {
+                    segmentStatusTable.put(segmentedKey.getSegment(), SegmentStatus.COMPLETE_EMPTY);
+                } else {
+                    segmentStatusTable.put(segmentedKey.getSegment(), SegmentStatus.COMPLETE);
+                }
+            } finally {
+                deleteLock.unlock();
             }
+        }
+        //Readers that skipped this segment while it was initializing wrote lookup entries computed from
+        //the state visible without its values, which are stale now that the segment is complete - the
+        //invalidation in maybePrepareForUpdate ran before the update started, so entries written during
+        //the update window stayed stale before; delete them after the update result is closed (segment
+        //fully flushed). A discarded update takes the same invalidation path: racing readers can have
+        //loaded the half-written segment at the new version, so its derived lookup rows and value caches
+        //have to go as well.
+        invalidateLookupTablesForSegment(segmentedKey.getSegment());
+        if (discarded) {
+            //The version moved while the update ran (a deleteAll raced it): the values this updater wrote
+            //belong to a generation that was deleted. Wipe the segment (deleteRange re-enters the write
+            //lock held here - same idiom as the resume wipe above - so no partial data survives into the
+            //new generation) and drop the INITIALIZING row for completeness: any bump that forces a
+            //discard necessarily postdates the INITIALIZING put above, so that row sits orphaned in the
+            //OLD generation and this delete resolves the CURRENT directory and finds nothing - kept as a
+            //defensive no-op, not as the row removal an earlier draft claimed; the next attempt therefore
+            //sees no status row at all and takes the fresh-init branch (wipe first), not the INITIALIZING
+            //resume. Throw a retryable signal (house precedent in maybeInitSegmentSync) instead of
+            //returning quietly: a blocking-mode read whose values this thread just wiped must not complete
+            //its current query with the segment silently missing - that is exactly the family symptom.
+            //Cost bound: one wasted fetch+wipe per in-flight init per racing deleteAll, plus one bounded
+            //NON_BLOCKING_ASYNC_WAIT_TIMEOUT parent wait per racing non-blocking read.
+            Err.process(new RuntimeException(getElementsName() + ": discarding segment update for ["
+                    + segmentedKey + "]: the directory version moved from [" + versionAtUpdateStart
+                    + "] to [" + versionObservedAtPublish + "] and the segment version from ["
+                    + segmentVersionAtUpdateStart + "] to [" + segmentVersionObservedAtPublish
+                    + "] while the update ran (deleteAll raced it) - wiping the segment instead of"
+                    + " publishing its completion status."));
+            segmentedTable.deleteRange(segmentedKey);
+            segmentStatusTable.delete(segmentedKey.getSegment());
+            throw new RetryLaterRuntimeException(getElementsName() + ": segment update for ["
+                    + segmentedKey + "] was discarded because the directory version moved while it ran"
+                    + " (a deleteAll raced it) - retry the initialization from the wiped fresh state.");
+        }
+        return true;
+    }
+
+    /**
+     * Deletes storage lookup table entries that readers can have written from the state visible before [segment]
+     * became complete. The next table is deleted fully because its shift units can be arbitrarily large, the latest
+     * and previous tables are deleted from the segment start on because entries keyed before that are computed from
+     * values that the segment completion does not affect.
+     */
+    private void invalidateLookupTablesForSegment(final TimeRange segment) {
+        deleteLock.lock();
+        try {
+            storage.deleteRange_latestValueLookupTable(hashKey, segment.getFrom());
+            storage.deleteRange_nextValueLookupTable(hashKey); //we cannot be sure here about the date since shift keys can be arbitrarily large
+            storage.deleteRange_previousValueLookupTable(hashKey, segment.getFrom());
+            cachedFirstValue = null;
+            cachedLastValue = null;
+            clearValueCaches();
+        } finally {
+            deleteLock.unlock();
         }
     }
 
@@ -694,8 +829,17 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
             }
         } catch (final Throwable t) {
             if (Throwables.isCausedByType(t, IncompleteUpdateRetryableException.class)) {
+                //The wipe stays, and a cell written to remove it is what established that: a segment whose init died is
+                //reset by the NEXT attempt anyway (the INITIALIZING branch above this call deletes range and status
+                //under the write lock and the heartbeat file lock), so the only thing this delete changes is whether a
+                //reader can be served a PARTIALLY initialised segment in between - and the invariant stated on
+                //initSegmentWithStatusHandling is that a wiped fresh state is preferred over "being answered with the
+                //segment silently missing". Measured, not assumed: with this line removed, a pass that published 8
+                //values and died left those 8 unreadable all the same, because the retry path reset the segment; only
+                //the window changed. What the window is worth is a partially served bar series.
                 segmentedTable.deleteRange(new SegmentedKey<K>(segmentedKey.getKey(), segmentedKey.getSegment()));
-                throw new RetryLaterRuntimeException(t);
+                //classify, do not re-label: the marker says this pass did not finish, nothing more
+                throw UpdateAttemptVerdict.forIncompleteUpdate(hashKey, t);
             } else {
                 throw Throwables.propagate(t);
             }
@@ -710,12 +854,10 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
             updater = new ALoggingTimeSeriesUpdater<SegmentedKey<K>, V>(segmentedKey, segmentedTable, log) {
 
                 @Override
-                protected ICloseableIterable<? extends V> getSource(final FDate updateFrom)
-                        throws IncompleteUpdateRetryableException {
-                    if (updateFrom != null) {
-                        throw new IncompleteUpdateRetryableException(
-                                segmentedKey + ": updateFrom should be null: " + updateFrom);
-                    }
+                protected ICloseableIterable<? extends V> getSource(final FDate updateFrom) {
+                    //a segment is always produced as a whole, so an attempt that continues a segment a previous
+                    //attempt died in (it published a boundary first) gets that same whole-segment iterable: the update
+                    //transaction's resume guard drops the values the store already holds
                     return source.apply(segmentedKey);
                 }
 
@@ -752,13 +894,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
     }
 
     public void onSegmentCompleted(final SegmentedKey<K> segmentedKey, final ICloseableIterable<V> segmentValues) {
-        cachedSize = -1L;
-        precedingValueCountCache.clear();
-        latestSegmentedKeyFromIndexCache.clear();
-        latestValueIndexLookupCache.clear();
-        nextValueIndexLookupCache.clear();
-        previousValueIndexLookupCache.clear();
-        lastResetIndex++;
+        clearValueCaches();
     }
 
     protected abstract ITimeSeriesUpdater<SegmentedKey<K>, V> newSegmentUpdaterOverride(SegmentedKey<K> segmentedKey,
@@ -871,6 +1007,46 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         return filteredSegments;
     }
 
+    /**
+     * Retires the version that was just bumped past.
+     * <p>
+     * Attempt the delete, wait for it only where we hold the lock, leave it to the holder otherwise: a segment whose
+     * (hashKey, segment) table write lock is immediately free is unlinked now, so an uncontended reset still reclaims
+     * disk at once; a segment another thread is publishing into is left alone. And when a foreign process holds a
+     * lease on the retired version at all, nothing here is deleted - that runtime publishes into it and its own sweep
+     * will reclaim it. What the old code did instead was wait up to ACQUIRE_WRITE_LOCK_TIMEOUT on a writer its own
+     * teardown had just interrupted, and then delete while unlocked.
+     * <p>
+     * The status rows always go, in every branch: a surviving COMPLETE/COMPLETE_EMPTY row would serve a deleted
+     * segment as complete-without-values to a later reader of the same key. Anything left on disk is reclaimed by
+     * TimeSeriesDirectoryHashKeyVersionLease.cleanupObsoleteVersions, which is why requestEpochReclaim() is called -
+     * to shorten the wait, not to duplicate the sweep's lease judgement here.
+     */
+    protected void retireCurrentVersionSegments(final int retiredVersion) {
+        final boolean foreignLease = TimeSeriesDirectoryHashKeyVersionLeaseRegistry.isLeasedByForeignProcess(
+                directoryHashKey, retiredVersion);
+        try (ICloseableIterator<TimeRange> iterator = segmentStatusTable.rangeKeys()) {
+            while (true) {
+                final TimeRange rangeKey = iterator.next();
+                if (!foreignLease) {
+                    final SegmentedKey<K> segmentedKey = new SegmentedKey<>(key, rangeKey);
+                    final ILock writeLock = segmentedTable.getTableLock(segmentedKey).writeLock();
+                    if (writeLock.tryLock()) {
+                        try {
+                            segmentedTable.deleteRange(segmentedKey);
+                        } finally {
+                            writeLock.unlock();
+                        }
+                    }
+                }
+                segmentStatusTable.delete(rangeKey);
+            }
+        } catch (final NoSuchElementException e) {
+            //end reached
+        }
+        TimeSeriesDirectoryHashKeyVersionLeaseRegistry.requestEpochReclaim();
+    }
+
     public void deleteAll() {
         lookupByIndexAvailableFutureDisabled = true;
         try {
@@ -890,15 +1066,16 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
 
             deleteLock.lock();
             try {
-                try (ICloseableIterator<TimeRange> iterator = segmentStatusTable.rangeKeys()) {
-                    while (true) {
-                        final TimeRange rangeKey = iterator.next();
-                        segmentedTable.deleteRange(new SegmentedKey<K>(key, rangeKey));
-                    }
-                } catch (final NoSuchElementException e) {
-                    //end reached
-                }
+                //Copy-on-write reset: retire the version instead of deleting its segments in place. The table lock
+                //is keyed by (hashKey, segment) - getTableLock(key) in ASegmentedTimeSeriesDB - so an inline
+                //deleteRange of a segment contends with the very update attempt that is publishing into it, which is
+                //what made this path wait on a cancelled writer and then force an unlocked delete. Bumping first
+                //means no new reader can enter this version; the interrupted writer finishes into a version nobody
+                //reads; and the old version directory is reclaimed by the existing lease machinery
+                //(TimeSeriesDirectoryHashKeyVersionLease.cleanupObsoleteVersions, heartbeat-gated) rather than here.
+                final int retiredVersion = directoryHashKey.getDirectoryHashKeyVersion().getVersion();
                 directoryHashKey.getDirectoryHashKeyVersion().incrementVersion();
+                retireCurrentVersionSegments(retiredVersion);
                 storage.deleteRange_latestValueLookupTable(hashKey);
                 storage.deleteRange_nextValueLookupTable(hashKey);
                 storage.deleteRange_previousValueLookupTable(hashKey);
@@ -915,15 +1092,23 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
         FileBufferCache.remove(hashKey);
         cachedFirstValue = null;
         cachedLastValue = null;
-        cachedSize = -1L;
         cachedPrevLastAvailableSegmentToWithLive = null;
         cachedPrevLastAvailableSegmentToWithoutLive = null;
+        clearValueCaches();
+        segmentStatusTable.clear();
+    }
+
+    /**
+     * Clears the caches derived from the table values: size, preceding value count and the
+     * index/lookup position caches. Used on segment updates and as part of clearCaches().
+     */
+    private void clearValueCaches() {
+        cachedSize = -1L;
         precedingValueCountCache.clear();
         latestSegmentedKeyFromIndexCache.clear();
         latestValueIndexLookupCache.clear();
         nextValueIndexLookupCache.clear();
         previousValueIndexLookupCache.clear();
-        segmentStatusTable.clear();
         lastResetIndex++;
     }
 
@@ -1634,6 +1819,7 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
     }
 
     public boolean isEmptyOrInconsistent() {
+        lastInconsistencyReason = InconsistencyReason.NONE;
         try {
             getFirstValue();
             getLastValue();
@@ -1642,9 +1828,22 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
                 //e.g. fst: unable to find class for code 88 after version upgrade
                 log.warn("Table data for [%s] is inconsistent and needs to be reset. Exception during getLastValue: %s",
                         hashKey, t.toString());
+                lastInconsistencyReason = InconsistencyReason.INVALID_SERIALIZATION;
+                return true;
+            } else if (Throwables.isCausedByType(t, IOException.class)) {
+                //The assumption in the else-branch below, that a read can only fail as a serde failure, is the same one
+                //TimeSeriesLookupStorageCache had to give up: a stored stream that lost bytes fails in the compression
+                //layer with an IOException ("Stream is corrupted" from the LZ4 block reader). Letting that escape the
+                //question "may this key be reset?" leaves the key broken forever, because the consumer that could
+                //rebuild it is never given an answer. Measured here by SegmentedCorruptBytesRecoveryTest: a byte flip
+                //inside a published index generation propagated as RuntimeException(IOException: Stream is corrupted).
+                log.warn("Table data for [%s] is inconsistent and needs to be reset. The stored stream cannot be read: %s",
+                        hashKey, t.toString());
+                lastInconsistencyReason = InconsistencyReason.CORRUPT_STORAGE;
                 return true;
             } else {
-                //unexpected exception, since RemoteFastSerializingSerde only throws SerializingException
+                //neither a serde failure nor a stream failure: our own bug. Recording it as an inconsistency would send
+                //the consumer to re-download data that was never damaged
                 throw Throwables.propagate(t);
             }
         }
@@ -1654,7 +1853,13 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
                 final Entry<TimeRange, SegmentStatus> row = iterator.next();
                 final SegmentStatus status = row.getValue();
                 if (status == SegmentStatus.COMPLETE) {
-                    if (segmentedTable.isEmptyOrInconsistent(new SegmentedKey<K>(key, row.getKey()))) {
+                    final SegmentedKey<K> segmentKey = new SegmentedKey<K>(key, row.getKey());
+                    if (segmentedTable.isEmptyOrInconsistent(segmentKey)) {
+                        //the per-segment check knows WHICH arm indicted it; take that answer rather than guessing from
+                        //the aggregate boolean, or the reason a consumer reads is the segment finder's, not the
+                        //segment's
+                        lastInconsistencyReason = segmentedTable.getLookupTableCache(segmentKey)
+                                .getLastInconsistencyReason();
                         return true;
                     }
                 }
@@ -1662,6 +1867,12 @@ public abstract class ASegmentedTimeSeriesLookupStorageCache<K, V> implements Cl
             }
         } catch (final NoSuchElementException e) {
             //end reached
+        }
+        if (empty) {
+            //no COMPLETE segment at all: this key was never built, which is a different act for a recovery than a key
+            //whose chain contradicts itself - without a reason here a consumer reading true cannot tell "nothing to
+            //heal" from "damaged", and the honest answer for a fresh key is that there is nothing to wipe
+            lastInconsistencyReason = InconsistencyReason.NO_SUMMARIES;
         }
         return empty;
     }
